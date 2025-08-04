@@ -1,8 +1,12 @@
-# Praval
-
-A pure Python framework for building and managing LLM-based agents with state management, prompt engineering, and behavioral evolution capabilities.
-
-*Praval (प्रवाल) - Sanskrit for coral, representing the framework's ability to build complex, interconnected agent systems from simple components.*
+<div align="center">
+  <img src="logo.png" alt="Praval Logo" width="200"/>
+  
+  # Praval
+  
+  A pure Python framework for building and managing LLM-based agents with state management, prompt engineering, and behavioral evolution capabilities.
+  
+  *Praval (प्रवाल) - Sanskrit for coral, representing the framework's ability to build complex, interconnected agent systems from simple components.*
+</div>
 
 ## Overview
 
