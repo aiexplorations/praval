@@ -5,14 +5,106 @@ Demonstrates the promised 3-5 line usage for a sophisticated RAG system.
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+import time
+import signal
+import sys
+import threading
+import logging
 
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure logging to prevent massive log files
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 # Import Praval from installed package
 from praval import Agent
+
+# ==========================================
+# TIMEOUT AND SAFETY MECHANISMS
+# ==========================================
+
+class ProcessMonitor:
+    """Monitor process activity and enforce timeouts to prevent runaway execution."""
+    
+    def __init__(self, max_runtime_minutes: int = 5, max_inactivity_minutes: int = 5):
+        self.start_time = time.time()
+        self.last_activity = time.time()
+        self.max_runtime = max_runtime_minutes * 60
+        self.max_inactivity = max_inactivity_minutes * 60
+        self.is_active = True
+        self.interaction_count = 0
+        
+    def reset_activity(self):
+        """Reset the activity timer."""
+        self.last_activity = time.time()
+        self.interaction_count += 1
+        
+    def check_should_continue(self) -> bool:
+        """Check if process should continue running."""
+        current_time = time.time()
+        
+        # Check total runtime
+        if current_time - self.start_time > self.max_runtime:
+            logging.warning(f"Process exceeded maximum runtime of {self.max_runtime/60:.1f} minutes")
+            return False
+            
+        # Check inactivity timeout (only after first interaction)
+        if self.interaction_count > 0 and current_time - self.last_activity > self.max_inactivity:
+            logging.warning(f"Process inactive for {self.max_inactivity/60:.1f} minutes")
+            return False
+            
+        return True
+
+def safe_input_with_timeout(prompt: str, monitor: ProcessMonitor, timeout_seconds: int = 30) -> Optional[str]:
+    """Get user input with timeout to prevent infinite waiting."""
+    
+    def input_thread(result_container):
+        try:
+            result = input(prompt)
+            result_container.append(result)
+        except (EOFError, KeyboardInterrupt):
+            result_container.append(None)
+    
+    result_container = []
+    thread = threading.Thread(target=input_thread, args=(result_container,))
+    thread.daemon = True
+    thread.start()
+    
+    # Wait for input with timeout
+    start_time = time.time()
+    while thread.is_alive() and (time.time() - start_time) < timeout_seconds:
+        if not monitor.check_should_continue():
+            logging.info("Process timeout detected during input - shutting down")
+            return None
+        time.sleep(0.1)
+    
+    if thread.is_alive():
+        logging.warning(f"Input timeout after {timeout_seconds} seconds - assuming automated execution")
+        return None
+        
+    monitor.reset_activity()
+    return result_container[0] if result_container else None
+
+# Signal handler for graceful shutdown
+def signal_handler(signum, frame):
+    logging.info("Received termination signal - shutting down gracefully")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
+# ==========================================
+# RAG SYSTEM IMPLEMENTATION
+# ==========================================
 
 def extract_pdf_content(pdf_path: str) -> str:
     """Extract text content from PDF file."""
@@ -112,23 +204,53 @@ def retrieve_content(query: str) -> str:
 # ===============================================================
 
 def main():
-    """Interactive RAG chatbot session."""
+    """Interactive RAG chatbot session with timeout protection."""
     print("\n🤖 ESL RAG Chatbot ready!")
     print("Ask questions about statistical learning and machine learning concepts.")
+    print("⏰ Auto-shutdown after 5 minutes of inactivity or 5 minutes total runtime")
     print("Type 'quit' to exit.\n")
     
-    while True:
+    # Initialize process monitor
+    monitor = ProcessMonitor(max_runtime_minutes=5, max_inactivity_minutes=5)
+    logging.info("Starting RAG chatbot with timeout protection")
+    
+    interaction_count = 0
+    max_interactions = 20  # Limit total interactions to prevent runaway processes
+    
+    while monitor.check_should_continue() and interaction_count < max_interactions:
         try:
-            question = input("📚 Your question: ").strip()
+            # Get user input with timeout
+            question = safe_input_with_timeout("📚 Your question: ", monitor, timeout_seconds=30)
+            
+            if question is None:
+                # Input timeout or process timeout
+                if not monitor.check_should_continue():
+                    print("\n⏰ Process timeout - shutting down to prevent runaway execution")
+                else:
+                    print("\n⏰ Input timeout - assuming automated execution, exiting")
+                break
+                
+            question = question.strip()
             if question.lower() in ['quit', 'exit', 'bye']:
                 print("Goodbye! 👋")
                 break
             
             if not question:
                 continue
+                
+            interaction_count += 1
+            
+            # Check timeout before expensive operation
+            if not monitor.check_should_continue():
+                print("⏰ Process timeout - cannot continue with query processing")
+                break
             
             print("🔍 Searching ESL book and generating response...")
+            logging.info(f"Processing question {interaction_count}: {question[:50]}...")
+            
             response = agent.chat(question)
+            monitor.reset_activity()  # Reset after successful response
+            
             print(f"\n🤖 ESL Bot: {response}\n")
             print("-" * 60)
             
@@ -136,7 +258,13 @@ def main():
             print("\n\nGoodbye! 👋")
             break
         except Exception as e:
+            logging.error(f"Error in main loop: {e}")
             print(f"Error: {e}")
+    
+    if interaction_count >= max_interactions:
+        print(f"\n⏰ Reached maximum interactions ({max_interactions}) - shutting down")
+    
+    logging.info(f"RAG chatbot completed after {interaction_count} interactions")
 
 if __name__ == "__main__":
     main()

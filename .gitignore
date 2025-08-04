@@ -132,9 +132,7 @@ Thumbs.db
 
 # Project specific
 agent_states/
-*.json
-!config.json
-!package.json
+knowledge_graph_*.json
 .praval/
 
 .env

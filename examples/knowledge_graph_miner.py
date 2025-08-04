@@ -9,12 +9,100 @@ to create complex reef structures, each agent has a specific purpose in knowledg
 
 import json
 import random
+import time
+import signal
+import sys
+import threading
+import logging
 from typing import Dict, List, Set, Optional, Tuple
 from dataclasses import dataclass
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure logging with size limits to prevent massive log files
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 from praval import Agent, register_agent, get_registry
+
+# ==========================================
+# TIMEOUT AND SAFETY MECHANISMS
+# ==========================================
+
+class ProcessMonitor:
+    """Monitor process activity and enforce timeouts to prevent runaway execution."""
+    
+    def __init__(self, max_runtime_minutes: int = 5, max_inactivity_minutes: int = 5):
+        self.start_time = time.time()
+        self.last_activity = time.time()
+        self.max_runtime = max_runtime_minutes * 60
+        self.max_inactivity = max_inactivity_minutes * 60
+        self.is_active = True
+        self.interaction_count = 0
+        
+    def reset_activity(self):
+        """Reset the activity timer."""
+        self.last_activity = time.time()
+        self.interaction_count += 1
+        
+    def check_should_continue(self) -> bool:
+        """Check if process should continue running."""
+        current_time = time.time()
+        
+        # Check total runtime
+        if current_time - self.start_time > self.max_runtime:
+            logging.warning(f"Process exceeded maximum runtime of {self.max_runtime/60:.1f} minutes")
+            return False
+            
+        # Check inactivity timeout (only after first interaction)
+        if self.interaction_count > 0 and current_time - self.last_activity > self.max_inactivity:
+            logging.warning(f"Process inactive for {self.max_inactivity/60:.1f} minutes")
+            return False
+            
+        return True
+
+def safe_input_with_timeout(prompt: str, monitor: ProcessMonitor, timeout_seconds: int = 30) -> Optional[str]:
+    """Get user input with timeout to prevent infinite waiting."""
+    
+    def input_thread(result_container):
+        try:
+            result = input(prompt)
+            result_container.append(result)
+        except (EOFError, KeyboardInterrupt):
+            result_container.append(None)
+    
+    result_container = []
+    thread = threading.Thread(target=input_thread, args=(result_container,))
+    thread.daemon = True
+    thread.start()
+    
+    # Wait for input with timeout
+    start_time = time.time()
+    while thread.is_alive() and (time.time() - start_time) < timeout_seconds:
+        if not monitor.check_should_continue():
+            logging.info("Process timeout detected during input - shutting down")
+            return None
+        time.sleep(0.1)
+    
+    if thread.is_alive():
+        logging.warning(f"Input timeout after {timeout_seconds} seconds - assuming automated execution")
+        return None
+        
+    monitor.reset_activity()
+    return result_container[0] if result_container else None
+
+# Signal handler for graceful shutdown
+def signal_handler(signum, frame):
+    logging.info("Received termination signal - shutting down gracefully")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 # ==========================================
 # MULTI-AGENT KNOWLEDGE MINING SYSTEM
@@ -548,19 +636,37 @@ def mine_knowledge_graph(seed_concept: str, max_nodes: int = 10) -> Dict:
     return kg.to_dict()
 
 def main():
-    """Interactive knowledge graph mining."""
+    """Interactive knowledge graph mining with timeout protection."""
     print("🕸️  Knowledge Graph Miner using Praval Framework")
     print("=" * 55)
     print("Mine knowledge graphs from seed concepts using LLM calls!")
+    print("⏰ Auto-shutdown after 5 minutes of inactivity or 5 minutes total runtime")
     print()
+    
+    # Initialize process monitor
+    monitor = ProcessMonitor(max_runtime_minutes=5, max_inactivity_minutes=5)
+    logging.info("Starting knowledge graph miner with timeout protection")
     
     # Set up and register agents in the Praval registry
     setup_knowledge_mining_agents()
     
-    while True:
+    interaction_count = 0
+    max_interactions = 10  # Limit total interactions to prevent runaway processes
+    
+    while monitor.check_should_continue() and interaction_count < max_interactions:
         try:
-            # Get user input
-            seed = input("🌱 Enter seed concept (or 'quit' to exit): ").strip()
+            # Get user input with timeout
+            seed = safe_input_with_timeout("🌱 Enter seed concept (or 'quit' to exit): ", monitor, timeout_seconds=30)
+            
+            if seed is None:
+                # Input timeout or process timeout
+                if not monitor.check_should_continue():
+                    print("\n⏰ Process timeout - shutting down to prevent runaway execution")
+                else:
+                    print("\n⏰ Input timeout - assuming automated execution, exiting")
+                break
+                
+            seed = seed.strip()
             if seed.lower() in ['quit', 'exit', 'bye']:
                 print("Goodbye! 👋")
                 break
@@ -568,18 +674,32 @@ def main():
             if not seed:
                 continue
             
-            # Get number of nodes
-            try:
-                max_nodes_input = input("📊 Max nodes (default 10): ").strip()
-                max_nodes = int(max_nodes_input) if max_nodes_input else 10
-                max_nodes = max(3, min(50, max_nodes))  # Limit between 3-50
-            except ValueError:
-                max_nodes = 10
+            interaction_count += 1
+            
+            # Get number of nodes with timeout
+            max_nodes_input = safe_input_with_timeout("📊 Max nodes (default 10): ", monitor, timeout_seconds=15)
+            
+            if max_nodes_input is None:
+                max_nodes = 10  # Use default if timeout
+                print(f"Using default: {max_nodes} nodes")
+            else:
+                try:
+                    max_nodes = int(max_nodes_input.strip()) if max_nodes_input.strip() else 10
+                    max_nodes = max(3, min(50, max_nodes))  # Limit between 3-50
+                except ValueError:
+                    max_nodes = 10
             
             print()
             
+            # Check timeout before expensive operation
+            if not monitor.check_should_continue():
+                print("⏰ Process timeout - cannot continue with mining")
+                break
+            
             # Mine the knowledge graph
+            logging.info(f"Mining knowledge graph for: {seed}")
             kg_data = mine_knowledge_graph(seed, max_nodes)
+            monitor.reset_activity()  # Reset after successful mining
             
             # Display results
             print("\n🕸️  Knowledge Graph Results:")
@@ -613,8 +733,14 @@ def main():
             print("\n\nGoodbye! 👋")
             break
         except Exception as e:
+            logging.error(f"Error in main loop: {e}")
             print(f"❌ Error: {e}")
             print("Please try again.")
+    
+    if interaction_count >= max_interactions:
+        print(f"\n⏰ Reached maximum interactions ({max_interactions}) - shutting down")
+    
+    logging.info(f"Knowledge graph miner completed after {interaction_count} interactions")
 
 if __name__ == "__main__":
     main()

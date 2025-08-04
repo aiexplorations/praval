@@ -49,22 +49,23 @@ pip install -r requirements.txt
 ## Quick Start
 
 ```python
-from praval import Agent, LLMProvider
+from praval import Agent, register_agent, get_registry
 
-# Initialize an agent
-agent = Agent(
-    name="MyAgent",
-    llm_provider=LLMProvider.OPENAI,
-    base_prompt="You are a helpful assistant specialized in Python programming."
+# Create and register an agent
+domain_expert = Agent(
+    "domain_expert",
+    system_message="You are a domain expert who understands concepts deeply."
 )
+register_agent(domain_expert)
 
-# Have a conversation
-response = agent.chat("How do I implement a singleton pattern in Python?")
+# Use the agent
+response = domain_expert.chat("Explain machine learning concepts")
 print(response)
 
-# Access agent state
-state = agent.get_state()
-print(f"Conversation history: {state.history}")
+# Access registered agents
+registry = get_registry()
+agents = registry.list_agents()
+print(f"Available agents: {agents}")
 ```
 
 ## Architecture
@@ -112,41 +113,58 @@ Enables external integrations:
 - Sandboxed execution environments
 ## Usage Examples
 
-### Basic Agent Creation
+### Multi-Agent Knowledge Graph Mining
+
+```python
+from praval import Agent, register_agent, get_registry
+
+# Set up specialized agents
+domain_expert = Agent("domain_expert", system_message="You are a domain expert...")
+relationship_analyst = Agent("relationship_analyst", system_message="You analyze relationships...")
+graph_enricher = Agent("graph_enricher", system_message="You find hidden relationships...")
+
+# Register agents
+for agent in [domain_expert, relationship_analyst, graph_enricher]:
+    register_agent(agent)
+
+# Use agents collaboratively for knowledge mining
+from examples.knowledge_graph_miner import mine_knowledge_graph
+kg_data = mine_knowledge_graph("artificial intelligence", max_nodes=20)
+```
+
+### Agent Registry and Collaboration
+
+```python
+from praval import Agent, register_agent, get_registry
+
+# Create specialized agents
+code_agent = Agent("coder", system_message="You are an expert programmer.")
+review_agent = Agent("reviewer", system_message="You review code for quality.")
+
+# Register agents
+register_agent(code_agent)
+register_agent(review_agent)
+
+# Agents can work together
+code = get_registry().get_agent("coder").chat("Write a Python function to sort a list")
+review = get_registry().get_agent("reviewer").chat(f"Review this code: {code}")
+```
+
+### Simple Agent Creation
 
 ```python
 from praval import Agent
 
+# Create an agent with system message
 agent = Agent(
-    name="CodeAssistant",
-    base_prompt="You are an expert Python developer.",
-    temperature=0.7
+    "assistant",
+    system_message="You are a helpful assistant."
 )
+
+# Chat with the agent
+response = agent.chat("Hello, how are you?")
+print(response)
 ```
-
-### Tool Integration
-
-```python
-from praval import Agent
-
-agent = Agent("researcher")
-
-@agent.tool
-def get_weather(location: str) -> str:
-    """Get current weather for a location"""
-    return f"Weather in {location}: Sunny, 72°F"
-
-response = agent.chat("What's the weather in New York?")
-```
-
-### State Management
-
-```python
-# Save state
-agent.save_state("agent_state.json")
-
-# Load state
-agent = Agent.load_state("agent_state.json")```
 
 ## Configuration
 
@@ -195,23 +213,40 @@ pytest --cov=praval
 
 ## Roadmap
 
-### Phase 1: Core Framework (Current)
+### Phase 1: Core Framework ✅
 - [x] Basic agent implementation
-- [x] State management
-- [x] Multiple LLM provider support
-- [ ] Basic tool system
-- [ ] Simple memory management
+- [x] Agent registry and discovery
+- [x] Multiple LLM provider support (OpenAI, Anthropic, Cohere)
+- [x] Multi-agent collaboration patterns
+- [x] Knowledge graph mining example
+- [x] Enhanced relationship discovery
+
+### Phase 2: Advanced Features (In Progress)
+- [x] Multi-agent orchestration
+- [x] Advanced reasoning patterns (via specialized agents)
+- [ ] Vector memory integration
+- [ ] Streaming support
+- [ ] Tool system integration
 - [ ] Configuration system
 
-### Phase 2: Advanced Features
-- [ ] Vector memory integration
-- [ ] Multi-agent orchestration
-- [ ] Advanced reasoning patterns
-- [ ] Streaming support
+### Phase 3: Production Features
+- [ ] Performance monitoring and metrics
+- [ ] Error handling and retry mechanisms
+- [ ] Rate limiting and cost management
+- [ ] Security and content filtering
+- [ ] Deployment and scaling patterns
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Examples
+
+Explore the `/examples` directory for complete working examples:
+
+- **Knowledge Graph Miner** (`examples/knowledge_graph_miner.py`): Multi-agent system for building knowledge graphs from seed concepts with relationship enrichment
+- **RAG Chatbot** (`examples/rag_chatbot.py`): Retrieval-augmented generation chatbot example
+- **Target API Examples** (`examples/target_api_examples.py`): Demonstrates the desired API patterns
 
 ## Support
 
@@ -219,3 +254,4 @@ For questions and support:
 - Open an issue on GitHub
 - Check the documentation in `/docs`
 - See examples in `/examples`
+- Read the design philosophy in `praval.md`
