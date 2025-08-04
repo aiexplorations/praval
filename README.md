@@ -39,6 +39,13 @@ This framework provides a flexible and extensible architecture for creating inte
 - **Streaming Responses**: Real-time token streaming for better UX
 - **Observability**: Comprehensive logging, tracing, and monitoring
 
+### Registry System
+- **Agent Registry**: Global registration and discovery of agents across your application  
+- **Tool Registry**: Automatic registration and discovery of agent tools with metadata
+- **Dynamic Discovery**: Find agents and tools by name, type, or capability
+- **Tool Validation**: Automatic type checking and parameter validation for tools
+- **Namespaced Tools**: Tools are scoped by agent to prevent naming conflicts
+
 ### Safety & Reliability
 - **Content Filtering**: Built-in safety rails for input/output
 - **Hallucination Detection**: Validate agent outputs against known facts
@@ -152,6 +159,50 @@ register_agent(review_agent)
 # Agents can work together
 code = get_registry().get_agent("coder").chat("Write a Python function to sort a list")
 review = get_registry().get_agent("reviewer").chat(f"Review this code: {code}")
+```
+
+### Registry Features and Tool Management
+
+```python
+from praval import Agent, register_agent, get_registry
+
+# Create agent with tools
+calculator = Agent("calculator", system_message="You are a math assistant.")
+
+@calculator.tool
+def add(x: int, y: int) -> int:
+    """Add two numbers together."""
+    return x + y
+
+@calculator.tool  
+def multiply(x: float, y: float) -> float:
+    """Multiply two numbers."""
+    return x * y
+
+# Register the agent (automatically registers tools too)
+register_agent(calculator)
+
+# Access registry information
+registry = get_registry()
+
+# List all agents
+print("Available agents:", registry.list_agents())
+# Output: ['calculator']
+
+# List all tools
+print("Available tools:", registry.list_tools())  
+# Output: ['calculator.add', 'calculator.multiply']
+
+# Get specific agent
+calc_agent = registry.get_agent("calculator")
+
+# Get tools for a specific agent
+calc_tools = registry.get_tools_by_agent("calculator")
+print("Calculator tools:", calc_tools.keys())
+
+# Get specific tool details
+add_tool = registry.get_tool("calculator.add")
+print("Add tool:", add_tool["description"])
 ```
 
 ### Simple Agent Creation
