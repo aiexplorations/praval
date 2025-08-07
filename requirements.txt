@@ -1,0 +1,31 @@
+# Core Praval dependencies
+openai>=1.0.0
+anthropic
+cohere
+python-dotenv
+requests
+pyyaml
+
+# Memory system dependencies
+qdrant-client>=1.6.0
+numpy
+sentence-transformers
+
+# Optional utilities
+rich  # For pretty console output
+click  # For CLI interfaces
+uvicorn  # For potential web interfaces
+fastapi  # For API endpoints
+pydantic>=2.0.0
+
+# Development dependencies (optional)
+pytest
+pytest-asyncio
+pytest-cov
+black
+flake8
+mypy
+
+# Documentation (optional)
+mkdocs
+mkdocs-material

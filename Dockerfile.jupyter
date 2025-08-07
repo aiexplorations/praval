@@ -1,0 +1,28 @@
+# Jupyter development environment for Praval
+
+FROM praval-app:latest
+
+# Install Jupyter and additional development tools
+RUN pip install --no-cache-dir \
+    jupyter \
+    jupyterlab \
+    ipywidgets \
+    matplotlib \
+    seaborn \
+    plotly \
+    pandas \
+    numpy \
+    && jupyter lab --generate-config
+
+# Copy Jupyter configuration
+COPY docker/jupyter/jupyter_lab_config.py /home/praval/.jupyter/
+
+# Create notebooks directory
+RUN mkdir -p /app/notebooks && \
+    chown -R praval:praval /app/notebooks
+
+# Expose Jupyter port
+EXPOSE 8888
+
+# Start Jupyter Lab
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
