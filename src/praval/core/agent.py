@@ -7,6 +7,8 @@ conversations with support for multiple providers, tools, and state persistence.
 
 import os
 import inspect
+import time
+import threading
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, field
 
@@ -241,3 +243,153 @@ class Agent:
             saved_state = self._storage.load(self.name)
             if saved_state:
                 self.conversation_history = saved_state
+    
+    # ==========================================
+    # REEF COMMUNICATION METHODS
+    # ==========================================
+    
+    def send_knowledge(self, to_agent: str, knowledge: Dict[str, Any], 
+                      channel: str = "main") -> str:
+        """
+        Send knowledge to another agent through the reef.
+        
+        Args:
+            to_agent: Name of the target agent
+            knowledge: Knowledge data to send
+            channel: Reef channel to use (default: "main")
+            
+        Returns:
+            Spore ID of the sent message
+        """
+        from .reef import get_reef
+        
+        return get_reef().send(
+            from_agent=self.name,
+            to_agent=to_agent,
+            knowledge=knowledge,
+            channel=channel
+        )
+    
+    def broadcast_knowledge(self, knowledge: Dict[str, Any], 
+                           channel: str = "main") -> str:
+        """
+        Broadcast knowledge to all agents in the reef.
+        
+        Args:
+            knowledge: Knowledge data to broadcast
+            channel: Reef channel to use (default: "main")
+            
+        Returns:
+            Spore ID of the broadcast message
+        """
+        from .reef import get_reef
+        
+        return get_reef().broadcast(
+            from_agent=self.name,
+            knowledge=knowledge,
+            channel=channel
+        )
+    
+    def request_knowledge(self, from_agent: str, request: Dict[str, Any], 
+                         timeout: int = 30) -> Optional[Dict[str, Any]]:
+        """
+        Request knowledge from another agent with timeout.
+        
+        Args:
+            from_agent: Name of the agent to request from
+            request: Request data
+            timeout: Timeout in seconds
+            
+        Returns:
+            Response data or None if timeout
+        """
+        from .reef import get_reef, SporeType
+        
+        # Set up response collection
+        response_received = threading.Event()
+        response_data = {"result": None}
+        
+        def response_handler(spore):
+            """Handle response spore."""
+            if (spore.spore_type == SporeType.RESPONSE and 
+                spore.to_agent == self.name and
+                spore.from_agent == from_agent):
+                response_data["result"] = spore.knowledge
+                response_received.set()
+        
+        # Subscribe to receive response
+        reef = get_reef()
+        reef.subscribe(self.name, response_handler)
+        
+        try:
+            # Send request
+            reef.request(
+                from_agent=self.name,
+                to_agent=from_agent,
+                request=request,
+                expires_in_seconds=timeout
+            )
+            
+            # Wait for response
+            if response_received.wait(timeout):
+                return response_data["result"]
+            else:
+                return None
+                
+        finally:
+            # Note: In a full implementation, we'd want proper cleanup
+            # of the subscription, but for now this basic approach works
+            pass
+    
+    def on_spore_received(self, spore) -> None:
+        """
+        Handle received spores from the reef.
+        
+        This is a default implementation that can be overridden
+        by subclasses for custom spore handling.
+        
+        Args:
+            spore: The received Spore object
+        """
+        # Use custom handler if set, otherwise do nothing
+        if hasattr(self, '_custom_spore_handler') and self._custom_spore_handler:
+            self._custom_spore_handler(spore)
+        # Default implementation does nothing
+        # Subclasses can override for custom behavior
+    
+    def subscribe_to_channel(self, channel_name: str) -> None:
+        """
+        Subscribe this agent to a reef channel.
+        
+        Args:
+            channel_name: Name of the channel to subscribe to
+        """
+        from .reef import get_reef
+        
+        reef = get_reef()
+        # Create channel if it doesn't exist
+        reef.create_channel(channel_name)
+        reef.subscribe(self.name, self.on_spore_received, channel_name)
+    
+    def unsubscribe_from_channel(self, channel_name: str) -> None:
+        """
+        Unsubscribe this agent from a reef channel.
+        
+        Args:
+            channel_name: Name of the channel to unsubscribe from
+        """
+        from .reef import get_reef
+        
+        reef = get_reef()
+        channel = reef.get_channel(channel_name)
+        if channel:
+            channel.unsubscribe(self.name)
+    
+    def set_spore_handler(self, handler: Callable) -> None:
+        """
+        Set a custom spore handler for this agent.
+        
+        Args:
+            handler: Function that takes a Spore object and handles it
+        """
+        self._custom_spore_handler = handler

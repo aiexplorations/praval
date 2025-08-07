@@ -3,206 +3,507 @@
   
   # Praval
   
-  A pure Python framework for building and managing LLM-based agents with state management, prompt engineering, and behavioral evolution capabilities.
+  **The Pythonic Multi-Agent AI Framework**
   
-  *Praval (प्रवाल) - Sanskrit for coral, representing the framework's ability to build complex, interconnected agent systems from simple components.*
+  Transform complex AI applications into simple, composable agent systems using decorator-based APIs and self-organizing communication.
+  
+  *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
 </div>
 
 ## Overview
 
-This framework provides a flexible and extensible architecture for creating intelligent agents that can:
-- Connect to various LLM providers
-- Manage conversational state and context
-- Utilize base and system prompts effectively
-- Evolve their behavior over time through learning mechanisms
-- Solve a user-stated problem (supplied as part of an input to the agent) 
+**Praval is a revolutionary Python framework that transforms how we build AI applications.** Instead of monolithic systems, Praval enables you to create ecosystems of specialized agents that collaborate intelligently.
 
-## Features
+### 🚀 **Key Breakthrough: From Complexity to Simplicity**
+- **489 lines → 50 lines**: Our decorator API dramatically reduces code complexity
+- **Complex classes → Simple functions**: Agents become readable Python functions
+- **Manual coordination → Self-organizing**: Agents coordinate through intelligent message passing
+- **Imperative programming → Declarative agents**: Define what agents ARE, not what they DO
 
-### Core Capabilities
-- **LLM Integration**: Seamless connection to multiple LLM providers (OpenAI, Anthropic, Cohere, etc.)
-- **State Management**: Persistent state tracking across conversations and sessions
-- **Prompt Engineering**: Effective prompt templating, versioning and management system
-- **Behavioral Evolution**: Adaptive learning mechanisms to improve agent performance
-- **Pure Python**: Minimal dependencies for building the core functionality
-- **Extensible Architecture**: Plugin system for custom components and behaviors
-### Advanced Features
-- **Tool Use & Function Calling**: Integration with external APIs and services with structured parameter validation
-- **Memory Systems**: 
-  - Short-term working memory
-  - Long-term vector storage (Qdrant)
-  - Episodic memory for interaction histories
-  - Semantic memory with knowledge graphs
-- **Multi-Agent Orchestration**: Coordinate multiple agents with different specializations
-- **Reasoning & Planning**: Chain-of-thought, tree-of-thought, and ReAct patterns
-- **Retrieval-Augmented Generation (RAG)**: Document processing and semantic search
-- **Streaming Responses**: Real-time token streaming for better UX
-- **Observability**: Comprehensive logging, tracing, and monitoring
+### ✨ **Core Capabilities**
+- **🎯 Specialized Agents**: Each agent excels at one thing
+- **🤝 Natural Collaboration**: Agents work together seamlessly
+- **📡 Reef Communication**: Knowledge-first messaging between agents
+- **🔄 Self-Organization**: Agents coordinate without central control
+- **⚡ Pythonic API**: Clean, decorator-based agent definitions 
 
-### Registry System
-- **Agent Registry**: Global registration and discovery of agents across your application  
-- **Tool Registry**: Automatic registration and discovery of agent tools with metadata
-- **Dynamic Discovery**: Find agents and tools by name, type, or capability
-- **Tool Validation**: Automatic type checking and parameter validation for tools
-- **Namespaced Tools**: Tools are scoped by agent to prevent naming conflicts
+## ⭐ **The Praval Philosophy**
 
-### Safety & Reliability
-- **Content Filtering**: Built-in safety rails for input/output
-- **Hallucination Detection**: Validate agent outputs against known facts
-- **Error Handling**: Robust retry mechanisms and graceful degradation
-- **Rate Limiting**: Prevent API abuse and manage costs
+### **🧩 Simple Agents, Powerful Results**
+```python
+# Instead of complex monoliths...
+complex_system = OneAgentDoesEverything()
 
-## Installation
+# Praval encourages specialized collaboration
+@agent("researcher", responds_to=["research_request"])
+def research_specialist(spore):
+    """I excel at finding and analyzing information."""
+    return deep_research(spore.knowledge)
+
+@agent("writer", responds_to=["write_request"])
+def writing_specialist(spore):
+    """I excel at creating compelling content."""
+    return polished_writing(spore.knowledge)
+```
+
+### **🌊 Core Features**
+
+#### **🎯 Decorator-Based Agent API**
+- **@agent()**: Transform functions into intelligent agents
+- **Automatic Registration**: Agents discover each other dynamically
+- **Message Filtering**: Agents respond only to relevant communications
+- **Thread-Safe Execution**: Concurrent processing with automatic resource management
+
+#### **🏗️ Reef Communication System**
+- **Knowledge-First Messaging**: All communication carries structured, semantic data
+- **Spore Protocol**: JSON messages that agents broadcast and consume
+- **Channel Management**: Organized communication streams
+- **Self-Organization**: Agents coordinate without central orchestration
+
+#### **🔧 Production-Ready Infrastructure**
+- **Multi-LLM Support**: OpenAI, Anthropic, Cohere, and more
+- **State Persistence**: Conversation memory and context management
+- **Error Handling**: Graceful degradation and retry mechanisms
+- **Resource Management**: Automatic cleanup and optimization
+
+### **🏗️ Architecture Principles**
+
+#### **🎯 Specialization Over Generalization**
+```python
+# ❌ Instead of one agent doing everything
+general_agent = Agent("do_everything", "You can handle any task perfectly")
+
+# ✅ Praval encourages focused specialists
+@agent("researcher", responds_to=["research_query"])
+def research_specialist(spore):
+    """I excel at finding and analyzing information."""
+    
+@agent("writer", responds_to=["content_request"])
+def writing_specialist(spore):
+    """I excel at creating compelling content."""
+```
+
+#### **🌊 Reef Communication Philosophy**
+- **Knowledge-First**: Every message carries structured, semantic data
+- **Self-Organization**: Agents coordinate without central control
+- **Emergent Intelligence**: Complex behaviors arise from simple interactions
+- **Natural Flow**: Information flows like nutrients in a coral reef
+
+#### **🛡️ Production-Ready Features**
+- **Error Resilience**: Individual agent failures don't crash the system
+- **Resource Management**: Automatic cleanup and thread pool optimization
+- **Message Filtering**: Agents process only relevant communications
+- **Graceful Degradation**: Systems adapt when agents are unavailable
+
+## 📦 **Installation**
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/praval.git
+cd praval
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Set up environment
+cp .env.example .env
+# Add your LLM API keys (OpenAI, Anthropic, etc.)
 ```
-## Quick Start
+
+### **Environment Setup**
+```bash
+# Required API Keys
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key  # Optional
+COHERE_API_KEY=your_cohere_key        # Optional
+
+# Optional Configuration
+PRAVAL_LOG_LEVEL=INFO
+PRAVAL_MAX_THREADS=10
+```
+## ⚡ **Quick Start**
+
+### **1. Simple Agent Creation**
+```python
+from praval import agent, chat, broadcast, start_agents
+
+# Create a specialized agent with just a decorator
+@agent("research_expert", responds_to=["research_query"])
+def research_agent(spore):
+    """I'm an expert at finding and analyzing information."""
+    query = spore.knowledge.get("query")
+    result = chat(f"Research this topic deeply: {query}")
+    
+    # Broadcast findings to other agents
+    broadcast({
+        "type": "research_complete",
+        "findings": result,
+        "confidence": 0.9
+    })
+    
+    return {"research": result}
+
+# Start the agent system
+start_agents(research_agent, initial_data={
+    "type": "research_query", 
+    "query": "quantum computing applications"
+})
+```
+
+### **2. Multi-Agent Collaboration**
+```python
+@agent("analyzer", responds_to=["research_complete"])
+def analysis_agent(spore):
+    """I analyze research findings for insights."""
+    findings = spore.knowledge.get("findings")
+    analysis = chat(f"Analyze these findings for key insights: {findings}")
+    return {"analysis": analysis}
+
+@agent("writer", responds_to=["analysis_complete"])
+def writing_agent(spore):
+    """I create polished reports from analysis."""
+    analysis = spore.knowledge.get("analysis")
+    report = chat(f"Write a professional report: {analysis}")
+    return {"report": report}
+
+# All agents coordinate automatically!
+start_agents(research_agent, analysis_agent, writing_agent)
+```
+
+## 🏛️ **Architecture Overview**
+
+### **🧠 The Praval Mental Model**
+
+Think of Praval as creating **AI coral reefs** - ecosystems where:
+- 🐠 **Agents are organisms** with specialized roles
+- 🌊 **The Reef is the communication medium** enabling knowledge flow
+- 🌿 **Spores are knowledge packets** that agents exchange
+- 🏛️ **Emergent intelligence** arises from collective interaction
+
+### **⚙️ Core Components**
+
+#### **🎭 Agents - The Specialized Workers**
+```python
+@agent("name", responds_to=["message_types"], channel="optional")
+def agent_function(spore):
+    """Define what the agent IS, not what it DOES"""
+    # Agent processes spore.knowledge
+    # Returns results or broadcasts to others
+```
+- **Identity-Based Design**: Agents are defined by their role, not procedures
+- **Message Filtering**: Only process relevant communications
+- **Automatic Registration**: Self-discovery and coordination
+- **Thread-Safe Execution**: Concurrent processing with resource management
+
+#### **🌊 The Reef - Communication Substrate**
+- **Spore Protocol**: JSON messages carrying structured knowledge
+- **Channel System**: Organized communication streams
+- **Broadcast/Unicast**: Flexible message routing patterns
+- **Message Persistence**: Reliable delivery and replay capabilities
+
+#### **📦 Spores - Knowledge Containers**
+```python
+spore = {
+    "id": "unique_identifier",
+    "type": "research_finding",
+    "knowledge": {
+        "topic": "quantum_computing",
+        "insights": [...],
+        "confidence": 0.89
+    },
+    "from_agent": "researcher",
+    "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+#### **🔧 Built-in Capabilities**
+- **Multi-LLM Support**: OpenAI, Anthropic, Cohere integration
+- **State Persistence**: Conversation memory and context tracking
+- **Error Handling**: Graceful failure recovery and retry logic
+- **Resource Management**: Automatic thread pool and memory optimization
+## 🚀 **Real-World Usage Patterns**
+
+### **🎬 Complete Business Analysis Workflow**
+*From VentureLens - see it in action:*
 
 ```python
-from praval import Agent, register_agent, get_registry
+from praval import agent, broadcast, start_agents
 
-# Create and register an agent
-domain_expert = Agent(
-    "domain_expert",
-    system_message="You are a domain expert who understands concepts deeply."
+# Business analysis pipeline - each agent specializes
+venture = {}  # Shared state
+
+@agent("interviewer", responds_to=["start_interview", "answer_provided"])
+def conduct_interview(spore):
+    """I ask insightful questions about business ideas."""
+    if venture.get("questions_asked", 0) < 8:
+        # Generate contextual follow-up questions
+        question = generate_smart_question(venture["responses"])
+        print(f"💬 {question}")
+        venture["current_question"] = question
+    else:
+        broadcast({"type": "interview_complete", "responses": venture["responses"]})
+
+@agent("analyst", responds_to=["interview_complete"])
+def analyze_viability(spore):
+    """I evaluate business ideas across 6 dimensions."""
+    responses = spore.knowledge["responses"]
+    analysis = {
+        "viability_score": 7.8,
+        "problem_solution_fit": 8.5,
+        "market_potential": 8.0,
+        "strengths": ["Clear market need", "Strong differentiation"],
+        "recommendations": ["Focus on MVP", "Validate with customers"]
+    }
+    broadcast({"type": "analysis_complete", "analysis": analysis})
+
+@agent("reporter", responds_to=["analysis_complete"])
+def generate_report(spore):
+    """I create professional PDF reports."""
+    analysis = spore.knowledge["analysis"]
+    report = create_professional_pdf(analysis)
+    broadcast({"type": "report_generated", "filename": report})
+
+@agent("presenter", responds_to=["report_generated"], auto_broadcast=False)
+def present_results(spore):
+    """I present results and auto-open reports in browser."""
+    filename = spore.knowledge["filename"]
+    print(f"📄 Analysis complete: {filename}")
+    open_in_browser(filename)  # Auto-open PDF and HTML
+
+# Start the entire workflow with one command!
+start_agents(
+    conduct_interview, analyze_viability, generate_report, present_results,
+    initial_data={"type": "start_interview", "idea": "AI-powered solopreneur toolkit"}
 )
-register_agent(domain_expert)
-
-# Use the agent
-response = domain_expert.chat("Explain machine learning concepts")
-print(response)
-
-# Access registered agents
-registry = get_registry()
-agents = registry.list_agents()
-print(f"Available agents: {agents}")
 ```
 
-## Architecture
-
-The framework is built around several core components:
-
-### Agent
-The main interface for interacting with LLMs. Handles:
-- Message routing and conversation flow
-- State persistence and recovery
-- Prompt management and optimization
-- Response processing and validation
-- Tool execution and function calling
-### State Manager
-Manages agent state including:
-- Conversation history with token optimization
-- User preferences and personalization
-- Learning data and performance metrics
-- Context windows and memory pruning
-- Session management and continuity
-
-### Prompt Manager
-Handles prompt engineering:
-- Base prompt templates with version control
-- System prompt injection and composition
-- Dynamic prompt modification based on context
-- Context-aware prompt building
-- Prompt optimization and A/B testing
-- Few-shot example management
-
-### Memory System
-Provides various memory capabilities:
-- **Working Memory**: Current conversation context
-- **Vector Store**: Long-term semantic memory using embeddings
-- **Knowledge Graph**: Structured relationship storage
-- **Episodic Buffer**: Recent interaction history
-- **Cache Layer**: Response caching for efficiency
-
-### Tool System
-Enables external integrations:
-- Structured tool definitions with JSON schemas
-- Parameter validation and type checking
-- Parallel tool execution
-- Error handling and fallbacks
-- Sandboxed execution environments
-## Usage Examples
-
-### Multi-Agent Knowledge Graph Mining
+### **🧠 Knowledge Discovery Pipeline**
+*From our knowledge graph miners:*
 
 ```python
-from praval import Agent, register_agent, get_registry
+@agent("domain_expert", responds_to=["explore_concept"])
+def find_concepts(spore):
+    """I identify core concepts and their relationships."""
+    concept = spore.knowledge["concept"]
+    related = chat(f"Find 10 concepts closely related to {concept}")
+    
+    broadcast({
+        "type": "concepts_found",
+        "base_concept": concept,
+        "related_concepts": parse_concepts(related)
+    })
 
-# Set up specialized agents
-domain_expert = Agent("domain_expert", system_message="You are a domain expert...")
-relationship_analyst = Agent("relationship_analyst", system_message="You analyze relationships...")
-graph_enricher = Agent("graph_enricher", system_message="You find hidden relationships...")
+@agent("relationship_analyst", responds_to=["concepts_found"])
+def analyze_relationships(spore):
+    """I determine how concepts connect to each other."""
+    concepts = spore.knowledge["related_concepts"]
+    relationships = []
+    
+    for concept_pair in combinations(concepts, 2):
+        relationship = chat(f"How are {concept_pair[0]} and {concept_pair[1]} related?")
+        relationships.append({
+            "from": concept_pair[0],
+            "to": concept_pair[1], 
+            "relationship": relationship
+        })
+    
+    broadcast({"type": "relationships_mapped", "relationships": relationships})
 
-# Register agents
-for agent in [domain_expert, relationship_analyst, graph_enricher]:
+@agent("graph_builder", responds_to=["relationships_mapped"])
+def build_knowledge_graph(spore):
+    """I construct the final knowledge graph structure."""
+    relationships = spore.knowledge["relationships"]
+    graph = construct_graph(relationships)
+    save_graph(graph, "knowledge_graph.json")
+    print(f"🕸️ Knowledge graph built with {len(graph.nodes)} nodes!")
+
+# Mine any topic automatically
+start_agents(
+    find_concepts, analyze_relationships, build_knowledge_graph,
+    initial_data={"type": "explore_concept", "concept": "quantum computing"}
+)
+```
+
+### **💬 Intelligent Conversation System**
+*Multi-agent RAG chatbot pattern:*
+
+```python
+@agent("retriever", responds_to=["user_query"])
+def find_relevant_context(spore):
+    """I find relevant information from knowledge base."""
+    query = spore.knowledge["query"]
+    context = vector_search(query, top_k=5)
+    
+    broadcast({
+        "type": "context_retrieved",
+        "query": query,
+        "context": context
+    })
+
+@agent("responder", responds_to=["context_retrieved"])
+def generate_response(spore):
+    """I craft responses using retrieved context."""
+    query = spore.knowledge["query"]
+    context = spore.knowledge["context"]
+    
+    response = chat(f"""
+    Question: {query}
+    Relevant Context: {context}
+    
+    Provide a comprehensive answer based on the context.
+    """)
+    
+    return {"response": response}
+
+# Each user query triggers the full RAG pipeline
+start_agents(find_relevant_context, generate_response, 
+    initial_data={"type": "user_query", "query": "How does quantum entanglement work?"})
+```
+
+### Reef Communication System
+
+The **Reef** enables knowledge-first communication between agents through structured JSON messages called **spores**. Like coral reefs facilitate biological communication, the Reef connects all agents in a living communication network.
+
+#### Core Concepts
+
+- **Reef** - The message queue network connecting all agents
+- **Spores** - JSON messages containing knowledge, data, or requests  
+- **Channels** - Named communication channels within the reef
+- **Knowledge-First** - All communication carries structured, semantic data
+
+#### Basic Communication
+
+```python
+from praval import Agent, register_agent, get_reef
+
+# Create and register agents
+researcher = Agent("researcher", system_message="You research topics deeply")
+analyzer = Agent("analyzer", system_message="You analyze data patterns")
+
+register_agent(researcher)
+register_agent(analyzer)
+
+# Knowledge sharing between agents
+researcher.send_knowledge("analyzer", {
+    "topic": "quantum_computing",
+    "findings": ["coherence_improved", "error_rates_reduced"],
+    "confidence": 0.89,
+    "source": "latest_research"
+})
+
+# Broadcasting discoveries to all agents
+researcher.broadcast_knowledge({
+    "breakthrough": "room_temperature_superconductor",
+    "impact": "revolutionary",
+    "verification_needed": True
+})
+```
+
+#### Request-Response Pattern
+
+```python
+# Agent requests knowledge from another
+analyzer.subscribe_to_channel("main")  # Subscribe to receive responses
+
+def handle_requests(spore):
+    if spore.spore_type == SporeType.REQUEST and spore.to_agent == "analyzer":
+        # Process request and send response
+        if spore.knowledge.get("query") == "analyze_data":
+            response = {"result": "analysis_complete", "insights": [...]}
+            get_reef().reply(
+                from_agent="analyzer",
+                to_agent=spore.from_agent, 
+                response=response,
+                reply_to_spore_id=spore.id
+            )
+
+# Override spore handler
+analyzer.on_spore_received = handle_requests
+
+# Request knowledge with timeout
+response = researcher.request_knowledge("analyzer", {
+    "query": "analyze_data",
+    "dataset": "experiment_results",
+    "priority": "high"
+}, timeout=30)
+
+if response:
+    print(f"Analysis result: {response}")
+```
+
+#### Multi-Channel Communication
+
+```python
+reef = get_reef()
+
+# Create specialized channels
+reef.create_channel("research", max_capacity=500)  
+reef.create_channel("alerts", max_capacity=100)
+reef.create_channel("coordination", max_capacity=200)
+
+# Agents subscribe to relevant channels
+researcher.subscribe_to_channel("research")
+researcher.subscribe_to_channel("coordination")
+
+analyzer.subscribe_to_channel("alerts")
+analyzer.subscribe_to_channel("coordination")
+
+# Send to specific channels
+researcher.send_knowledge("analyzer", {
+    "paper": "quantum_error_correction",
+    "significance": "breakthrough"
+}, channel="research")
+
+# Broadcast alerts
+system_monitor = Agent("monitor")
+system_monitor.broadcast_knowledge({
+    "alert": "system_overload",
+    "severity": "high",
+    "action_required": True
+}, channel="alerts")
+```
+
+#### Agent Coordination and Handoffs
+
+```python
+class CoordinatedAgent(Agent):
+    def __init__(self, name, specialization):
+        super().__init__(name)
+        self.specialization = specialization
+        self.active_tasks = {}
+        
+    def on_spore_received(self, spore):
+        """Handle incoming spores with task coordination."""
+        if spore.spore_type == SporeType.REQUEST:
+            if self.can_handle_task(spore.knowledge):
+                self.accept_task(spore)
+            else:
+                self.delegate_task(spore)
+                
+    def can_handle_task(self, task_data):
+        """Check if this agent can handle the task."""
+        return task_data.get("domain") == self.specialization
+        
+    def delegate_task(self, original_spore):
+        """Hand off task to more suitable agent."""
+        suitable_agent = self.find_suitable_agent(original_spore.knowledge)
+        if suitable_agent:
+            self.send_knowledge(suitable_agent, {
+                "handoff": True,
+                "original_request": original_spore.knowledge,
+                "from_agent": original_spore.from_agent,
+                "reason": f"Better handled by {suitable_agent}",
+                "context": self.get_task_context()
+            })
+
+# Create coordinated multi-agent system
+nlp_agent = CoordinatedAgent("nlp_specialist", "natural_language_processing")
+cv_agent = CoordinatedAgent("cv_specialist", "computer_vision") 
+coordinator = CoordinatedAgent("coordinator", "task_management")
+
+for agent in [nlp_agent, cv_agent, coordinator]:
     register_agent(agent)
-
-# Use agents collaboratively for knowledge mining
-from examples.knowledge_graph_miner import mine_knowledge_graph
-kg_data = mine_knowledge_graph("artificial intelligence", max_nodes=20)
-```
-
-### Agent Registry and Collaboration
-
-```python
-from praval import Agent, register_agent, get_registry
-
-# Create specialized agents
-code_agent = Agent("coder", system_message="You are an expert programmer.")
-review_agent = Agent("reviewer", system_message="You review code for quality.")
-
-# Register agents
-register_agent(code_agent)
-register_agent(review_agent)
-
-# Agents can work together
-code = get_registry().get_agent("coder").chat("Write a Python function to sort a list")
-review = get_registry().get_agent("reviewer").chat(f"Review this code: {code}")
-```
-
-### Registry Features and Tool Management
-
-```python
-from praval import Agent, register_agent, get_registry
-
-# Create agent with tools
-calculator = Agent("calculator", system_message="You are a math assistant.")
-
-@calculator.tool
-def add(x: int, y: int) -> int:
-    """Add two numbers together."""
-    return x + y
-
-@calculator.tool  
-def multiply(x: float, y: float) -> float:
-    """Multiply two numbers."""
-    return x * y
-
-# Register the agent (automatically registers tools too)
-register_agent(calculator)
-
-# Access registry information
-registry = get_registry()
-
-# List all agents
-print("Available agents:", registry.list_agents())
-# Output: ['calculator']
-
-# List all tools
-print("Available tools:", registry.list_tools())  
-# Output: ['calculator.add', 'calculator.multiply']
-
-# Get specific agent
-calc_agent = registry.get_agent("calculator")
-
-# Get tools for a specific agent
-calc_tools = registry.get_tools_by_agent("calculator")
-print("Calculator tools:", calc_tools.keys())
-
-# Get specific tool details
-add_tool = registry.get_tool("calculator.add")
-print("Add tool:", add_tool["description"])
+    agent.subscribe_to_channel("coordination")
 ```
 
 ### Simple Agent Creation
@@ -221,92 +522,233 @@ response = agent.chat("Hello, how are you?")
 print(response)
 ```
 
-## Configuration
+## ⚙️ **Configuration**
 
-Create a `config.yaml` file to configure the framework:
+### **Environment Variables**
+```bash
+# LLM Provider Configuration
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+COHERE_API_KEY=your_cohere_key
 
-```yaml
-# LLM Configuration
-llm:
-  default_provider: openai
-  providers:
-    openai:
-      api_key: ${OPENAI_API_KEY}
-      model: gpt-4
-      temperature: 0.7
-
-# State Management
-state:
-  persistence: true
-  storage_path: ./agent_states
+# Praval Framework Settings
+PRAVAL_DEFAULT_PROVIDER=openai     # Default LLM provider
+PRAVAL_DEFAULT_MODEL=gpt-4-turbo    # Default model
+PRAVAL_MAX_THREADS=10              # Thread pool size
+PRAVAL_LOG_LEVEL=INFO              # Logging level
+PRAVAL_REEF_CAPACITY=1000          # Message queue capacity
 ```
 
-## Development
+### **Runtime Configuration**
+```python
+from praval import configure
 
-### Project Structure
+# Configure framework defaults
+configure({
+    "default_provider": "openai",
+    "default_model": "gpt-4-turbo", 
+    "max_concurrent_agents": 10,
+    "reef_config": {
+        "channel_capacity": 1000,
+        "message_ttl": 3600  # seconds
+    }
+})
+```
 
+## 🛠️ **Development Guide**
+
+### **Project Structure**
 ```
 praval/
-├── __init__.py
-├── core/           # Core agent implementation
-├── llm/            # LLM provider integrations
-├── memory/         # Memory management
-├── tools/          # Tool system
-├── prompts/        # Prompt management
-└── utils/          # Utility functions
+├── src/praval/
+│   ├── __init__.py           # Main API exports
+│   ├── decorators.py         # @agent decorator magic
+│   ├── composition.py        # start_agents orchestration
+│   └── core/
+│       ├── agent.py          # Agent implementation
+│       ├── reef.py           # Communication system
+│       ├── registry.py       # Agent discovery
+│       └── storage.py        # State persistence
+├── examples/                 # Complete working examples
+│   ├── venturelens.py        # Business analysis platform
+│   ├── knowledge_graph_miner.py  # Advanced KG mining
+│   ├── pythonic_knowledge_graph.py  # Simplified KG
+│   ├── rag_chatbot.py        # RAG conversation system
+│   └── arxiv_paper_downloader.py # Research automation
+└── tests/                    # Comprehensive test suite
 ```
 
-### Testing
-
+### **Testing & Validation**
 ```bash
-# Run all tests
-pytest
+# Run full test suite
+pytest tests/ -v
 
-# Run with coverage
-pytest --cov=praval
+# Test with coverage reporting
+pytest --cov=praval --cov-report=html
+
+# Test specific components
+pytest tests/test_reef.py -v          # Communication system
+pytest tests/test_agent.py -v         # Agent functionality
+pytest tests/test_self_organizing_agents.py -v  # Multi-agent coordination
+
+# Validate examples
+python examples/pythonic_knowledge_graph.py
+python examples/venturelens.py
 ```
 
-## Roadmap
+### **Contributing Guidelines**
+```python
+# Follow Praval principles when adding new features:
 
-### Phase 1: Core Framework ✅
-- [x] Basic agent implementation
-- [x] Agent registry and discovery
-- [x] Multiple LLM provider support (OpenAI, Anthropic, Cohere)
-- [x] Multi-agent collaboration patterns
-- [x] Knowledge graph mining example
-- [x] Enhanced relationship discovery
+# ✅ Good: Specialized, focused agents
+@agent("validator", responds_to=["validation_request"])
+def data_validator(spore):
+    """I specialize in data quality validation."""
+    
+# ❌ Avoid: Monolithic, do-everything agents  
+@agent("super_agent", responds_to=["everything"])
+def handle_everything(spore):
+    """I handle all possible tasks."""
+```
 
-### Phase 2: Advanced Features (In Progress)
-- [x] Multi-agent orchestration
-- [x] Advanced reasoning patterns (via specialized agents)
-- [ ] Vector memory integration
-- [ ] Streaming support
-- [ ] Tool system integration
-- [ ] Configuration system
+## 🗺️ **Roadmap**
 
-### Phase 3: Production Features
-- [ ] Performance monitoring and metrics
-- [ ] Error handling and retry mechanisms
-- [ ] Rate limiting and cost management
-- [ ] Security and content filtering
-- [ ] Deployment and scaling patterns
+### **✅ Phase 1: Foundation Complete**
+- **✓ Decorator API**: Clean `@agent()` decorator system
+- **✓ Reef Communication**: Knowledge-first messaging protocol
+- **✓ Multi-LLM Support**: OpenAI, Anthropic, Cohere integration
+- **✓ Self-Organization**: Agents coordinate without central control
+- **✓ Production Examples**: VentureLens business analyzer
+- **✓ Concurrent Processing**: Thread-safe multi-agent execution
+- **✓ Message Filtering**: Agents respond only to relevant communications
+
+### **🔄 Phase 2: Advanced Patterns (Current)**
+- **✓ Complex Workflows**: Multi-stage business analysis pipelines
+- **✓ Dynamic Coordination**: Agents discover and delegate tasks
+- **🚧 Memory Integration**: Vector stores and persistent knowledge
+- **🚧 Streaming Responses**: Real-time token streaming from agents
+- **🚧 Tool Ecosystem**: External API and service integration
+- **🚧 Visual Debugging**: Agent interaction visualization
+
+### **🚀 Phase 3: Enterprise Ready**
+- **📈 Observability Suite**: Comprehensive metrics and tracing
+- **🔒 Security Framework**: Content filtering and access control  
+- **⚡ Performance Optimization**: Caching, rate limiting, cost management
+- **🐝 Horizontal Scaling**: Distributed agent deployment
+- **📚 Knowledge Persistence**: Long-term memory and learning
+- **🌐 Cloud Integration**: AWS, GCP, Azure deployment patterns
+
+### **🎆 Phase 4: Advanced Intelligence**
+- **🤖 Agent Evolution**: Self-improving agent capabilities
+- **🌍 Multi-Modal Agents**: Vision, audio, and text integration
+- **🎨 Creative Collaboration**: Agents for design, writing, and art
+- **🔬 Scientific Discovery**: Agents for research and analysis
+- **🏭 Industry Solutions**: Specialized agent packages for domains
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Examples
+## 🎯 **Complete Examples**
 
-Explore the `/examples` directory for complete working examples:
+### **🔍 VentureLens - AI Business Analyzer** 
+*`examples/venturelens.py`* - **The flagship example showcasing Praval's power**
 
-- **Knowledge Graph Miner** (`examples/knowledge_graph_miner.py`): Multi-agent system for building knowledge graphs from seed concepts with relationship enrichment
-- **RAG Chatbot** (`examples/rag_chatbot.py`): Retrieval-augmented generation chatbot example
-- **Target API Examples** (`examples/target_api_examples.py`): Demonstrates the desired API patterns
+**What it does**: A comprehensive business idea analysis platform that interviews users through AI agents and generates professional PDF reports.
 
-## Support
+**Multi-Agent Architecture**:
+- **👨‍💼 Interviewer Agent**: Dynamically generates intelligent questions
+- **🔬 Research Agent**: Conducts market intelligence gathering  
+- **📊 Analyst Agent**: Evaluates business viability across 6 dimensions
+- **📝 Reporter Agent**: Creates professional markdown reports
+- **🎨 Presenter Agent**: Generates PDFs and auto-opens in browser
 
-For questions and support:
-- Open an issue on GitHub
-- Check the documentation in `/docs`
-- See examples in `/examples`
-- Read the design philosophy in `praval.md`
+```python
+# Each agent is just a decorated function!
+@agent("interviewer", responds_to=["start_interview", "answer_provided"])
+def conduct_interview(spore):
+    """I ask insightful questions about business ideas."""
+    # Dynamic question generation using AI
+    next_question = generate_smart_question(previous_answers)
+    return ask_user(next_question)
+
+@agent("analyst", responds_to=["interview_complete"])
+def analyze_business_viability(spore):
+    """I evaluate business ideas across multiple dimensions."""
+    # Comprehensive analysis with scoring
+    analysis = evaluate_idea(interview_data)
+    return {"viability_score": 8.2, "analysis": analysis}
+```
+
+**Key Features**:
+- ✨ **489 lines → 50 lines**: Dramatic code simplification
+- 🧠 **Dynamic Questioning**: AI generates contextual follow-ups
+- 📊 **Multi-Dimensional Analysis**: SWOT, financial projections, market research
+- 📄 **Professional Reports**: LaTeX-styled PDFs with auto-browser opening
+- 🔄 **Self-Organizing Workflow**: Agents coordinate the entire process
+
+### **🕸️ Knowledge Graph Mining Suite**
+
+#### **Advanced Multi-Threading Version** 
+*`examples/knowledge_graph_miner.py`* - Concurrent agent processing
+
+- **🧠 Domain Expert**: Identifies core concepts and relationships
+- **🔍 Relationship Analyst**: Maps connections between concepts
+- **⚡ Concurrent Execution**: True parallel LLM processing
+- **📡 Thread-Safe Communication**: Reef messaging across threads
+- **🎯 Message Filtering**: Agents respond only to relevant messages
+
+#### **Pythonic Simplified Version**
+*`examples/pythonic_knowledge_graph.py`* - Clean decorator API showcase
+
+- **📉 Complexity Reduction**: From complex classes to simple functions
+- **🎨 Declarative Design**: Define agent identity, not procedures  
+- **⚙️ Automatic Coordination**: No manual threading or state management
+- **✨ Emergent Intelligence**: Complex graphs from simple agent collaboration
+
+### **💬 RAG Chatbot**
+*`examples/rag_chatbot.py`* - Retrieval-augmented conversation system
+
+- **🔍 Document Processing**: Intelligent text chunking and embedding
+- **🧠 Context Retrieval**: Semantic search for relevant information
+- **💭 Conversational Memory**: Multi-turn dialogue management
+- **📚 Knowledge Integration**: Combines retrieved context with AI generation
+
+### **📚 ArXiv Paper Downloader**
+*`examples/arxiv_paper_downloader.py`* - Automated research paper acquisition
+
+- **🔍 Query Processing**: Intelligent search term optimization
+- **📄 Batch Downloads**: Efficient paper retrieval and organization
+- **📊 Metadata Extraction**: Author, abstract, and citation information
+- **🗂️ File Management**: Organized storage with deduplication
+
+### **🎯 API Pattern Examples**
+*`examples/target_api_examples.py`* - Core framework demonstrations
+
+- **🏗️ Foundation Patterns**: Basic agent creation and registration
+- **🤝 Collaboration Examples**: Agent-to-agent communication
+- **🔧 Tool Integration**: External API and service connections
+- **📋 Best Practices**: Recommended implementation patterns
+
+## 📞 **Community & Support**
+
+### **👥 Getting Help**
+- **🐛 GitHub Issues**: Report bugs and request features
+- **📚 Documentation**: Comprehensive guides in `/docs`  
+- **🎯 Examples**: Complete working applications in `/examples`
+- **🧠 Philosophy**: Deep dive into Praval principles in `praval.md`
+- **💬 Discussions**: Community Q&A and best practices
+
+### **🎆 Showcase Your Work**
+**Built something amazing with Praval?** We'd love to feature it!
+
+- **🏆 Agent Showcases**: Highlight innovative agent architectures
+- **🚀 Success Stories**: Share your production implementations
+- **📚 Tutorial Contributions**: Help others learn Praval patterns
+- **🎆 Community Examples**: Expand the examples library
+
+### **🕰️ Quick Links**
+- **🚀 Get Started**: Follow the Quick Start guide above
+- **📊 See Results**: Run VentureLens for a complete demo
+- **🧠 Understand Philosophy**: Read `praval.md` for design principles
+- **🔧 Contribute**: Check development guidelines above

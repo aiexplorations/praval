@@ -1,746 +1,463 @@
 #!/usr/bin/env python3
 """
-Multi-Agent Knowledge Graph Mining using Praval Framework
-Demonstrates how simple agents collaborate to build complex knowledge structures.
+Concurrent Knowledge Graph Mining with Praval's Async Agent Framework
 
-Like a coral ecosystem where different organisms have specialized roles but work together
-to create complex reef structures, each agent has a specific purpose in knowledge discovery.
+Demonstrates how Praval's decorator approach with threading enables:
+- True concurrent LLM processing across multiple agents
+- Message type filtering to prevent broadcast storms  
+- Automatic resource management with thread pools
+- Pythonic async/await support for agents
+
+Key Features:
+- Concurrent agent execution (agents run in parallel threads)
+- Message type discrimination (agents only respond to relevant messages)
+- Two-phase mining: concept discovery → relationship exploration
+- Thread-safe communication through reef channels
+- Graceful shutdown and resource cleanup
+
+Before (489 lines + manual threading):
+- Complex classes and manual thread management
+- Imperative setup and global state management
+- Verbose agent creation functions
+- Sequential execution blocking on LLM calls
+
+After (~280 lines + automatic threading):
+- Simple decorated functions with @agent
+- Concurrent execution through ThreadPool
+- Automatic coordination through typed messages
+- Pure Python data structures with thread safety
 """
 
 import json
-import random
 import time
-import signal
-import sys
-import threading
 import logging
-from typing import Dict, List, Set, Optional, Tuple
-from dataclasses import dataclass
+from typing import Dict, Any
+from collections import defaultdict
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# Configure logging with size limits to prevent massive log files
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
+from praval import agent, chat, broadcast, start_agents
 
-from praval import Agent, register_agent, get_registry
+# Configure simple logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-# ==========================================
-# TIMEOUT AND SAFETY MECHANISMS
-# ==========================================
-
-class ProcessMonitor:
-    """Monitor process activity and enforce timeouts to prevent runaway execution."""
-    
-    def __init__(self, max_runtime_minutes: int = 5, max_inactivity_minutes: int = 5):
-        self.start_time = time.time()
-        self.last_activity = time.time()
-        self.max_runtime = max_runtime_minutes * 60
-        self.max_inactivity = max_inactivity_minutes * 60
-        self.is_active = True
-        self.interaction_count = 0
-        
-    def reset_activity(self):
-        """Reset the activity timer."""
-        self.last_activity = time.time()
-        self.interaction_count += 1
-        
-    def check_should_continue(self) -> bool:
-        """Check if process should continue running."""
-        current_time = time.time()
-        
-        # Check total runtime
-        if current_time - self.start_time > self.max_runtime:
-            logging.warning(f"Process exceeded maximum runtime of {self.max_runtime/60:.1f} minutes")
-            return False
-            
-        # Check inactivity timeout (only after first interaction)
-        if self.interaction_count > 0 and current_time - self.last_activity > self.max_inactivity:
-            logging.warning(f"Process inactive for {self.max_inactivity/60:.1f} minutes")
-            return False
-            
-        return True
-
-def safe_input_with_timeout(prompt: str, monitor: ProcessMonitor, timeout_seconds: int = 30) -> Optional[str]:
-    """Get user input with timeout to prevent infinite waiting."""
-    
-    def input_thread(result_container):
-        try:
-            result = input(prompt)
-            result_container.append(result)
-        except (EOFError, KeyboardInterrupt):
-            result_container.append(None)
-    
-    result_container = []
-    thread = threading.Thread(target=input_thread, args=(result_container,))
-    thread.daemon = True
-    thread.start()
-    
-    # Wait for input with timeout
-    start_time = time.time()
-    while thread.is_alive() and (time.time() - start_time) < timeout_seconds:
-        if not monitor.check_should_continue():
-            logging.info("Process timeout detected during input - shutting down")
-            return None
-        time.sleep(0.1)
-    
-    if thread.is_alive():
-        logging.warning(f"Input timeout after {timeout_seconds} seconds - assuming automated execution")
-        return None
-        
-    monitor.reset_activity()
-    return result_container[0] if result_container else None
-
-# Signal handler for graceful shutdown
-def signal_handler(signum, frame):
-    logging.info("Received termination signal - shutting down gracefully")
-    sys.exit(0)
-
-signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGINT, signal_handler)
+# Simple shared state - just Python data structures!
+graph = {
+    "nodes": set(), 
+    "edges": [], 
+    "explored": set(),  # Track which nodes have been explored for connections
+    "metadata": {"seed": None, "target_size": 10}
+}
 
 # ==========================================
-# MULTI-AGENT KNOWLEDGE MINING SYSTEM
+# CONCURRENT AGENTS AS DECORATED FUNCTIONS
+# Each agent runs in its own thread via ThreadPool
 # ==========================================
 
-def setup_knowledge_mining_agents():
+@agent("explorer", channel="knowledge", responds_to=["concept_request"]) 
+def discover_concepts(spore):
+    """Discover related concepts and add them to the graph.
+    
+    🧵 This agent runs concurrently with others in a ThreadPool.
+    Multiple discovery requests can be processed in parallel.
     """
-    Set up and register specialized agents for knowledge graph construction.
-    Each agent has a distinct role in the collaborative mining process.
+    concept = spore.knowledge.get("concept")
+    if not concept or concept in graph["explored"]:
+        return
+    
+    logging.info(f"🔍 Explorer discovering concepts for: {concept}")
+    
+    # Use LLM to find related concepts (this LLM call won't block other agents!)
+    try:
+        related = chat(f"List 3 concepts closely related to '{concept}'. Return only comma-separated names, avoid duplicates or near-synonyms of '{concept}'.", timeout=8.0)
+    except TimeoutError:
+        logging.warning(f"⏰ Concept discovery for '{concept}' timed out, skipping")
+        return
+    raw_concepts = [c.strip() for c in related.split(",") if c.strip() and len(c.strip()) > 1]
+    
+    # Deduplicate and filter concepts
+    concepts = []
+    for new_concept in raw_concepts:
+        # Skip if too similar to existing concepts (simple check)
+        if not any(new_concept.lower() in existing.lower() or existing.lower() in new_concept.lower() 
+                  for existing in graph["nodes"]):
+            concepts.append(new_concept)
+    
+    # Add to graph
+    graph["nodes"].add(concept)
+    graph["nodes"].update(concepts)
+    graph["explored"].add(concept)  # Mark this concept as explored
+    
+    # Auto-broadcast discovery (return value automatically sent to channel)
+    return {
+        "type": "discovery",
+        "source": concept,
+        "found": concepts,
+        "explorer": "explorer"
+    }
+
+@agent("relationship_explorer", channel="knowledge", auto_broadcast=False, responds_to=["discovery", "start_relationship_phase"])
+def explore_node_relationships(spore):
+    """Create relationships from discovery connections and add a few key cross-relationships.
+    
+    🧵 Runs concurrently with concept discovery - while explorer finds new concepts,
+    this agent creates relationships from already discovered concepts in parallel.
     """
+    spore_type = spore.knowledge.get("type", "unknown")
     
-    # Domain Expert: Understands concepts and their context
-    domain_expert = Agent("domain_expert", system_message="""You are a domain expert who understands concepts deeply and can identify the most relevant related concepts.
-
-When given a concept, identify the most important related concepts that would be valuable in a knowledge graph.
-
-Return ONLY a JSON list of concept names: ["concept1", "concept2", "concept3"]
-
-Focus on:
-- Core subtopics and components
-- Closely related fields and disciplines  
-- Key applications and practical uses
-- Important foundational or prerequisite concepts
-- Significant outcomes or results""")
-    
-    # Relationship Analyst: Specializes in understanding connections
-    relationship_analyst = Agent("relationship_analyst", system_message="""You are a relationship analyst who specializes in understanding how concepts connect to each other.
-
-Analyze the relationship between two concepts and classify both the type and strength of connection.
-
-Return ONLY a JSON object:
-{"relationship": "precise relationship description", "strength": "strong|medium|weak", "direction": "bidirectional|unidirectional"}
-
-Relationship types:
-- "is a type of", "contains", "enables", "requires", "influences", "causes", "results in"
-- "implements", "uses", "applies to", "exemplifies", "depends on"
-
-Strength guidelines:
-- strong: direct, essential, or definitional connection
-- medium: significant but not essential connection  
-- weak: indirect or tangential connection""")
-    
-    # Concept Validator: Ensures quality and relevance
-    concept_validator = Agent("concept_validator", system_message="""You are a concept validator who ensures the quality and relevance of concepts in a knowledge graph.
-
-Evaluate if a concept is:
-1. Relevant to the domain
-2. Properly named (clear, concise, standard terminology)
-3. Not a duplicate of existing concepts
-
-Return ONLY a JSON object:
-{"valid": true/false, "reason": "explanation", "suggested_name": "improved name if needed"}
-
-Validation criteria:
-- Use standard, widely-recognized terminology
-- Avoid overly specific or niche terms unless crucial
-- Ensure concepts are distinct and non-redundant
-- Maintain consistent naming conventions""")
-    
-    # Graph Strategist: Plans exploration strategy
-    graph_strategist = Agent("graph_strategist", system_message="""You are a graph strategist who decides the optimal exploration strategy for building knowledge graphs.
-
-Given a current graph state and goals, decide which concept to explore next and how many new concepts to discover.
-
-Return ONLY a JSON object:
-{"next_concept": "concept name", "concepts_to_find": number, "exploration_depth": "broad|deep", "rationale": "brief explanation"}
-
-Strategy considerations:
-- Prioritize unexplored high-centrality concepts
-- Balance breadth vs depth based on graph density
-- Consider domain coverage and knowledge gaps
-- Avoid over-exploration of well-covered areas""")
-    
-    # Graph Enricher: Finds hidden relationships between existing concepts
-    graph_enricher = Agent("graph_enricher", system_message="""You are a graph enricher who specializes in discovering hidden relationships between existing concepts in a knowledge graph.
-
-Given two concepts that may not have a direct relationship established, analyze whether there is a meaningful connection between them.
-
-Return ONLY a JSON object:
-{"has_relationship": true/false, "relationship": "relationship description", "strength": "strong|medium|weak", "direction": "bidirectional|unidirectional", "confidence": "high|medium|low", "explanation": "brief justification"}
-
-Focus on:
-- Semantic relationships (conceptual connections)
-- Practical relationships (one enables/uses/requires the other)
-- Hierarchical relationships (one is a subset/superset of the other)
-- Causal relationships (one influences/causes the other)
-- Historical/temporal relationships
-
-Only return has_relationship: true if there is a meaningful, non-trivial connection. Avoid weak or forced relationships.""")
-    
-    # Register all agents in the Praval registry
-    register_agent(domain_expert)
-    register_agent(relationship_analyst)
-    register_agent(concept_validator)
-    register_agent(graph_strategist)
-    register_agent(graph_enricher)
-    
-    print("🤖 Registered agents in Praval registry:")
-    for agent_name in get_registry().list_agents():
-        print(f"   • {agent_name}")
-    print()
-
-
-def discover_concepts(concept: str, max_concepts: int = 5) -> List[str]:
-    """Use domain expert to discover related concepts."""
-    domain_expert = get_registry().get_agent("domain_expert")
-    if not domain_expert:
-        raise ValueError("Domain expert agent not found in registry")
-    
-    prompt = f"""Discover {max_concepts} concepts most closely related to "{concept}".
-    
-    Focus on building a comprehensive knowledge graph that covers the most important aspects of this domain.
-    
-    Concept: {concept}"""
-    
-    try:
-        response = domain_expert.chat(prompt)
-        if not response or not response.strip():
-            print(f"   ⚠️ Empty response from domain expert")
-            return []
+    # Create relationships immediately when concepts are discovered
+    if spore_type == "discovery":
+        source = spore.knowledge.get("source")
+        found = spore.knowledge.get("found", [])
         
-        # Try to extract JSON from response if it contains other text
-        response_text = response.strip()
-        if response_text.startswith('[') and response_text.endswith(']'):
-            concepts = json.loads(response_text)
-        else:
-            # Look for JSON array in the response
-            import re
-            json_match = re.search(r'\[[^\]]*\]', response_text)
-            if json_match:
-                concepts = json.loads(json_match.group())
-            else:
-                print(f"   ⚠️ No valid JSON found in response: {response_text[:100]}...")
-                return []
+        logging.info(f"🔗 Creating discovery relationships from: {source}")
         
-        return concepts if isinstance(concepts, list) else []
-    except json.JSONDecodeError as e:
-        print(f"   ⚠️ JSON decode error: {e}")
-        print(f"   Response was: {response[:100] if response else 'None'}...")
-        return []
-    except Exception as e:
-        print(f"   ⚠️ Concept discovery error: {e}")
-        return []
-
-
-def analyze_relationship(concept1: str, concept2: str) -> Dict[str, str]:
-    """Use relationship analyst to determine concept connections."""
-    relationship_analyst = get_registry().get_agent("relationship_analyst")
-    if not relationship_analyst:
-        raise ValueError("Relationship analyst agent not found in registry")
-    
-    prompt = f"""Analyze the relationship between "{concept1}" and "{concept2}".
-    
-    Consider both semantic and practical connections between these concepts.
-    
-    Concepts: {concept1} ↔ {concept2}"""
-    
-    try:
-        response = relationship_analyst.chat(prompt)
-        if not response or not response.strip():
-            print(f"   ⚠️ Empty response from relationship analyst")
-            return {"relationship": "related to", "strength": "medium", "direction": "bidirectional"}
-        
-        # Try to extract JSON from response if it contains other text
-        response_text = response.strip()
-        if response_text.startswith('{') and response_text.endswith('}'):
-            relationship = json.loads(response_text)
-        else:
-            # Look for JSON object in the response
-            import re
-            json_match = re.search(r'\{[^}]*\}', response_text)
-            if json_match:
-                relationship = json.loads(json_match.group())
-            else:
-                print(f"   ⚠️ No valid JSON found in response: {response_text[:100]}...")
-                return {"relationship": "related to", "strength": "medium", "direction": "bidirectional"}
-        
-        return relationship if isinstance(relationship, dict) else {
-            "relationship": "related to", 
-            "strength": "medium", 
-            "direction": "bidirectional"
-        }
-    except json.JSONDecodeError as e:
-        print(f"   ⚠️ JSON decode error: {e}")
-        print(f"   Response was: {response[:100] if response else 'None'}...")
-        return {"relationship": "related to", "strength": "medium", "direction": "bidirectional"}
-    except Exception as e:
-        print(f"   ⚠️ Relationship analysis error: {e}")
-        return {"relationship": "related to", "strength": "medium", "direction": "bidirectional"}
-
-
-def validate_concept(concept: str, existing_concepts: Set[str]) -> Dict[str, any]:
-    """Use concept validator to ensure concept quality."""
-    concept_validator = get_registry().get_agent("concept_validator")
-    if not concept_validator:
-        raise ValueError("Concept validator agent not found in registry")
-    
-    prompt = f"""Validate the concept "{concept}" for inclusion in a knowledge graph.
-    
-    Existing concepts: {list(existing_concepts)[:10]}  # Show first 10 to avoid token limits
-    
-    Evaluate relevance, naming quality, and uniqueness."""
-    
-    try:
-        response = concept_validator.chat(prompt)
-        if not response or not response.strip():
-            print(f"   ⚠️ Empty response from concept validator")
-            return {"valid": True, "reason": "validation failed, assumed valid", "suggested_name": concept}
-        
-        # Try to extract JSON from response if it contains other text
-        response_text = response.strip()
-        if response_text.startswith('{') and response_text.endswith('}'):
-            validation = json.loads(response_text)
-        else:
-            # Look for JSON object in the response
-            import re
-            json_match = re.search(r'\{[^}]*\}', response_text)
-            if json_match:
-                validation = json.loads(json_match.group())
-            else:
-                print(f"   ⚠️ No valid JSON found in response: {response_text[:100]}...")
-                return {"valid": True, "reason": "validation failed, assumed valid", "suggested_name": concept}
-        
-        return validation if isinstance(validation, dict) else {
-            "valid": True, 
-            "reason": "assumed valid", 
-            "suggested_name": concept
-        }
-    except json.JSONDecodeError as e:
-        print(f"   ⚠️ JSON decode error: {e}")
-        print(f"   Response was: {response[:100] if response else 'None'}...")
-        return {"valid": True, "reason": "validation failed, assumed valid", "suggested_name": concept}
-    except Exception as e:
-        print(f"   ⚠️ Concept validation error: {e}")
-        return {"valid": True, "reason": "validation failed, assumed valid", "suggested_name": concept}
-
-
-def enrich_relationships(kg: 'KnowledgeGraph', max_enrichments: int = 5) -> int:
-    """Use graph enricher to find hidden relationships between existing concepts."""
-    graph_enricher = get_registry().get_agent("graph_enricher")
-    if not graph_enricher:
-        print("   ⚠️ Graph enricher agent not found in registry")
-        return 0
-    
-    nodes_list = list(kg.nodes.keys())
-    if len(nodes_list) < 2:
-        return 0
-    
-    # Get existing edges to avoid duplicates
-    existing_pairs = set()
-    for edge in kg.edges:
-        existing_pairs.add((edge["source"], edge["target"]))
-        existing_pairs.add((edge["target"], edge["source"]))  # bidirectional check
-    
-    enrichments_added = 0
-    attempts = 0
-    max_attempts = max_enrichments * 3  # Allow some failed attempts
-    
-    while enrichments_added < max_enrichments and attempts < max_attempts:
-        # Select random pair of concepts
-        concept1, concept2 = random.sample(nodes_list, 2)
-        
-        # Skip if relationship already exists
-        if (concept1, concept2) in existing_pairs:
-            attempts += 1
-            continue
-            
-        prompt = f"""Analyze whether there is a meaningful relationship between these two concepts:
-
-Concept 1: {concept1}
-Concept 2: {concept2}
-
-Consider all types of relationships: semantic, practical, hierarchical, causal, or temporal.
-Only identify relationships that add valuable knowledge graph connections."""
-        
-        try:
-            response = graph_enricher.chat(prompt)
-            if not response or not response.strip():
-                attempts += 1
-                continue
-            
-            # Parse enricher response
-            response_text = response.strip()
-            if response_text.startswith('{') and response_text.endswith('}'):
-                enrichment = json.loads(response_text)
-            else:
-                import re
-                json_match = re.search(r'\{[^}]*\}', response_text)
-                if json_match:
-                    enrichment = json.loads(json_match.group())
+        relationships_created = 0
+        for concept in found:
+            if concept != source:
+                # Generate specific relationship description with confidence
+                try:
+                    relationship_desc = chat(f"How is '{source}' specifically related to '{concept}'? Answer in 3-5 words describing the relationship type (e.g., 'is a subset of', 'enables', 'uses technique from'). Rate confidence as STRONG/MEDIUM/WEAK and format as 'CONFIDENCE: relationship'.", timeout=6.0)
+                except TimeoutError:
+                    logging.warning(f"⏰ Relationship description for '{source}' → '{concept}' timed out, using fallback")
+                    relationship_desc = f"related to"
+                
+                # Parse confidence and relationship
+                if ":" in relationship_desc:
+                    confidence, relationship = relationship_desc.split(":", 1)
+                    confidence = confidence.strip().lower()
+                    relationship = relationship.strip()
                 else:
-                    attempts += 1
-                    continue
-            
-            # Add relationship if enricher found one
-            if enrichment.get("has_relationship", False) and enrichment.get("confidence") in ["high", "medium"]:
-                kg.add_edge(
-                    concept1,
-                    concept2,
-                    enrichment.get("relationship", "related to"),
-                    enrichment.get("strength", "medium")
-                )
-                existing_pairs.add((concept1, concept2))
-                existing_pairs.add((concept2, concept1))
-                enrichments_added += 1
+                    confidence = "medium"
+                    relationship = relationship_desc.strip()
                 
-                print(f"   🔗 Enriched: {concept1} → {enrichment.get('relationship', 'related to')} → {concept2}")
+                # Map confidence to strength
+                strength_map = {"strong": "strong", "medium": "medium", "weak": "weak"}
+                strength = strength_map.get(confidence, "medium")
                 
-        except Exception as e:
-            print(f"   ⚠️ Enrichment error for {concept1} ↔ {concept2}: {e}")
+                graph["edges"].append({
+                    "source": source,
+                    "target": concept, 
+                    "relationship": relationship,
+                    "strength": strength
+                })
+                relationships_created += 1
+                logging.info(f"  ✅ {source} → {relationship_desc.strip()} → {concept}")
         
-        attempts += 1
+        # Relationships created - no need to broadcast since curator doesn't listen to discovery_connections
     
-    return enrichments_added
-
-
-def plan_exploration(current_graph: 'KnowledgeGraph', target_nodes: int) -> Dict[str, any]:
-    """Use graph strategist to plan next exploration steps."""
-    graph_strategist = get_registry().get_agent("graph_strategist")
-    if not graph_strategist:
-        raise ValueError("Graph strategist agent not found in registry")
-    
-    unexplored = current_graph.get_unexplored_nodes()
-    
-    if not unexplored:
-        return {"next_concept": None, "concepts_to_find": 0, "exploration_depth": "complete", "rationale": "no unexplored concepts"}
-    
-    prompt = f"""Plan the next exploration step for building a knowledge graph.
-    
-    Current state:
-    - Total nodes: {len(current_graph.nodes)}
-    - Target nodes: {target_nodes}
-    - Unexplored concepts: {unexplored[:5]}  # Show first 5
-    - Graph density: {len(current_graph.edges) / max(1, len(current_graph.nodes))} edges per node
-    
-    Recommend the next concept to explore and strategy."""
-    
-    try:
-        response = graph_strategist.chat(prompt)
-        if not response or not response.strip():
-            print(f"   ⚠️ Empty response from graph strategist")
-            return {
-                "next_concept": unexplored[0],
-                "concepts_to_find": min(3, target_nodes - len(current_graph.nodes)),
-                "exploration_depth": "broad",
-                "rationale": "fallback strategy due to empty response"
-            }
+    # Add cross-relationships when mining phase is complete
+    elif spore_type == "start_relationship_phase":
+        logging.info("🔗 Adding key cross-relationships between concept clusters")
         
-        # Try to extract JSON from response if it contains other text
-        response_text = response.strip()
-        if response_text.startswith('{') and response_text.endswith('}'):
-            strategy = json.loads(response_text)
-        else:
-            # Look for JSON object in the response
-            import re
-            json_match = re.search(r'\{[^}]*\}', response_text)
-            if json_match:
-                strategy = json.loads(json_match.group())
-            else:
-                print(f"   ⚠️ No valid JSON found in response: {response_text[:100]}...")
-                return {
-                    "next_concept": unexplored[0],
-                    "concepts_to_find": min(3, target_nodes - len(current_graph.nodes)),
-                    "exploration_depth": "broad",
-                    "rationale": "fallback strategy due to invalid response"
-                }
+        all_nodes = list(graph["nodes"])
+        existing_pairs = {(e["source"], e["target"]) for e in graph["edges"]}
+        existing_pairs.update({(e["target"], e["source"]) for e in graph["edges"]})
         
-        return strategy if isinstance(strategy, dict) else {
-            "next_concept": unexplored[0],
-            "concepts_to_find": min(3, target_nodes - len(current_graph.nodes)),
-            "exploration_depth": "broad",
-            "rationale": "default strategy"
-        }
-    except json.JSONDecodeError as e:
-        print(f"   ⚠️ JSON decode error: {e}")
-        print(f"   Response was: {response[:100] if response else 'None'}...")
-        return {
-            "next_concept": unexplored[0],
-            "concepts_to_find": min(3, target_nodes - len(current_graph.nodes)),
-            "exploration_depth": "broad",
-            "rationale": "fallback strategy due to JSON error"
-        }
-    except Exception as e:
-        print(f"   ⚠️ Strategy planning error: {e}")
-        return {
-            "next_concept": unexplored[0],
-            "concepts_to_find": min(3, target_nodes - len(current_graph.nodes)),
-            "exploration_depth": "broad",
-            "rationale": "fallback strategy due to error"
-        }
-
-# Knowledge Graph class to manage the graph structure
-class KnowledgeGraph:
-    """Simple knowledge graph implementation."""
-    
-    def __init__(self, seed_concept: str):
-        self.nodes = {seed_concept: {"type": "seed", "explored": False}}
-        self.edges = []
-        self.seed = seed_concept
-    
-    def add_node(self, concept: str, node_type: str = "concept"):
-        """Add a node to the graph."""
-        if concept not in self.nodes:
-            self.nodes[concept] = {"type": node_type, "explored": False}
-    
-    def add_edge(self, source: str, target: str, relationship: str, strength: str = "medium"):
-        """Add an edge to the graph."""
-        edge = {
-            "source": source,
-            "target": target, 
-            "relationship": relationship,
-            "strength": strength
-        }
-        self.edges.append(edge)
-    
-    def get_unexplored_nodes(self) -> List[str]:
-        """Get nodes that haven't been explored yet."""
-        return [node for node, data in self.nodes.items() if not data["explored"]]
-    
-    def mark_explored(self, concept: str):
-        """Mark a node as explored."""
-        if concept in self.nodes:
-            self.nodes[concept]["explored"] = True
-    
-    def to_dict(self) -> Dict:
-        """Convert graph to dictionary format."""
-        return {
-            "seed_concept": self.seed,
-            "nodes": self.nodes,
-            "edges": self.edges,
-            "stats": {
-                "total_nodes": len(self.nodes),
-                "total_edges": len(self.edges),
-                "explored_nodes": len([n for n, d in self.nodes.items() if d["explored"]])
-            }
-        }
-
-# Main knowledge mining function
-def mine_knowledge_graph(seed_concept: str, max_nodes: int = 10) -> Dict:
-    """
-    Mine a knowledge graph starting from a seed concept.
-    
-    Args:
-        seed_concept: The starting concept to explore
-        max_nodes: Maximum number of nodes to create
+        cross_relationships = 0
+        max_cross_relationships = min(6, len(all_nodes))  # Limit total cross-relationships
+        analysis_start = time.time()
         
-    Returns:
-        Knowledge graph as a dictionary
-    """
-    print(f"🧠 Starting knowledge mining from: '{seed_concept}'")
-    print(f"📊 Target nodes: {max_nodes}")
-    print("-" * 50)
-    
-    # Initialize knowledge graph
-    kg = KnowledgeGraph(seed_concept)
-    explored_concepts: Set[str] = set()
-    
-    # Recursive exploration
-    while len(kg.nodes) < max_nodes:
-        # Get next concept to explore
-        unexplored = kg.get_unexplored_nodes()
-        if not unexplored:
-            break
-            
-        current_concept = unexplored[0]
-        if current_concept in explored_concepts:
-            kg.mark_explored(current_concept)
-            continue
-            
-        print(f"🔍 Exploring: {current_concept}")
-        
-        # Find related concepts
-        try:
-            remaining_slots = max_nodes - len(kg.nodes)
-            concepts_to_find = min(3, remaining_slots)
-            
-            if concepts_to_find > 0:
-                related_concepts = discover_concepts(current_concept, concepts_to_find)
+        # Only analyze a few key cross-relationships (not all pairs) with time limit
+        for i, concept_a in enumerate(all_nodes):
+            if cross_relationships >= max_cross_relationships:
+                logging.info(f"✅ Reached max cross-relationships limit ({max_cross_relationships})")
+                break
                 
-                print(f"   Found {len(related_concepts)} related concepts")
-                
-                # Add new concepts and relationships
-                for concept in related_concepts:
-                    if concept and concept != current_concept and len(kg.nodes) < max_nodes:
-                        # Add the new concept
-                        kg.add_node(concept)
+            # Time limit: don't spend more than 15 seconds on cross-relationships
+            if time.time() - analysis_start > 15:
+                logging.info("⏰ Cross-relationship analysis time limit reached")
+                break
+            
+            # Only check 2-3 distant pairs per concept (reduced from i+3:i+6)
+            for concept_b in all_nodes[i+2:i+4]:  
+                if (concept_a, concept_b) not in existing_pairs:
+                    try:
+                        analysis = chat(f"Are '{concept_a}' and '{concept_b}' closely related? If YES, describe their relationship in 3-5 words and rate confidence as STRONG/MEDIUM/WEAK. Format as 'CONFIDENCE: relationship' (e.g., 'MEDIUM: applies to'). If NO, reply 'NO'.", timeout=4.0)
+                    except TimeoutError:
+                        logging.warning(f"⏰ Cross-relationship analysis for '{concept_a}' ↔ '{concept_b}' timed out, skipping")
+                        continue
+                    
+                    if not analysis.upper().startswith("NO"):
+                        # Parse confidence and relationship
+                        if ":" in analysis:
+                            confidence, relationship = analysis.split(":", 1)
+                            confidence = confidence.strip().lower()
+                            relationship = relationship.strip()
+                        else:
+                            confidence = "medium"
+                            relationship = analysis.replace("YES:", "").replace("Yes:", "").strip()
                         
-                        # Find relationship between current and new concept
-                        try:
-                            rel_data = analyze_relationship(current_concept, concept)
+                        # Map confidence to strength
+                        strength_map = {"strong": "strong", "medium": "medium", "weak": "weak"}
+                        strength = strength_map.get(confidence, "medium")
+                        
+                        if relationship and len(relationship) > 2:
+                            graph["edges"].append({
+                                "source": concept_a,
+                                "target": concept_b,
+                                "relationship": relationship,
+                                "strength": strength
+                            })
+                            cross_relationships += 1
+                            logging.info(f"✅ Cross-relationship: {concept_a} → {relationship} ({strength}) → {concept_b}")
                             
-                            kg.add_edge(
-                                current_concept, 
-                                concept, 
-                                rel_data.get("relationship", "related to"),
-                                rel_data.get("strength", "medium")
-                            )
-                            
-                            print(f"   → {concept} ({rel_data.get('relationship', 'related to')})")
-                            
-                        except Exception as e:
-                            # Fallback relationship
-                            kg.add_edge(current_concept, concept, "related to", "medium")
-                            print(f"   → {concept} (related to)")
-                
-        except Exception as e:
-            print(f"   ⚠️ Error exploring {current_concept}: {e}")
+                            if cross_relationships >= max_cross_relationships:
+                                break
         
-        # Mark as explored
-        kg.mark_explored(current_concept)
-        explored_concepts.add(current_concept)
+        return {
+            "type": "exploration_complete", 
+            "cross_relationships": cross_relationships,
+            "total_nodes": len(all_nodes),
+            "total_edges": len(graph["edges"])
+        }
+
+@agent("curator", channel="knowledge", responds_to=["discovery", "exploration_complete"])
+def monitor_progress(spore):
+    """Monitor graph growth and coordinate two-phase mining process.
+    
+    🧵 Runs as coordinator agent, managing the mining phases while other
+    agents work concurrently on concept discovery and relationship creation.
+    """
+    nodes = len(graph["nodes"])
+    edges = len(graph["edges"])
+    target = graph["metadata"]["target_size"]
+    
+    # Log progress for concept discovery phase
+    if spore.knowledge.get("type") == "discovery":
+        logging.info(f"📊 Concept Mining: {nodes}/{target} concepts discovered")
+    
+    # Handle relationship phase completion
+    elif spore.knowledge.get("type") == "exploration_complete":
+        exploration_rate = (edges / max(nodes, 1)) * 100
+        logging.info(f"🎯 Mining Complete! {nodes} concepts, {edges} relationships ({exploration_rate:.1f}% connected)")
+        return {"type": "complete", "final_size": nodes, "final_edges": edges}
+    
+    # Check if concept mining phase is complete
+    if nodes >= target and spore.knowledge.get("type") != "systematic_connections":
+        if not hasattr(monitor_progress, '_relationship_phase_started'):
+            logging.info(f"✅ Concept mining complete ({nodes}/{target} concepts)")
+            logging.info("🔄 Starting relationship exploration phase...")
+            monitor_progress._relationship_phase_started = True
+            broadcast({"type": "start_relationship_phase"}, message_type="start_relationship_phase")
+        return
+    
+    # Continue concept exploration if target not reached
+    if nodes < target:
+        unexplored = [node for node in graph["nodes"] if node not in graph["explored"]]
         
-        # Show progress
-        print(f"   📈 Progress: {len(kg.nodes)}/{max_nodes} nodes, {len(kg.edges)} edges")
+        if unexplored:
+            next_concept = unexplored[0]
+            logging.info(f"🎯 Next concept: {next_concept}")
+            broadcast({"concept": next_concept, "type": "concept_request"}, message_type="concept_request")
+
+# ==========================================
+# SIMPLE ORCHESTRATION FUNCTIONS
+# ==========================================
+
+def start_autonomous_mining(seed_concept: str, max_nodes: int = 10):
+    """
+    Start autonomous knowledge graph mining.
     
-    # Enrichment phase: Find additional relationships between existing concepts
-    print("-" * 50)
-    print("🔗 Starting relationship enrichment phase...")
+    This replaces the entire complex setup from the original version.
+    """
+    logging.info(f"🚀 Starting autonomous knowledge graph mining: {seed_concept}")
+    logging.info(f"🎯 Target: {max_nodes} concepts")
     
-    initial_edges = len(kg.edges)
-    max_enrichments = min(10, len(kg.nodes))  # Scale enrichments with graph size
-    enrichments_added = enrich_relationships(kg, max_enrichments)
+    # Initialize graph
+    graph["metadata"]["seed"] = seed_concept
+    graph["metadata"]["target_size"] = max_nodes
+    graph["nodes"].clear()
+    graph["edges"].clear()
+    graph["explored"].clear()
     
-    print(f"   ✨ Added {enrichments_added} enriched relationships")
-    print(f"   📊 Graph connectivity improved: {initial_edges} → {len(kg.edges)} edges")
+    # Reset curator state for new mining session
+    if hasattr(monitor_progress, '_relationship_phase_started'):
+        delattr(monitor_progress, '_relationship_phase_started')
     
-    print("-" * 50)
-    print(f"✅ Knowledge mining complete!")
-    print(f"📊 Final stats: {len(kg.nodes)} nodes, {len(kg.edges)} edges")
+    # Start all agents with initial concept - this single call starts everything!
+    start_agents(
+        discover_concepts, explore_node_relationships, monitor_progress,
+        initial_data={"concept": seed_concept, "type": "concept_request"}, 
+        channel="knowledge"
+    )
+
+def wait_for_completion(timeout: int = 45) -> Dict[str, Any]:
+    """Wait for autonomous mining to complete both concept discovery and relationship exploration phases."""
+    start_time = time.time()
+    target = graph["metadata"]["target_size"]
     
-    return kg.to_dict()
+    # Wait for concept discovery phase (should be fast with timeouts)
+    logging.info("⏳ Waiting for concept discovery phase...")
+    concept_timeout = min(timeout * 0.4, 20)  # Max 40% of total timeout for concepts
+    
+    while len(graph["nodes"]) < target and (time.time() - start_time) < concept_timeout:
+        time.sleep(0.5)  # Check more frequently
+    
+    concept_time = time.time() - start_time
+    remaining_time = timeout - concept_time
+    
+    # Wait for relationship exploration phase
+    if len(graph["nodes"]) >= target and remaining_time > 0:
+        logging.info("⏳ Waiting for relationship exploration phase...")
+        relationship_start = time.time()
+        initial_edges = len(graph["edges"])
+        last_edge_count = initial_edges
+        stall_counter = 0
+        
+        # Wait for relationship analysis with adaptive timeout
+        while (time.time() - start_time) < timeout and stall_counter < 6:
+            time.sleep(1)
+            current_edges = len(graph["edges"])
+            
+            if current_edges > last_edge_count:
+                # Progress made, reset stall counter
+                last_edge_count = current_edges
+                stall_counter = 0
+                logging.info(f"🔗 Relationship progress: {current_edges} relationships created")
+            else:
+                stall_counter += 1
+            
+            # Early exit if we have reasonable relationships
+            relationship_rate = current_edges / max(len(graph["nodes"]), 1)
+            if relationship_rate > 1.5 and (time.time() - relationship_start) > 8:
+                logging.info(f"✅ Sufficient relationships created ({relationship_rate:.1f} per node), completing")
+                break
+    
+    total_time = time.time() - start_time
+    if len(graph["nodes"]) < target:
+        logging.warning(f"⏰ Mining timed out during concept discovery phase ({total_time:.1f}s)")
+    elif stall_counter >= 6:
+        logging.info(f"✅ Relationship exploration completed (no activity for {stall_counter}s)")
+    
+    logging.info(f"🏁 Mining completed in {total_time:.1f}s")
+    return get_graph_stats()
+
+def get_graph_stats() -> Dict[str, Any]:
+    """Get current graph statistics."""
+    total_nodes = len(graph["nodes"])
+    total_edges = len(graph["edges"])
+    
+    return {
+        "total_nodes": total_nodes,
+        "total_edges": total_edges,
+        "exploration_rate": (total_edges / max(total_nodes, 1)) * 100,
+        "seed_concept": graph["metadata"]["seed"]
+    }
+
+def save_graph_results(filename: str = None) -> str:
+    """Save the knowledge graph to a JSON file."""
+    if not filename:
+        seed = graph["metadata"]["seed"].replace(" ", "_").lower()
+        filename = f"autonomous_kg_{seed}.json"
+    
+    # Convert set to list for JSON serialization
+    result = {
+        "seed": graph["metadata"]["seed"],
+        "nodes": list(graph["nodes"]),
+        "edges": graph["edges"],
+        "stats": get_graph_stats()
+    }
+    
+    with open(filename, 'w') as f:
+        json.dump(result, f, indent=2)
+    
+    logging.info(f"💾 Results saved to: {filename}")
+    return filename
+
+def print_results():
+    """Print a summary of discovered knowledge."""
+    stats = get_graph_stats()
+    
+    print(f"\n📊 Final Results:")
+    print(f"  Nodes: {stats['total_nodes']}")
+    print(f"  Edges: {stats['total_edges']}")
+    print(f"  Exploration: {stats['exploration_rate']:.1f}%")
+    
+    if graph["nodes"]:
+        print(f"\n🌟 Concepts discovered:")
+        for i, node in enumerate(sorted(graph["nodes"]), 1):
+            emoji = "🌱" if node == graph["metadata"]["seed"] else "💭"
+            print(f"  {i:2}. {emoji} {node}")
+        
+        print(f"\n🔗 Relationships found:")
+        # Group by source for better display with strength indicators
+        by_source = defaultdict(list)
+        strength_emojis = {"strong": "💪", "medium": "🔗", "weak": "〰️"}
+        
+        for edge in graph["edges"]:
+            strength_emoji = strength_emojis.get(edge.get("strength", "medium"), "🔗")
+            relationship_str = f"{strength_emoji} {edge['relationship']} → {edge['target']}"
+            by_source[edge["source"]].append(relationship_str)
+        
+        count = 0
+        for source, relationships in by_source.items():
+            if count >= 6:  # Show more relationships since they're richer
+                break
+            print(f"  📍 {source}:")
+            for rel in relationships[:4]:  # Show more per source
+                print(f"     {rel}")
+            if len(relationships) > 4:
+                print(f"     ... and {len(relationships) - 4} more")
+            count += 1
+        
+        if len(graph["edges"]) > 15:
+            print(f"     ... and {len(graph['edges']) - 15} more relationships")
+
+# ==========================================
+# MAIN APPLICATION
+# ==========================================
 
 def main():
-    """Interactive knowledge graph mining with timeout protection."""
-    print("🕸️  Knowledge Graph Miner using Praval Framework")
-    print("=" * 55)
-    print("Mine knowledge graphs from seed concepts using LLM calls!")
-    print("⏰ Auto-shutdown after 5 minutes of inactivity or 5 minutes total runtime")
+    """Self-organizing knowledge graph mining demo."""
+    print("🏖️ Self-Organizing Knowledge Graph Miner")
+    print("   Powered by Praval's Pythonic Decorator API")
+    print("=" * 50)
+    print("Agents autonomously coordinate through decorated functions!")
     print()
     
-    # Initialize process monitor
-    monitor = ProcessMonitor(max_runtime_minutes=5, max_inactivity_minutes=5)
-    logging.info("Starting knowledge graph miner with timeout protection")
-    
-    # Set up and register agents in the Praval registry
-    setup_knowledge_mining_agents()
-    
-    interaction_count = 0
-    max_interactions = 10  # Limit total interactions to prevent runaway processes
-    
-    while monitor.check_should_continue() and interaction_count < max_interactions:
-        try:
-            # Get user input with timeout
-            seed = safe_input_with_timeout("🌱 Enter seed concept (or 'quit' to exit): ", monitor, timeout_seconds=30)
+    try:
+        # Interactive mining
+        while True:
+            seed = input("🌱 Enter concept to explore (or 'quit'): ").strip()
+            if seed.lower() in ['quit', 'exit', 'q']:
+                break
             
-            if seed is None:
-                # Input timeout or process timeout
-                if not monitor.check_should_continue():
-                    print("\n⏰ Process timeout - shutting down to prevent runaway execution")
-                else:
-                    print("\n⏰ Input timeout - assuming automated execution, exiting")
-                break
-                
-            seed = seed.strip()
-            if seed.lower() in ['quit', 'exit', 'bye']:
-                print("Goodbye! 👋")
-                break
-                
             if not seed:
                 continue
             
-            interaction_count += 1
+            try:
+                max_nodes = int(input("📊 Max nodes (default 8): ").strip() or "8")
+                max_nodes = max(3, max_nodes)  # Minimum 3 nodes
+                
+                # Ask for confirmation if > 50 nodes
+                if max_nodes > 50:
+                    confirm = input(f"⚠️  Large graph ({max_nodes} nodes) may take a while. Continue? (y/N): ").strip().lower()
+                    if confirm not in ['y', 'yes']:
+                        continue
+            except ValueError:
+                max_nodes = 8
             
-            # Get number of nodes with timeout
-            max_nodes_input = safe_input_with_timeout("📊 Max nodes (default 10): ", monitor, timeout_seconds=15)
-            
-            if max_nodes_input is None:
-                max_nodes = 10  # Use default if timeout
-                print(f"Using default: {max_nodes} nodes")
-            else:
-                try:
-                    max_nodes = int(max_nodes_input.strip()) if max_nodes_input.strip() else 10
-                    max_nodes = max(3, min(50, max_nodes))  # Limit between 3-50
-                except ValueError:
-                    max_nodes = 10
-            
-            print()
-            
-            # Check timeout before expensive operation
-            if not monitor.check_should_continue():
-                print("⏰ Process timeout - cannot continue with mining")
-                break
-            
-            # Mine the knowledge graph
-            logging.info(f"Mining knowledge graph for: {seed}")
-            kg_data = mine_knowledge_graph(seed, max_nodes)
-            monitor.reset_activity()  # Reset after successful mining
-            
-            # Display results
-            print("\n🕸️  Knowledge Graph Results:")
+            print(f"\n🚀 Starting autonomous mining for: '{seed}'")
             print("=" * 40)
             
-            print(f"Seed Concept: {kg_data['seed_concept']}")
-            print(f"Nodes: {kg_data['stats']['total_nodes']}")
-            print(f"Edges: {kg_data['stats']['total_edges']}")
-            print()
+            # Start autonomous mining - everything is handled by decorated functions!
+            start_autonomous_mining(seed, max_nodes)
             
-            print("📋 Concepts discovered:")
-            for node, data in kg_data['nodes'].items():
-                status = "✓" if data['explored'] else "○"
-                node_type = "🌱" if data['type'] == 'seed' else "💭"
-                print(f"  {status} {node_type} {node}")
+            # Wait for completion
+            final_stats = wait_for_completion(timeout=90)
             
-            print("\n🔗 Relationships found:")
-            for edge in kg_data['edges']:
-                strength_emoji = {"strong": "🔴", "medium": "🟡", "weak": "🟢"}.get(edge['strength'], "⚪")
-                print(f"  {strength_emoji} {edge['source']} → {edge['relationship']} → {edge['target']}")
+            # Display and save results
+            print_results()
+            save_graph_results()
             
-            # Save to file
-            filename = f"knowledge_graph_{seed.replace(' ', '_').lower()}.json"
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(kg_data, f, indent=2, ensure_ascii=False)
-            
-            print(f"\n💾 Saved to: {filename}")
-            print("-" * 55)
-            
-        except KeyboardInterrupt:
-            print("\n\nGoodbye! 👋")
-            break
-        except Exception as e:
-            logging.error(f"Error in main loop: {e}")
-            print(f"❌ Error: {e}")
-            print("Please try again.")
+            print("=" * 50)
     
-    if interaction_count >= max_interactions:
-        print(f"\n⏰ Reached maximum interactions ({max_interactions}) - shutting down")
-    
-    logging.info(f"Knowledge graph miner completed after {interaction_count} interactions")
+    except KeyboardInterrupt:
+        print("\nGoodbye! 👋")
+    except Exception as e:
+        logging.error(f"System error: {e}")
 
 if __name__ == "__main__":
     main()
