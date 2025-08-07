@@ -135,4 +135,17 @@ agent_states/
 knowledge_graph_*.json
 .praval/
 
+# VentureLens output files (exclude generated reports)
+VentureLens_*.html
+VentureLens_*.pdf
+VentureLens_*.md
+
+# Knowledge graph and analysis outputs
+autonomous_*.json
+qdrant_agent_memory.md
+
+# Test demo files
+test_venturelens_demo.py
+test_arxiv_downloader.py
+
 .env
