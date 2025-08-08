@@ -10,6 +10,7 @@ This coordinates:
 
 from typing import Dict, List, Optional, Any, Union
 import logging
+import os
 from datetime import datetime
 
 from .memory_types import MemoryEntry, MemoryType, MemoryQuery, MemorySearchResult
@@ -17,6 +18,7 @@ from .short_term_memory import ShortTermMemory
 from .long_term_memory import LongTermMemory
 from .episodic_memory import EpisodicMemory
 from .semantic_memory import SemanticMemory
+from .embedded_store import EmbeddedVectorStore
 
 
 logger = logging.getLogger(__name__)
@@ -34,32 +36,68 @@ class MemoryManager:
     """
     
     def __init__(self,
+                 agent_id: str,
+                 backend: str = "auto",
                  qdrant_url: str = "http://localhost:6333",
+                 storage_path: Optional[str] = None,
                  collection_name: str = "praval_memories",
                  short_term_max_entries: int = 1000,
-                 short_term_retention_hours: int = 24):
+                 short_term_retention_hours: int = 24,
+                 knowledge_base_path: Optional[str] = None):
         """
         Initialize the unified memory manager
         
         Args:
+            agent_id: ID of the agent using this memory
+            backend: Memory backend ("auto", "chromadb", "qdrant", "memory")
             qdrant_url: URL for Qdrant vector database
-            collection_name: Qdrant collection name
+            storage_path: Path for persistent storage
+            collection_name: Collection name for vector storage
             short_term_max_entries: Max entries in short-term memory
             short_term_retention_hours: Short-term memory retention time
+            knowledge_base_path: Path to knowledge base files to auto-index
         """
+        self.agent_id = agent_id
+        self.backend = backend
         self.qdrant_url = qdrant_url
+        self.storage_path = storage_path
         self.collection_name = collection_name
+        self.knowledge_base_path = knowledge_base_path
         
-        # Initialize memory subsystems
-        try:
-            self.long_term_memory = LongTermMemory(
-                qdrant_url=qdrant_url,
-                collection_name=collection_name
-            )
-            logger.info("Long-term memory initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize long-term memory: {e}")
-            self.long_term_memory = None
+        # Auto-detect knowledge base from environment if not provided
+        if not self.knowledge_base_path:
+            self.knowledge_base_path = os.getenv('PRAVAL_KNOWLEDGE_BASE')
+        
+        # Initialize memory subsystems based on backend preference
+        self.long_term_memory = None
+        self.embedded_store = None
+        
+        if backend in ["auto", "chromadb", "embedded"]:
+            try:
+                self.embedded_store = EmbeddedVectorStore(
+                    storage_path=storage_path,
+                    collection_name=collection_name
+                )
+                self.backend = "chromadb"
+                logger.info("Embedded ChromaDB memory initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize embedded memory: {e}")
+                if backend != "auto":
+                    raise
+        
+        # Fallback to Qdrant if embedded fails and auto mode
+        if backend in ["auto", "qdrant"] and self.embedded_store is None:
+            try:
+                self.long_term_memory = LongTermMemory(
+                    qdrant_url=qdrant_url,
+                    collection_name=collection_name
+                )
+                self.backend = "qdrant"
+                logger.info("Qdrant long-term memory initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Qdrant memory: {e}")
+                if backend != "auto":
+                    raise
         
         self.short_term_memory = ShortTermMemory(
             max_entries=short_term_max_entries,
@@ -67,18 +105,24 @@ class MemoryManager:
         )
         
         # Initialize specialized memory managers
-        if self.long_term_memory:
+        vector_store = self.embedded_store or self.long_term_memory
+        if vector_store:
             self.episodic_memory = EpisodicMemory(
-                long_term_memory=self.long_term_memory,
+                long_term_memory=vector_store,
                 short_term_memory=self.short_term_memory
             )
             self.semantic_memory = SemanticMemory(
-                long_term_memory=self.long_term_memory
+                long_term_memory=vector_store
             )
         else:
             self.episodic_memory = None
             self.semantic_memory = None
-            logger.warning("Episodic and semantic memory disabled due to long-term memory failure")
+            self.backend = "memory"
+            logger.warning("Using memory-only backend - no persistent storage")
+        
+        # Auto-index knowledge base if provided
+        if self.knowledge_base_path and vector_store:
+            self._index_knowledge_base()
     
     def store_memory(self,
                     agent_id: str,
@@ -117,12 +161,14 @@ class MemoryManager:
         if store_long_term is None:
             store_long_term = self._should_store_long_term(memory)
         
-        if store_long_term and self.long_term_memory:
+        # Store in persistent storage (embedded or qdrant)
+        vector_store = self.embedded_store or self.long_term_memory
+        if store_long_term and vector_store:
             try:
-                self.long_term_memory.store(memory)
-                logger.debug(f"Memory {memory_id} stored in both short-term and long-term memory")
+                vector_store.store(memory)
+                logger.debug(f"Memory {memory_id} stored in both short-term and persistent memory")
             except Exception as e:
-                logger.error(f"Failed to store memory {memory_id} in long-term storage: {e}")
+                logger.error(f"Failed to store memory {memory_id} in persistent storage: {e}")
         
         return memory_id
     
@@ -139,9 +185,10 @@ class MemoryManager:
         # Try short-term memory first (faster)
         memory = self.short_term_memory.retrieve(memory_id)
         
-        if memory is None and self.long_term_memory:
-            # Fallback to long-term memory
-            memory = self.long_term_memory.retrieve(memory_id)
+        # Fallback to persistent storage
+        vector_store = self.embedded_store or self.long_term_memory
+        if memory is None and vector_store:
+            memory = vector_store.retrieve(memory_id)
             
             # Cache in short-term memory for future access
             if memory:
@@ -165,15 +212,16 @@ class MemoryManager:
         st_results = self.short_term_memory.search(query)
         results.append(("short_term", st_results))
         
-        # Search long-term memory if available
-        if self.long_term_memory:
+        # Search persistent memory if available
+        vector_store = self.embedded_store or self.long_term_memory
+        if vector_store:
             try:
-                lt_results = self.long_term_memory.search(query)
-                results.append(("long_term", lt_results))
+                persistent_results = vector_store.search(query)
+                results.append(("persistent", persistent_results))
             except Exception as e:
-                logger.error(f"Long-term memory search failed: {e}")
-                lt_results = MemorySearchResult(entries=[], scores=[], query=query, total_found=0)
-                results.append(("long_term", lt_results))
+                logger.error(f"Persistent memory search failed: {e}")
+                persistent_results = MemorySearchResult(entries=[], scores=[], query=query, total_found=0)
+                results.append(("persistent", persistent_results))
         
         # Combine and deduplicate results
         return self._combine_search_results(results, query)
@@ -310,31 +358,42 @@ class MemoryManager:
         # Clear short-term memory
         self.short_term_memory.clear_agent_memories(agent_id)
         
-        # Clear long-term memory
-        if self.long_term_memory:
+        # Clear persistent memory
+        vector_store = self.embedded_store or self.long_term_memory
+        if vector_store:
             try:
-                self.long_term_memory.clear_agent_memories(agent_id)
+                vector_store.clear_agent_memories(agent_id)
             except Exception as e:
-                logger.error(f"Failed to clear long-term memories for {agent_id}: {e}")
+                logger.error(f"Failed to clear persistent memories for {agent_id}: {e}")
         
         logger.info(f"Cleared memories for agent {agent_id}")
     
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get comprehensive memory statistics"""
         stats = {
+            "agent_id": self.agent_id,
+            "backend": self.backend,
             "short_term_memory": self.short_term_memory.get_stats(),
-            "qdrant_url": self.qdrant_url,
             "collection_name": self.collection_name
         }
         
-        if self.long_term_memory:
+        # Add backend-specific stats
+        vector_store = self.embedded_store or self.long_term_memory
+        if vector_store:
             try:
-                stats["long_term_memory"] = self.long_term_memory.get_stats()
-                stats["long_term_memory"]["available"] = True
+                persistent_stats = vector_store.get_stats()
+                stats["persistent_memory"] = {**persistent_stats, "available": True}
             except Exception as e:
-                stats["long_term_memory"] = {"available": False, "error": str(e)}
+                stats["persistent_memory"] = {"available": False, "error": str(e)}
         else:
-            stats["long_term_memory"] = {"available": False, "error": "Not initialized"}
+            stats["persistent_memory"] = {"available": False, "error": "Not initialized"}
+        
+        # Add knowledge base info
+        if self.knowledge_base_path:
+            stats["knowledge_base"] = {
+                "path": self.knowledge_base_path,
+                "indexed": True
+            }
         
         if self.episodic_memory:
             stats["episodic_memory"] = self.episodic_memory.get_stats()
@@ -348,15 +407,16 @@ class MemoryManager:
         """Check health of all memory systems"""
         health = {
             "short_term_memory": True,  # Always available
-            "long_term_memory": False,
+            "persistent_memory": False,
             "episodic_memory": False,
             "semantic_memory": False
         }
         
-        if self.long_term_memory:
-            health["long_term_memory"] = self.long_term_memory.health_check()
-            health["episodic_memory"] = health["long_term_memory"]  # Depends on long-term
-            health["semantic_memory"] = health["long_term_memory"]  # Depends on long-term
+        vector_store = self.embedded_store or self.long_term_memory
+        if vector_store:
+            health["persistent_memory"] = vector_store.health_check()
+            health["episodic_memory"] = health["persistent_memory"]  # Depends on persistent
+            health["semantic_memory"] = health["persistent_memory"]  # Depends on persistent
         
         return health
     
@@ -411,7 +471,54 @@ class MemoryManager:
             total_found=len(all_entries)
         )
     
+    def _index_knowledge_base(self):
+        """Index knowledge base files if path is provided"""
+        from pathlib import Path
+        
+        if not self.knowledge_base_path:
+            return
+        
+        kb_path = Path(self.knowledge_base_path)
+        if not kb_path.exists():
+            logger.warning(f"Knowledge base path does not exist: {kb_path}")
+            return
+        
+        if not kb_path.is_dir():
+            logger.warning(f"Knowledge base path is not a directory: {kb_path}")
+            return
+        
+        try:
+            vector_store = self.embedded_store or self.long_term_memory
+            if hasattr(vector_store, 'index_knowledge_files'):
+                indexed_count = vector_store.index_knowledge_files(kb_path, self.agent_id)
+                logger.info(f"Indexed {indexed_count} knowledge base files for agent {self.agent_id}")
+            else:
+                logger.warning("Vector store does not support knowledge file indexing")
+        except Exception as e:
+            logger.error(f"Failed to index knowledge base: {e}")
+    
+    def recall_by_id(self, memory_id: str) -> List[MemoryEntry]:
+        """Recall a specific memory by ID (for spore references)"""
+        memory = self.retrieve_memory(memory_id)
+        return [memory] if memory else []
+    
+    def get_knowledge_references(self, content: str, importance_threshold: float = 0.7) -> List[str]:
+        """Get knowledge references for lightweight spores"""
+        # Store the content and return reference ID
+        memory_id = self.store_memory(
+            agent_id=self.agent_id,
+            content=content,
+            memory_type=MemoryType.SEMANTIC,
+            importance=importance_threshold,
+            store_long_term=True
+        )
+        return [memory_id]
+    
     def shutdown(self):
         """Shutdown all memory systems"""
         self.short_term_memory.shutdown()
+        
+        # No explicit shutdown needed for ChromaDB (files are auto-saved)
+        # Qdrant connections will be closed automatically
+        
         logger.info("Memory manager shutdown complete")

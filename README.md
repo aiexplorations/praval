@@ -22,6 +22,7 @@
 
 ### ✨ **Core Capabilities**
 - **🎯 Specialized Agents**: Each agent excels at one thing
+- **🧠 Persistent Memory**: ChromaDB-powered semantic memory and knowledge search
 - **🤝 Natural Collaboration**: Agents work together seamlessly
 - **📡 Reef Communication**: Knowledge-first messaging between agents
 - **🔄 Self-Organization**: Agents coordinate without central control
@@ -98,28 +99,46 @@ def writing_specialist(spore):
 ## 📦 **Installation**
 
 ```bash
-# Clone the repository
+# Install from PyPI (recommended)
+pip install praval
+
+# Or install from source
+git clone https://github.com/your-org/praval.git
+cd praval
+pip install -e .
+```
+
+### **Development Installation**
+
+```bash
+# Clone and install in development mode
 git clone https://github.com/your-org/praval.git
 cd praval
 
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Set up environment
-cp .env.example .env
-# Add your LLM API keys (OpenAI, Anthropic, etc.)
+# Install with development dependencies
+pip install -e ".[dev]"
 ```
 
 ### **Environment Setup**
 ```bash
-# Required API Keys
-OPENAI_API_KEY=your_openai_key
+# Required: At least one LLM API key
+OPENAI_API_KEY=your_openai_key        # Recommended
 ANTHROPIC_API_KEY=your_anthropic_key  # Optional
 COHERE_API_KEY=your_cohere_key        # Optional
 
-# Optional Configuration
+# Memory System (Optional)
+QDRANT_URL=http://localhost:6333      # For vector storage
+PRAVAL_COLLECTION_NAME=praval_memories
+
+# Framework Configuration (Optional)
 PRAVAL_LOG_LEVEL=INFO
 PRAVAL_MAX_THREADS=10
+PRAVAL_DEFAULT_PROVIDER=openai
+PRAVAL_DEFAULT_MODEL=gpt-4-turbo
 ```
 ## ⚡ **Quick Start**
 
@@ -622,21 +641,23 @@ def handle_everything(spore):
 - **✓ Concurrent Processing**: Thread-safe multi-agent execution
 - **✓ Message Filtering**: Agents respond only to relevant communications
 
-### **🔄 Phase 2: Advanced Patterns (Current)**
+### **✅ Phase 2: Advanced Patterns Complete (v0.5.0)**
+- **✓ Memory Integration**: ChromaDB embedded vector storage
+- **✓ Comprehensive Testing**: 99% coverage on core decorators and composition
+- **✓ Semantic Memory**: Persistent knowledge with semantic search
+- **✓ Knowledge Base**: Auto-indexing of documents and files
+- **✓ Multi-layered Memory**: Short-term, long-term, episodic, semantic memory
 - **✓ Complex Workflows**: Multi-stage business analysis pipelines
 - **✓ Dynamic Coordination**: Agents discover and delegate tasks
-- **🚧 Memory Integration**: Vector stores and persistent knowledge
-- **🚧 Streaming Responses**: Real-time token streaming from agents
+
+### **🚀 Phase 3: Enterprise Ready (Current)**
+- **🚧 Streaming Responses**: Real-time token streaming from agents  
 - **🚧 Tool Ecosystem**: External API and service integration
 - **🚧 Visual Debugging**: Agent interaction visualization
-
-### **🚀 Phase 3: Enterprise Ready**
 - **📈 Observability Suite**: Comprehensive metrics and tracing
-- **🔒 Security Framework**: Content filtering and access control  
+- **🔒 Security Framework**: Content filtering and access control
 - **⚡ Performance Optimization**: Caching, rate limiting, cost management
 - **🐝 Horizontal Scaling**: Distributed agent deployment
-- **📚 Knowledge Persistence**: Long-term memory and learning
-- **🌐 Cloud Integration**: AWS, GCP, Azure deployment patterns
 
 ### **🎆 Phase 4: Advanced Intelligence**
 - **🤖 Agent Evolution**: Self-improving agent capabilities
@@ -651,22 +672,34 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🎯 **Complete Examples**
 
-### **🔍 VentureLens - AI Business Analyzer** 
-*`examples/venturelens.py`* - **The flagship example showcasing Praval's power**
+### **📚 Memory-Enabled Learning System**
+*`examples/005_memory_enabled_agents.py`* - **Showcasing Praval's memory capabilities**
 
-**What it does**: A comprehensive business idea analysis platform that interviews users through AI agents and generates professional PDF reports.
+**What it demonstrates**: A learning system where agents build relationships and knowledge through persistent memory.
 
 **Multi-Agent Architecture**:
-- **👨‍💼 Interviewer Agent**: Dynamically generates intelligent questions
-- **🔬 Research Agent**: Conducts market intelligence gathering  
-- **📊 Analyst Agent**: Evaluates business viability across 6 dimensions
-- **📝 Reporter Agent**: Creates professional markdown reports
-- **🎨 Presenter Agent**: Generates PDFs and auto-opens in browser
+- **🧠 Learning Agent**: Remembers past sessions and builds on previous knowledge
+- **👨‍🏫 Teaching Agent**: Adapts teaching methods based on student history
+- **🤔 Reflection Agent**: Analyzes patterns from memory to improve future interactions
+
+### **🔗 Agent Communication & Collaboration**
+*Complete example series demonstrating core Praval patterns*
+
+#### **Core Example Series**:
+- **`001_single_agent_identity.py`**: How agent identity drives behavior
+- **`002_agent_communication.py`**: Basic agent-to-agent communication  
+- **`003_specialist_collaboration.py`**: Specialized agents working together
+- **`004_registry_discovery.py`**: Dynamic agent discovery and coordination
+- **`005_memory_enabled_agents.py`**: Persistent memory and learning
+- **`006_resilient_agents.py`**: Error handling and fault tolerance
+- **`007_adaptive_agent_systems.py`**: Self-adapting agent behaviors
+- **`008_self_organizing_networks.py`**: Emergent network behaviors
+- **`009_emergent_collective_intelligence.py`**: Complex behaviors from simple agents
 
 ```python
-# Each agent is just a decorated function!
-@agent("interviewer", responds_to=["start_interview", "answer_provided"])
-def conduct_interview(spore):
+# Simple agent identity example
+@agent("philosopher", responds_to=["deep_question"])
+def philosopher_agent(spore):
     """I ask insightful questions about business ideas."""
     # Dynamic question generation using AI
     next_question = generate_smart_question(previous_answers)

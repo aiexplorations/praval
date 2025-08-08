@@ -13,6 +13,7 @@ Example:
 
 import inspect
 import threading
+import time
 from typing import Dict, Any, Optional, Callable, Union, List
 from functools import wraps
 
@@ -27,7 +28,9 @@ def agent(name: Optional[str] = None,
           channel: Optional[str] = None,
           system_message: Optional[str] = None,
           auto_broadcast: bool = True,
-          responds_to: Optional[List[str]] = None):
+          responds_to: Optional[List[str]] = None,
+          memory: Union[bool, Dict[str, Any]] = False,
+          knowledge_base: Optional[str] = None):
     """
     Decorator that turns a function into an autonomous agent.
     
@@ -37,13 +40,35 @@ def agent(name: Optional[str] = None,
         system_message: System message (defaults to function docstring)
         auto_broadcast: Whether to auto-broadcast return values
         responds_to: List of message types this agent responds to (None = all messages)
+        memory: Memory configuration - True for defaults, dict for custom config, False to disable
+        knowledge_base: Path to knowledge base files for auto-indexing
     
-    Example:
+    Examples:
+        Basic agent:
         @agent("explorer", channel="knowledge", responds_to=["concept_request"])
         def explore_concepts(spore):
             '''Find related concepts and broadcast discoveries.'''
             concepts = chat("Related to: " + spore.knowledge.get("concept", ""))
             return {"type": "discovery", "discovered": concepts.split(",")}
+        
+        Agent with memory:
+        @agent("researcher", memory=True)
+        def research_agent(spore):
+            '''Research agent with memory capabilities.'''
+            query = spore.knowledge.get("query")
+            # Remember the research
+            research_agent.remember(f"Researched: {query}")
+            # Recall similar past research
+            past_research = research_agent.recall(query)
+            return {"research": "completed", "past_similar": len(past_research)}
+        
+        Agent with knowledge base:
+        @agent("expert", memory=True, knowledge_base="./knowledge/")
+        def expert_agent(spore):
+            '''Expert with pre-loaded knowledge base.'''
+            question = spore.knowledge.get("question")
+            relevant = expert_agent.recall(question, limit=3)
+            return {"answer": [r.content for r in relevant]}
     """
     def decorator(func: Callable) -> Callable:
         # Auto-generate name from function if not provided
@@ -55,8 +80,25 @@ def agent(name: Optional[str] = None,
         if not auto_system_message and func.__doc__:
             auto_system_message = f"You are {agent_name}. {func.__doc__.strip()}"
         
-        # Create underlying agent
-        underlying_agent = Agent(agent_name, system_message=auto_system_message)
+        # Parse memory configuration
+        memory_enabled = False
+        memory_config = None
+        
+        if memory is True:
+            memory_enabled = True
+            memory_config = {}
+        elif isinstance(memory, dict):
+            memory_enabled = True
+            memory_config = memory
+        
+        # Create underlying agent with memory support
+        underlying_agent = Agent(
+            name=agent_name, 
+            system_message=auto_system_message,
+            memory_enabled=memory_enabled,
+            memory_config=memory_config,
+            knowledge_base=knowledge_base
+        )
         
         def agent_handler(spore):
             """Handler that sets up context and calls the decorated function."""
@@ -72,8 +114,34 @@ def agent(name: Optional[str] = None,
             _agent_context.channel = agent_channel
             
             try:
+                # Resolve knowledge references in spore if memory is enabled
+                if memory_enabled and hasattr(spore, 'has_knowledge_references'):
+                    if spore.has_knowledge_references():
+                        try:
+                            resolved_knowledge = underlying_agent.resolve_spore_knowledge(spore)
+                            spore.resolved_knowledge = resolved_knowledge
+                        except Exception as e:
+                            # If knowledge resolution fails, continue without resolved knowledge
+                            pass
+                
                 # Call the decorated function
                 result = func(spore)
+                
+                # Store conversation turn in memory if enabled
+                if memory_enabled and underlying_agent.memory:
+                    try:
+                        query = str(spore.knowledge) if spore.knowledge else "interaction"
+                        response = str(result) if result else "no_response"
+                        
+                        underlying_agent.memory.store_conversation_turn(
+                            agent_id=agent_name,
+                            user_message=query,
+                            agent_response=response,
+                            context={"spore_id": spore.id, "spore_type": spore.spore_type.value}
+                        )
+                    except Exception as e:
+                        # Don't fail the agent if memory storage fails
+                        pass
                 
                 # Auto-broadcast return values if enabled and result exists
                 if auto_broadcast and result and isinstance(result, dict):
@@ -90,12 +158,29 @@ def agent(name: Optional[str] = None,
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
         
+        # Add memory methods to the function for easy access
+        if memory_enabled:
+            func.remember = underlying_agent.remember
+            func.recall = underlying_agent.recall
+            func.recall_by_id = underlying_agent.recall_by_id
+            func.get_conversation_context = underlying_agent.get_conversation_context
+            func.create_knowledge_reference = underlying_agent.create_knowledge_reference
+            func.send_lightweight_knowledge = underlying_agent.send_lightweight_knowledge
+            func.memory = underlying_agent.memory  # Direct memory manager access
+        
+        # Add reef communication methods
+        func.send_knowledge = underlying_agent.send_knowledge
+        func.broadcast_knowledge = underlying_agent.broadcast_knowledge
+        func.request_knowledge = underlying_agent.request_knowledge
+        
         # Store metadata on function for composition and introspection
         func._praval_agent = underlying_agent
         func._praval_name = agent_name
         func._praval_channel = agent_channel
         func._praval_auto_broadcast = auto_broadcast
         func._praval_responds_to = responds_to
+        func._praval_memory_enabled = memory_enabled
+        func._praval_knowledge_base = knowledge_base
         
         # Return the original function with metadata attached
         return func
@@ -217,5 +302,3 @@ def get_agent_info(agent_func: Callable) -> Dict[str, Any]:
     }
 
 
-# Import time at the top to fix the NameError
-import time

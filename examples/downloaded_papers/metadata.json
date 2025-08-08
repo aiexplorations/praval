@@ -1,0 +1,565 @@
+{
+  "query": "reinforcement learning",
+  "papers": [
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2001.09608v1",
+      "title": "Some Insights into Lifelong Reinforcement Learning Systems",
+      "summary": "A lifelong reinforcement learning system is a learning system that has the\nability to learn through trail-and-error interaction with the environment over\nits lifetime. In this paper, I give some arguments to show that the traditional\nreinforcement learning paradigm fails to model this type of learning system.\nSome insights into lifelong reinforcement learning are provided, along with a\nsimplistic prototype lifelong reinforcement learning system.",
+      "authors": [
+        "Changjian Li"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2001.09608v1.pdf",
+      "score": 5.0,
+      "filename": "01_2001.09608v1_Some Insights into Lifelong Reinforcemen.pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2405.15430v1",
+      "title": "Counterexample-Guided Repair of Reinforcement Learning Systems Using\n  Safety Critics",
+      "summary": "Naively trained Deep Reinforcement Learning agents may fail to satisfy vital\nsafety constraints. To avoid costly retraining, we may desire to repair a\npreviously trained reinforcement learning agent to obviate unsafe behaviour. We\ndevise a counterexample-guided repair algorithm for repairing reinforcement\nlearning systems leveraging safety critics. The algorithm jointly repairs a\nreinforcement learning agent and a safety critic using gradient-based\nconstrained optimisation.",
+      "authors": [
+        "David Boetius",
+        "Stefan Leue"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2405.15430v1.pdf",
+      "score": 5.0,
+      "filename": "02_2405.15430v1_Counterexample-Guided Repair of Reinforc.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    },
+    {
+      "id": "2108.11510v1",
+      "title": "Deep Reinforcement Learning in Computer Vision: A Comprehensive Survey",
+      "summary": "Deep reinforcement learning augments the reinforcement learning framework and\nutilizes the powerful representation of deep neural networks. Recent works have\ndemonstrated the remarkable successes of deep reinforcement learning in various\ndomains including finance, medicine, healthcare, video games, robotics, and\ncomputer vision. In this work, we provide a detailed review of recent and\nstate-of-the-art research advances of deep reinforcement learning in computer\nvision. We start with comprehending the theories of deep learning,\nreinforcement learning, and deep reinforcement learning. We then propose a\ncategorization of deep reinforcement learning methodologies and discuss their\nadvantages and limitations. In particular, we divide deep reinforcement\nlearning into seven main categories according to their applications in computer\nvision, i.e. (i)landmark localization (ii) object detection; (iii) object\ntracking; (iv) registration on both 2D image and 3D image volumetric data (v)\nimage segmentation; (vi) videos analysis; and (vii) other applications. Each of\nthese categories is further analyzed with reinforcement learning techniques,\nnetwork design, and performance. Moreover, we provide a comprehensive analysis\nof the existing publicly available datasets and examine source code\navailability. Finally, we present some open issues and discuss future research\ndirections on deep reinforcement learning in computer vision",
+      "authors": [
+        "Ngan Le",
+        "Vidhiwar Singh Rathour",
+        "Kashu Yamazaki",
+        "Khoa Luu",
+        "Marios Savvides"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2108.11510v1.pdf",
+      "score": 5.0,
+      "filename": "03_2108.11510v1_Deep Reinforcement Learning in Computer .pdf"
+    },
+    {
+      "id": "2307.01452v2",
+      "title": "Causal Reinforcement Learning: A Survey",
+      "summary": "Reinforcement learning is an essential paradigm for solving sequential\ndecision problems under uncertainty. Despite many remarkable achievements in\nrecent decades, applying reinforcement learning methods in the real world\nremains challenging. One of the main obstacles is that reinforcement learning\nagents lack a fundamental understanding of the world and must therefore learn\nfrom scratch through numerous trial-and-error interactions. They may also face\nchallenges in providing explanations for their decisions and generalizing the\nacquired knowledge. Causality, however, offers a notable advantage as it can\nformalize knowledge in a systematic manner and leverage invariance for\neffective knowledge transfer. This has led to the emergence of causal\nreinforcement learning, a subfield of reinforcement learning that seeks to\nenhance existing algorithms by incorporating causal relationships into the\nlearning process. In this survey, we comprehensively review the literature on\ncausal reinforcement learning. We first introduce the basic concepts of\ncausality and reinforcement learning, and then explain how causality can\naddress core challenges in non-causal reinforcement learning. We categorize and\nsystematically review existing causal reinforcement learning approaches based\non their target problems and methodologies. Finally, we outline open issues and\nfuture directions in this emerging field.",
+      "authors": [
+        "Zhihong Deng",
+        "Jing Jiang",
+        "Guodong Long",
+        "Chengqi Zhang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2307.01452v2.pdf",
+      "score": 5.0,
+      "filename": "04_2307.01452v2_Causal Reinforcement Learning A Survey.pdf"
+    },
+    {
+      "id": "2212.00253v1",
+      "title": "Distributed Deep Reinforcement Learning: A Survey and A Multi-Player\n  Multi-Agent Learning Toolbox",
+      "summary": "With the breakthrough of AlphaGo, deep reinforcement learning becomes a\nrecognized technique for solving sequential decision-making problems. Despite\nits reputation, data inefficiency caused by its trial and error learning\nmechanism makes deep reinforcement learning hard to be practical in a wide\nrange of areas. Plenty of methods have been developed for sample efficient deep\nreinforcement learning, such as environment modeling, experience transfer, and\ndistributed modifications, amongst which, distributed deep reinforcement\nlearning has shown its potential in various applications, such as\nhuman-computer gaming, and intelligent transportation. In this paper, we\nconclude the state of this exciting field, by comparing the classical\ndistributed deep reinforcement learning methods, and studying important\ncomponents to achieve efficient distributed learning, covering single player\nsingle agent distributed deep reinforcement learning to the most complex\nmultiple players multiple agents distributed deep reinforcement learning.\nFurthermore, we review recently released toolboxes that help to realize\ndistributed deep reinforcement learning without many modifications of their\nnon-distributed versions. By analyzing their strengths and weaknesses, a\nmulti-player multi-agent distributed deep reinforcement learning toolbox is\ndeveloped and released, which is further validated on Wargame, a complex\nenvironment, showing usability of the proposed toolbox for multiple players and\nmultiple agents distributed deep reinforcement learning under complex games.\nFinally, we try to point out challenges and future trends, hoping this brief\nreview can provide a guide or a spark for researchers who are interested in\ndistributed deep reinforcement learning.",
+      "authors": [
+        "Qiyue Yin",
+        "Tongtong Yu",
+        "Shengqi Shen",
+        "Jun Yang",
+        "Meijing Zhao",
+        "Kaiqi Huang",
+        "Bin Liang",
+        "Liang Wang"
+      ],
+      "pdf_url": "https://arxiv.org/pdf/2212.00253v1.pdf",
+      "score": 5.0,
+      "filename": "05_2212.00253v1_Distributed Deep Reinforcement Learning.pdf"
+    }
+  ]
+}
