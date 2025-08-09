@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: praval-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT_ALLOW_RECOVERY=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - praval-network
+    restart: unless-stopped
+
+  # Praval agent runtime
+  praval-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: praval-app
+    ports:
+      - "8000:8000"  # For potential web interface
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - COHERE_API_KEY=${COHERE_API_KEY:-}
+      - PRAVAL_LOG_LEVEL=${PRAVAL_LOG_LEVEL:-INFO}
+      - PRAVAL_COLLECTION_NAME=${PRAVAL_COLLECTION_NAME:-praval_memories}
+    volumes:
+      - ./examples:/app/examples
+      - ./logs:/app/logs
+      - agent_states:/app/agent_states
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      - praval-network
+    restart: unless-stopped
+    command: ["python", "-m", "praval.examples.memory_demo"]
+
+  # Optional: Redis for additional caching (if needed in future)
+  redis:
+    image: redis:7-alpine
+    container_name: praval-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - praval-network
+    restart: unless-stopped
+    profiles:
+      - full  # Only start with --profile full
+
+  # Optional: PostgreSQL for structured data (if needed)
+  postgres:
+    image: postgres:15-alpine
+    container_name: praval-postgres
+    environment:
+      - POSTGRES_DB=praval
+      - POSTGRES_USER=praval
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-praval_secure_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - praval-network
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # Development environment with Jupyter (optional)
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: praval-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - JUPYTER_ENABLE_LAB=yes
+    volumes:
+      - ./:/app
+      - ./notebooks:/app/notebooks
+    depends_on:
+      - qdrant
+    networks:
+      - praval-network
+    restart: unless-stopped
+    profiles:
+      - dev
+
+volumes:
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local  
+  postgres_data:
+    driver: local
+  agent_states:
+    driver: local
+
+networks:
+  praval-network:
+    driver: bridge

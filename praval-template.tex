@@ -1,0 +1,171 @@
+% Pandoc LaTeX template for Praval Manual
+% Optimized for code blocks and technical documentation
+
+\documentclass[10pt,letterpaper]{article}
+
+% Page geometry with smaller margins
+\usepackage[margin=0.75in]{geometry}
+
+% Enhanced typography
+\usepackage{fontspec}
+\usepackage{xunicode}
+\usepackage{xltxtra}
+
+% Set fonts
+\setmainfont{Georgia}
+\setsansfont{Helvetica Neue}
+\setmonofont[Scale=0.85]{Monaco}
+
+% Color support
+\usepackage{xcolor}
+\definecolor{codebackground}{RGB}{248, 249, 250}
+\definecolor{codeborder}{RGB}{52, 152, 219}
+
+% Code and syntax highlighting
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{minted}
+
+% Better code block formatting
+\lstset{
+    basicstyle=\small\ttfamily,
+    backgroundcolor=\color{codebackground},
+    frame=l,
+    framerule=2pt,
+    rulecolor=\color{codeborder},
+    breaklines=true,
+    breakatwhitespace=true,
+    breakindent=20pt,
+    showstringspaces=false,
+    tabsize=2,
+    xleftmargin=10pt,
+    xrightmargin=10pt,
+    aboveskip=10pt,
+    belowskip=10pt,
+    captionpos=b,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!70!black}
+}
+
+% Ensure code doesn't overflow
+\usepackage{adjustbox}
+
+% Enhanced hyperlinks
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+
+% Better table formatting
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+
+% Section formatting
+\usepackage{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{blue!80!black}}
+  {\thesection}
+  {1em}
+  {}
+  [\titlerule]
+
+\titleformat{\subsection}
+  {\large\bfseries\color{blue!60!black}}
+  {\thesubsection}
+  {1em}
+  {}
+
+% Line spacing
+\usepackage{setspace}
+\setstretch{1.2}
+
+% Header and footer
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{Praval Framework Manual}
+\fancyfoot[L]{Praval - Multi-Agent AI Framework}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% TOC formatting
+\usepackage{tocloft}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+
+% Better list formatting
+\usepackage{enumitem}
+\setlist{nosep}
+
+% Define tightlist command (required by pandoc)
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% Graphics support
+\usepackage{graphicx}
+
+% Math support
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Code block environment that handles long lines
+\newenvironment{codeblock}[1][]
+{
+  \VerbatimEnvironment
+  \begin{adjustbox}{width=\textwidth,center}
+  \begin{Verbatim}[
+    fontsize=\small,
+    breaklines=true,
+    breakanywhere=true,
+    #1
+  ]
+}
+{
+  \end{Verbatim}
+  \end{adjustbox}
+}
+
+% Document metadata
+$if(title)$
+\title{$title$}
+$endif$
+$if(author)$
+\author{$for(author)$$author$$sep$ \and $endfor$}
+$endif$
+$if(date)$
+\date{$date$}
+$else$
+\date{\today}
+$endif$
+
+\begin{document}
+
+% Title page
+$if(title)$
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries $title$ \par}
+\vspace{1cm}
+{\large The Pythonic Multi-Agent AI Framework \par}
+\vspace{1.5cm}
+{\Large Complete User Manual \par}
+\vspace{2cm}
+{\large for building intelligent, collaborative agent systems \par}
+\vfill
+{\large \today \par}
+\end{titlepage}
+$endif$
+
+% Table of contents
+$if(toc)$
+\newpage
+\tableofcontents
+\newpage
+$endif$
+
+% Main content
+$body$
+
+\end{document}
