@@ -12,6 +12,14 @@ import threading
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, field
 
+# Auto-load .env files if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not available, continue without it
+    pass
+
 from .exceptions import PravalError, ProviderError, ConfigurationError, ToolError
 from .storage import StateStorage
 from ..providers.factory import ProviderFactory
@@ -63,7 +71,10 @@ class Agent:
         provider: Optional[str] = None,
         persist_state: bool = False,
         system_message: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        memory_enabled: bool = False,
+        memory_config: Optional[Dict[str, Any]] = None,
+        knowledge_base: Optional[str] = None
     ):
         """
         Initialize a new Agent.
@@ -74,6 +85,9 @@ class Agent:
             persist_state: Whether to persist conversation state
             system_message: System message to set agent behavior
             config: Additional configuration parameters
+            memory_enabled: Whether to enable vector memory capabilities
+            memory_config: Configuration for memory system
+            knowledge_base: Path to knowledge base files to auto-index
             
         Raises:
             ValueError: If name is empty or configuration is invalid
@@ -84,6 +98,8 @@ class Agent:
             
         self.name = name
         self.persist_state = persist_state
+        self.memory_enabled = memory_enabled
+        self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.conversation_history: List[Dict[str, str]] = []
         
@@ -102,6 +118,12 @@ class Agent:
             self.provider_name,
             self.config
         )
+        
+        # Setup memory system
+        if self.memory_enabled:
+            self._init_memory_system(memory_config)
+        else:
+            self.memory = None
         
         # Setup state storage
         if self.persist_state:
@@ -393,3 +415,207 @@ class Agent:
             handler: Function that takes a Spore object and handles it
         """
         self._custom_spore_handler = handler
+    
+    # ==========================================
+    # MEMORY SYSTEM METHODS
+    # ==========================================
+    
+    def _init_memory_system(self, memory_config: Optional[Dict[str, Any]] = None):
+        """Initialize the memory system for this agent"""
+        try:
+            from ..memory import MemoryManager
+            
+            # Default memory configuration
+            default_config = {
+                "backend": "auto",
+                "collection_name": f"praval_memories_{self.name}",
+                "knowledge_base_path": self.knowledge_base
+            }
+            
+            # Merge with provided config
+            if memory_config:
+                default_config.update(memory_config)
+            
+            # Initialize memory manager
+            self.memory = MemoryManager(
+                agent_id=self.name,
+                **default_config
+            )
+            
+            # Note: logger not imported, using print for now
+            print(f"Memory system initialized for agent {self.name}")
+            
+        except ImportError as e:
+            print(f"Memory system not available: {e}")
+            self.memory = None
+            self.memory_enabled = False
+        except Exception as e:
+            print(f"Failed to initialize memory system for {self.name}: {e}")
+            self.memory = None
+            self.memory_enabled = False
+    
+    def remember(self, content: str, 
+                 importance: float = 0.5,
+                 memory_type: str = "short_term") -> Optional[str]:
+        """
+        Store a memory
+        
+        Args:
+            content: The content to remember
+            importance: Importance score (0.0 to 1.0)
+            memory_type: Type of memory ("short_term", "semantic", "episodic")
+            
+        Returns:
+            Memory ID if successful, None otherwise
+        """
+        if not self.memory:
+            print(f"Memory not enabled for agent {self.name}")
+            return None
+        
+        try:
+            from ..memory import MemoryType
+            
+            # Map string to MemoryType enum
+            type_mapping = {
+                "short_term": MemoryType.SHORT_TERM,
+                "semantic": MemoryType.SEMANTIC,
+                "episodic": MemoryType.EPISODIC,
+                "working": MemoryType.WORKING
+            }
+            
+            mem_type = type_mapping.get(memory_type, MemoryType.SHORT_TERM)
+            
+            return self.memory.store_memory(
+                agent_id=self.name,
+                content=content,
+                memory_type=mem_type,
+                importance=importance
+            )
+            
+        except Exception as e:
+            print(f"Failed to store memory: {e}")
+            return None
+    
+    def recall(self, query: str, limit: int = 5, 
+              similarity_threshold: float = 0.1) -> List:
+        """
+        Recall memories based on a query
+        
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            similarity_threshold: Minimum similarity score
+            
+        Returns:
+            List of MemoryEntry objects
+        """
+        if not self.memory:
+            print(f"Memory not enabled for agent {self.name}")
+            return []
+        
+        try:
+            from ..memory import MemoryQuery
+            
+            memory_query = MemoryQuery(
+                query_text=query,
+                agent_id=self.name,
+                limit=limit,
+                similarity_threshold=similarity_threshold
+            )
+            
+            results = self.memory.search_memories(memory_query)
+            return results.entries
+            
+        except Exception as e:
+            print(f"Failed to recall memories: {e}")
+            return []
+    
+    def recall_by_id(self, memory_id: str) -> List:
+        """Recall a specific memory by ID (for resolving spore references)"""
+        if not self.memory:
+            return []
+        
+        return self.memory.recall_by_id(memory_id)
+    
+    def get_conversation_context(self, turns: int = 10) -> List:
+        """Get recent conversation context"""
+        if not self.memory:
+            return []
+        
+        return self.memory.get_conversation_context(self.name, turns)
+    
+    def create_knowledge_reference(self, content: str, 
+                                  importance: float = 0.8) -> List[str]:
+        """
+        Create knowledge references for lightweight spores
+        
+        Args:
+            content: Knowledge content to store and reference
+            importance: Importance threshold
+            
+        Returns:
+            List of knowledge reference IDs
+        """
+        if not self.memory:
+            return []
+        
+        try:
+            return self.memory.get_knowledge_references(content, importance)
+        except Exception as e:
+            print(f"Failed to create knowledge reference: {e}")
+            return []
+    
+    def resolve_spore_knowledge(self, spore) -> Dict[str, Any]:
+        """
+        Resolve knowledge references in a spore
+        
+        Args:
+            spore: Spore object with potential knowledge references
+            
+        Returns:
+            Complete knowledge including resolved references
+        """
+        if not self.memory:
+            return spore.knowledge
+        
+        try:
+            from .reef import get_reef
+            reef = get_reef()
+            return reef.resolve_knowledge_references(spore, self.memory)
+        except Exception as e:
+            print(f"Failed to resolve spore knowledge: {e}")
+            return spore.knowledge
+    
+    def send_lightweight_knowledge(self, to_agent: str, 
+                                  large_content: str,
+                                  summary: str,
+                                  channel: str = "main") -> str:
+        """
+        Send large knowledge as lightweight spore with references
+        
+        Args:
+            to_agent: Target agent
+            large_content: Large content to reference
+            summary: Brief summary for the spore
+            channel: Communication channel
+            
+        Returns:
+            Spore ID
+        """
+        # Create knowledge reference
+        refs = self.create_knowledge_reference(large_content)
+        
+        if not refs:
+            # Fallback to direct send if referencing fails
+            return self.send_knowledge(to_agent, {"content": large_content}, channel)
+        
+        # Send lightweight spore with reference
+        from .reef import get_reef
+        reef = get_reef()
+        return reef.create_knowledge_reference_spore(
+            from_agent=self.name,
+            to_agent=to_agent,
+            knowledge_summary=summary,
+            knowledge_references=refs,
+            channel=channel
+        )
