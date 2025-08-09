@@ -666,6 +666,49 @@ def handle_everything(spore):
 - **🔬 Scientific Discovery**: Agents for research and analysis
 - **🏭 Industry Solutions**: Specialized agent packages for domains
 
+## 🔄 **Versioning & Releases**
+
+Praval follows [Semantic Versioning](https://semver.org/) with **automated version bumping**:
+
+### **Current Status**: `v0.5.0` (Pre-1.0 Beta)
+
+### **Automatic Release Process**
+Every push to `main` triggers automatic version bumping based on commit messages:
+
+#### 🟢 **Patch Release** (Bug fixes: `0.5.0 → 0.5.1`)
+```bash
+git commit -m "fix: Memory leak in agent cleanup"
+git commit -m "docs: Update installation guide"  
+git commit -m "test: Add coverage for edge cases"
+```
+
+#### 🟡 **Minor Release** (New features: `0.5.0 → 0.6.0`)
+```bash
+git commit -m "feat: Add streaming response capability"
+git commit -m "add: New knowledge base integration"
+git commit -m "enhance: Improve memory performance"
+```
+
+#### 🔴 **Major Release** (Breaking changes: `0.5.0 → 1.0.0`)
+```bash
+git commit -m "BREAKING CHANGE: Redesign agent decorator API"
+git commit -m "major: Remove deprecated memory interface"
+```
+
+### **Installation from Releases**
+```bash
+# Latest development version
+pip install git+https://github.com/aiexplorations/praval.git
+
+# Specific version
+pip install git+https://github.com/aiexplorations/praval.git@v0.5.0
+```
+
+### **Contributing**
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed guidelines on contributing and triggering version bumps.
+
+---
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
