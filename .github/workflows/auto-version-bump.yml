@@ -1,0 +1,149 @@
+name: Auto Version Bump and Release
+
+on:
+  push:
+    branches: [main]
+    # Don't trigger on version bump commits
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - '.bumpversion.cfg'
+
+jobs:
+  auto-version:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, 'Bump version:')"
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bump2version gitpython
+    
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: Determine version bump type
+      id: version_type
+      run: |
+        python << 'EOF'
+        import os
+        import git
+        import re
+        
+        # Get the repository
+        repo = git.Repo('.')
+        
+        # Get commits since last tag (or last 10 if no tags)
+        try:
+            last_tag = repo.git.describe('--tags', '--abbrev=0')
+            commits = list(repo.iter_commits(f'{last_tag}..HEAD'))
+        except:
+            # No tags exist, check last 10 commits
+            commits = list(repo.iter_commits('HEAD', max_count=10))
+        
+        bump_type = "patch"  # default
+        
+        # Keywords that trigger different bump types
+        major_keywords = [
+            'BREAKING CHANGE', 'breaking change', 'major:',
+            'api change', 'breaking:', '!:'
+        ]
+        
+        minor_keywords = [
+            'feat:', 'feature:', 'add:', 'new:',
+            'decorator change', 'api:', 'enhance:',
+            'memory system', 'agent capability'
+        ]
+        
+        patch_keywords = [
+            'fix:', 'patch:', 'bug:', 'docs:',
+            'test:', 'refactor:', 'style:', 'chore:'
+        ]
+        
+        # Analyze commit messages
+        all_messages = []
+        for commit in commits:
+            all_messages.append(commit.message.lower())
+        
+        full_text = ' '.join(all_messages)
+        
+        # Check for breaking changes first
+        if any(keyword in full_text for keyword in major_keywords):
+            bump_type = "major"
+        # Then check for features
+        elif any(keyword in full_text for keyword in minor_keywords):
+            bump_type = "minor"
+        # Check if it's explicitly a patch
+        elif any(keyword in full_text for keyword in patch_keywords):
+            bump_type = "patch"
+        # If decorators.py or core APIs changed, it's minor
+        elif any('decorators.py' in commit.message or 
+                'core/agent.py' in commit.message or
+                'core/reef.py' in commit.message 
+                for commit in commits):
+            bump_type = "minor"
+        
+        print(f"Detected bump type: {bump_type}")
+        print(f"Based on {len(commits)} commits since last tag")
+        
+        # Set output for GitHub Actions
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"bump_type={bump_type}\n")
+        
+        EOF
+    
+    - name: Bump version
+      if: steps.version_type.outputs.bump_type
+      run: |
+        echo "Bumping version with type: ${{ steps.version_type.outputs.bump_type }}"
+        bump2version ${{ steps.version_type.outputs.bump_type }} --verbose
+    
+    - name: Push changes
+      run: |
+        git push origin main --follow-tags
+    
+    - name: Build package
+      run: |
+        python -m pip install build
+        python -m build
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: "Praval v${{ github.ref_name }}"
+        body: |
+          ## Changes in this release
+          
+          Auto-generated release for version bump: ${{ steps.version_type.outputs.bump_type }}
+          
+          ### Type of Release
+          - **${{ steps.version_type.outputs.bump_type }}**: ${{ steps.version_type.outputs.bump_type == 'major' && 'Breaking changes' || steps.version_type.outputs.bump_type == 'minor' && 'New features' || 'Bug fixes and improvements' }}
+          
+          See commit history for detailed changes.
+          
+          ### Installation
+          ```bash
+          pip install git+https://github.com/aiexplorations/praval.git@${{ github.ref_name }}
+          ```
+          
+          🤖 Generated automatically by GitHub Actions
+        files: |
+          dist/*.whl
+          dist/*.tar.gz
+        draft: false
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v1.') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
