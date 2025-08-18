@@ -291,6 +291,9 @@ def main():
             }
         )
         
+        # Wait for resilient agents to complete their interactions
+        time.sleep(5)
+        
         print("\n" + "─" * 40 + "\n")
         
         # Brief pause to make the demonstration clearer

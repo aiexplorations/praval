@@ -157,6 +157,8 @@ def agent(name: Optional[str] = None,
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
+        # Also subscribe to main channel for inter-agent communication
+        underlying_agent.subscribe_to_channel("main")
         
         # Add memory methods to the function for easy access
         if memory_enabled:
@@ -276,7 +278,8 @@ def broadcast(data: Dict[str, Any], channel: Optional[str] = None, message_type:
     if message_type:
         broadcast_data["type"] = message_type
     
-    target_channel = channel or _agent_context.channel
+    # Default to main channel for inter-agent communication, not agent's private channel
+    target_channel = channel or "main"
     return _agent_context.agent.broadcast_knowledge(broadcast_data, channel=target_channel)
 
 

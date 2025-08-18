@@ -409,6 +409,9 @@ def main():
             }
         )
         
+        # Wait for self-organizing network to form and collaborate
+        time.sleep(10)
+        
         print("\n" + "─" * 50)
         print("Network State:")
         print(f"  Agent connections: {dict(network_state['agent_connections'])}")

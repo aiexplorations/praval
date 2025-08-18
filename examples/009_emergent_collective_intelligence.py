@@ -400,6 +400,9 @@ def main():
             }
         )
         
+        # Wait for collective intelligence to emerge
+        time.sleep(8)
+        
         print("\n" + "─" * 60 + "\n")
         
         # Brief pause between inquiries

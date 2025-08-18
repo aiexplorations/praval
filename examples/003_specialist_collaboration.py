@@ -16,6 +16,7 @@ Key Concepts:
 Run: python examples/003_specialist_collaboration.py
 """
 
+import time
 from praval import agent, chat, broadcast, start_agents
 
 
@@ -178,6 +179,9 @@ def main():
             final_synthesizer,
             initial_data={"type": "analyze_problem", "problem": problem}
         )
+        
+        # Wait for specialist collaboration to complete
+        time.sleep(12)  # Allow time for analysis -> creation -> evaluation -> synthesis
         
         print("\n" + "─" * 60 + "\n")
     
