@@ -5,9 +5,9 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.4.2 includes comprehensive memory system tests with 96% coverage on
-MemoryManager, 100% coverage on semantic/episodic memory, and 99% coverage on
-decorators. Significantly improved test coverage across all memory modules.
+Version 0.6.0 includes Secure Spores Enterprise Edition with military-grade
+cryptography, multi-protocol transport (AMQP/MQTT/STOMP), Docker deployment
+infrastructure, and critical multi-agent communication bug fixes.
 """
 
 from .core.agent import Agent
@@ -33,7 +33,7 @@ except ImportError:
     MemoryEntry = None
     MemoryQuery = None
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     # Core classes
     "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",

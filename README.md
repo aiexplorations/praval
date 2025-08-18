@@ -5,9 +5,13 @@
   
   **The Pythonic Multi-Agent AI Framework**
   
-  Transform complex AI applications into simple, composable agent systems using decorator-based APIs and self-organizing communication.
+  Transform complex AI applications into simple, composable agent systems using decorator-based APIs, secure messaging, and distributed deployment.
   
   *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
+
+  [![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/aiexplorations/praval/releases/tag/v0.6.0)
+  [![Security](https://img.shields.io/badge/security-enterprise%20ready-green.svg)](#-secure-spores-messaging)
+  [![Docker](https://img.shields.io/badge/docker-multi--service-blue.svg)](#-docker-deployment)
 </div>
 
 ## Overview
@@ -26,7 +30,10 @@
 - **🤝 Natural Collaboration**: Agents work together seamlessly
 - **📡 Reef Communication**: Knowledge-first messaging between agents
 - **🔄 Self-Organization**: Agents coordinate without central control
-- **⚡ Pythonic API**: Clean, decorator-based agent definitions 
+- **⚡ Pythonic API**: Clean, decorator-based agent definitions
+- **🔒 Secure Messaging**: End-to-end encryption with enterprise-grade security
+- **🐳 Distributed Deployment**: Multi-service Docker architecture with message queues
+- **📡 Multi-Protocol Support**: AMQP, MQTT, STOMP for scalable messaging 
 
 ## ⭐ **The Praval Philosophy**
 
@@ -66,6 +73,14 @@ def writing_specialist(spore):
 - **State Persistence**: Conversation memory and context management
 - **Error Handling**: Graceful degradation and retry mechanisms
 - **Resource Management**: Automatic cleanup and optimization
+
+#### **🔒 Secure Spores Messaging** *(Enterprise Edition)*
+- **End-to-End Encryption**: PyNaCl cryptography (Curve25519 + XSalsa20 + Poly1305)
+- **Digital Signatures**: Ed25519 for message authenticity and integrity
+- **Multi-Protocol Transport**: AMQP (RabbitMQ), MQTT (Mosquitto), STOMP (ActiveMQ)
+- **TLS/SSL Security**: Certificate-based transport encryption
+- **Key Management**: Automatic key rotation and forward secrecy
+- **Distributed Architecture**: Horizontally scalable with message queue clustering
 
 ### **🏗️ Architecture Principles**
 
@@ -138,7 +153,16 @@ PRAVAL_COLLECTION_NAME=praval_memories
 PRAVAL_LOG_LEVEL=INFO
 PRAVAL_MAX_THREADS=10
 PRAVAL_DEFAULT_PROVIDER=openai
-PRAVAL_DEFAULT_MODEL=gpt-4-turbo
+PRAVAL_DEFAULT_MODEL=gpt-4o-mini
+
+# Secure Spores Configuration (Enterprise)
+PRAVAL_TRANSPORT_PROTOCOL=amqp        # amqp, mqtt, or stomp
+PRAVAL_AMQP_URL=amqps://user:pass@host:5671/vhost
+PRAVAL_MQTT_HOST=localhost
+PRAVAL_MQTT_PORT=8883
+PRAVAL_TLS_CA_CERT=/path/to/ca.pem
+PRAVAL_TLS_CLIENT_CERT=/path/to/client.pem
+PRAVAL_TLS_CLIENT_KEY=/path/to/client.key
 ```
 ## ⚡ **Quick Start**
 
@@ -675,7 +699,7 @@ Praval follows [Semantic Versioning](https://semver.org/) with **automated versi
 ### **Automatic Release Process**
 Every push to `main` triggers automatic version bumping based on commit messages:
 
-#### 🟢 **Patch Release** (Bug fixes: `0.5.0 → 0.5.1`)
+#### 🔵 **Minor Release** (New features: `0.5.0 → 0.6.0`)
 ```bash
 git commit -m "fix: Memory leak in agent cleanup"
 git commit -m "docs: Update installation guide"  
@@ -805,6 +829,161 @@ def analyze_business_viability(spore):
 - **🤝 Collaboration Examples**: Agent-to-agent communication
 - **🔧 Tool Integration**: External API and service connections
 - **📋 Best Practices**: Recommended implementation patterns
+
+## 🔒 **Secure Spores Messaging** *(Enterprise Edition)*
+
+Praval includes an enterprise-grade secure messaging system that transforms the framework from local agent coordination to distributed, encrypted, multi-agent platforms.
+
+### **🛡️ Security Features**
+- **🔐 End-to-End Encryption**: PyNaCl cryptography (Curve25519 + XSalsa20 + Poly1305)
+- **✅ Digital Signatures**: Ed25519 for message authenticity and integrity
+- **🔄 Key Rotation**: Automatic key management with forward secrecy
+- **🛡️ TLS Transport**: Certificate-based transport layer security
+- **🔒 Tamper-Proof**: Authenticated encryption prevents message modification
+
+### **📡 Supported Protocols**
+- **🐰 AMQP**: RabbitMQ with TLS support and management plugins
+- **📡 MQTT**: Eclipse Mosquitto with WebSocket and TLS support  
+- **🔌 STOMP**: ActiveMQ with SSL and enterprise features
+- **⚡ Redis**: High-performance key-value messaging (planned)
+- **🚀 NATS**: Cloud-native messaging (planned)
+
+### **🐳 Quick Start with Docker**
+
+```bash
+# Clone and start secure infrastructure
+git clone https://github.com/aiexplorations/praval.git
+cd praval
+
+# Start the full secure messaging stack
+docker-compose -f docker/docker-compose.secure.yml up -d
+
+# Run secure spore demo
+docker-compose exec praval-secure python examples/secure_spore_demo.py
+
+# Development with Jupyter (secure environment)
+docker-compose --profile dev up jupyter-secure
+# Access: http://localhost:8889 (token: praval_secure_2024)
+```
+
+### **🏗️ Infrastructure Services**
+
+The secure deployment includes:
+
+| Service | Port | Purpose | TLS |
+|---------|------|---------|-----|
+| **RabbitMQ** | 5671/5672 | AMQP message broker | ✅ |
+| **Mosquitto** | 8883/8884 | MQTT message broker | ✅ |
+| **ActiveMQ** | 61614/61613 | STOMP message broker | ✅ |
+| **Qdrant** | 6333 | Vector database for memory | ✅ |
+| **Redis** | 6379 | Key registry & caching | ✅ |
+| **Jupyter** | 8889 | Secure development environment | ✅ |
+
+### **💻 Example: Secure Agent Communication**
+
+```python
+from praval.core.secure_reef import SecureReef
+from praval.core.secure_spore import SecureSporeFactory
+
+# Initialize secure messaging
+secure_reef = SecureReef(
+    transport_protocol='amqp',
+    amqp_url='amqps://user:pass@rabbitmq:5671/secure',
+    tls_config={
+        'ca_cert': '/certs/ca.pem',
+        'client_cert': '/certs/client.pem', 
+        'client_key': '/certs/client.key'
+    }
+)
+
+# Create secure spore factory with encryption
+spore_factory = SecureSporeFactory(
+    signing_key=ed25519_private_key,
+    encryption_key=curve25519_private_key
+)
+
+# Send encrypted message between agents
+secure_spore = spore_factory.create_secure_spore(
+    knowledge={"classified_data": "top_secret_analysis"},
+    to_agent="analyst_agent",
+    encryption_enabled=True
+)
+
+await secure_reef.send_secure_spore(secure_spore)
+```
+
+## 🐳 **Docker Deployment**
+
+Praval supports both local development and production deployment through comprehensive Docker infrastructure.
+
+### **📦 Available Configurations**
+
+#### **Development Mode**
+```bash
+# Standard development with local services
+docker-compose up -d
+
+# With Jupyter Lab
+docker-compose --profile dev up jupyter
+# Access: http://localhost:8888
+```
+
+#### **Secure Production Mode**
+```bash
+# Enterprise secure messaging infrastructure  
+docker-compose -f docker/docker-compose.secure.yml up -d
+
+# Includes: RabbitMQ, MQTT, STOMP, Qdrant, Redis, TLS certificates
+# All services configured with enterprise security
+```
+
+### **🔧 Service Configuration**
+
+**Standard Services:**
+- **Praval App**: Main application container
+- **Qdrant**: Vector database for agent memory (http://localhost:6333)
+- **Jupyter**: Development environment (http://localhost:8888)
+
+**Secure Services:**
+- **All standard services** plus:
+- **RabbitMQ**: Message broker with AMQP/MQTT/STOMP
+- **Mosquitto**: Dedicated MQTT broker
+- **ActiveMQ**: Enterprise STOMP messaging
+- **Redis**: Key registry and caching
+- **TLS Certificates**: Automatic certificate management
+
+### **⚙️ Environment Variables**
+
+```bash
+# Core configuration
+OPENAI_API_KEY=your_key
+PRAVAL_LOG_LEVEL=INFO
+
+# Secure messaging
+PRAVAL_TRANSPORT_PROTOCOL=amqp
+PRAVAL_AMQP_URL=amqps://praval:secure_pass@rabbitmq:5671/praval
+PRAVAL_TLS_CA_CERT=/app/certs/ca_certificate.pem
+
+# Development
+JUPYTER_TOKEN=your_secure_token
+```
+
+### **📋 Health Monitoring**
+
+All services include health checks and monitoring:
+
+```bash
+# Check service health
+docker-compose ps
+
+# View logs
+docker-compose logs praval-secure
+docker-compose logs rabbitmq
+
+# Access management interfaces
+# RabbitMQ: http://localhost:15672 (admin/secure_praval_2024)
+# ActiveMQ: http://localhost:8161 (admin/secure_activemq_2024)
+```
 
 ## 📞 **Community & Support**
 

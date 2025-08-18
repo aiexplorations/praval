@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.5.0"
+version = "0.6.0"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = {text = "MIT"}
@@ -32,6 +32,11 @@ dependencies = [
     "sentence-transformers>=2.2.0",
     "scikit-learn>=1.3.0",  # For cosine similarity and other ML utilities
     "python-dotenv>=1.0.0",  # For .env file loading
+    "aio-pika>=9.0.0",  # Async AMQP client (RabbitMQ, etc.)
+    "asyncio-mqtt>=0.16.0",  # Async MQTT client
+    "aiostomp>=1.6.0",  # Async STOMP client
+    "PyNaCl>=1.5.0",  # Modern cryptography (Ed25519, Curve25519)
+    "msgpack>=1.0.0",  # Efficient binary serialization
 ]
 
 [project.optional-dependencies]

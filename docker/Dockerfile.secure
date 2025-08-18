@@ -1,0 +1,49 @@
+# Dockerfile for Praval with secure spore support
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -e .
+
+# Install additional security packages
+RUN pip install --no-cache-dir \
+    cryptography \
+    certifi \
+    pyopenssl
+
+# Copy application code
+COPY src/ src/
+COPY examples/ examples/
+COPY docker/scripts/ scripts/
+
+# Create directories for certificates and logs
+RUN mkdir -p /app/certs /app/logs /app/data
+
+# Create non-root user for security
+RUN adduser --disabled-password --gecos '' --uid 1000 praval && \
+    chown -R praval:praval /app
+
+USER praval
+
+# Environment variables
+ENV PYTHONPATH=/app/src
+ENV PRAVAL_LOG_LEVEL=INFO
+ENV PRAVAL_DATA_DIR=/app/data
+ENV PRAVAL_CERT_DIR=/app/certs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD python -c "import src.praval; print('Praval healthy')" || exit 1
+
+# Default command
+CMD ["python", "-m", "examples.secure_venturelens"]

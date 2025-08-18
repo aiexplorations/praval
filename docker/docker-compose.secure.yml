@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # RabbitMQ with TLS support and management plugins
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    hostname: praval-rabbitmq
+    container_name: praval-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: praval
+      RABBITMQ_DEFAULT_PASS: secure_praval_2024
+      RABBITMQ_DEFAULT_VHOST: /praval
+    ports:
+      - "5672:5672"    # AMQP
+      - "5671:5671"    # AMQP over TLS
+      - "15672:15672"  # Management UI
+      - "1883:1883"    # MQTT
+      - "8883:8883"    # MQTT over TLS
+      - "61613:61613"  # STOMP
+      - "61614:61614"  # STOMP over TLS
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
+      - ./certs:/etc/rabbitmq/certs:ro
+    networks:
+      - praval-secure
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
+
+  # MQTT Broker (Eclipse Mosquitto) with TLS
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    hostname: praval-mosquitto
+    container_name: praval-mosquitto
+    ports:
+      - "1884:1883"    # MQTT (non-standard port to avoid conflict)
+      - "8884:8883"    # MQTT over TLS
+      - "9001:9001"    # WebSockets
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./certs:/mosquitto/certs:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - praval-secure
+    restart: unless-stopped
+
+  # ActiveMQ with STOMP support
+  activemq:
+    image: webcenter/activemq:5.14.3
+    hostname: praval-activemq
+    container_name: praval-activemq
+    environment:
+      ACTIVEMQ_REMOVE_DEFAULT_ACCOUNT: true
+      ACTIVEMQ_ADMIN_LOGIN: admin
+      ACTIVEMQ_ADMIN_PASSWORD: secure_activemq_2024
+      ACTIVEMQ_CONFIG_NAME: activemq
+      ACTIVEMQ_CONFIG_DEFAULTACCOUNT: false
+    ports:
+      - "61616:61616"  # OpenWire
+      - "61613:61613"  # STOMP
+      - "61614:61614"  # STOMP over SSL
+      - "8161:8161"    # Admin console
+    volumes:
+      - activemq_data:/data/activemq
+      - ./activemq/activemq.xml:/opt/activemq/conf/activemq.xml
+      - ./certs:/opt/activemq/conf/certs:ro
+    networks:
+      - praval-secure
+    restart: unless-stopped
+
+  # Praval application with secure spores
+  praval-secure:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.secure
+    hostname: praval-app-secure
+    container_name: praval-app-secure
+    environment:
+      # LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      
+      # Praval Secure Configuration
+      PRAVAL_TRANSPORT_PROTOCOL: amqp
+      PRAVAL_AMQP_URL: amqps://praval:secure_praval_2024@rabbitmq:5671/praval
+      PRAVAL_MQTT_HOST: mosquitto
+      PRAVAL_MQTT_PORT: 8883
+      PRAVAL_STOMP_HOST: activemq
+      PRAVAL_STOMP_PORT: 61614
+      
+      # TLS Configuration
+      PRAVAL_TLS_CA_CERT: /app/certs/ca_certificate.pem
+      PRAVAL_TLS_CLIENT_CERT: /app/certs/client_certificate.pem
+      PRAVAL_TLS_CLIENT_KEY: /app/certs/client_key.pem
+      
+      # Vector Database
+      QDRANT_URL: http://qdrant:6333
+      PRAVAL_COLLECTION_NAME: praval_secure_memories
+    volumes:
+      - ../examples:/app/examples
+      - ./certs:/app/certs:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - praval-secure
+    command: ["python", "-m", "examples.secure_spore_demo"]
+
+  # Qdrant vector database for memory
+  qdrant:
+    image: qdrant/qdrant:v1.7.3
+    hostname: praval-qdrant
+    container_name: praval-qdrant
+    ports:
+      - "6333:6333"    # HTTP API
+      - "6334:6334"    # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    networks:
+      - praval-secure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
+
+  # Redis for key registry (production alternative)
+  redis:
+    image: redis:7-alpine
+    hostname: praval-redis
+    container_name: praval-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --requirepass secure_redis_2024
+    networks:
+      - praval-secure
+    restart: unless-stopped
+
+  # Jupyter development environment with secure spores
+  jupyter-secure:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.jupyter
+    hostname: praval-jupyter-secure
+    container_name: praval-jupyter-secure
+    ports:
+      - "8889:8888"    # Non-standard port to avoid conflicts
+    volumes:
+      - ..:/home/jovyan/praval
+      - jupyter_secure_data:/home/jovyan/.local
+      - ./certs:/home/jovyan/certs:ro
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_TOKEN: "praval_secure_2024"
+      PRAVAL_TRANSPORT_PROTOCOL: amqp
+      PRAVAL_AMQP_URL: amqps://praval:secure_praval_2024@rabbitmq:5671/praval
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - praval-secure
+    profiles:
+      - dev
+
+volumes:
+  rabbitmq_data:
+  mosquitto_data:
+  mosquitto_logs:
+  activemq_data:
+  qdrant_data:
+  redis_data:
+  jupyter_secure_data:
+
+networks:
+  praval-secure:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

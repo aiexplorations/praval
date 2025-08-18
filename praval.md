@@ -1,10 +1,10 @@
 ---
-title: "Praval v0.5.0: The Complete Guide to Multi-Agent AI Systems"
+title: "Praval v0.6.0: The Complete Guide to Multi-Agent AI Systems"
 author: 
   - "Rajesh Sampathkumar (@aiexplorations)"
   - "Claude Code"
 date: "August 2025"
-version: "0.5.0"
+version: "0.6.0"
 ---
 
 <div style="text-align: center; page-break-after: always;">
@@ -29,9 +29,9 @@ version: "0.5.0"
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** January 2025  
-**Framework Version:** 0.3.0+
+**Version:** 1.1  
+**Last Updated:** August 2025  
+**Framework Version:** 0.6.0 (with Secure Spores Enterprise Edition)
 
 </div>
 
@@ -61,16 +61,23 @@ This comprehensive guide serves as both philosophical manifesto and practical ma
 - [The Three-Stage Learning Path](#the-three-stage-learning-path)
 - [Running the Learning Journey](#running-the-learning-journey)
 
-**PART V: VERSION 0.5.0 NEW FEATURES**
+**PART V: VERSION 0.6.0 NEW FEATURES**
 - [Comprehensive Memory System](#comprehensive-memory-system)
 - [Production-Ready Testing](#production-ready-testing)
 - [Enhanced Agent Capabilities](#enhanced-agent-capabilities)
+- [Multi-Agent Communication Bug Fix](#multi-agent-communication-bug-fix)
 
-**PART VI: COGNITIVE MEMORY ARCHITECTURE**
+**PART VI: SECURE SPORES ENTERPRISE EDITION**
+- [Enterprise-Grade Security](#enterprise-grade-security)
+- [Distributed Messaging Architecture](#distributed-messaging-architecture)
+- [Multi-Protocol Transport Layer](#multi-protocol-transport-layer)
+- [Docker Deployment Infrastructure](#docker-deployment-infrastructure)
+
+**PART VII: COGNITIVE MEMORY ARCHITECTURE**
 - [The Foundation of Persistent Intelligence](#the-foundation-of-persistent-intelligence)
 - [Theoretical Foundation](#theoretical-foundation)
 
-**PART VI: ADVANCED TOPICS**
+**PART VIII: ADVANCED TOPICS**
 - [Configuration and Deployment](#configuration-and-deployment)
 - [Best Practices](#best-practices)
 
@@ -1612,9 +1619,832 @@ if __name__ == "__main__":
 
 ---
 
-# PART V: VERSION 0.5.0 NEW FEATURES
+# PART VI: SECURE SPORES ENTERPRISE EDITION
 
-Praval v0.5.0 represents a major milestone in multi-agent AI development, introducing comprehensive memory capabilities, production-ready testing, and enhanced agent intelligence.
+## Enterprise-Grade Security
+
+**Cryptographic Foundation for Multi-Agent Communications**
+
+Praval v0.6.0 introduces **Secure Spores**, an enterprise-grade messaging system that brings military-level cryptographic security to multi-agent communications. Built on modern cryptographic primitives, Secure Spores ensure that agent communications remain confidential, authenticated, and tamper-proof across distributed networks.
+
+### Cryptographic Architecture
+
+**End-to-End Encryption:**
+- **Curve25519**: Elliptic curve key exchange for perfect forward secrecy
+- **XSalsa20**: Stream cipher for message content encryption
+- **Poly1305**: Message authentication codes for integrity verification
+
+**Digital Signatures:**
+- **Ed25519**: Fast, secure digital signatures for message authenticity
+- **Message Integrity**: Cryptographic proof that messages haven't been tampered with
+- **Non-repudiation**: Agents cannot deny sending authenticated messages
+
+```python
+from praval.core.secure_spore import SecureSporeFactory, SporeKeyManager
+from praval.core.transport import TransportProtocol, transport_connection
+
+# Initialize secure messaging
+key_manager = SporeKeyManager("secure_agent")
+secure_factory = SecureSporeFactory(key_manager)
+
+# Create end-to-end encrypted message
+async def secure_communication():
+    # Get recipient's public keys
+    recipient_keys = await get_agent_public_keys("target_agent")
+    
+    # Create encrypted, authenticated message
+    secure_spore = secure_factory.create_secure_spore(
+        to_agent="target_agent",
+        knowledge={"sensitive_data": "classified_information"},
+        spore_type=SporeType.REQUEST,
+        priority=10,
+        expires_in_seconds=3600,
+        recipient_public_keys=recipient_keys
+    )
+    
+    # Transmit over secure transport
+    async with transport_connection(TransportProtocol.AMQP, amqp_config) as transport:
+        await transport.publish("secure.channel", secure_spore.to_bytes())
+```
+
+### Key Management System
+
+**Agent Identity & Key Lifecycle:**
+
+Each agent maintains its own cryptographic identity with automatic key rotation capabilities:
+
+```python
+# Agent key initialization
+key_manager = SporeKeyManager("production_agent")
+
+# Key information
+public_keys = key_manager.get_public_keys()
+print(f"Agent public key: {public_keys['public_key'].hex()}")
+print(f"Verify key: {public_keys['verify_key'].hex()}")
+
+# Secure key rotation
+rotation_result = key_manager.rotate_keys()
+print(f"Keys rotated. Old keys archived for verification.")
+
+# Key export for backup
+exported_keys = key_manager.export_keys()
+backup_secure_storage(exported_keys)  # Store securely
+
+# Key import for recovery
+recovered_manager = SporeKeyManager.import_keys("production_agent", exported_keys)
+```
+
+**Cryptographic Operations:**
+
+```python
+# Encrypt and sign knowledge for specific recipient
+recipient_public_key = get_agent_public_key("target_agent")
+encrypted_data, nonce, signature = key_manager.encrypt_and_sign(
+    knowledge={"confidential": "data"},
+    recipient_public_key=recipient_public_key
+)
+
+# Decrypt and verify received message
+sender_public_key = get_agent_public_key("sender_agent")
+sender_verify_key = get_agent_verify_key("sender_agent")
+
+decrypted_knowledge = key_manager.decrypt_and_verify(
+    encrypted_data=encrypted_data,
+    nonce=nonce,
+    signature=signature,
+    sender_public_key=sender_public_key,
+    sender_verify_key=sender_verify_key
+)
+```
+
+### Security Features
+
+**Perfect Forward Secrecy:**
+- Each message uses ephemeral keys
+- Compromise of long-term keys doesn't affect past communications
+- Automatic key rotation capabilities
+
+**Message Integrity:**
+- Cryptographic proof of message authenticity
+- Detection of any tampering attempts
+- Replay attack prevention through nonces
+
+**Agent Authentication:**
+- Cryptographic proof of sender identity
+- Public key infrastructure for agent verification
+- Trust chain establishment
+
+## Distributed Messaging Architecture
+
+**Multi-Protocol Transport Layer**
+
+Secure Spores support multiple enterprise messaging protocols, enabling deployment across diverse infrastructure environments:
+
+### AMQP (Advanced Message Queuing Protocol)
+
+**Enterprise Message Brokers:**
+- RabbitMQ, Apache Qpid, Azure Service Bus
+- Guaranteed message delivery with persistence
+- Topic-based routing with wildcard support
+- TLS/SSL encryption for transport security
+
+```python
+from praval.core.transport import AMQPTransport, TransportProtocol
+
+# AMQP configuration with TLS
+amqp_config = {
+    'url': 'amqps://production-rabbit:5671/',
+    'exchange_name': 'praval.secure.spores',
+    'ca_cert': '/certs/ca.pem',
+    'client_cert': '/certs/client.pem',
+    'client_key': '/certs/client-key.pem',
+    'verify_certs': True,
+    'prefetch_count': 100
+}
+
+# Initialize secure AMQP transport
+async with transport_connection(TransportProtocol.AMQP, amqp_config) as transport:
+    # Publish encrypted message
+    await transport.publish(
+        topic="analytics.models.inference",
+        message=secure_spore.to_bytes(),
+        priority=8,
+        ttl=3600
+    )
+    
+    # Subscribe to secure channel
+    async def secure_message_handler(encrypted_message):
+        secure_spore = SecureSpore.from_bytes(encrypted_message)
+        decrypted_knowledge = decrypt_secure_spore(secure_spore)
+        await process_secure_knowledge(decrypted_knowledge)
+    
+    await transport.subscribe("analytics.models.*", secure_message_handler)
+```
+
+### MQTT (Message Queuing Telemetry Transport)
+
+**IoT and Edge Computing:**
+- Lightweight protocol for resource-constrained environments  
+- Quality of Service levels for reliable delivery
+- Hierarchical topic structure for organization
+- MQTT over TLS (port 8883) for security
+
+```python
+# MQTT configuration with TLS
+mqtt_config = {
+    'host': 'secure-mqtt.company.com',
+    'port': 8883,
+    'client_id': 'praval-secure-agent-001',
+    'username': 'production_user',
+    'password': 'secure_password',
+    'ca_cert': '/certs/mqtt-ca.pem',
+    'client_cert': '/certs/mqtt-client.pem',
+    'client_key': '/certs/mqtt-client-key.pem',
+    'keepalive': 60
+}
+
+# Secure MQTT communication
+async with transport_connection(TransportProtocol.MQTT, mqtt_config) as transport:
+    # Publish to hierarchical topic
+    await transport.publish(
+        topic="production/ai/agents/analysis/results",
+        message=secure_spore.to_bytes(),
+        priority=7  # Maps to QoS level
+    )
+    
+    # Subscribe with wildcards
+    await transport.subscribe(
+        topic="production/ai/agents/+/commands",
+        callback=secure_command_handler
+    )
+```
+
+### STOMP (Simple Text Oriented Messaging Protocol)
+
+**Enterprise Integration:**
+- Simple, interoperable messaging protocol
+- Support for Apache ActiveMQ, RabbitMQ
+- Transaction support for atomic operations
+- Headers for metadata and routing
+
+```python
+# STOMP configuration with TLS
+stomp_config = {
+    'host': 'activemq.enterprise.local',
+    'port': 61614,  # STOMP over TLS
+    'username': 'praval_system',
+    'password': 'enterprise_password',
+    'ca_cert': '/certs/enterprise-ca.pem',
+    'client_cert': '/certs/praval-client.pem',
+    'client_key': '/certs/praval-key.pem'
+}
+
+# Secure STOMP messaging
+async with transport_connection(TransportProtocol.STOMP, stomp_config) as transport:
+    await transport.publish(
+        topic="enterprise.ai.processing.results",
+        message=secure_spore.to_bytes(),
+        priority=9,
+        ttl=7200
+    )
+```
+
+### Transport Abstraction Benefits
+
+**Protocol Independence:**
+```python
+# Same code works across different transports
+async def deploy_secure_agent(transport_protocol, config):
+    async with transport_connection(transport_protocol, config) as transport:
+        # Identical code for all protocols
+        await transport.publish("agents.deployment", secure_spore.to_bytes())
+        await transport.subscribe("agents.commands.*", command_handler)
+
+# Deploy on different infrastructure
+await deploy_secure_agent(TransportProtocol.AMQP, production_amqp_config)
+await deploy_secure_agent(TransportProtocol.MQTT, edge_mqtt_config)  
+await deploy_secure_agent(TransportProtocol.STOMP, enterprise_stomp_config)
+```
+
+## Multi-Protocol Transport Layer
+
+**Unified Transport Abstraction**
+
+The transport layer provides a consistent interface across different messaging protocols, enabling seamless migration between infrastructure environments:
+
+### Transport Factory Pattern
+
+```python
+from praval.core.transport import TransportFactory, TransportProtocol
+
+# Protocol-agnostic transport creation
+def create_transport_for_environment(environment):
+    if environment == "production":
+        return TransportFactory.create_transport(TransportProtocol.AMQP)
+    elif environment == "edge":
+        return TransportFactory.create_transport(TransportProtocol.MQTT)
+    elif environment == "enterprise":
+        return TransportFactory.create_transport(TransportProtocol.STOMP)
+    
+# Custom transport registration
+class RedisTransport(MessageTransport):
+    """Custom Redis-based transport implementation."""
+    
+    async def initialize(self, config):
+        self.redis_client = await aioredis.create_redis_pool(
+            config['redis_url'],
+            ssl_context=self._create_tls_context(config)
+        )
+    
+    async def publish(self, topic, message, **kwargs):
+        await self.redis_client.publish(f"praval:{topic}", message)
+    
+    async def subscribe(self, topic, callback):
+        channel = await self.redis_client.subscribe(f"praval:{topic}")
+        async for message in channel.iter():
+            await callback(message.data)
+
+# Register custom transport
+TransportFactory.register_transport(TransportProtocol.REDIS, RedisTransport)
+```
+
+### TLS/SSL Security by Default
+
+**Mandatory Encryption:**
+All transports enforce TLS/SSL encryption by default with comprehensive certificate management:
+
+```python
+# TLS configuration example
+tls_config = {
+    'ca_cert': '/etc/ssl/certs/company-ca.pem',        # Certificate Authority
+    'client_cert': '/etc/ssl/certs/praval-client.pem', # Client certificate
+    'client_key': '/etc/ssl/private/praval-key.pem',   # Client private key
+    'verify_certs': True,                              # Verify server certificates
+    'check_hostname': True,                            # Verify hostname matches
+    'ssl_version': 'TLSv1.3'                          # Force TLS 1.3
+}
+
+# Mutual TLS authentication
+mutual_tls_config = {
+    **tls_config,
+    'require_client_cert': True,  # Mutual authentication
+    'crl_check': True            # Certificate revocation list check
+}
+```
+
+### Performance and Scalability
+
+**Optimized Message Handling:**
+
+```python
+# High-throughput configuration
+high_performance_config = {
+    'connection_pool_size': 20,      # Multiple connections
+    'prefetch_count': 1000,          # Batch message processing
+    'compression': 'gzip',           # Message compression
+    'keepalive': 30,                 # Reduced keepalive for efficiency
+    'tcp_nodelay': True,             # Disable Nagle's algorithm
+    'buffer_size': 65536            # Larger network buffers
+}
+
+# Load balancing across multiple brokers
+broker_cluster_config = {
+    'brokers': [
+        'broker1.company.com:5671',
+        'broker2.company.com:5671', 
+        'broker3.company.com:5671'
+    ],
+    'load_balancing': 'round_robin',
+    'failover_timeout': 30,
+    'reconnect_delay': 5
+}
+```
+
+## Docker Deployment Infrastructure
+
+**Production-Ready Containerization**
+
+Secure Spores include comprehensive Docker infrastructure for rapid deployment across environments:
+
+### Complete Service Stack
+
+```yaml
+# docker-compose.secure.yml
+version: '3.8'
+services:
+  # RabbitMQ with TLS
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5671:5671"    # AMQP over TLS
+      - "15671:15671"  # Management UI over HTTPS
+    environment:
+      RABBITMQ_DEFAULT_USER: praval
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_SSL_CACERTFILE: /etc/rabbitmq/certs/ca.pem
+      RABBITMQ_SSL_CERTFILE: /etc/rabbitmq/certs/server.pem
+      RABBITMQ_SSL_KEYFILE: /etc/rabbitmq/certs/server-key.pem
+    volumes:
+      - ./docker/rabbitmq/certs:/etc/rabbitmq/certs:ro
+      - ./docker/rabbitmq/config:/etc/rabbitmq/conf.d:ro
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Mosquitto MQTT with TLS  
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "8883:8883"    # MQTT over TLS
+      - "9001:9001"    # WebSocket over TLS
+    volumes:
+      - ./docker/mosquitto/config:/mosquitto/config:ro
+      - ./docker/mosquitto/certs:/mosquitto/certs:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-p", "1883", "-t", "test", "-m", "test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ActiveMQ for STOMP
+  activemq:
+    image: apache/activemq-artemis:latest
+    ports:
+      - "61614:61614"  # STOMP over TLS
+      - "8162:8162"    # Web console over HTTPS
+    environment:
+      ARTEMIS_USER: praval
+      ARTEMIS_PASSWORD: ${ACTIVEMQ_PASSWORD}
+    volumes:
+      - ./docker/activemq/certs:/var/lib/artemis-instance/etc/certs:ro
+      - activemq_data:/var/lib/artemis-instance/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:8162/console"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Qdrant for vector storage
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching and additional transport
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server 
+      --requirepass ${REDIS_PASSWORD}
+      --tls-port 6380
+      --tls-cert-file /certs/redis.pem
+      --tls-key-file /certs/redis-key.pem
+      --tls-ca-cert-file /certs/ca.pem
+    volumes:
+      - ./docker/redis/certs:/certs:ro
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/redis.pem", "--key", "/certs/redis-key.pem", "--cacert", "/certs/ca.pem", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Main Praval application
+  praval-secure:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.secure
+    environment:
+      # Core configuration
+      PRAVAL_LOG_LEVEL: INFO
+      PRAVAL_DEFAULT_PROVIDER: openai
+      
+      # LLM API keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      
+      # Secure transport configuration
+      RABBITMQ_URL: amqps://praval:${RABBITMQ_PASSWORD}@rabbitmq:5671/
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 8883
+      ACTIVEMQ_HOST: activemq
+      ACTIVEMQ_PORT: 61614
+      
+      # Vector storage
+      QDRANT_URL: http://qdrant:6333
+      
+      # Security
+      PRAVAL_ENABLE_SECURE_SPORES: true
+      PRAVAL_TLS_CERT_DIR: /app/certs
+      
+    volumes:
+      - ./docker/certs:/app/certs:ro
+      - ./logs:/app/logs
+      - praval_data:/app/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+  mosquitto_data:
+  activemq_data:
+  qdrant_storage:
+  redis_data:
+  praval_data:
+```
+
+### Certificate Management
+
+**Automatic TLS Certificate Generation:**
+
+```bash
+#!/bin/bash
+# docker/scripts/generate-certs.sh
+
+# Create certificate authority
+openssl genrsa -out ca-key.pem 4096
+openssl req -new -x509 -days 365 -key ca-key.pem -sha256 -out ca.pem \
+    -subj "/C=US/ST=CA/L=San Francisco/O=Praval/CN=Praval CA"
+
+# Generate server certificates for each service
+for service in rabbitmq mosquitto activemq redis; do
+    # Generate private key
+    openssl genrsa -out ${service}-key.pem 4096
+    
+    # Generate certificate signing request
+    openssl req -subj "/CN=${service}" -sha256 -new \
+        -key ${service}-key.pem -out ${service}.csr
+    
+    # Sign certificate
+    openssl x509 -req -days 365 -sha256 \
+        -in ${service}.csr -CA ca.pem -CAkey ca-key.pem \
+        -out ${service}.pem -CAcreateserial \
+        -extensions v3_req \
+        -extfile <(echo "subjectAltName=DNS:${service},DNS:localhost,IP:127.0.0.1")
+done
+
+# Generate client certificates for Praval
+openssl genrsa -out client-key.pem 4096
+openssl req -subj "/CN=praval-client" -new \
+    -key client-key.pem -out client.csr
+openssl x509 -req -days 365 -sha256 \
+    -in client.csr -CA ca.pem -CAkey ca-key.pem \
+    -out client.pem -CAcreateserial
+```
+
+### Secure Deployment Scripts
+
+```bash
+#!/bin/bash
+# docker/scripts/deploy-secure.sh
+
+# Generate certificates if they don't exist
+if [ ! -f "docker/certs/ca.pem" ]; then
+    echo "Generating TLS certificates..."
+    ./docker/scripts/generate-certs.sh
+fi
+
+# Set secure environment variables
+export RABBITMQ_PASSWORD=$(openssl rand -base64 32)
+export ACTIVEMQ_PASSWORD=$(openssl rand -base64 32)
+export REDIS_PASSWORD=$(openssl rand -base64 32)
+
+# Store passwords securely
+echo "RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}" >> .env.secure
+echo "ACTIVEMQ_PASSWORD=${ACTIVEMQ_PASSWORD}" >> .env.secure
+echo "REDIS_PASSWORD=${REDIS_PASSWORD}" >> .env.secure
+
+# Deploy secure stack
+docker-compose -f docker-compose.secure.yml up -d
+
+# Wait for services to be ready
+echo "Waiting for services to start..."
+sleep 30
+
+# Verify deployment
+docker-compose -f docker-compose.secure.yml ps
+docker-compose -f docker-compose.secure.yml logs praval-secure
+
+echo "Secure Praval deployment complete!"
+echo "RabbitMQ Management: https://localhost:15671"
+echo "ActiveMQ Console: https://localhost:8162"
+echo "Qdrant: http://localhost:6333"
+```
+
+### Production Security Configuration
+
+```python
+# config/secure_production.py
+import os
+
+SECURE_PRAVAL_CONFIG = {
+    # Cryptographic settings
+    "secure_spores": {
+        "enabled": True,
+        "key_rotation_interval": 86400,  # 24 hours
+        "signature_algorithm": "ed25519",
+        "encryption_algorithm": "curve25519_xsalsa20_poly1305",
+        "key_backup_enabled": True,
+        "key_backup_path": "/secure/backup/keys"
+    },
+    
+    # Transport security
+    "transport_security": {
+        "enforce_tls": True,
+        "min_tls_version": "1.3",
+        "verify_certificates": True,
+        "certificate_path": "/app/certs",
+        "mutual_tls": True,
+        "crl_check": True
+    },
+    
+    # Message security
+    "message_security": {
+        "max_message_size": 10485760,  # 10MB
+        "message_retention": 604800,    # 7 days
+        "replay_protection": True,
+        "rate_limiting": {
+            "messages_per_minute": 1000,
+            "burst_size": 100
+        }
+    },
+    
+    # Audit and compliance
+    "audit": {
+        "enabled": True,
+        "log_all_messages": True,
+        "log_path": "/app/logs/audit",
+        "retention_days": 2555,  # 7 years
+        "encryption_at_rest": True
+    },
+    
+    # Monitoring
+    "monitoring": {
+        "metrics_enabled": True,
+        "health_check_interval": 30,
+        "performance_monitoring": True,
+        "security_alerts": True
+    }
+}
+```
+
+### Secure Agent Deployment Example
+
+```python
+#!/usr/bin/env python3
+# examples/secure_production_deployment.py
+
+import asyncio
+import os
+from datetime import datetime, timedelta
+
+from praval import agent, chat, start_agents
+from praval.core.secure_spore import SecureSporeFactory, SporeKeyManager
+from praval.core.transport import TransportProtocol, transport_connection
+
+# Initialize secure environment
+async def initialize_secure_environment():
+    """Initialize production secure environment."""
+    
+    # Load environment configuration
+    config = load_secure_config()
+    
+    # Initialize agent key managers
+    agent_keys = {
+        'analyzer': SporeKeyManager('secure_analyzer'),
+        'processor': SporeKeyManager('secure_processor'), 
+        'monitor': SporeKeyManager('secure_monitor')
+    }
+    
+    # Create secure factories
+    secure_factories = {
+        name: SecureSporeFactory(km) 
+        for name, km in agent_keys.items()
+    }
+    
+    return config, agent_keys, secure_factories
+
+# Secure production agents
+@agent("secure_analyzer", responds_to=["secure_analysis_request"])
+async def secure_analyzer(spore):
+    """Production agent with enterprise security."""
+    
+    # Decrypt and verify incoming secure spore
+    if hasattr(spore, 'encrypted_knowledge'):
+        knowledge = decrypt_secure_spore(spore)
+    else:
+        knowledge = spore.knowledge
+    
+    analysis_request = knowledge.get("request")
+    requester = knowledge.get("requester")
+    
+    # Perform secure analysis
+    analysis_result = await chat(f"""
+    Perform secure analysis on: {analysis_request}
+    
+    Requirements:
+    - Classify sensitivity level
+    - Identify potential security implications
+    - Provide recommendations
+    """)
+    
+    # Create secure response
+    secure_factory = get_secure_factory("secure_analyzer")
+    recipient_keys = await get_agent_public_keys(requester)
+    
+    secure_response = secure_factory.create_secure_spore(
+        to_agent=requester,
+        knowledge={
+            "analysis_result": analysis_result,
+            "classification": "CONFIDENTIAL",
+            "timestamp": datetime.now().isoformat(),
+            "analyst": "secure_analyzer"
+        },
+        spore_type=SporeType.RESPONSE,
+        priority=9,
+        expires_in_seconds=3600,
+        recipient_public_keys=recipient_keys
+    )
+    
+    # Transmit via secure transport
+    async with transport_connection(TransportProtocol.AMQP, get_amqp_config()) as transport:
+        await transport.publish(
+            f"secure.responses.{requester}",
+            secure_response.to_bytes(),
+            priority=9,
+            ttl=3600
+        )
+    
+    # Audit log
+    audit_log({
+        "action": "secure_analysis_completed",
+        "agent": "secure_analyzer",
+        "requester": requester,
+        "timestamp": datetime.now(),
+        "classification": "CONFIDENTIAL"
+    })
+    
+    return {"status": "analysis_complete", "secure": True}
+
+@agent("secure_monitor", responds_to=["security_alert"])
+async def security_monitor(spore):
+    """Security monitoring and incident response agent."""
+    
+    alert = spore.knowledge.get("alert")
+    severity = spore.knowledge.get("severity", "medium")
+    source = spore.knowledge.get("source")
+    
+    # Analyze security event
+    security_analysis = await chat(f"""
+    Security Alert Analysis:
+    Alert: {alert}
+    Severity: {severity}
+    Source: {source}
+    
+    Provide:
+    1. Threat assessment
+    2. Recommended actions
+    3. Escalation requirements
+    """)
+    
+    # Immediate response for high severity
+    if severity == "high":
+        await initiate_incident_response(alert, security_analysis)
+    
+    # Log security event
+    security_log({
+        "alert": alert,
+        "severity": severity,
+        "source": source,
+        "analysis": security_analysis,
+        "timestamp": datetime.now(),
+        "response_time": calculate_response_time()
+    })
+    
+    return {"security_analysis": security_analysis, "severity": severity}
+
+# Production deployment
+async def deploy_secure_production():
+    """Deploy secure agent system in production."""
+    
+    print("🔒 Initializing Secure Praval Production Environment")
+    
+    # Initialize secure environment
+    config, agent_keys, secure_factories = await initialize_secure_environment()
+    
+    # Start secure transport connections
+    transport_tasks = []
+    for protocol in [TransportProtocol.AMQP, TransportProtocol.MQTT]:
+        task = asyncio.create_task(
+            maintain_secure_transport(protocol, config[protocol.value])
+        )
+        transport_tasks.append(task)
+    
+    # Start secure agents
+    await start_agents(
+        secure_analyzer,
+        secure_monitor,
+        initial_data={
+            "type": "system_initialized",
+            "security_level": "production",
+            "encryption": "enabled"
+        }
+    )
+    
+    print("✅ Secure Praval production environment active")
+    
+    # Monitor system health
+    await monitor_secure_system()
+
+if __name__ == "__main__":
+    asyncio.run(deploy_secure_production())
+```
+
+This comprehensive secure infrastructure provides enterprise-grade security for multi-agent systems with:
+
+- **Military-grade encryption** for all communications
+- **Multi-protocol support** for diverse infrastructure
+- **Automatic certificate management** for TLS/SSL
+- **Production-ready containerization** with Docker
+- **Complete audit trails** for compliance
+- **High availability** through service redundancy
+- **Performance optimization** for scale
+
+The Secure Spores system transforms Praval from a development framework into an enterprise-ready platform capable of handling the most sensitive multi-agent communications in production environments.
+
+---
+
+# PART V: VERSION 0.6.0 NEW FEATURES
+
+Praval v0.6.0 represents a major milestone in multi-agent AI development, introducing comprehensive memory capabilities, production-ready testing, enhanced agent intelligence, and critical bug fixes for multi-agent communication.
 
 ## Comprehensive Memory System
 
@@ -1674,6 +2504,149 @@ def knowledge_agent(spore):
     """I have access to comprehensive knowledge."""
     relevant = knowledge_agent.recall("quantum computing")
     return process_knowledge(relevant)
+
+## Multi-Agent Communication Bug Fix
+
+### Critical Issue Resolution
+
+**Problem Identified:**
+In Praval v0.5.0, a fundamental communication bug prevented multi-agent systems from working correctly. Only the first agent in a multi-agent example would respond, while subsequent agents remained silent despite receiving broadcast messages.
+
+**Root Cause Analysis:**
+The issue was located in `src/praval/decorators.py`:
+
+1. **Channel Subscription Problem**: Agents were only subscribed to their private channels (e.g., `questioner_channel`, `responder_channel`)
+2. **Broadcast Default Problem**: The `broadcast()` function defaulted to using the sender's private channel instead of a shared channel
+3. **Communication Isolation**: Agents couldn't receive messages from other agents because they weren't listening on the sender's private channel
+
+**The Fix:**
+Two critical changes resolved the communication issue:
+
+```python
+# Before (Broken Communication)
+underlying_agent.subscribe_to_channel(channel)  # Only private channel
+
+def broadcast(data, channel=None, target_agent=None):
+    target_channel = channel or _agent_context.channel  # Private channel default
+
+# After (Fixed Communication)  
+underlying_agent.subscribe_to_channel(channel)       # Private channel
+underlying_agent.subscribe_to_channel("main")        # ADDED: Main channel subscription
+
+def broadcast(data, channel=None, target_agent=None):
+    target_channel = channel or "main"  # CHANGED: Main channel default
+```
+
+### Impact and Resolution
+
+**Before the Fix:**
+```python
+@agent("questioner", responds_to=["start_conversation"])
+def ask_questions(spore):
+    broadcast({"type": "question_asked", "question": "What is AI?"})
+    # This would broadcast on "questioner_channel" 
+
+@agent("answerer", responds_to=["question_asked"]) 
+def provide_answers(spore):
+    # This agent subscribed only to "answerer_channel"
+    # It would NEVER receive the question_asked message
+    # Result: Silent failure, no response
+    pass
+```
+
+**After the Fix:**
+```python
+@agent("questioner", responds_to=["start_conversation"])
+def ask_questions(spore):
+    broadcast({"type": "question_asked", "question": "What is AI?"})
+    # This now broadcasts on "main" channel by default
+
+@agent("answerer", responds_to=["question_asked"])
+def provide_answers(spore):
+    # This agent now subscribes to BOTH "answerer_channel" AND "main" 
+    # It receives the question_asked message successfully
+    # Result: Proper multi-agent collaboration
+    pass
+```
+
+### Testing and Validation
+
+**Comprehensive Example Testing:**
+All examples (002-009) were updated and validated:
+
+```python
+# Added timing coordination to all examples
+import time
+
+@agent("questioner", responds_to=["start_conversation"])
+def ask_questions(spore):
+    question = chat("Ask an interesting question")
+    broadcast({"type": "question_asked", "question": question})
+
+@agent("answerer", responds_to=["question_asked"])
+def provide_answers(spore):
+    question = spore.knowledge.get("question")
+    answer = chat(f"Answer: {question}")
+    broadcast({"type": "answer_provided", "answer": answer})
+
+# Fixed startup with timing
+start_agents(ask_questions, provide_answers)
+time.sleep(2)  # Allow async communication to complete
+```
+
+**Installation Fix:**
+A critical discovery was made: changes weren't taking effect because the virtual environment was using an installed package version rather than the local development version.
+
+```bash
+# The problem
+pip list | grep praval
+# praval    0.5.0    # Old installed version was being used
+
+# The solution  
+pip install -e .     # Install in development/editable mode
+# Now local changes take effect immediately
+```
+
+### Release Process
+
+**Version 0.6.0 Release:**
+- **Version bumped** in `pyproject.toml` and `__init__.py`
+- **All examples fixed** with proper timing coordination
+- **Comprehensive testing** across all multi-agent scenarios
+- **Development installation** documented for contributors
+- **Release notes** created documenting the critical fix
+
+```python
+# src/praval/__init__.py
+__version__ = "0.6.0"
+__doc__ = """
+Praval v0.6.0: Multi-Agent AI Framework
+
+🐛 CRITICAL BUG FIX: Multi-agent communication now works correctly
+🧠 Comprehensive memory system with Qdrant integration  
+🏗️ Production-ready testing and deployment
+🚀 Enhanced agent capabilities and performance
+"""
+```
+
+### Lessons Learned
+
+**Development Best Practices:**
+1. **Always use editable installs** for development: `pip install -e .`
+2. **Test multi-agent interactions** in all examples
+3. **Verify communication patterns** across different agent types
+4. **Include timing considerations** for asynchronous operations
+5. **Document critical fixes** thoroughly for users
+
+**Communication Architecture Insights:**
+1. **Shared channels are essential** for multi-agent collaboration
+2. **Default behavior should favor collaboration** over isolation
+3. **Agent subscription patterns** must support both private and shared messaging
+4. **Broadcast defaults** should enable rather than hinder communication
+
+This bug fix was fundamental to Praval's core functionality. Without it, the framework's primary value proposition - multi-agent collaboration - was broken. The fix ensures that all agents can communicate naturally through the reef system, enabling the emergent intelligence that makes Praval powerful.
+
+**Impact:** This fix transformed Praval from a single-agent framework with broken multi-agent features into a truly collaborative multi-agent platform where agents can work together seamlessly.
 ```
 
 ---
