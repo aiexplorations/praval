@@ -22,6 +22,7 @@ Run: python examples/005_memory_enabled_agents.py
 
 import os
 import tempfile
+import time
 from pathlib import Path
 from praval import agent, chat, broadcast, start_agents
 
@@ -288,6 +289,9 @@ def main():
                     **session
                 }
             )
+            
+            # Wait for memory-enabled agents to complete their interactions
+            time.sleep(8)
             
             print(f"\n--- Session {i} Results ---")
             if result and isinstance(result, dict):

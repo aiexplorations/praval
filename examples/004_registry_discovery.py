@@ -17,6 +17,7 @@ Key Concepts:
 Run: python examples/004_registry_discovery.py
 """
 
+import time
 from praval import agent, chat, broadcast, start_agents, get_registry
 
 
@@ -232,6 +233,9 @@ def main():
             final_summarizer,
             initial_data={"task": task}
         )
+        
+        # Wait for multi-agent collaboration to complete
+        time.sleep(10)
         
         print("\n" + "─" * 60 + "\n")
     

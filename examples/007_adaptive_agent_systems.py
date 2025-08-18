@@ -357,6 +357,9 @@ def main():
                 }
             )
             
+            # Wait for adaptive agents to complete their interactions
+            time.sleep(6)
+            
             task_counter += 1
             time.sleep(0.3)  # Brief pause for clarity
         

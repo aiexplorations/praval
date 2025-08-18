@@ -17,6 +17,7 @@ Key Concepts:
 Run: python examples/002_agent_communication.py
 """
 
+import time
 from praval import agent, chat, broadcast, start_agents
 
 
@@ -115,6 +116,9 @@ def main():
             thoughtful_responder,
             initial_data={"type": "start_dialogue", "topic": topic}
         )
+        
+        # Wait for asynchronous agent communication to complete
+        time.sleep(6)
         
         print()
     
