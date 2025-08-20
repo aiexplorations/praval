@@ -33,6 +33,35 @@ except ImportError:
     MemoryEntry = None
     MemoryQuery = None
 
+# Storage system imports (optional - graceful fallback if dependencies missing)
+try:
+    from .storage import (
+        BaseStorageProvider, StorageRegistry, DataManager,
+        storage_enabled, requires_storage,
+        get_storage_registry, get_data_manager,
+        PostgreSQLProvider, RedisProvider, S3Provider, 
+        FileSystemProvider, QdrantProvider,
+        DataReference, StorageResult, StorageType
+    )
+    STORAGE_AVAILABLE = True
+except ImportError:
+    STORAGE_AVAILABLE = False
+    BaseStorageProvider = None
+    StorageRegistry = None
+    DataManager = None
+    storage_enabled = None
+    requires_storage = None
+    get_storage_registry = None
+    get_data_manager = None
+    PostgreSQLProvider = None
+    RedisProvider = None
+    S3Provider = None
+    FileSystemProvider = None
+    QdrantProvider = None
+    DataReference = None
+    StorageResult = None
+    StorageType = None
+
 __version__ = "0.6.0"
 __all__ = [
     # Core classes
@@ -47,5 +76,13 @@ __all__ = [
     "AgentSession", "start_agents",
     
     # Memory system (if available)
-    "MemoryManager", "MemoryType", "MemoryEntry", "MemoryQuery", "MEMORY_AVAILABLE"
+    "MemoryManager", "MemoryType", "MemoryEntry", "MemoryQuery", "MEMORY_AVAILABLE",
+    
+    # Storage system (if available)
+    "BaseStorageProvider", "StorageRegistry", "DataManager",
+    "storage_enabled", "requires_storage",
+    "get_storage_registry", "get_data_manager",
+    "PostgreSQLProvider", "RedisProvider", "S3Provider", 
+    "FileSystemProvider", "QdrantProvider",
+    "DataReference", "StorageResult", "StorageType", "STORAGE_AVAILABLE"
 ]
