@@ -1,10 +1,10 @@
 ---
-title: "Praval v0.6.0: The Complete Guide to Multi-Agent AI Systems"
+title: "Praval v0.6.1: The Complete Guide to Multi-Agent AI Systems"
 author: 
   - "Rajesh Sampathkumar (@aiexplorations)"
   - "Claude Code"
 date: "August 2025"
-version: "0.6.0"
+version: "0.6.1"
 ---
 
 <div style="text-align: center; page-break-after: always;">
@@ -29,9 +29,9 @@ version: "0.6.0"
 
 ---
 
-**Version:** 1.1  
+**Version:** 1.3  
 **Last Updated:** August 2025  
-**Framework Version:** 0.6.0 (with Secure Spores Enterprise Edition)
+**Framework Version:** 0.6.1 (with Unified Data Storage & Retrieval System)
 
 </div>
 
@@ -67,17 +67,26 @@ This comprehensive guide serves as both philosophical manifesto and practical ma
 - [Enhanced Agent Capabilities](#enhanced-agent-capabilities)
 - [Multi-Agent Communication Bug Fix](#multi-agent-communication-bug-fix)
 
-**PART VI: SECURE SPORES ENTERPRISE EDITION**
+**PART VI: UNIFIED DATA STORAGE & RETRIEVAL SYSTEM** *(v0.6.1)*
+- [Storage Architecture Overview](#storage-architecture-overview)
+- [Storage Provider Framework](#storage-provider-framework)
+- [Built-in Storage Providers](#built-in-storage-providers)
+- [Storage Decorators for Agents](#storage-decorators-for-agents)
+- [Data References in Spore Communication](#data-references-in-spore-communication)
+- [Memory-Storage Integration](#memory-storage-integration)
+- [Production Examples](#production-examples)
+
+**PART VII: SECURE SPORES ENTERPRISE EDITION**
 - [Enterprise-Grade Security](#enterprise-grade-security)
 - [Distributed Messaging Architecture](#distributed-messaging-architecture)
 - [Multi-Protocol Transport Layer](#multi-protocol-transport-layer)
 - [Docker Deployment Infrastructure](#docker-deployment-infrastructure)
 
-**PART VII: COGNITIVE MEMORY ARCHITECTURE**
+**PART VIII: COGNITIVE MEMORY ARCHITECTURE**
 - [The Foundation of Persistent Intelligence](#the-foundation-of-persistent-intelligence)
 - [Theoretical Foundation](#theoretical-foundation)
 
-**PART VIII: ADVANCED TOPICS**
+**PART IX: ADVANCED TOPICS**
 - [Configuration and Deployment](#configuration-and-deployment)
 - [Best Practices](#best-practices)
 
@@ -1619,7 +1628,1322 @@ if __name__ == "__main__":
 
 ---
 
-# PART VI: SECURE SPORES ENTERPRISE EDITION
+# PART VI: UNIFIED DATA STORAGE & RETRIEVAL SYSTEM
+
+**Enterprise-Grade Data Ecosystem for Multi-Agent Systems**
+
+Praval v0.6.1 introduces a comprehensive **Unified Data Storage & Retrieval System** that transforms the framework from a communication platform into a complete data ecosystem. This system provides agents with seamless access to multiple storage backends while maintaining Praval's core philosophy of simplicity through specialization.
+
+## Storage Architecture Overview
+
+**Data as the Foundation of Intelligence**
+
+Modern AI agents require more than just communication—they need persistent state, shared data access, and the ability to work with diverse data types across multiple storage systems. The Unified Storage System addresses these needs through a carefully designed architecture that follows Praval's established patterns.
+
+### Design Philosophy
+
+**"Simple access to complex data"**
+
+The storage system embodies Praval's core principles:
+
+- **Registry Discovery**: Same pattern as agent and tool registries
+- **Decorator Interface**: Consistent with `@agent()` decorator philosophy  
+- **Spore Communication**: Data references flow through reef naturally
+- **Zero Configuration**: Environment-based auto-setup with sensible defaults
+- **Progressive Enhancement**: Start simple, add complexity as needed
+
+### Architecture Components
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                Agent Decorator Layer                    │
+│        (@storage_enabled, @requires_storage)           │
+├─────────────────────────────────────────────────────────┤
+│                  Data Manager                          │
+│            (Unified Interface)                          │
+├─────────────────────────────────────────────────────────┤
+│                Storage Registry                         │
+│          (Provider Discovery & Management)              │
+├─────────────────────────────────────────────────────────┤
+│  PostgreSQL │  Redis  │   S3    │ Qdrant │ FileSystem │
+│ (Relational)│(Cache)  │(Object) │(Vector)│   (Files)   │
+├─────────────────────────────────────────────────────────┤
+│                Memory Integration                       │
+│           (Unified Memory + Storage)                    │
+├─────────────────────────────────────────────────────────┤
+│                Spore Data References                    │
+│         (Lightweight Data Sharing)                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Key Features
+
+**Production-Ready Capabilities:**
+- **Async Throughout**: Full async/await support across all providers
+- **Connection Pooling**: Efficient resource management with health monitoring
+- **Security**: Permission-based access control per agent
+- **Error Handling**: Comprehensive exception hierarchy with graceful fallbacks
+- **Smart Selection**: Automatic provider choice based on data characteristics
+
+**Following Praval Patterns:**
+- **Registry Pattern**: Consistent discovery mechanism
+- **Decorator Interface**: Declarative storage access
+- **Reef Communication**: Data references through spores
+- **Memory Integration**: Unified interface combining memory + external storage
+
+## Storage Provider Framework
+
+### Base Provider Architecture
+
+All storage providers inherit from `BaseStorageProvider`, ensuring consistent interfaces across different backend types:
+
+```python
+from praval.storage import BaseStorageProvider, StorageResult, StorageType
+
+class CustomStorageProvider(BaseStorageProvider):
+    """Custom storage provider following Praval patterns."""
+    
+    def _create_metadata(self) -> StorageMetadata:
+        return StorageMetadata(
+            name=self.name,
+            description="Custom storage provider",
+            storage_type=StorageType.DOCUMENT,
+            supports_async=True,
+            supports_transactions=False,
+            required_config=["endpoint_url", "database_name"],
+            optional_config=["timeout", "pool_size"]
+        )
+    
+    async def connect(self) -> bool:
+        """Establish connection to storage backend."""
+        # Implementation specific to your storage system
+        pass
+    
+    async def store(self, resource: str, data: Any, **kwargs) -> StorageResult:
+        """Store data with provider-specific logic."""
+        pass
+    
+    async def retrieve(self, resource: str, **kwargs) -> StorageResult:
+        """Retrieve data with type-aware decoding."""
+        pass
+    
+    async def query(self, resource: str, query: Union[str, Dict], **kwargs) -> StorageResult:
+        """Execute queries with result formatting."""
+        pass
+    
+    async def delete(self, resource: str, **kwargs) -> StorageResult:
+        """Delete with confirmation and cleanup."""
+        pass
+```
+
+### Storage Types Supported
+
+The framework categorizes storage providers by their fundamental characteristics:
+
+```python
+from praval.storage import StorageType
+
+# Supported storage types
+StorageType.RELATIONAL    # PostgreSQL, MySQL, SQLite
+StorageType.KEY_VALUE     # Redis, DynamoDB, Memcached
+StorageType.OBJECT        # S3, MinIO, Azure Blob
+StorageType.VECTOR        # Qdrant, Pinecone, Weaviate
+StorageType.DOCUMENT      # MongoDB, CouchDB
+StorageType.SEARCH        # Elasticsearch, Solr
+StorageType.GRAPH         # Neo4j, Amazon Neptune
+StorageType.FILE_SYSTEM   # Local files, NFS, HDFS
+StorageType.CACHE         # Redis, Memcached (optimized)
+StorageType.QUEUE         # RabbitMQ, Kafka, SQS
+```
+
+### Provider Registration
+
+Storage providers auto-register based on environment configuration:
+
+```python
+from praval.storage import register_storage_provider, PostgreSQLProvider
+
+# Manual registration
+postgres_provider = PostgreSQLProvider("main_db", {
+    "host": "localhost",
+    "database": "business", 
+    "user": "praval",
+    "password": "secure_password"
+})
+
+await register_storage_provider(postgres_provider, permissions=["analytics_agent"])
+
+# Environment-based auto-registration
+os.environ["POSTGRES_HOST"] = "localhost"
+os.environ["POSTGRES_DB"] = "business"
+os.environ["POSTGRES_USER"] = "praval"
+os.environ["POSTGRES_PASSWORD"] = "secure_password"
+
+# Agent decorator automatically registers from environment
+@storage_enabled(["postgres"])
+@agent("business_analyst")
+def analyze_data(spore, storage):
+    # PostgreSQL provider auto-registered and available
+    pass
+```
+
+## Built-in Storage Providers
+
+### PostgreSQL Provider
+
+**Enterprise Relational Database with Async Connection Pooling**
+
+```python
+from praval.storage import PostgreSQLProvider
+
+# Advanced PostgreSQL configuration
+postgres_config = {
+    "host": "production-pg.company.com",
+    "port": 5432,
+    "database": "enterprise_data",
+    "user": "praval_system",
+    "password": "secure_enterprise_password",
+    "pool_min_size": 5,
+    "pool_max_size": 20,
+    "ssl": True
+}
+
+# Agent with PostgreSQL access
+@storage_enabled({"postgres": postgres_config})
+@agent("data_analyst")
+async def analyze_customer_data(spore, storage):
+    # Complex SQL queries with parameters
+    results = await storage.query(
+        "postgres",
+        "customer_analysis", 
+        """
+        SELECT customer_segment, AVG(revenue), COUNT(*) 
+        FROM customers 
+        WHERE created_date >= $1 AND status = $2
+        GROUP BY customer_segment
+        ORDER BY AVG(revenue) DESC
+        """,
+        params=[datetime(2024, 1, 1), "active"]
+    )
+    
+    if results.success:
+        segments = results.data
+        broadcast({
+            "type": "analysis_complete",
+            "segments": segments,
+            "total_analyzed": sum(row["count"] for row in segments)
+        })
+    
+    return {"status": "analyzed", "segments": len(segments)}
+
+# Bulk operations for high throughput
+@storage_enabled(["postgres"])
+@agent("data_ingestion")
+async def ingest_customer_batch(spore, storage):
+    customers = spore.knowledge.get("customer_batch", [])
+    
+    # Bulk insert with transaction safety
+    result = await storage.store(
+        "postgres", 
+        "customers", 
+        customers,  # List of customer dictionaries
+        returning="id"  # Return inserted IDs
+    )
+    
+    if result.success:
+        print(f"✅ Ingested {len(customers)} customers")
+        return {"ingested_count": len(customers)}
+    else:
+        print(f"❌ Ingestion failed: {result.error}")
+        return {"error": result.error}
+```
+
+**Features:**
+- Async connection pooling with configurable sizes
+- SQL query execution with parameter binding  
+- Bulk operations for high-throughput scenarios
+- Transaction support with rollback capabilities
+- Full-text search integration
+- JSON column support for hybrid storage
+
+### Redis Provider
+
+**High-Performance Key-Value Cache with Data Structures**
+
+```python
+from praval.storage import RedisProvider
+
+# Redis with advanced configuration
+redis_config = {
+    "host": "redis-cluster.company.com",
+    "port": 6379,
+    "password": "redis_secure_password",
+    "database": 0,
+    "pool_max_size": 20,
+    "ssl": True
+}
+
+@storage_enabled({"redis": redis_config})
+@agent("cache_manager")
+async def manage_application_cache(spore, storage):
+    cache_key = spore.knowledge.get("cache_key")
+    data = spore.knowledge.get("data")
+    operation = spore.knowledge.get("operation", "set")
+    
+    if operation == "set":
+        # Store with expiration
+        result = await storage.store(
+            "redis",
+            cache_key,
+            data,
+            ex=3600,  # Expire in 1 hour
+            nx=True   # Only if key doesn't exist
+        )
+        
+        if result.success:
+            return {"cached": True, "key": cache_key}
+    
+    elif operation == "get":
+        # Retrieve with JSON decoding
+        result = await storage.get("redis", cache_key, decode_json=True)
+        
+        if result.success:
+            return {"data": result.data, "found": True}
+        else:
+            return {"found": False}
+    
+    elif operation == "pattern_search":
+        # Search for keys matching pattern
+        pattern = spore.knowledge.get("pattern", "*")
+        result = await storage.query("redis", pattern, "keys")
+        
+        if result.success:
+            return {"matching_keys": result.data}
+
+# Session management example
+@storage_enabled(["redis"])
+@agent("session_manager") 
+async def manage_user_sessions(spore, storage):
+    user_id = spore.knowledge.get("user_id")
+    session_data = spore.knowledge.get("session_data")
+    
+    # Store session with hash operations
+    session_key = f"session:{user_id}"
+    
+    # Use Redis hash for session fields
+    result = await storage.query(
+        "redis",
+        session_key, 
+        "hset",
+        fields=session_data,
+        ttl=86400  # 24 hours
+    )
+    
+    # Track active sessions
+    await storage.query("redis", "active_sessions", "sadd", members=[user_id])
+    
+    return {"session_created": result.success}
+```
+
+**Features:**
+- All Redis data types (strings, hashes, lists, sets, sorted sets)
+- Pub/Sub messaging capabilities
+- Lua script execution for atomic operations
+- TTL and expiration management
+- Pipeline operations for batch processing
+- Redis Cluster support for horizontal scaling
+
+### S3 Provider
+
+**Scalable Object Storage for Large Data and Assets**
+
+```python
+from praval.storage import S3Provider
+
+# S3 configuration (works with AWS S3, MinIO, etc.)
+s3_config = {
+    "bucket_name": "enterprise-ai-data",
+    "aws_access_key_id": "AKIA...",
+    "aws_secret_access_key": "...",
+    "region_name": "us-west-2",
+    "endpoint_url": None,  # Use AWS S3, or specify MinIO endpoint
+    "use_ssl": True
+}
+
+@storage_enabled({"s3": s3_config})
+@agent("document_processor")
+async def process_documents(spore, storage):
+    document_content = spore.knowledge.get("document")
+    doc_type = spore.knowledge.get("type", "pdf")
+    doc_id = spore.knowledge.get("document_id")
+    
+    # Store document with metadata
+    object_key = f"documents/{doc_type}/{doc_id}.{doc_type}"
+    
+    result = await storage.store(
+        "s3",
+        object_key,
+        document_content,
+        content_type=f"application/{doc_type}",
+        metadata={
+            "processed_by": "document_processor",
+            "processing_date": datetime.now().isoformat(),
+            "document_type": doc_type
+        },
+        server_side_encryption="AES256"
+    )
+    
+    if result.success:
+        # Create data reference for sharing
+        doc_ref = result.data_reference.to_uri()
+        
+        broadcast({
+            "type": "document_stored",
+            "document_reference": doc_ref,
+            "document_id": doc_id,
+            "size": result.metadata.get("size", 0)
+        })
+        
+        return {"stored": True, "reference": doc_ref}
+
+# Report generation and storage
+@storage_enabled(["s3"])
+@agent("report_generator")
+async def generate_business_report(spore, storage):
+    analysis_data = spore.knowledge.get("analysis_data")
+    report_format = spore.knowledge.get("format", "pdf")
+    
+    # Generate report from analysis
+    if report_format == "pdf":
+        report_content = generate_pdf_report(analysis_data)
+        content_type = "application/pdf"
+    elif report_format == "excel":
+        report_content = generate_excel_report(analysis_data)
+        content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    
+    # Store with presigned URL for secure access
+    report_key = f"reports/{datetime.now().strftime('%Y/%m/%d')}/business_analysis_{uuid.uuid4().hex[:8]}.{report_format}"
+    
+    result = await storage.store(
+        "s3",
+        report_key,
+        report_content,
+        content_type=content_type,
+        cache_control="max-age=86400"  # Cache for 24 hours
+    )
+    
+    if result.success:
+        # Generate presigned URL for secure download
+        url_result = await storage.query(
+            "s3", 
+            report_key, 
+            "presigned_url",
+            method="GET",
+            expiration=7200  # 2 hours
+        )
+        
+        return {
+            "report_generated": True,
+            "download_url": url_result.data.get("url"),
+            "expires_at": datetime.now() + timedelta(hours=2)
+        }
+```
+
+**Features:**
+- Multipart uploads for large files
+- Server-side encryption (SSE)
+- Presigned URLs for secure temporary access
+- Object metadata and tagging
+- Lifecycle management integration
+- Cross-region replication support
+- Compatible with AWS S3, MinIO, and other S3-compatible services
+
+### Qdrant Vector Provider
+
+**Semantic Search and Vector Operations**
+
+```python
+from praval.storage import QdrantProvider
+
+# Qdrant configuration for production
+qdrant_config = {
+    "url": "https://qdrant.company.com:6333",
+    "api_key": "qdrant_production_key",
+    "collection_name": "enterprise_embeddings",
+    "vector_size": 1536,  # OpenAI embedding size
+    "distance_metric": "cosine"
+}
+
+@storage_enabled({"qdrant": qdrant_config})
+@agent("semantic_search") 
+async def semantic_document_search(spore, storage):
+    query_text = spore.knowledge.get("query")
+    limit = spore.knowledge.get("limit", 10)
+    
+    # Generate embedding for query (in practice, use your embedding model)
+    query_embedding = await generate_embedding(query_text)
+    
+    # Perform vector similarity search
+    results = await storage.query(
+        "qdrant",
+        "enterprise_documents",
+        "search",
+        vector=query_embedding,
+        limit=limit,
+        with_payload=True,
+        score_threshold=0.7,
+        filter={
+            "must": [
+                {"key": "document_type", "match": {"value": "policy"}},
+                {"key": "department", "match": {"any": ["legal", "hr", "finance"]}}
+            ]
+        }
+    )
+    
+    if results.success:
+        documents = []
+        for result in results.data:
+            documents.append({
+                "id": result["id"],
+                "score": result["score"],
+                "title": result["payload"]["title"],
+                "content_preview": result["payload"]["content"][:200],
+                "department": result["payload"]["department"]
+            })
+        
+        return {"documents": documents, "total_found": len(documents)}
+
+# Document indexing for semantic search
+@storage_enabled(["qdrant"])
+@agent("document_indexer")
+async def index_documents(spore, storage):
+    documents = spore.knowledge.get("documents", [])
+    
+    # Prepare documents for vector storage
+    vector_documents = []
+    for doc in documents:
+        # Generate embedding for document content
+        embedding = await generate_embedding(doc["content"])
+        
+        vector_documents.append({
+            "id": doc["id"],
+            "vector": embedding,
+            "payload": {
+                "title": doc["title"],
+                "content": doc["content"],
+                "department": doc["department"],
+                "document_type": doc["type"],
+                "indexed_at": datetime.now().isoformat()
+            }
+        })
+    
+    # Batch insert into Qdrant
+    result = await storage.store("qdrant", "enterprise_documents", vector_documents)
+    
+    if result.success:
+        print(f"✅ Indexed {len(vector_documents)} documents")
+        return {"indexed": len(vector_documents)}
+    else:
+        print(f"❌ Indexing failed: {result.error}")
+        return {"error": result.error}
+```
+
+**Features:**
+- High-performance vector similarity search
+- Advanced filtering with metadata
+- Batch operations for efficient indexing  
+- Collection management and optimization
+- Payload storage with vectors
+- Distributed deployment support
+- Integration with existing Praval memory system
+
+### FileSystem Provider
+
+**Local and Network File Operations**
+
+```python
+from praval.storage import FileSystemProvider
+
+# FileSystem configuration
+fs_config = {
+    "base_path": "/data/praval/agent_storage",
+    "create_directories": True,
+    "permissions": 0o644,
+    "max_file_size": 100 * 1024 * 1024  # 100MB
+}
+
+@storage_enabled({"filesystem": fs_config})
+@agent("file_manager")
+async def manage_agent_files(spore, storage):
+    operation = spore.knowledge.get("operation")
+    file_path = spore.knowledge.get("path")
+    
+    if operation == "store_config":
+        config_data = spore.knowledge.get("config_data")
+        
+        result = await storage.store(
+            "filesystem",
+            f"configs/{file_path}.json",
+            config_data,
+            encoding="utf-8"
+        )
+        
+        return {"config_stored": result.success}
+    
+    elif operation == "backup_logs":
+        log_content = spore.knowledge.get("log_content")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        result = await storage.store(
+            "filesystem",
+            f"logs/agent_logs_{timestamp}.log",
+            log_content,
+            encoding="utf-8"
+        )
+        
+        return {"backup_created": result.success}
+    
+    elif operation == "search_files":
+        pattern = spore.knowledge.get("pattern", "*.json")
+        directory = spore.knowledge.get("directory", ".")
+        
+        result = await storage.query(
+            "filesystem",
+            directory,
+            "find",
+            pattern=pattern,
+            recursive=True
+        )
+        
+        if result.success:
+            return {"files_found": result.data}
+
+# Configuration management example
+@storage_enabled(["filesystem"])
+@agent("config_manager")
+async def manage_configurations(spore, storage):
+    config_type = spore.knowledge.get("config_type")
+    config_data = spore.knowledge.get("config_data")
+    
+    if config_data:
+        # Store configuration
+        result = await storage.store(
+            "filesystem",
+            f"configs/{config_type}_config.yaml",
+            yaml.dump(config_data),
+            encoding="utf-8"
+        )
+        
+        if result.success:
+            # Broadcast configuration update
+            broadcast({
+                "type": "config_updated",
+                "config_type": config_type,
+                "file_path": f"configs/{config_type}_config.yaml"
+            })
+    else:
+        # Load configuration
+        result = await storage.get(
+            "filesystem",
+            f"configs/{config_type}_config.yaml",
+            encoding="utf-8"
+        )
+        
+        if result.success:
+            config_data = yaml.safe_load(result.data)
+            return {"config": config_data}
+    
+    return {"operation_complete": True}
+```
+
+**Features:**
+- Secure path management (prevents directory traversal)
+- Automatic directory creation
+- File permissions management
+- Pattern-based file search
+- Binary and text file handling
+- Atomic file operations
+- File metadata extraction
+
+## Storage Decorators for Agents
+
+### Basic Storage Decorator
+
+The `@storage_enabled()` decorator provides declarative storage access:
+
+```python
+from praval.storage import storage_enabled
+from praval import agent, broadcast
+
+# Single provider
+@storage_enabled("postgres")
+@agent("data_analyst")
+def analyze_sales_data(spore, storage):
+    """Agent with PostgreSQL access."""
+    pass
+
+# Multiple providers
+@storage_enabled(["postgres", "redis", "s3"])
+@agent("business_intelligence")
+def comprehensive_analysis(spore, storage):
+    """Agent with access to multiple storage backends."""
+    pass
+
+# Providers with configuration
+@storage_enabled({
+    "postgres": {"database": "analytics", "host": "analytics-db.company.com"},
+    "redis": {"database": 1, "host": "cache.company.com"},
+    "s3": {"bucket_name": "analytics-reports"}
+})
+@agent("enterprise_analyst")
+def enterprise_analysis(spore, storage):
+    """Agent with custom provider configurations."""
+    pass
+```
+
+### Advanced Storage Configuration
+
+```python
+# Environment-based auto-registration
+@storage_enabled(
+    providers=["postgres", "s3", "qdrant"],
+    auto_register=True,  # Register from environment variables
+    permissions=["analytics_team"],  # Restrict access
+    postgres_host="analytics-db.company.com",
+    postgres_database="enterprise_data", 
+    s3_bucket_name="enterprise-analytics",
+    qdrant_collection_name="enterprise_vectors"
+)
+@agent("enterprise_analytics")
+def enterprise_analytics_agent(spore, storage):
+    """
+    Production agent with comprehensive storage access.
+    Environment variables like POSTGRES_PASSWORD are auto-loaded.
+    """
+    analysis_type = spore.knowledge.get("analysis_type")
+    
+    if analysis_type == "customer_segmentation":
+        # Complex multi-storage workflow
+        
+        # 1. Get customer data from PostgreSQL
+        customers = await storage.query(
+            "postgres",
+            "customers",
+            "SELECT * FROM customers WHERE status = 'active'"
+        )
+        
+        # 2. Generate embeddings and search similar customers
+        for customer in customers.data:
+            embedding = await generate_customer_embedding(customer)
+            similar = await storage.query(
+                "qdrant", 
+                "customer_vectors",
+                "search",
+                vector=embedding,
+                limit=5
+            )
+            customer["similar_customers"] = similar.data
+        
+        # 3. Cache analysis results
+        cache_key = f"customer_analysis:{datetime.now().strftime('%Y%m%d')}"
+        await storage.store("redis", cache_key, customers.data, ex=86400)
+        
+        # 4. Generate and store report
+        report = generate_customer_report(customers.data)
+        report_ref = await storage.store(
+            "s3",
+            f"reports/customer_segmentation_{datetime.now():%Y%m%d}.pdf",
+            report
+        )
+        
+        # 5. Share results via spore
+        broadcast({
+            "type": "analysis_complete",
+            "analysis_type": "customer_segmentation",
+            "report_reference": report_ref.data_reference.to_uri(),
+            "customers_analyzed": len(customers.data)
+        })
+        
+        return {"status": "complete", "customers": len(customers.data)}
+```
+
+### Storage Requirements Decorator
+
+```python
+from praval.storage import requires_storage
+
+# Require specific storage providers
+@requires_storage("postgres", "s3")
+@agent("financial_analyst")
+def financial_analysis(spore, storage):
+    """This agent requires both PostgreSQL and S3 to function."""
+    
+    # Get financial data from PostgreSQL
+    financial_data = await storage.query(
+        "postgres",
+        "financial_records", 
+        "SELECT * FROM quarterly_results WHERE year = $1",
+        params=[2024]
+    )
+    
+    # Store analysis in S3
+    analysis = perform_financial_analysis(financial_data.data)
+    await storage.store("s3", "analyses/financial_q4_2024.json", analysis)
+    
+    return {"analysis_complete": True}
+
+# This will fail at startup if required storage isn't available
+try:
+    start_agents(financial_analysis)
+except StorageConfigurationError as e:
+    print(f"Missing required storage: {e}")
+    # Handle missing storage gracefully
+```
+
+## Data References in Spore Communication
+
+### Lightweight Data Sharing
+
+Instead of embedding large data directly in spores, agents share lightweight references:
+
+```python
+from praval import agent, broadcast
+from praval.storage import storage_enabled
+
+@storage_enabled(["s3", "postgres"])
+@agent("data_producer")
+async def produce_large_dataset(spore, storage):
+    """Generates large dataset and shares via reference."""
+    
+    # Generate large analysis results
+    analysis_results = perform_complex_analysis()  # Large dataset
+    
+    # Store in appropriate backend
+    result = await storage.store(
+        "s3",
+        f"analyses/complex_analysis_{uuid.uuid4().hex[:8]}.json",
+        analysis_results
+    )
+    
+    if result.success:
+        # Share lightweight reference instead of full data
+        broadcast({
+            "type": "large_dataset_ready",
+            "dataset_reference": result.data_reference.to_uri(),
+            "dataset_size": len(analysis_results),
+            "analysis_type": "complex_analysis"
+        })
+        
+        return {"dataset_stored": True}
+
+@storage_enabled(["s3"])
+@agent("data_consumer", responds_to=["large_dataset_ready"])
+async def consume_large_dataset(spore, storage):
+    """Consumes dataset via reference resolution."""
+    
+    # Get the data reference from spore
+    dataset_ref = spore.knowledge.get("dataset_reference")
+    analysis_type = spore.knowledge.get("analysis_type")
+    
+    if dataset_ref:
+        # Resolve reference to actual data
+        result = await storage.resolve_data_reference(dataset_ref)
+        
+        if result.success:
+            dataset = result.data
+            
+            # Process the dataset
+            processed_results = process_analysis_results(dataset, analysis_type)
+            
+            # Share processed results
+            processed_ref = await storage.store(
+                "s3", 
+                f"processed/{analysis_type}_{datetime.now():%Y%m%d}.json",
+                processed_results
+            )
+            
+            broadcast({
+                "type": "dataset_processed",
+                "original_reference": dataset_ref,
+                "processed_reference": processed_ref.data_reference.to_uri()
+            })
+            
+            return {"processed": True}
+```
+
+### Automatic Data Reference Management
+
+The Praval spore system automatically handles data references:
+
+```python
+# Enhanced spore with data references
+@agent("report_generator")
+async def generate_comprehensive_report(spore, storage):
+    """Demonstrates automatic data reference handling."""
+    
+    # Check if spore contains data references
+    if spore.has_data_references():
+        print(f"Found {len(spore.data_references)} data references in spore")
+        
+        # Automatically resolve all references
+        resolved_data = {}
+        for ref_uri in spore.data_references:
+            result = await storage.resolve_data_reference(ref_uri)
+            if result.success:
+                # Extract meaningful name from URI
+                ref_name = ref_uri.split('/')[-1].split('.')[0]
+                resolved_data[ref_name] = result.data
+        
+        # Generate report from all resolved data
+        comprehensive_report = generate_report(resolved_data)
+        
+        # Store and reference the report
+        report_ref = await storage.store(
+            "s3",
+            f"reports/comprehensive_{datetime.now():%Y%m%d_%H%M}.pdf",
+            comprehensive_report
+        )
+        
+        return {
+            "report_generated": True,
+            "report_reference": report_ref.data_reference.to_uri(),
+            "data_sources": len(resolved_data)
+        }
+```
+
+### Cross-Agent Data Workflows
+
+```python
+# Complete workflow using data references
+@storage_enabled(["postgres"])
+@agent("data_extractor") 
+async def extract_customer_data(spore, storage):
+    """Extract customer data and share via reference."""
+    
+    extraction_params = spore.knowledge.get("extraction_params", {})
+    
+    # Extract data based on parameters
+    customer_data = await storage.query(
+        "postgres",
+        "customers",
+        "SELECT * FROM customers WHERE region = $1 AND status = $2",
+        params=[extraction_params.get("region", "US"), "active"]
+    )
+    
+    if customer_data.success:
+        # Store extracted data
+        data_ref = await storage.store(
+            "s3",
+            f"extractions/customers_{extraction_params['region']}_{datetime.now():%Y%m%d}.json",
+            customer_data.data
+        )
+        
+        broadcast({
+            "type": "data_extracted",
+            "data_reference": data_ref.data_reference.to_uri(),
+            "extraction_params": extraction_params,
+            "record_count": len(customer_data.data)
+        })
+
+@storage_enabled(["s3", "qdrant"])  
+@agent("data_enricher", responds_to=["data_extracted"])
+async def enrich_customer_data(spore, storage):
+    """Enrich customer data with additional context."""
+    
+    # Resolve the extracted data
+    data_ref = spore.knowledge.get("data_reference")
+    result = await storage.resolve_data_reference(data_ref)
+    
+    if result.success:
+        customers = result.data
+        
+        # Enrich with vector search
+        enriched_customers = []
+        for customer in customers:
+            # Find similar customers
+            customer_embedding = await generate_customer_embedding(customer)
+            similar = await storage.query(
+                "qdrant",
+                "customer_vectors", 
+                "search",
+                vector=customer_embedding,
+                limit=3
+            )
+            
+            customer["similar_profiles"] = similar.data
+            enriched_customers.append(customer)
+        
+        # Store enriched data
+        enriched_ref = await storage.store(
+            "s3",
+            f"enriched/customers_enriched_{datetime.now():%Y%m%d_%H%M}.json",
+            enriched_customers
+        )
+        
+        broadcast({
+            "type": "data_enriched",
+            "original_reference": data_ref,
+            "enriched_reference": enriched_ref.data_reference.to_uri(),
+            "enriched_count": len(enriched_customers)
+        })
+
+@storage_enabled(["s3"])
+@agent("report_finalizer", responds_to=["data_enriched"])
+async def finalize_customer_report(spore, storage):
+    """Generate final report from enriched data."""
+    
+    # Resolve enriched data
+    enriched_ref = spore.knowledge.get("enriched_reference")
+    result = await storage.resolve_data_reference(enriched_ref)
+    
+    if result.success:
+        enriched_data = result.data
+        
+        # Generate final report
+        final_report = generate_customer_insights_report(enriched_data)
+        
+        # Store final report with presigned URL
+        report_result = await storage.store(
+            "s3",
+            f"reports/final_customer_insights_{datetime.now():%Y%m%d}.pdf",
+            final_report,
+            content_type="application/pdf"
+        )
+        
+        # Generate shareable URL
+        url_result = await storage.query(
+            "s3",
+            report_result.data_reference.resource_id,
+            "presigned_url",
+            expiration=86400  # 24 hours
+        )
+        
+        print(f"✅ Final report ready: {url_result.data['url']}")
+        
+        return {
+            "final_report": report_result.data_reference.to_uri(),
+            "shareable_url": url_result.data["url"],
+            "customers_analyzed": len(enriched_data)
+        }
+```
+
+## Memory-Storage Integration
+
+### Unified Data Interface
+
+The storage system seamlessly integrates with Praval's existing memory architecture:
+
+```python
+from praval.storage import UnifiedDataInterface
+from praval.memory import MemoryManager
+
+# Initialize unified interface
+memory_manager = MemoryManager(agent_id="unified_agent")
+data_manager = get_data_manager()
+
+unified_data = UnifiedDataInterface(
+    agent_id="unified_agent",
+    memory_manager=memory_manager,
+    data_manager=data_manager
+)
+
+@agent("unified_intelligence")
+async def intelligent_agent_with_unified_data(spore):
+    """Agent using both memory and storage seamlessly."""
+    
+    user_query = spore.knowledge.get("query")
+    
+    # Search across memory and storage simultaneously
+    search_results = await unified_data.search(
+        query=user_query,
+        locations=["memory:episodic", "memory:semantic", "postgres:knowledge_base", "qdrant:documents"]
+    )
+    
+    # Combine results from all sources
+    combined_context = []
+    for result in search_results:
+        if result.success:
+            combined_context.extend(result.data)
+    
+    # Generate response using unified context
+    response = chat(f"""
+    Based on memory and storage context: {combined_context}
+    
+    User query: {user_query}
+    
+    Provide a comprehensive response using all available information.
+    """)
+    
+    # Store interaction in both memory and external storage
+    await unified_data.store("memory:episodic", {
+        "user_query": user_query,
+        "agent_response": response,
+        "context_sources": len(search_results)
+    })
+    
+    await unified_data.store("postgres:conversations", {
+        "agent_id": "unified_agent",
+        "query": user_query,
+        "response": response,
+        "timestamp": datetime.now()
+    })
+    
+    return {"response": response, "context_sources": len(combined_context)}
+```
+
+### Memory-Storage Adapter
+
+```python
+from praval.storage import MemoryStorageAdapter
+
+# Use memory system as storage provider
+memory_adapter = MemoryStorageAdapter(memory_manager, "agent_id")
+
+# Store memory through storage interface
+result = await memory_adapter.store_memory_as_data(
+    memory_type="episodic",
+    content="Important conversation context",
+    metadata={"session": "user_123"},
+    importance=0.8
+)
+
+# Retrieve memory through storage interface
+memory_result = await memory_adapter.retrieve_memory_as_data(
+    memory_id="memory_123",
+    include_embedding=True
+)
+
+# Search memory through storage interface  
+search_result = await memory_adapter.search_memory_as_data(
+    query="conversation context",
+    memory_types=[MemoryType.EPISODIC],
+    limit=5
+)
+```
+
+## Production Examples
+
+### Complete Business Intelligence System
+
+```python
+# examples/unified_storage_demo.py - Production-ready example
+from praval import agent, chat, broadcast, start_agents
+from praval.storage import storage_enabled, get_data_manager
+
+@storage_enabled(["filesystem", "redis", "qdrant"])
+@agent("data_collector", responds_to=["collect_data"])
+def data_collector_agent(spore, storage):
+    """Collects and stores data across multiple storage backends."""
+    
+    # Sample business data
+    customer_data = {
+        "customers": [
+            {"id": 1, "name": "Acme Corp", "revenue": 1500000, "industry": "Technology"},
+            {"id": 2, "name": "Global Systems", "revenue": 2300000, "industry": "Finance"}
+        ]
+    }
+    
+    # Store in filesystem for structured access
+    customer_result = asyncio.run(storage.store("filesystem", "data/customers.json", customer_data))
+    
+    # Cache in Redis for fast access
+    asyncio.run(storage.store("redis", "customers:cache", customer_data, ex=3600))
+    
+    # Create vector embeddings for semantic search
+    customer_embeddings = []
+    for customer in customer_data["customers"]:
+        embedding = [random.random() for _ in range(384)]  # Mock embedding
+        customer_embeddings.append({
+            "id": f"customer_{customer['id']}",
+            "vector": embedding,
+            "payload": customer
+        })
+    
+    # Store in Qdrant for vector search
+    vector_result = asyncio.run(storage.store("qdrant", "customers", customer_embeddings))
+    
+    # Broadcast completion with references
+    broadcast({
+        "type": "data_collected", 
+        "data_references": {
+            "customers": customer_result.data_reference.to_uri(),
+            "customer_vectors": vector_result.data_reference.to_uri()
+        }
+    })
+
+@storage_enabled(["redis", "filesystem", "qdrant"])
+@agent("business_analyst", responds_to=["data_collected"])
+def business_analyst_agent(spore, storage):
+    """Analyzes data from multiple storage backends."""
+    
+    # Resolve data references
+    if spore.has_data_references():
+        for ref_uri in spore.data_references:
+            result = asyncio.run(storage.resolve_data_reference(ref_uri))
+            if result.success:
+                # Process resolved data
+                if "customers" in ref_uri:
+                    analysis = analyze_customers(result.data)
+                    
+                    # Store analysis report
+                    report = generate_business_report(analysis)
+                    report_result = asyncio.run(
+                        storage.store("filesystem", "reports/business_analysis.md", report)
+                    )
+                    
+                    broadcast({
+                        "type": "analysis_complete",
+                        "report_reference": report_result.data_reference.to_uri()
+                    })
+
+# Health monitoring and diagnostics
+@storage_enabled(auto_register=True)
+@agent("storage_monitor", responds_to=["health_check"])  
+async def storage_health_monitor(spore, storage):
+    """Monitors storage system health across all providers."""
+    
+    registry = get_storage_registry()
+    
+    # Get all registered providers
+    providers = registry.list_providers()
+    health_status = {}
+    
+    for provider_name in providers:
+        try:
+            provider = registry.get_provider(provider_name)
+            health = await provider.health_check()
+            health_status[provider_name] = health
+        except Exception as e:
+            health_status[provider_name] = {"status": "error", "error": str(e)}
+    
+    # Get registry statistics
+    registry_info = registry.get_registry_info()
+    
+    return {
+        "provider_health": health_status,
+        "registry_stats": registry_info,
+        "total_providers": len(providers)
+    }
+```
+
+### Advanced Usage Patterns
+
+```python
+# Smart storage selection
+@storage_enabled(auto_register=True)
+@agent("smart_storage_agent")
+async def smart_storage_demo(spore, storage):
+    """Demonstrates smart storage selection."""
+    
+    data_manager = get_data_manager()
+    
+    # Different data types auto-select appropriate storage
+    test_data = [
+        ("Simple text", "Hello, World!"),
+        ("Structured data", {"name": "John", "age": 30}),
+        ("Large dataset", {"data": [{"id": i} for i in range(1000)]}),
+        ("Vector data", {"vector": [0.1, 0.2, 0.3], "metadata": {"type": "embedding"}})
+    ]
+    
+    results = []
+    for data_type, data in test_data:
+        result = await data_manager.smart_store(data)
+        if result.success:
+            provider_used = result.data_reference.provider
+            results.append(f"{data_type} → {provider_used}")
+    
+    return {"smart_selections": results}
+
+# Cross-storage operations
+@storage_enabled(["postgres", "redis", "s3"])
+@agent("cross_storage_coordinator")
+async def coordinate_across_storage(spore, storage):
+    """Coordinates operations across multiple storage types."""
+    
+    # Batch operations across different storage types
+    operations = [
+        {"provider": "postgres", "resource": "user_preferences", "data": {"user_id": 1, "theme": "dark"}},
+        {"provider": "redis", "resource": "session:user1", "data": {"active": True, "login_time": datetime.now()}},
+        {"provider": "s3", "resource": "avatars/user1.jpg", "data": b"binary_image_data"}
+    ]
+    
+    # Execute batch operations
+    batch_results = await storage.batch_store(operations)
+    
+    successful_operations = sum(1 for result in batch_results if result.success)
+    
+    return {
+        "operations_attempted": len(operations),
+        "successful_operations": successful_operations,
+        "batch_success_rate": successful_operations / len(operations)
+    }
+```
+
+### Configuration and Environment Setup
+
+```bash
+# Environment variables for auto-registration
+export POSTGRES_HOST=localhost
+export POSTGRES_DB=praval  
+export POSTGRES_USER=praval_user
+export POSTGRES_PASSWORD=secure_password
+
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+export REDIS_PASSWORD=redis_password
+
+export S3_BUCKET_NAME=praval-storage
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-west-2
+
+export QDRANT_URL=http://localhost:6333
+export QDRANT_API_KEY=your_qdrant_key
+export QDRANT_COLLECTION_NAME=praval_vectors
+
+export FILESYSTEM_BASE_PATH=/data/praval/storage
+```
+
+```python
+# Programmatic configuration
+from praval.storage import get_storage_registry, get_data_manager
+
+# Configure providers programmatically
+registry = get_storage_registry()
+
+# Custom provider configurations
+custom_configs = {
+    "production_postgres": {
+        "host": "prod-db.company.com",
+        "database": "enterprise_data",
+        "pool_size": 20
+    },
+    "analytics_redis": {
+        "host": "analytics-cache.company.com",
+        "database": 1
+    }
+}
+
+# Initialize with custom configurations
+for provider_name, config in custom_configs.items():
+    provider_class = get_provider_class(provider_name.split('_')[1])  # extract type
+    provider = provider_class(provider_name, config)
+    await registry.register_provider(provider)
+
+# Start agents with configured storage
+start_agents(
+    business_analyst_agent,
+    data_collector_agent,
+    storage_monitor,
+    initial_data={"type": "system_ready"}
+)
+```
+
+This unified storage system represents a fundamental evolution of Praval from a communication framework to a complete data ecosystem. By following the same design patterns that make Praval agents simple yet powerful, the storage system enables sophisticated data workflows while maintaining the framework's core philosophy of emergent intelligence through specialized collaboration.
+
+---
+
+# PART VII: SECURE SPORES ENTERPRISE EDITION
 
 ## Enterprise-Grade Security
 
@@ -2609,7 +3933,7 @@ pip install -e .     # Install in development/editable mode
 
 ### Release Process
 
-**Version 0.6.0 Release:**
+**Version 0.6.1 Release:**
 - **Version bumped** in `pyproject.toml` and `__init__.py`
 - **All examples fixed** with proper timing coordination
 - **Comprehensive testing** across all multi-agent scenarios
@@ -2618,7 +3942,7 @@ pip install -e .     # Install in development/editable mode
 
 ```python
 # src/praval/__init__.py
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __doc__ = """
 Praval v0.6.0: Multi-Agent AI Framework
 
