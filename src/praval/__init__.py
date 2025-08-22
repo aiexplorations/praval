@@ -5,9 +5,9 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.6.0 includes Secure Spores Enterprise Edition with military-grade
-cryptography, multi-protocol transport (AMQP/MQTT/STOMP), Docker deployment
-infrastructure, and critical multi-agent communication bug fixes.
+Version 0.6.1 includes Unified Data Storage & Retrieval System with support for
+PostgreSQL, Redis, S3, Qdrant, and filesystem storage providers, plus enhanced
+Secure Spores Enterprise Edition and comprehensive memory system integration.
 """
 
 from .core.agent import Agent
@@ -62,7 +62,7 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __all__ = [
     # Core classes
     "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",

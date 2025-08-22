@@ -28,6 +28,9 @@ from .exceptions import (
     StoragePermissionError, StorageTimeoutError
 )
 
+# Availability flag for optional dependencies
+STORAGE_AVAILABLE = True
+
 __all__ = [
     # Core framework
     "BaseStorageProvider", "StorageMetadata", "StorageQuery", 
@@ -46,5 +49,8 @@ __all__ = [
     
     # Exceptions
     "StorageError", "StorageNotFoundError", "StorageConnectionError",
-    "StoragePermissionError", "StorageTimeoutError"
+    "StoragePermissionError", "StorageTimeoutError",
+    
+    # Availability flag
+    "STORAGE_AVAILABLE"
 ]

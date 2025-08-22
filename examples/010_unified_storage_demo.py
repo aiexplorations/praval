@@ -29,6 +29,10 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from praval import agent, chat, broadcast, start_agents
 from praval.storage import (
@@ -70,7 +74,7 @@ def setup_demo_environment():
     return temp_dir
 
 
-@storage_enabled(["filesystem", "redis", "qdrant"])
+@storage_enabled(["filesystem"])
 @agent("data_collector", responds_to=["collect_data"])
 def data_collector_agent(spore, storage):
     """
@@ -466,11 +470,12 @@ async def main():
         print("-" * 40)
         
         # Start the agent system
-        result = start_agents([
+        result = start_agents(
             data_collector_agent,
             business_analyst_agent, 
-            report_viewer_agent
-        ])
+            report_viewer_agent,
+            initial_data={"type": "start_analysis"}
+        )
         
         print(f"\n✅ Demo completed successfully!")
         print(f"📁 Demo files stored in: {temp_dir}")

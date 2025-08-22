@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-08-20
+
+### Added
+- 🗄️ **Unified Data Storage & Retrieval System** - Enterprise-grade data ecosystem
+  - **Base Provider Framework**: Abstract base class for consistent storage interfaces
+  - **Storage Registry**: Centralized provider discovery with permissions and health monitoring
+  - **Built-in Providers**: Production-ready PostgreSQL, Redis, S3, Qdrant, and FileSystem providers
+  - **Storage Decorators**: `@storage_enabled()` and `@requires_storage()` for declarative access
+  - **Data References**: Lightweight sharing of large datasets through spore communication
+  - **Memory Integration**: Unified interface combining memory system with external storage
+  - **Cross-Storage Operations**: Query and manage data across multiple storage backends
+- 📊 **Enhanced Data Management**
+  - Async connection pooling and health monitoring
+  - Smart storage selection based on data characteristics
+  - Batch operations for high-throughput scenarios
+  - Security with permission-based access control per agent
+  - Environment-based auto-registration of storage providers
+- 📖 **Comprehensive Documentation**
+  - Complete PART VI section in praval.md (800+ lines)
+  - Production examples demonstrating multi-storage workflows
+  - Integration patterns and best practices
+  - Storage provider development guide
+
+### Enhanced
+- 🔄 **Spore Communication System**
+  - Enhanced spore protocol to support data references
+  - Added `data_references` field for lightweight large data sharing
+  - Methods: `add_data_reference()`, `has_data_references()`, `has_any_references()`
+- 🧠 **Memory System Integration**
+  - Bridge between existing memory system and external storage
+  - Unified memory-storage interface for agents
+  - Cross-system data operations and retrieval
+- 📦 **Framework Exports**
+  - Added comprehensive storage system exports with graceful fallbacks
+  - New exports: `BaseStorageProvider`, `StorageRegistry`, `DataManager`, all providers
+  - `STORAGE_AVAILABLE` flag for optional dependency handling
+
+### Examples
+- 📊 **Unified Storage Demo** (`examples/unified_storage_demo.py`)
+  - Multi-agent workflow demonstrating PostgreSQL, Redis, and S3 integration
+  - Data collection, analysis, and reporting across storage backends
+  - Production-ready patterns for enterprise deployments
+
+### Changed
+- Updated version to 0.6.1 across all configuration files
+- Enhanced framework documentation to reflect new capabilities
+- Improved error handling throughout storage system
+
 ## [0.5.0] - 2025-08-09
 
 ### Added

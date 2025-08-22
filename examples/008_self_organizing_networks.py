@@ -22,6 +22,10 @@ from praval import agent, chat, broadcast, start_agents
 import random
 import time
 from collections import defaultdict
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # Network state tracking
@@ -399,7 +403,7 @@ def main():
             network_exploration_agent,
             pattern_recognition_agent,
             creative_synthesis_agent,
-            solution_validator_agent,
+            validation_specialist_agent,
             knowledge_integration_agent,
             network_emergence_observer,
             initial_data={
