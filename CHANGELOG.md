@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2025-08-21
+
+### Added
+- 🐳 **Containerized Examples Infrastructure** - Production-ready Docker deployments
+  - **Memory Agents Container**: Complete setup for memory-enabled agent demonstrations
+  - **Unified Storage Container**: Full-stack demo with PostgreSQL, Redis, MinIO, Qdrant
+  - **Shell Script Orchestration**: End-to-end automation with service health monitoring
+  - **Multi-Service Docker Compose**: Professional development and testing environments
+
+### Fixed
+- 🔧 **Qdrant Docker Health Check**: Updated to use `/readyz` endpoint with bash networking
+- 📚 **Example Organization**: Properly renumbered examples and fixed import issues
+- 🔑 **Environment Configuration**: Added `load_dotenv()` support to all examples
+- 🧪 **Testing Infrastructure**: Comprehensive validation scripts for containerized examples
+
+### Enhanced
+- 🗄️ **Cross-Storage Operations**: Demonstrated filesystem + PostgreSQL integration
+- 📊 **Production Logging**: Enhanced monitoring and result reporting
+- 🚀 **Developer Experience**: One-command Docker setup with automatic cleanup
+
 ## [0.6.1] - 2025-08-20
 
 ### Added
