@@ -19,6 +19,10 @@ import os
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(

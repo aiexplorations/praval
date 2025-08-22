@@ -22,6 +22,10 @@ from praval import agent, chat, broadcast, start_agents
 import random
 import time
 from collections import defaultdict
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # Global system state for tracking adaptation
@@ -336,10 +340,30 @@ def main():
             task_id = f"task_{task_counter:03d}"
             
             # Generate task appropriate for conditions
-            task_description = chat(f"""
-            Generate a task suitable for '{conditions}' conditions.
-            Make it realistic and specific. Return just the task description.
-            """)
+            # Using predefined tasks instead of LLM generation for standalone demo
+            task_templates = {
+                "normal": [
+                    "Process customer order #12345 with standard 2-day shipping",
+                    "Analyze quarterly sales data for product recommendations", 
+                    "Update inventory levels for warehouse management",
+                    "Generate monthly financial report for stakeholders"
+                ],
+                "high_load": [
+                    "Handle surge in customer orders during flash sale",
+                    "Process 10,000 concurrent user requests efficiently",
+                    "Scale system resources to meet peak demand",
+                    "Optimize database queries for high traffic"
+                ],
+                "error_prone": [
+                    "Recover from database connection timeout",
+                    "Handle corrupted data file with graceful fallback",
+                    "Process incomplete customer information carefully",
+                    "Manage network connectivity issues during operation"
+                ]
+            }
+            
+            tasks = task_templates.get(conditions, task_templates["normal"])
+            task_description = tasks[i % len(tasks)]
             
             print(f"\n--- Task {task_counter}: {task_description} ---")
             
@@ -347,7 +371,7 @@ def main():
                 adaptive_processing_agent,
                 performance_analysis_agent,
                 system_adaptation_coordinator,
-                capability_evolver,
+                capability_evolution_agent,
                 emergent_behavior_observer,
                 initial_data={
                     "type": "adaptive_task",

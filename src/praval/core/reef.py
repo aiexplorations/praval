@@ -61,13 +61,16 @@ class Spore:
     priority: int = 5  # 1-10, higher = more urgent
     reply_to: Optional[str] = None  # For request-response patterns
     metadata: Dict[str, Any] = None
-    knowledge_references: List[str] = None  # References to stored knowledge
+    knowledge_references: List[str] = None  # References to stored knowledge  
+    data_references: List[str] = None  # References to storage system data
     
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
         if self.knowledge_references is None:
             self.knowledge_references = []
+        if self.data_references is None:
+            self.data_references = []
     
     def to_json(self) -> str:
         """Serialize spore to JSON for transmission."""
@@ -101,9 +104,22 @@ class Spore:
         if reference_id not in self.knowledge_references:
             self.knowledge_references.append(reference_id)
     
+    def add_data_reference(self, reference_uri: str):
+        """Add a reference to storage system data"""
+        if reference_uri not in self.data_references:
+            self.data_references.append(reference_uri)
+    
     def has_knowledge_references(self) -> bool:
         """Check if spore has knowledge references"""
         return len(self.knowledge_references) > 0
+    
+    def has_data_references(self) -> bool:
+        """Check if spore has data references"""
+        return len(self.data_references) > 0
+    
+    def has_any_references(self) -> bool:
+        """Check if spore has any kind of references"""
+        return self.has_knowledge_references() or self.has_data_references()
     
     def get_spore_size_estimate(self) -> int:
         """Estimate spore size for lightweight transmission"""
