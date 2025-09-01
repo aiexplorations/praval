@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.6.2"
+version = "0.7.0"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = {text = "MIT"}
@@ -37,6 +37,7 @@ dependencies = [
     "aiostomp>=1.6.0",  # Async STOMP client
     "PyNaCl>=1.5.0",  # Modern cryptography (Ed25519, Curve25519)
     "msgpack>=1.0.0",  # Efficient binary serialization
+    "PyPDF2>=3.0.0",  # PDF processing for knowledge base
 ]
 
 [project.optional-dependencies]
