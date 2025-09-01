@@ -195,29 +195,51 @@ class EmbeddedVectorStore:
             query_embedding = self._generate_embedding(query.query_text)
             
             # Build where clause for filtering
-            where = {}
+            # ChromaDB requires explicit $and when multiple conditions are present
+            where_conditions = []
+            
             if query.agent_id:
-                where["agent_id"] = query.agent_id
+                where_conditions.append({"agent_id": {"$eq": query.agent_id}})
             
             if query.memory_types:
                 # ChromaDB supports $in operator
                 memory_type_values = [mt.value for mt in query.memory_types]
                 if len(memory_type_values) == 1:
-                    where["memory_type"] = memory_type_values[0]
+                    where_conditions.append({"memory_type": {"$eq": memory_type_values[0]}})
                 else:
-                    where["memory_type"] = {"$in": memory_type_values}
+                    where_conditions.append({"memory_type": {"$in": memory_type_values}})
+            
+            # Construct final where clause
+            if len(where_conditions) == 0:
+                where = None
+            elif len(where_conditions) == 1:
+                where = where_conditions[0]
+            else:
+                where = {"$and": where_conditions}
             
             # Add temporal filtering if specified
             if query.temporal_filter:
+                temporal_conditions = []
                 # ChromaDB uses string comparison for ISO dates
                 if 'after' in query.temporal_filter:
-                    where["created_at"] = {"$gte": query.temporal_filter['after'].isoformat()}
+                    temporal_conditions.append({"created_at": {"$gte": query.temporal_filter['after'].isoformat()}})
                 if 'before' in query.temporal_filter:
-                    if "created_at" in where:
-                        # Combine with existing condition
-                        where["created_at"]["$lte"] = query.temporal_filter['before'].isoformat()
+                    temporal_conditions.append({"created_at": {"$lte": query.temporal_filter['before'].isoformat()}})
+                
+                # Add temporal conditions to existing where clause
+                if temporal_conditions:
+                    if where is None:
+                        if len(temporal_conditions) == 1:
+                            where = temporal_conditions[0]
+                        else:
+                            where = {"$and": temporal_conditions}
                     else:
-                        where["created_at"] = {"$lte": query.temporal_filter['before'].isoformat()}
+                        # Combine with existing conditions
+                        if isinstance(where, dict) and "$and" in where:
+                            where["$and"].extend(temporal_conditions)
+                        else:
+                            all_conditions = [where] + temporal_conditions
+                            where = {"$and": all_conditions}
             
             # Search in ChromaDB
             results = self.collection.query(
