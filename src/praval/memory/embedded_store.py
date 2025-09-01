@@ -386,13 +386,20 @@ class EmbeddedVectorStore:
             raise ValueError(f"Knowledge base path does not exist: {knowledge_path}")
         
         indexed_count = 0
-        supported_extensions = {'.txt', '.md', '.rst', '.py', '.js', '.json', '.yaml', '.yml'}
+        supported_extensions = {'.txt', '.md', '.rst', '.py', '.js', '.json', '.yaml', '.yml', '.pdf'}
         
         # Recursively find and index files
         for file_path in knowledge_path.rglob('*'):
             if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
                 try:
-                    content = file_path.read_text(encoding='utf-8', errors='ignore')
+                    # Handle PDF files differently from text files
+                    if file_path.suffix.lower() == '.pdf':
+                        content = self._extract_pdf_text(file_path)
+                        if not content or len(content.strip()) < 50:
+                            logger.warning(f"PDF file appears to be empty or unreadable: {file_path}")
+                            continue
+                    else:
+                        content = file_path.read_text(encoding='utf-8', errors='ignore')
                     
                     # Create memory entry for the file
                     memory = MemoryEntry(
@@ -419,3 +426,91 @@ class EmbeddedVectorStore:
         
         logger.info(f"Indexed {indexed_count} knowledge files from {knowledge_path}")
         return indexed_count
+    
+    def _extract_pdf_text(self, pdf_path: Path) -> str:
+        """
+        Extract text content from a PDF file using PyPDF2
+        
+        Args:
+            pdf_path: Path to the PDF file
+            
+        Returns:
+            Extracted text content
+            
+        Raises:
+            ImportError: If PyPDF2 is not installed
+            Exception: If PDF cannot be read
+        """
+        try:
+            import PyPDF2
+        except ImportError:
+            raise ImportError(
+                "PyPDF2 is required for PDF processing. "
+                "Install with: pip install PyPDF2"
+            )
+        
+        try:
+            text_content = []
+            
+            with open(pdf_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                
+                # Extract text from all pages
+                for page_num, page in enumerate(pdf_reader.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text.strip():
+                            # Add page separator for better context
+                            text_content.append(f"=== Page {page_num + 1} ===\n{page_text}")
+                    except Exception as e:
+                        logger.warning(f"Failed to extract text from page {page_num + 1} of {pdf_path}: {e}")
+                        continue
+            
+            if not text_content:
+                logger.warning(f"No readable text found in PDF: {pdf_path}")
+                return ""
+            
+            # Join all pages with double newlines
+            full_text = "\n\n".join(text_content)
+            
+            # Basic text cleanup
+            full_text = self._clean_pdf_text(full_text)
+            
+            logger.debug(f"Extracted {len(full_text)} characters from PDF: {pdf_path}")
+            return full_text
+            
+        except Exception as e:
+            logger.error(f"Failed to extract text from PDF {pdf_path}: {e}")
+            return ""
+    
+    def _clean_pdf_text(self, text: str) -> str:
+        """
+        Clean up extracted PDF text for better indexing
+        
+        Args:
+            text: Raw text extracted from PDF
+            
+        Returns:
+            Cleaned text
+        """
+        import re
+        
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove page headers/footers (common patterns)
+        text = re.sub(r'=== Page \d+ ===\s*\d+\s*', '\n\n', text)
+        
+        # Remove URLs and email patterns that might confuse embeddings
+        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '[URL]', text)
+        text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', text)
+        
+        # Remove excessive punctuation
+        text = re.sub(r'[.]{3,}', '...', text)
+        text = re.sub(r'[-]{3,}', '---', text)
+        
+        # Normalize whitespace again
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        text = text.strip()
+        
+        return text
