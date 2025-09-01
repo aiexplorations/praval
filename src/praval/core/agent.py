@@ -480,7 +480,7 @@ class Agent:
                 "short_term": MemoryType.SHORT_TERM,
                 "semantic": MemoryType.SEMANTIC,
                 "episodic": MemoryType.EPISODIC,
-                "working": MemoryType.WORKING
+                "working": MemoryType.SHORT_TERM
             }
             
             mem_type = type_mapping.get(memory_type, MemoryType.SHORT_TERM)
