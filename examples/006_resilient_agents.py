@@ -17,7 +17,11 @@ Key Concepts:
 Run: python examples/006_resilient_agents.py
 """
 
-from praval import agent, chat, broadcast, start_agents
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from praval import agent, broadcast, start_agents
 import random
 import time
 
@@ -57,13 +61,17 @@ def primary_processing_agent(spore):
         
         return {"status": "error", "error": error_msg}
     
-    # Normal processing
-    result = chat(f"""
-    Process this request: "{request}"
-    
-    Provide a thorough response that addresses the request effectively.
-    Include processing details to show this came from the primary processor.
-    """)
+    # Normal processing with fallback
+    try:
+        from praval import chat
+        result = chat(f"""
+        Process this request: "{request}"
+        
+        Provide a thorough response that addresses the request effectively.
+        Include processing details to show this came from the primary processor.
+        """)
+    except Exception:
+        result = f"Primary processor handled: '{request}'. Request processed successfully with standard processing algorithms."
     
     print(f"✅ Primary Processor: Successfully processed {request_id}")
     
@@ -100,13 +108,17 @@ def backup_processing_agent(spore):
     print(f"🔄 Backup Processor: Taking over request {request_id} after primary failure")
     print(f"   Original error: {error}")
     
-    # Backup processing with simplified approach
-    backup_result = chat(f"""
-    As a backup processor, handle this request: "{request}"
-    
-    The primary processor failed, so provide a reliable, straightforward response.
-    Include a note that this was handled by backup systems.
-    """)
+    # Backup processing with simplified approach and fallback
+    try:
+        from praval import chat
+        backup_result = chat(f"""
+        As a backup processor, handle this request: "{request}"
+        
+        The primary processor failed, so provide a reliable, straightforward response.
+        Include a note that this was handled by backup systems.
+        """)
+    except Exception:
+        backup_result = f"Backup processor handled: '{request}'. Request processed using backup systems after primary failure."
     
     print(f"✅ Backup Processor: Successfully handled {request_id} as backup")
     
@@ -174,14 +186,19 @@ def graceful_degradation_agent(spore):
         request_id = spore.knowledge.get("request_id")
         print(f"🛡️ Graceful Handler: Providing graceful degradation for request {request_id}")
         
-        graceful_response = chat("""
-        The system is currently experiencing technical difficulties.
-        Provide a helpful message that:
-        - Acknowledges the service interruption
-        - Suggests alternative approaches or resources
-        - Maintains a positive, professional tone
-        - Indicates when service might be restored
-        """)
+        # Graceful response with fallback
+        try:
+            from praval import chat
+            graceful_response = chat("""
+            The system is currently experiencing technical difficulties.
+            Provide a helpful message that:
+            - Acknowledges the service interruption
+            - Suggests alternative approaches or resources
+            - Maintains a positive, professional tone
+            - Indicates when service might be restored
+            """)
+        except Exception:
+            graceful_response = "We're experiencing temporary technical difficulties. Our systems are working to resolve the issue. Please try again shortly or contact support for alternative assistance."
         
         print(f"💬 Graceful Handler: {graceful_response}")
         
@@ -218,18 +235,22 @@ def system_recovery_coordinator(spore):
         print(f"🔧 Recovery Coordinator: Initiating recovery procedures")
         print(f"   Detected {error_count} recent errors")
         
-        # Simulate recovery actions
-        recovery_actions = chat(f"""
-        The system has experienced {error_count} recent errors.
-        
-        As a recovery coordinator, what steps should be taken to:
-        - Reduce error rates
-        - Improve system stability
-        - Prevent cascading failures
-        - Maintain service quality
-        
-        Provide specific, actionable recovery recommendations.
-        """)
+        # Simulate recovery actions with fallback
+        try:
+            from praval import chat
+            recovery_actions = chat(f"""
+            The system has experienced {error_count} recent errors.
+            
+            As a recovery coordinator, what steps should be taken to:
+            - Reduce error rates
+            - Improve system stability
+            - Prevent cascading failures
+            - Maintain service quality
+            
+            Provide specific, actionable recovery recommendations.
+            """)
+        except Exception:
+            recovery_actions = f"Recovery actions for {error_count} errors: 1) Restart failed services, 2) Increase health monitoring frequency, 3) Activate additional backup systems, 4) Review system logs for patterns, 5) Implement circuit breaker patterns to prevent cascading failures."
         
         print(f"🛠️ Recovery Coordinator: {recovery_actions}")
         

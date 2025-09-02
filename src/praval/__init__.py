@@ -22,6 +22,30 @@ from .composition import (
 # Enhanced agent decorator with memory support (v0.3.0)
 from .decorators import agent, chat, achat, broadcast, get_agent_info
 
+# Tool system imports (v0.7.2+)
+try:
+    from .tools import (
+        tool, get_tool_info, is_tool, discover_tools, list_tools,
+        register_tool_with_agent, unregister_tool_from_agent, ToolCollection
+    )
+    from .core.tool_registry import ToolRegistry, Tool, ToolMetadata, get_tool_registry, reset_tool_registry
+    TOOLS_AVAILABLE = True
+except ImportError:
+    TOOLS_AVAILABLE = False
+    tool = None
+    get_tool_info = None
+    is_tool = None
+    discover_tools = None
+    list_tools = None
+    register_tool_with_agent = None
+    unregister_tool_from_agent = None
+    ToolCollection = None
+    ToolRegistry = None
+    Tool = None
+    ToolMetadata = None
+    get_tool_registry = None
+    reset_tool_registry = None
+
 # Memory system imports (optional - graceful fallback if dependencies missing)
 try:
     from .memory import MemoryManager, MemoryType, MemoryEntry, MemoryQuery
@@ -74,6 +98,12 @@ __all__ = [
     "chat", "achat", "broadcast", "get_agent_info",
     "agent_pipeline", "conditional_agent", "throttled_agent",
     "AgentSession", "start_agents",
+    
+    # Tool system (if available)
+    "tool", "get_tool_info", "is_tool", "discover_tools", "list_tools",
+    "register_tool_with_agent", "unregister_tool_from_agent", "ToolCollection",
+    "ToolRegistry", "Tool", "ToolMetadata", "get_tool_registry", "reset_tool_registry",
+    "TOOLS_AVAILABLE",
     
     # Memory system (if available)
     "MemoryManager", "MemoryType", "MemoryEntry", "MemoryQuery", "MEMORY_AVAILABLE",

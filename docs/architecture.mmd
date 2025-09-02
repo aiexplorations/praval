@@ -1,0 +1,129 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryTextColor": "#1a202c", "primaryBorderColor": "#2d3748", "lineColor": "#2d3748", "fontFamily": "Arial, sans-serif", "fontSize": "16px"}, "flowchart": {"curve": "linear"}}}%%
+flowchart TD
+    %% USER INTERFACE LAYER
+    subgraph UI[" 👤 USER INTERFACE LAYER "]
+        direction TB
+        UserCode["📝 User Code<br/>@agent decorators"]
+        API["🔌 Praval API"]
+        Examples["📚 Examples"]
+        
+        UserCode --> API
+        Examples --> API
+    end
+
+    %% CORE FRAMEWORK LAYER
+    subgraph CORE[" ⚙️ CORE FRAMEWORK LAYER "]
+        direction TB
+        
+        %% Agent System
+        AgentClass["🤖 Agent Class"]
+        Decorator["🎭 Agent Decorator"] 
+        Registry["📋 Agent Registry"]
+        
+        %% Communication System
+        Reef["🪸 Reef Network"]
+        Spore["💊 Spore Messages"]
+        Channels["📡 Reef Channels"]
+        
+        %% Memory System  
+        MemMgr["🧠 Memory Manager"]
+        STM["⚡ Short-Term Memory"]
+        LTM["💾 Long-Term Memory"]
+        
+        %% Storage System
+        DataMgr["💽 Data Manager"]
+        StorageReg["📁 Storage Registry"]
+    end
+
+    %% LLM PROVIDER LAYER
+    subgraph LLM[" 🤖 LLM PROVIDER LAYER "]
+        direction TB
+        ProviderFactory["🏭 Provider Factory"]
+        OpenAI["🧠 OpenAI Provider"]
+        Anthropic["🎭 Anthropic Provider"]
+        Cohere["⚡ Cohere Provider"]
+        
+        ProviderFactory --> OpenAI
+        ProviderFactory --> Anthropic  
+        ProviderFactory --> Cohere
+    end
+
+    %% STORAGE PROVIDER LAYER
+    subgraph STORAGE[" 🗄️ STORAGE PROVIDER LAYER "]
+        direction TB
+        FileSystem["📁 FileSystem"]
+        PostgreSQL["🐘 PostgreSQL"]
+        Redis["⚡ Redis"]
+        S3["☁️ S3"]
+        Qdrant["🎯 Qdrant"]
+    end
+
+    %% EXTERNAL SERVICES LAYER
+    subgraph EXTERNAL[" 🌐 EXTERNAL SERVICES "]
+        direction TB
+        OpenAIAPI["🔗 OpenAI API"]
+        AnthropicAPI["🔗 Anthropic API"] 
+        CohereAPI["🔗 Cohere API"]
+        QdrantDB[("🎯 Qdrant DB")]
+        PostgresDB[("🐘 PostgreSQL")]
+        RedisDB[("⚡ Redis")]
+        S3Store[("☁️ S3 Storage")]
+    end
+
+    %% VERTICAL CONNECTIONS BETWEEN LAYERS
+    
+    %% UI to Core Framework
+    API --> Decorator
+    API --> AgentClass
+    API --> MemMgr
+    API --> DataMgr
+    
+    %% Within Core Framework
+    Decorator --> AgentClass
+    Decorator --> Registry
+    AgentClass --> Reef
+    Reef --> Spore
+    Reef --> Channels
+    MemMgr --> STM
+    MemMgr --> LTM
+    DataMgr --> StorageReg
+    
+    %% Core to Providers
+    AgentClass --> ProviderFactory
+    StorageReg --> FileSystem
+    StorageReg --> PostgreSQL
+    StorageReg --> Redis
+    StorageReg --> S3
+    StorageReg --> Qdrant
+    LTM --> Qdrant
+    
+    %% Providers to External Services
+    OpenAI --> OpenAIAPI
+    Anthropic --> AnthropicAPI
+    Cohere --> CohereAPI
+    PostgreSQL --> PostgresDB
+    Redis --> RedisDB
+    S3 --> S3Store
+    Qdrant --> QdrantDB
+    FileSystem --> S3Store
+
+    %% PROFESSIONAL STYLING
+    classDef userLayer fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#0d47a1,font-size:16px
+    classDef coreLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#4a148c,font-size:16px
+    classDef providerLayer fill:#e8f5e8,stroke:#388e3c,stroke-width:3px,color:#1b5e20,font-size:16px
+    classDef storageLayer fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#e65100,font-size:16px
+    classDef externalLayer fill:#ffebee,stroke:#d32f2f,stroke-width:3px,color:#b71c1c,font-size:16px
+    
+    %% Apply styling to layers
+    class UI userLayer
+    class CORE coreLayer
+    class LLM providerLayer
+    class STORAGE storageLayer
+    class EXTERNAL externalLayer
+    
+    %% Apply styling to components
+    class UserCode,API,Examples userLayer
+    class AgentClass,Decorator,Registry,Reef,Spore,Channels,MemMgr,STM,LTM,DataMgr,StorageReg coreLayer
+    class ProviderFactory,OpenAI,Anthropic,Cohere providerLayer
+    class FileSystem,PostgreSQL,Redis,S3,Qdrant storageLayer
+    class OpenAIAPI,AnthropicAPI,CohereAPI,QdrantDB,PostgresDB,RedisDB,S3Store externalLayer
