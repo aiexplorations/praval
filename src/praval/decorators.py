@@ -19,9 +19,40 @@ from functools import wraps
 
 from .core.agent import Agent
 from .core.reef import get_reef
+from .core.tool_registry import get_tool_registry
 
 # Thread-local storage for current agent context
 _agent_context = threading.local()
+
+
+def _auto_register_tools(agent: Agent, agent_name: str) -> None:
+    """
+    Auto-register tools from the tool registry for an agent.
+    
+    This function automatically registers tools that are:
+    1. Owned by the agent
+    2. Shared (available to all agents)
+    3. Any tools already assigned to this agent in the registry
+    
+    Args:
+        agent: The Agent instance to register tools for
+        agent_name: Name of the agent
+    """
+    try:
+        registry = get_tool_registry()
+        available_tools = registry.get_tools_for_agent(agent_name)
+        
+        for tool in available_tools:
+            # Register the tool function with the agent
+            tool_func = tool.func
+            
+            # Add the tool to the agent using the existing tool decorator
+            agent.tool(tool_func)
+            
+    except Exception as e:
+        # Don't fail agent creation if tool registration fails
+        # Just log the error (in a real implementation, we'd use proper logging)
+        pass
 
 
 def agent(name: Optional[str] = None, 
@@ -158,6 +189,9 @@ def agent(name: Optional[str] = None,
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
         
+        # Auto-register tools from the tool registry
+        _auto_register_tools(underlying_agent, agent_name)
+        
         # Add memory methods to the function for easy access
         if memory_enabled:
             func.remember = underlying_agent.remember
@@ -172,6 +206,13 @@ def agent(name: Optional[str] = None,
         func.send_knowledge = underlying_agent.send_knowledge
         func.broadcast_knowledge = underlying_agent.broadcast_knowledge
         func.request_knowledge = underlying_agent.request_knowledge
+        
+        # Add tool management methods
+        func.tool = underlying_agent.tool
+        func.add_tool = underlying_agent.tool  # Alias for compatibility
+        func.list_tools = lambda: list(underlying_agent.tools.keys())
+        func.get_tool = lambda name: underlying_agent.tools.get(name)
+        func.has_tool = lambda name: name in underlying_agent.tools
         
         # Store metadata on function for composition and introspection
         func._praval_agent = underlying_agent

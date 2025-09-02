@@ -17,7 +17,11 @@ Key Concepts:
 Run: python examples/002_agent_communication.py
 """
 
-from praval import agent, chat, broadcast, start_agents
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from praval import agent, broadcast, start_agents
 
 
 @agent("questioner", responds_to=["start_dialogue"])
@@ -28,12 +32,22 @@ def curious_questioner(spore):
     """
     topic = spore.knowledge.get("topic", "artificial intelligence")
     
-    # Generate a thoughtful question
-    question = chat(f"""
-    As a curious person, generate one thoughtful, engaging question about {topic}.
-    Make it something that would spark interesting discussion.
-    Return only the question.
-    """)
+    # Generate a thoughtful question with fallback
+    try:
+        from praval import chat
+        question = chat(f"""
+        As a curious person, generate one thoughtful, engaging question about {topic}.
+        Make it something that would spark interesting discussion.
+        Return only the question.
+        """)
+    except Exception:
+        # Fallback questions when LLM is not available
+        fallback_questions = {
+            "creativity": "What role does failure play in the creative process?",
+            "learning": "How does the way we teach affect what students actually learn?",
+            "collaboration": "What makes some teams more creative than others?"
+        }
+        question = fallback_questions.get(topic.lower(), f"What interests you most about {topic}?")
     
     print(f"🤔 Questioner: {question}")
     
@@ -60,24 +74,39 @@ def thoughtful_responder(spore):
     if not question:
         return
     
-    # Provide a thoughtful response
-    answer = chat(f"""
-    Someone asked this thoughtful question about {topic}: "{question}"
-    
-    As a knowledgeable person, provide an informative, engaging answer that:
-    - Addresses the question directly
-    - Provides useful insights
-    - Is clear and accessible
-    - Might spark further discussion
-    """)
+    # Provide a thoughtful response with fallback
+    try:
+        from praval import chat
+        answer = chat(f"""
+        Someone asked this thoughtful question about {topic}: "{question}"
+        
+        As a knowledgeable person, provide an informative, engaging answer that:
+        - Addresses the question directly
+        - Provides useful insights
+        - Is clear and accessible
+        - Might spark further discussion
+        """)
+    except Exception:
+        # Fallback responses when LLM is not available
+        answer = f"That's a fascinating question about {topic}: '{question}'. This touches on fundamental aspects of human nature and how we interact with the world. Different perspectives would approach this differently, but what's most important is how we apply these insights in practice."
     
     print(f"💡 Responder: {answer}")
     
-    # Continue the conversation by asking a follow-up
-    follow_up = chat(f"""
-    Based on my answer about {topic}, generate a brief follow-up question
-    that could deepen the discussion. Return only the question.
-    """)
+    # Continue the conversation by asking a follow-up with fallback
+    try:
+        from praval import chat
+        follow_up = chat(f"""
+        Based on my answer about {topic}, generate a brief follow-up question
+        that could deepen the discussion. Return only the question.
+        """)
+    except Exception:
+        # Fallback follow-up questions
+        fallback_followups = {
+            "creativity": "How do cultural differences shape creative expression?",
+            "learning": "What role does emotion play in how we remember things?",
+            "collaboration": "How do we balance individual expertise with collective wisdom?"
+        }
+        follow_up = fallback_followups.get(topic.lower(), f"What practical steps could we take to improve {topic}?")
     
     print(f"🔄 Responder: {follow_up}")
     
