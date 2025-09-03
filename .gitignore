@@ -148,4 +148,4 @@ qdrant_agent_memory.md
 test_venturelens_demo.py
 test_arxiv_downloader.py
 
-.env
+.envexamples/venv/
