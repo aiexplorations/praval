@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.7.1"
+version = "0.7.4"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = {text = "MIT"}
@@ -64,6 +64,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests requiring external services",
+    "performance: Performance and load tests", 
+    "edge_case: Edge case and boundary condition tests",
+    "knowledge_base: Tests related to knowledge base and PDF functionality"
+]
 # Temporarily disabled to run coverage manually
 # addopts = [
 #     "--cov=src/praval",
