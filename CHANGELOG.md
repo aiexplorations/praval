@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2024-12-03
+
+### Fixed
+- ChromaDB collection initialization error when collections don't exist
+- Knowledge base auto-indexing now works correctly with memory-only fallback scenarios
+- Exception handling for ChromaDB NotFoundError instead of ValueError
+
+### Improved
+- More robust error handling during ChromaDB collection creation
+- Better integration between @agent decorator and knowledge base functionality
+- Automatic collection creation with proper metadata configuration
+
 ## [0.7.4] - 2024-12-03
 
 ### Added
