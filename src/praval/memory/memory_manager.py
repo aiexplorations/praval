@@ -76,7 +76,8 @@ class MemoryManager:
             try:
                 self.embedded_store = EmbeddedVectorStore(
                     storage_path=storage_path,
-                    collection_name=collection_name
+                    collection_name=collection_name,
+                    enable_collection_separation=True  # Enable separated collections by default
                 )
                 self.backend = "chromadb"
                 logger.info("Embedded ChromaDB memory initialized successfully")
