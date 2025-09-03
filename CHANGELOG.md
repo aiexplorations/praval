@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2024-12-03
+
+### Added
+- 🏗️ **Collection Separation Architecture** - Separate ChromaDB collections for knowledge base vs conversational memory
+  - **Knowledge Collection**: Immutable storage for semantic memories (knowledge base files, facts)
+  - **Memory Collection**: Mutable storage for episodic and conversational memories
+  - **Smart Memory Routing**: Automatic routing based on memory type (semantic → knowledge, others → memory)
+  - **Cross-Collection Operations**: Search, retrieve, and stats work seamlessly across both collections
+
+### Enhanced
+- 🛡️ **Data Integrity & Security**
+  - Immutable knowledge base - knowledge cannot be deleted, providing data protection
+  - Selective deletion policy - only conversational memory can be deleted
+  - Safe memory clearing - `clear_agent_memories()` preserves knowledge base, only clears conversations
+- 🔄 **Migration & Compatibility**
+  - Automatic migration from legacy single collections to separated architecture
+  - Zero-downtime migration - existing data is preserved and properly migrated
+  - Backward compatibility - legacy single-collection mode still supported
+- 📊 **Enhanced Features**
+  - Detailed statistics with separate metrics for knowledge vs conversational memories
+  - Health monitoring across both collections
+  - Memory manager integration with separated collections enabled by default
+
+### Fixed
+- ChromaDB API compatibility issues with `get()` vs `query()` result structures
+- Numpy array boolean evaluation errors in memory operations
+- Collection migration edge cases and error handling
+- Memory retrieval across separated collections
+
+### Technical
+- 17 comprehensive test cases covering initialization, storage, routing, migration
+- Production-ready implementation with proper error handling and logging
+- Enhanced documentation and code comments
+
 ## [0.7.5] - 2024-12-03
 
 ### Fixed
