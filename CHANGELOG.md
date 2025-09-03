@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2024-12-03
+
+### Added
+- Comprehensive knowledge base benchmark tests (`test_knowledge_base_benchmark.py`)
+- Pytest custom markers for better test organization (unit, integration, performance, edge_case, knowledge_base)
+
+### Fixed
+- Version discrepancy in `__init__.py` docstring 
+- Pytest marker warnings by adding proper marker configuration in `pyproject.toml`
+
+### Improved
+- Test coverage for knowledge base functionality with performance benchmarks
+- Documentation accuracy for current version features
+
 ## [0.6.2] - 2025-08-21
 
 ### Added
