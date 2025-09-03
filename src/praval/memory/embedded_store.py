@@ -106,7 +106,9 @@ class EmbeddedVectorStore:
                     name=self.collection_name
                 )
                 logger.info(f"Using existing ChromaDB collection: {self.collection_name}")
-            except ValueError:
+            except Exception as e:
+                # Handle ChromaDB NotFoundError and other exceptions for collection not found
+                logger.info(f"Collection '{self.collection_name}' not found, creating new collection")
                 self.collection = self.client.create_collection(
                     name=self.collection_name,
                     metadata={"hnsw:space": "cosine"}
