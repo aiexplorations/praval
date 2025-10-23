@@ -15,10 +15,10 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from src.praval.core.secure_spore import (
+from praval.core.secure_spore import (
     SecureSpore, SporeKeyManager, SecureSporeFactory
 )
-from src.praval.core.reef import SporeType
+from praval.core.reef import SporeType
 
 
 class TestSecureSpore:

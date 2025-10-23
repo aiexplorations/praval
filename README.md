@@ -9,7 +9,7 @@
   
   *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
 
-  [![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/aiexplorations/praval/releases/tag/v0.6.0)
+  [![Version](https://img.shields.io/badge/version-0.7.6-blue.svg)](https://github.com/aiexplorations/praval/releases/tag/v0.7.6)
   [![Security](https://img.shields.io/badge/security-enterprise%20ready-green.svg)](#-secure-spores-messaging)
   [![Docker](https://img.shields.io/badge/docker-multi--service-blue.svg)](#-docker-deployment)
 </div>
@@ -117,8 +117,11 @@ def writing_specialist(spore):
 # Install from PyPI (recommended)
 pip install praval
 
-# Or install from source
-git clone https://github.com/your-org/praval.git
+# Or with UV (faster)
+uv pip install praval
+
+# Install from source
+git clone https://github.com/aiexplorations/praval.git
 cd praval
 pip install -e .
 ```
@@ -127,7 +130,7 @@ pip install -e .
 
 ```bash
 # Clone and install in development mode
-git clone https://github.com/your-org/praval.git
+git clone https://github.com/aiexplorations/praval.git
 cd praval
 
 # Create virtual environment

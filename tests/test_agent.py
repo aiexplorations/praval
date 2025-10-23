@@ -5,8 +5,14 @@ Following TDD principles - these tests define the expected behavior
 before implementation.
 """
 
+import os
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
+
+# Set test API keys to avoid provider detection errors
+os.environ["OPENAI_API_KEY"] = "test_key"
+os.environ["ANTHROPIC_API_KEY"] = "test_key"
+
 from praval.core.agent import Agent
 from praval.core.exceptions import PravalError, ProviderError
 

@@ -9,12 +9,11 @@ import sys
 import time
 import asyncio
 import logging
-from dotenv import load_dotenv
+import pytest
+from unittest.mock import patch, MagicMock
 
-load_dotenv()
-
-# Add the project directory to the path
-sys.path.insert(0, '/Users/rajesh/Github/praval/src')
+# Mock the provider detection to avoid requiring API keys in tests
+os.environ["OPENAI_API_KEY"] = "test_key_for_testing"
 
 from praval import agent, chat, achat, broadcast, start_agents
 
