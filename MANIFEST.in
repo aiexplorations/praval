@@ -5,6 +5,8 @@ include pyproject.toml
 recursive-include src *.py
 recursive-include examples *.py
 recursive-include docs *.md
+recursive-include docs *.png
 recursive-exclude examples/venv *
+recursive-exclude examples/downloaded_papers *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]

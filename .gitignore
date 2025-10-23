@@ -25,6 +25,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.whl
 MANIFEST
 
 # PyInstaller
@@ -93,7 +94,8 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments.env
+# Environments
+.env
 .venv
 env/
 venv/
@@ -148,4 +150,16 @@ qdrant_agent_memory.md
 test_venturelens_demo.py
 test_arxiv_downloader.py
 
-.envexamples/venv/
+# Build artifacts
+*.whl
+dist/
+build/
+
+# Large log files
+*.log
+
+# User-generated content
+examples/downloaded_papers/
+
+# Example virtual environments
+examples/venv/

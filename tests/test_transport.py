@@ -16,7 +16,7 @@ import time
 from typing import Dict, Any, Callable, List
 from unittest.mock import Mock, AsyncMock, patch
 
-from src.praval.core.transport import (
+from praval.core.transport import (
     TransportProtocol, MessageTransport, TransportFactory,
     AMQPTransport, MQTTTransport, STOMPTransport,
     TransportError, ConnectionError, PublishError,

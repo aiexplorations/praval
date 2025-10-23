@@ -11,6 +11,12 @@ license = {text = "MIT"}
 authors = [
     {name = "Praval Team"},
 ]
+keywords = [
+    "ai", "agents", "llm", "multi-agent", "framework",
+    "openai", "anthropic", "cohere", "rag", "memory",
+    "vector-database", "chromadb", "qdrant", "chatbot",
+    "knowledge-graph", "semantic-search", "nlp"
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -20,6 +26,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 requires-python = ">=3.9"
 dependencies = [
@@ -39,6 +47,13 @@ dependencies = [
     "msgpack>=1.0.0",  # Efficient binary serialization
     "PyPDF2>=3.0.0",  # PDF processing for knowledge base
 ]
+
+[project.urls]
+Homepage = "https://github.com/aiexplorations/praval"
+Documentation = "https://github.com/aiexplorations/praval/tree/main/docs"
+Repository = "https://github.com/aiexplorations/praval"
+"Bug Tracker" = "https://github.com/aiexplorations/praval/issues"
+Changelog = "https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

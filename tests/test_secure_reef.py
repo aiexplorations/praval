@@ -17,11 +17,11 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 from unittest.mock import AsyncMock, patch
 
-from src.praval.core.secure_reef import SecureReef, KeyRegistry
-from src.praval.core.secure_spore import SporeKeyManager
-from src.praval.core.transport import TransportProtocol
-from src.praval.core.reef import SporeType
-from tests.test_transport import MockTransport
+from praval.core.secure_reef import SecureReef, KeyRegistry
+from praval.core.secure_spore import SporeKeyManager
+from praval.core.transport import TransportProtocol
+from praval.core.reef import SporeType
+from test_transport import MockTransport
 
 
 class TestKeyRegistry:
