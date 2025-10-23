@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7] - 2025-10-23
+
+### Added
+- 📦 **Manual Release Process Documentation** - Comprehensive RELEASE.md guide
+  - Step-by-step instructions for version bumping
+  - PyPI publication workflow
+  - Testing and verification procedures
+  - Rollback and troubleshooting guides
+- 🔧 **GitHub Actions Workflow** - Automated release infrastructure (disabled by default)
+  - Automatic version detection from commit messages
+  - PyPI upload automation
+  - GitHub release creation
+  - Can be enabled when ready for automated releases
+
+### Changed
+- 🎯 **Version Control Strategy** - Moved to manual deliberate version bumps
+  - Auto-versioning workflow disabled for more control
+  - Prevents accidental major version jumps
+  - Ensures version 1.0.0 is a deliberate milestone decision
+- 📚 **Repository Organization** - Comprehensive cleanup and documentation
+  - Documentation organized in docs/ with archive/ subdirectory
+  - Removed redundant files and build artifacts
+  - Enhanced PyPI metadata with keywords and project URLs
+  - Added UV installation support
+
+### Fixed
+- 🔒 **Security** - Removed exposed API keys from repository
+  - Cleaned .env files from git history
+  - Enhanced .gitignore patterns
+  - Proper credential management documentation
+- 🧪 **Test Suite** - Fixed import errors in test files
+  - Corrected module paths (src.praval → praval)
+  - Added test environment setup for CI/CD
+  - All core tests now passing
+
+### Infrastructure
+- ✅ PyPI publication ready (v0.7.6 successfully published)
+- ✅ UV package manager compatible
+- ✅ GitHub Actions infrastructure configured
+- ✅ Comprehensive release documentation
+
 ## [0.7.6] - 2024-12-03
 
 ### Added
