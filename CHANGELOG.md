@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8] - 2025-10-23
+
+### Changed
+- 🔒 **Distribution Strategy** - Now distributing wheel-only packages to PyPI
+  - Source code, examples, and documentation remain private
+  - Only compiled wheel (.whl) available on PyPI
+  - Users can install via `pip install praval` but cannot access source
+  - Full source available on GitHub when project is open-sourced
+
+### Infrastructure
+- Updated release process to upload wheels only
+- Enhanced Makefile with interactive release wizard
+- Improved documentation organization
+
+### Note
+This is a re-release to implement wheel-only distribution strategy.
+Versions 0.7.6 and 0.7.7 have been removed from PyPI.
+
 ## [0.7.7] - 2025-10-23
 
 ### Added
