@@ -113,17 +113,43 @@ def writing_specialist(spore):
 
 ## 📦 **Installation**
 
+Praval offers flexible installation options based on your needs:
+
+### **Minimal Installation** (Fastest - ~50MB)
+Perfect for getting started with basic agents:
 ```bash
-# Install from PyPI (recommended)
 pip install praval
 
 # Or with UV (faster)
 uv pip install praval
+```
+**Includes**: LLM providers (OpenAI, Anthropic, Cohere), basic agent functionality
 
-# Install from source
+### **With Memory** (Recommended - ~500MB)
+Adds vector storage and persistent memory:
+```bash
+pip install praval[memory]
+
+# Or with UV
+uv pip install praval[memory]
+```
+**Adds**: ChromaDB, sentence-transformers, semantic search
+
+### **Full Installation** (~1.5GB)
+All features including enterprise messaging and storage:
+```bash
+pip install praval[all]
+
+# Or with UV
+uv pip install praval[all]
+```
+**Adds**: Secure Spores, PDF support, storage providers (PostgreSQL, Redis, S3, Qdrant)
+
+### **From Source**
+```bash
 git clone https://github.com/aiexplorations/praval.git
 cd praval
-pip install -e .
+pip install -e .[all]  # or [memory] for lighter install
 ```
 
 ### **Development Installation**
