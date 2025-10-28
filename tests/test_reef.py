@@ -206,14 +206,14 @@ class TestReefChannel:
     def test_broadcast_delivery(self):
         """Test broadcast spore delivery to all subscribers."""
         channel = ReefChannel("broadcast-test")
-        
+
         # Multiple subscribers
         received_by_agent1 = []
         received_by_agent2 = []
-        
+
         channel.subscribe("agent1", lambda s: received_by_agent1.append(s))
         channel.subscribe("agent2", lambda s: received_by_agent2.append(s))
-        
+
         # Send broadcast spore
         broadcast_spore = Spore(
             id="broadcast",
@@ -223,9 +223,12 @@ class TestReefChannel:
             knowledge={"announcement": "important news"},
             created_at=datetime.now()
         )
-        
+
         channel.send_spore(broadcast_spore)
-        
+
+        # Wait for async handlers to execute
+        time.sleep(0.1)
+
         # Both agents should receive (but not the sender)
         assert len(received_by_agent1) == 1
         assert len(received_by_agent2) == 1
@@ -588,23 +591,26 @@ class TestReefIntegration:
         """Test that errors in message handlers don't break the system."""
         reef = Reef()
         good_messages = []
-        
+
         def failing_handler(spore: Spore) -> None:
             raise ValueError("Handler intentionally failed")
-        
+
         def good_handler(spore: Spore) -> None:
             good_messages.append(spore.knowledge)
-        
+
         # Subscribe both handlers
         reef.subscribe("bad_agent", failing_handler)
         reef.subscribe("good_agent", good_handler)
-        
+
         # Send broadcast (should trigger both handlers)
         reef.broadcast(
             from_agent="sender",
             knowledge={"test": "error handling"}
         )
-        
+
+        # Wait for async handlers to execute
+        time.sleep(0.1)
+
         # Good handler should still work despite failing handler
         assert len(good_messages) == 1
         assert good_messages[0]["test"] == "error handling"

@@ -238,10 +238,29 @@ class ReefChannel:
         
         return self.executor.submit(safe_handler_wrapper)
     
-    def subscribe(self, agent_name: str, handler: Callable[[Spore], None]) -> None:
-        """Subscribe an agent to receive spores from this channel."""
+    def subscribe(self, agent_name: str, handler: Callable[[Spore], None], replace: bool = True) -> None:
+        """
+        Subscribe an agent to receive spores from this channel.
+
+        Args:
+            agent_name: Name of the agent subscribing
+            handler: Callback function to handle received spores
+            replace: If True (default), replaces existing handlers for this agent.
+                    If False, adds handler to the list (useful for multiple handlers).
+
+        Note:
+            Default behavior (replace=True) ensures that re-registering an agent
+            in interactive environments (like Jupyter notebooks) doesn't create
+            duplicate subscriptions. Set replace=False if you intentionally want
+            multiple handlers for the same agent.
+        """
         with self.lock:
-            self.subscribers[agent_name].append(handler)
+            if replace:
+                # Replace all existing handlers with this new one
+                self.subscribers[agent_name] = [handler]
+            else:
+                # Append to existing handlers
+                self.subscribers[agent_name].append(handler)
     
     def unsubscribe(self, agent_name: str) -> None:
         """Unsubscribe an agent from this channel."""
@@ -448,17 +467,27 @@ class Reef:
             reply_to=reply_to_spore_id
         )
     
-    def subscribe(self, 
-                  agent_name: str, 
+    def subscribe(self,
+                  agent_name: str,
                   handler: Callable[[Spore], None],
-                  channel: str = None) -> None:
-        """Subscribe an agent to receive spores from a channel."""
+                  channel: str = None,
+                  replace: bool = True) -> None:
+        """
+        Subscribe an agent to receive spores from a channel.
+
+        Args:
+            agent_name: Name of the agent subscribing
+            handler: Callback function to handle received spores
+            channel: Channel name (uses default if None)
+            replace: If True (default), replaces existing handlers for this agent.
+                    If False, adds handler to the list.
+        """
         if channel is None:
             channel = self.default_channel
-        
+
         reef_channel = self.get_channel(channel)
         if reef_channel:
-            reef_channel.subscribe(agent_name, handler)
+            reef_channel.subscribe(agent_name, handler, replace=replace)
     
     def get_network_stats(self) -> Dict[str, Any]:
         """Get statistics about the reef network."""
