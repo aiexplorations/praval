@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.10] - 2025-10-28
+
+### Fixed
+- 🐛 **Jupyter Duplicate Execution** - Agents no longer execute multiple times when re-registering in notebooks
+- 🔧 **Channel Subscription** - Added `replace` parameter to `subscribe()` to prevent handler accumulation
+
+### Added
+- 🎓 **Student Analytics AI Example** - Interactive notebook with 6 AI-powered agents analyzing student performance
+- 🎨 **AI Code Generation** - Visualization agent dynamically generates matplotlib code (not templates!)
+- 📚 **Documentation Infrastructure** - Sphinx setup with 5 new make targets (docs-html, docs-serve, docs-clean, docs-check, docs-deploy)
+- 🧪 **Interactive Environment Tests** - Comprehensive test suite (165 lines) for notebook scenarios
+- 📖 **Building Agents Tutorial** - Step-by-step Jupyter notebook for learning Praval
+
+### Changed
+- 🎯 **Default Subscribe Behavior** - Now replaces handlers by default (set `replace=False` for append behavior)
+
+### Examples
+- `student_analytics_ai.ipynb` - 6 AI agents with parallel execution and code generation (198KB)
+- `student_analytics.py` - Python script version for CLI execution (16KB)
+- `building_agents_tutorial.ipynb` - Interactive tutorial (82KB)
+
+### Technical Details
+- Modified: `src/praval/core/reef.py` (~40 lines)
+- Added: `tests/test_duplicate_agent_registration.py` (165 lines)
+- Enhanced: Makefile with documentation targets
+- Updated: pyproject.toml with `[docs]` dependency group
+
+### Benefits
+- ✅ Seamless Jupyter notebook development
+- ✅ Showcase of true multi-agent AI collaboration
+- ✅ Demonstrates AI creativity through code generation
+- ✅ Production-ready documentation infrastructure
+
 ## [0.7.9] - 2025-10-23
 
 ### Changed

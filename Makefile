@@ -1,6 +1,6 @@
 # Praval Development Makefile
 
-.PHONY: help setup test test-cov build clean format lint type-check dev-install release
+.PHONY: help setup test test-cov build clean format lint type-check dev-install release docs-html docs-clean docs-serve docs-check
 
 # Default target
 help:
@@ -17,12 +17,17 @@ help:
 	@echo "  lint         - Run flake8 linting"
 	@echo "  type-check   - Run mypy type checking"
 	@echo ""
+	@echo "📚 Documentation:"
+	@echo "  docs-html    - Build HTML documentation with Sphinx"
+	@echo "  docs-clean   - Clean documentation build artifacts"
+	@echo "  docs-serve   - Build and open documentation in browser"
+	@echo "  docs-check   - Check documentation for errors"
+	@echo "  docs-deploy  - Build and deploy docs to praval-ai website"
+	@echo ""
 	@echo "📦 Build & Release:"
 	@echo "  build        - Build package (requires 80% test coverage)"
 	@echo "  release      - Interactive release wizard (patch/minor/major)"
 	@echo "  clean        - Clean build artifacts"
-	@echo ""
-	@echo "📚 Documentation: See RELEASE.md for manual release process"
 
 setup:
 	@echo "Setting up Praval development environment..."
@@ -103,3 +108,50 @@ release:
 	echo "Then: twine upload dist/*"; \
 	echo ""; \
 	echo "📚 See RELEASE.md for detailed process"
+
+# Documentation targets
+docs-html:
+	@echo "📚 Building HTML documentation..."
+	@if [ ! -d "venv" ]; then \
+		echo "❌ Virtual environment not found. Run 'make setup' first."; \
+		exit 1; \
+	fi
+	@echo "Installing documentation dependencies..."
+	./venv/bin/pip install -e ".[docs]" > /dev/null
+	@echo "Running Sphinx build..."
+	cd docs/sphinx && ../../venv/bin/sphinx-build -b html . ../_build/html
+	@echo "✅ Documentation built successfully!"
+	@echo "📖 Open: docs/_build/html/index.html"
+
+docs-clean:
+	@echo "🧹 Cleaning documentation build artifacts..."
+	rm -rf docs/_build/
+	rm -rf docs/sphinx/api/generated/
+	@echo "✅ Documentation cleaned!"
+
+docs-serve: docs-html
+	@echo "🌐 Opening documentation in browser..."
+	@if command -v open > /dev/null; then \
+		open docs/_build/html/index.html; \
+	elif command -v xdg-open > /dev/null; then \
+		xdg-open docs/_build/html/index.html; \
+	else \
+		echo "📖 Please open: docs/_build/html/index.html"; \
+	fi
+
+docs-check:
+	@echo "🔍 Checking documentation for errors..."
+	@if [ ! -d "venv" ]; then \
+		echo "❌ Virtual environment not found. Run 'make setup' first."; \
+		exit 1; \
+	fi
+	./venv/bin/pip install -e ".[docs]" > /dev/null
+	cd docs/sphinx && ../../venv/bin/sphinx-build -b html -W --keep-going . ../_build/html
+	@echo "✅ Documentation check passed!"
+
+docs-deploy: docs-html
+	@echo "🚀 Deploying documentation to praval-ai website..."
+	./scripts/deploy-docs.sh
+	@echo "✅ Documentation deployed!"
+	@echo ""
+	@echo "📋 Next: cd ~/Github/praval-ai && git add docs/ && git commit && git push"

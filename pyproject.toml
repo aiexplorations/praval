@@ -78,6 +78,16 @@ storage = [
     "qdrant-client>=1.6.0",    # Qdrant vector DB
 ]
 
+# Documentation generation
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",          # ReadTheDocs theme
+    "sphinx-autodoc-typehints>=1.24.0", # Better type hints rendering
+    "myst-parser>=2.0.0",               # Markdown support in Sphinx
+    "sphinx-copybutton>=0.5.2",         # Copy code button
+    "sphinx-design>=0.5.0",             # Cards, tabs, grids
+]
+
 # All optional features combined
 all = [
     "chromadb>=0.4.0",
