@@ -1,0 +1,14 @@
+{% extends "!layout.html" %}
+
+{%- block header %}
+{{ super() }}
+<div class="version-banner">
+    <div class="version-banner-content">
+        <span class="version-badge">v{{ version }}</span>
+        <span class="version-text">
+            You are viewing documentation for Praval <strong>v{{ version }}</strong>
+        </span>
+        <a href="/docs/latest/" class="version-link">View latest docs</a>
+    </div>
+</div>
+{%- endblock %}

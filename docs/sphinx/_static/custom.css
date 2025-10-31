@@ -1,0 +1,566 @@
+/*
+ * Custom CSS for Praval Documentation
+ * Dark theme with orange accents
+ */
+
+:root {
+    /* Dark theme color palette */
+    --praval-orange: #FF6B35;
+    --praval-orange-light: #FF8C61;
+    --praval-orange-dark: #E55A2B;
+    --praval-bg-dark: #1e1e1e;
+    --praval-bg-darker: #161616;
+    --praval-bg-light: #2d2d2d;
+    --praval-text: #e0e0e0;
+    --praval-text-dim: #b0b0b0;
+}
+
+/* Main content area - dark background */
+.wy-nav-content-wrap {
+    background-color: var(--praval-bg-dark);
+}
+
+.wy-nav-content {
+    max-width: 1200px;
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+/* Body and text colors */
+body {
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+.rst-content {
+    color: var(--praval-text);
+}
+
+/* Headings with orange accent */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--praval-text);
+}
+
+h1 {
+    border-bottom: 3px solid var(--praval-orange);
+    padding-bottom: 0.5rem;
+}
+
+h2 {
+    border-bottom: 2px solid var(--praval-orange);
+    padding-bottom: 0.3rem;
+    margin-top: 2rem;
+}
+
+/* Links with orange color */
+a {
+    color: var(--praval-orange);
+}
+
+a:hover {
+    color: var(--praval-orange-light);
+}
+
+a:visited {
+    color: var(--praval-orange-dark);
+}
+
+/* Code blocks - improved readability */
+.highlight {
+    background: #0d1117;  /* Slightly lighter than pure black */
+    border-left: 3px solid var(--praval-orange);
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+.highlight pre {
+    background-color: #0d1117;
+    color: #c9d1d9;  /* Brighter text */
+    font-size: 0.95em;
+    line-height: 1.6;
+}
+
+/* Syntax highlighting colors - high contrast */
+.highlight .k,  /* keywords */
+.highlight .kn, /* keyword namespace */
+.highlight .kd { /* keyword declaration */
+    color: #ff79c6;  /* Bright pink for keywords */
+    font-weight: 600;
+}
+
+.highlight .s,  /* strings */
+.highlight .s1,
+.highlight .s2,
+.highlight .se { /* string escape */
+    color: #50fa7b;  /* Bright green for strings */
+}
+
+.highlight .nf, /* function name */
+.highlight .fm { /* magic method */
+    color: #8be9fd;  /* Bright cyan for functions */
+}
+
+.highlight .nc, /* class name */
+.highlight .nd { /* decorator */
+    color: #bd93f9;  /* Bright purple for classes/decorators */
+}
+
+.highlight .c,  /* comments */
+.highlight .c1,
+.highlight .cm {
+    color: #6272a4;  /* Muted blue-gray for comments */
+    font-style: italic;
+}
+
+.highlight .n,  /* names */
+.highlight .nb, /* builtin */
+.highlight .bp { /* builtin pseudo */
+    color: #f8f8f2;  /* Bright white for general names */
+}
+
+.highlight .o,  /* operators */
+.highlight .ow { /* word operators */
+    color: #ff79c6;  /* Pink for operators */
+}
+
+.highlight .m,  /* numbers */
+.highlight .mi,
+.highlight .mf {
+    color: #bd93f9;  /* Purple for numbers */
+}
+
+.highlight .kc { /* constants (True, False, None) */
+    color: #ffb86c;  /* Orange for constants */
+}
+
+code.literal {
+    background-color: #0d1117;
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: #ff79c6;
+    font-weight: 600;
+    border: 1px solid #30363d;
+}
+
+/* Inline code */
+code {
+    color: #ff79c6;
+    background-color: #0d1117;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #30363d;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-size: 0.9em;
+}
+
+/* Admonitions */
+.admonition {
+    background-color: var(--praval-bg-light);
+    border-radius: 4px;
+    border-left: 4px solid var(--praval-orange);
+    color: var(--praval-text);
+}
+
+.admonition-title {
+    background-color: var(--praval-bg-darker);
+    color: var(--praval-orange);
+}
+
+.admonition.note {
+    background-color: var(--praval-bg-light);
+    border-left-color: var(--praval-orange);
+}
+
+.admonition.warning {
+    background-color: var(--praval-bg-light);
+    border-left-color: #ff9800;
+}
+
+.admonition.tip {
+    background-color: var(--praval-bg-light);
+    border-left-color: #4caf50;
+}
+
+/* Function signatures */
+.sig {
+    background-color: var(--praval-bg-light);
+    border: 1px solid var(--praval-bg-darker);
+    border-radius: 4px;
+    padding: 0.5rem;
+    color: var(--praval-text);
+}
+
+.sig-name {
+    color: var(--praval-orange);
+    font-weight: bold;
+}
+
+/* Parameter lists */
+dl.field-list {
+    margin-top: 1rem;
+}
+
+dt {
+    font-weight: 600;
+    color: var(--praval-text);
+    background-color: var(--praval-bg-light);
+}
+
+dd {
+    color: var(--praval-text-dim);
+}
+
+/* Tables */
+table.docutils {
+    border: 1px solid var(--praval-bg-light);
+    border-radius: 4px;
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+table.docutils thead {
+    background-color: var(--praval-orange);
+    color: var(--praval-bg-darker);
+}
+
+table.docutils tbody tr {
+    background-color: var(--praval-bg-dark);
+}
+
+table.docutils tbody tr:hover {
+    background-color: var(--praval-bg-light);
+}
+
+table.docutils td, table.docutils th {
+    border-color: var(--praval-bg-light);
+}
+
+/* Sidebar navigation */
+.wy-side-nav-search {
+    background-color: var(--praval-bg-darker);
+    padding: 1rem;
+}
+
+.wy-side-nav-search > a {
+    color: var(--praval-orange);
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Logo styling */
+.wy-side-nav-search a img.logo {
+    width: 80%;
+    max-width: 200px;
+    height: auto;
+    display: block;
+    margin: 0 auto 1rem auto;
+}
+
+.wy-side-nav-search > a.icon {
+    display: block;
+    text-align: center;
+}
+
+.wy-side-nav-search input[type="text"] {
+    background-color: var(--praval-bg-light);
+    color: var(--praval-text);
+    border-color: var(--praval-bg-light);
+}
+
+.wy-menu-vertical {
+    background-color: var(--praval-bg-darker);
+}
+
+.wy-menu-vertical a {
+    color: var(--praval-text-dim);
+    background-color: var(--praval-bg-darker);
+}
+
+.wy-menu-vertical a:hover {
+    background-color: var(--praval-bg-light);
+    color: var(--praval-orange-light);
+}
+
+.wy-menu-vertical li.current a {
+    border-right: 3px solid var(--praval-orange);
+    background-color: var(--praval-bg-light);
+    color: var(--praval-orange);
+}
+
+.wy-menu-vertical li.current > a {
+    background-color: var(--praval-bg-light);
+}
+
+/* Version badge */
+.wy-side-nav-search > div.version {
+    color: var(--praval-text-dim);
+    opacity: 0.9;
+}
+
+/* Copy button styling */
+button.copybtn {
+    background-color: var(--praval-orange);
+    border-color: var(--praval-orange-dark);
+    color: white;
+}
+
+button.copybtn:hover {
+    background-color: var(--praval-orange-light);
+}
+
+/* Sphinx-design components */
+.sd-card {
+    border: 1px solid var(--praval-bg-light);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+.sd-card-header {
+    background-color: var(--praval-orange);
+    color: var(--praval-bg-darker);
+    font-weight: 600;
+}
+
+.sd-card-body {
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+.sd-tab-label {
+    color: var(--praval-text);
+}
+
+.sd-tab-label:hover {
+    color: var(--praval-orange);
+}
+
+/* Badges */
+.sd-badge-primary {
+    background-color: var(--praval-orange);
+}
+
+.sd-badge-secondary {
+    background-color: var(--praval-bg-light);
+}
+
+/* Footer */
+.rst-footer-buttons {
+    margin-top: 3rem;
+}
+
+footer {
+    color: var(--praval-text-dim);
+}
+
+/* Search results */
+.search li {
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+}
+
+.search li:hover {
+    background-color: var(--praval-bg-light);
+}
+
+/* Module index */
+.modindex-jumpbox {
+    background-color: var(--praval-bg-light);
+}
+
+/* General index */
+.genindex-jumpbox {
+    background-color: var(--praval-bg-light);
+}
+
+/* Literal blocks */
+.literal-block-wrapper {
+    background-color: var(--praval-bg-darker);
+}
+
+/* Version selector */
+.rst-versions {
+    background-color: var(--praval-bg-darker);
+    color: var(--praval-text);
+}
+
+.rst-versions a {
+    color: var(--praval-orange);
+}
+
+/* Horizontal rules */
+hr {
+    border-color: var(--praval-bg-light);
+}
+
+/* Blockquotes */
+blockquote {
+    border-left: 4px solid var(--praval-orange);
+    background-color: var(--praval-bg-light);
+    color: var(--praval-text);
+}
+
+/* Line numbers in code */
+.linenos {
+    background-color: var(--praval-bg-darker);
+    color: var(--praval-text-dim);
+}
+
+/* Mobile responsiveness */
+@media screen and (max-width: 768px) {
+    .wy-nav-content {
+        max-width: 100%;
+    }
+
+    code.literal {
+        word-break: break-word;
+    }
+}
+
+/* Version Banner */
+.version-banner {
+    background: linear-gradient(135deg, #FF6B35 0%, #E55A2B 100%);
+    color: white;
+    padding: 0.75rem 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.version-banner-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.version-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: bold;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+.version-text {
+    flex: 1;
+}
+
+.version-link {
+    background: white;
+    color: #FF6B35;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.version-link:hover {
+    background: #f0f0f0;
+    color: #E55A2B;
+    transform: translateY(-1px);
+}
+
+/* Version switcher in footer */
+.rst-versions {
+    background-color: var(--praval-bg-darker);
+    color: var(--praval-text);
+    border-top: 2px solid var(--praval-orange);
+}
+
+.rst-versions a {
+    color: var(--praval-orange);
+}
+
+.rst-versions .rst-current-version {
+    background-color: var(--praval-bg-light);
+    color: var(--praval-text);
+}
+
+/* Print styles */
+@media print {
+    .wy-nav-side,
+    .rst-versions,
+    .wy-nav-top,
+    .version-banner {
+        display: none;
+    }
+
+    .wy-nav-content {
+        margin: 0;
+        max-width: 100%;
+    }
+
+    body {
+        background-color: white;
+        color: black;
+    }
+}
+
+/* Version Switcher */
+.version-switcher {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--praval-bg-light);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.version-switcher-label {
+    color: var(--praval-text-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.version-switcher-select {
+    flex: 1;
+    background: var(--praval-bg-darker);
+    color: var(--praval-orange);
+    border: 2px solid var(--praval-orange);
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.version-switcher-select:hover {
+    background: var(--praval-bg-light);
+    border-color: var(--praval-orange-light);
+}
+
+.version-switcher-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.3);
+}
+
+/* Mobile responsiveness for version banner */
+@media screen and (max-width: 768px) {
+    .version-banner-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .version-link {
+        width: 100%;
+        text-align: center;
+    }
+
+    .version-switcher {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .version-switcher-select {
+        width: 100%;
+    }
+}
