@@ -2,6 +2,21 @@
 
 These examples demonstrate the Praval observability framework features.
 
+## Quickstart
+
+### Example 000: Simplest Example
+**File**: `000_quickstart.py`
+
+The absolute simplest demonstration - just 20 lines.
+
+```bash
+python examples/observability/000_quickstart.py
+```
+
+**What you'll see**: A single span created, stored, and retrieved. That's it!
+
+---
+
 ## Phase 1: Core Infrastructure (Available Now)
 
 ### Example 001: Basic Tracing Demo
