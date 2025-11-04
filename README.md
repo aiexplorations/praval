@@ -33,7 +33,8 @@
 - **⚡ Pythonic API**: Clean, decorator-based agent definitions
 - **🔒 Secure Messaging**: End-to-end encryption with enterprise-grade security
 - **🐳 Distributed Deployment**: Multi-service Docker architecture with message queues
-- **📡 Multi-Protocol Support**: AMQP, MQTT, STOMP for scalable messaging 
+- **📡 Multi-Protocol Support**: AMQP, MQTT, STOMP for scalable messaging
+- **📊 Built-in Observability**: OpenTelemetry tracing with automatic instrumentation 
 
 ## ⭐ **The Praval Philosophy**
 
@@ -81,6 +82,30 @@ def writing_specialist(spore):
 - **TLS/SSL Security**: Certificate-based transport encryption
 - **Key Management**: Automatic key rotation and forward secrecy
 - **Distributed Architecture**: Horizontally scalable with message queue clustering
+
+#### **📊 Built-in Observability**
+- **Zero Configuration**: Automatic tracing of all agents, communication, and operations
+- **OpenTelemetry Compatible**: Industry-standard distributed tracing
+- **OTLP Export**: Send traces to Jaeger, Zipkin, Honeycomb, DataDog, New Relic, etc.
+- **Console Viewer**: Rich terminal output with tree display and timing
+- **Query Interface**: Find spans by name, status, duration, or trace ID
+- **Minimal Overhead**: <5% performance impact with sampling support
+
+```python
+from praval import agent
+from praval.observability import show_recent_traces, export_traces_to_otlp
+
+@agent("researcher")
+def research_agent(spore):
+    # Automatically traced - no code changes needed!
+    return {"findings": chat(f"Research: {spore.knowledge['topic']}")}
+
+# View traces in console
+show_recent_traces(limit=5)
+
+# Export to Jaeger
+export_traces_to_otlp("http://localhost:4318/v1/traces")
+```
 
 ### **🏗️ Architecture Principles**
 
@@ -704,10 +729,10 @@ def handle_everything(spore):
 - **✓ Dynamic Coordination**: Agents discover and delegate tasks
 
 ### **🚀 Phase 3: Enterprise Ready (Current)**
-- **🚧 Streaming Responses**: Real-time token streaming from agents  
+- **🚧 Streaming Responses**: Real-time token streaming from agents
 - **🚧 Tool Ecosystem**: External API and service integration
 - **🚧 Visual Debugging**: Agent interaction visualization
-- **📈 Observability Suite**: Comprehensive metrics and tracing
+- **✓ Observability Suite**: OpenTelemetry tracing with OTLP export, console viewer, and automatic instrumentation
 - **🔒 Security Framework**: Content filtering and access control
 - **⚡ Performance Optimization**: Caching, rate limiting, cost management
 - **🐝 Horizontal Scaling**: Distributed agent deployment
