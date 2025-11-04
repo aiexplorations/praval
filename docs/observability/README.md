@@ -129,37 +129,68 @@ PRAVAL_OBSERVABILITY=off python your_script.py
 
 ---
 
-## What's Working Now (Phase 1)
+## What's Available Now
 
-✅ **Core Infrastructure**:
+### ✅ Phase 1: Core Infrastructure
+
 - OpenTelemetry-compatible spans
-- Trace context propagation
-- SQLite local storage
-- Configuration system
-- Manual span creation
+- Trace context propagation via Spore metadata
+- SQLite local storage with query interface
+- Configuration system with auto-detection
+- Manual span creation API
+- **Test Coverage**: 76 tests, 100% passing
 
-✅ **Test Coverage**: 76 tests, 100% passing, >95% coverage
+### ✅ Phase 2: Automatic Instrumentation
+
+- **Agent Execution**: `@agent` decorator auto-creates SERVER spans
+- **Reef Communication**: `send()` and `broadcast()` auto-traced
+- **Memory Operations**: `store_conversation_turn()` instrumented
+- **Storage I/O**: `save()` and `load()` operations tracked
+- **LLM Calls**: All `generate()` calls automatically traced
+- **Zero Configuration Required**: Just import and use Praval!
+
+### ✅ Phase 3: Export & Viewing
+
+- **OTLP HTTP Exporter**: Send traces to Jaeger, Zipkin, Honeycomb, etc.
+- **Console Viewer**: Rich terminal output with tree display
+- **Query Interface**: Find spans by name, status, duration
+- **Batch Export**: Export specific traces or recent traces
+- **Color Support**: ANSI colors for better readability
+
+### Usage Examples
+
+**View Traces in Console**:
+```python
+from praval.observability import show_recent_traces
+
+show_recent_traces(limit=5)
+```
+
+**Export to Jaeger**:
+```python
+from praval.observability import export_traces_to_otlp
+
+export_traces_to_otlp("http://localhost:4318/v1/traces")
+```
+
+**Query Specific Spans**:
+```python
+from praval.observability import get_trace_store
+
+store = get_trace_store()
+errors = store.find_spans_by_status("error")
+slow_spans = store.find_spans_by_duration(min_duration_ms=1000)
+```
 
 ---
 
-## Coming Next (Phase 2)
+## Coming Next (Phase 4)
 
-⏳ **Automatic Instrumentation**:
-- `@agent` decorator auto-instrumentation
-- Automatic LLM call tracking
-- Automatic memory operation tracking
-- Automatic communication tracking
-- Zero code changes required
-
-⏳ **Phase 3: Export & Viewing**:
-- OTLP export implementation
-- Console trace viewer
-- Integration with Jaeger, Zipkin
-
-⏳ **Phase 4: Testing & Documentation**:
+⏳ **Final Polish**:
 - End-to-end integration tests
-- Comprehensive documentation
-- More examples
+- Performance validation (<5% overhead)
+- Additional examples and tutorials
+- API reference documentation
 
 ---
 
