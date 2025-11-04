@@ -35,6 +35,13 @@ from .tracing import (
 )
 from .storage import SQLiteTraceStore, get_trace_store
 from .instrumentation import initialize_instrumentation, is_instrumented
+from .export import (
+    OTLPExporter,
+    export_traces_to_otlp,
+    ConsoleViewer,
+    print_traces,
+    show_recent_traces,
+)
 
 __all__ = [
     # Configuration
@@ -54,6 +61,12 @@ __all__ = [
     # Instrumentation
     "initialize_instrumentation",
     "is_instrumented",
+    # Export & Viewing
+    "OTLPExporter",
+    "export_traces_to_otlp",
+    "ConsoleViewer",
+    "print_traces",
+    "show_recent_traces",
 ]
 
 __version__ = "0.8.0-dev"
