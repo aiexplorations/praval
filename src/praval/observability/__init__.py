@@ -34,6 +34,7 @@ from .tracing import (
     get_current_span,
 )
 from .storage import SQLiteTraceStore, get_trace_store
+from .instrumentation import initialize_instrumentation, is_instrumented
 
 __all__ = [
     # Configuration
@@ -50,6 +51,12 @@ __all__ = [
     # Storage
     "SQLiteTraceStore",
     "get_trace_store",
+    # Instrumentation
+    "initialize_instrumentation",
+    "is_instrumented",
 ]
 
 __version__ = "0.8.0-dev"
+
+# Auto-initialize instrumentation on import
+initialize_instrumentation()
