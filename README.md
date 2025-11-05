@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Praval Logo" width="200"/>
+  <img src="docs/assets/logo.png" alt="Praval Logo" width="200"/>
 
   # Praval
 

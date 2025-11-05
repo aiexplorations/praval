@@ -186,7 +186,7 @@ pdf-lualatex: $(PDF_DIR)
 	pandoc $(MANUAL_SRC) -o $(PDF_DIR)/praval-manual.pdf \
 		--pdf-engine=lualatex \
 		-V documentclass=report \
-		-V logo=logo.png \
+		-V logo=docs/assets/logo.png \
 		$(COMMON_OPTS) \
 		--pdf-engine-opt=-shell-escape
 	@echo "✅ Generated: $(PDF_DIR)/praval-manual.pdf"

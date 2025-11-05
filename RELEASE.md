@@ -12,9 +12,9 @@ This document describes how to manually create and publish new versions of Prava
 ## Version Numbering
 
 Follow [Semantic Versioning](https://semver.org/):
-- **Patch** (0.7.6 → 0.7.7): Bug fixes, documentation, minor changes
-- **Minor** (0.7.6 → 0.8.0): New features, backwards compatible
-- **Major** (0.7.6 → 1.0.0): Breaking changes, API redesign
+- **Patch** (0.7.11 → 0.7.12): Bug fixes, documentation, minor changes
+- **Minor** (0.7.11 → 0.8.0): New features, backwards compatible
+- **Major** (0.7.11 → 1.0.0): Breaking changes, API redesign
 
 ## Release Steps
 
@@ -30,9 +30,9 @@ source venv/bin/activate
 pip install bump2version
 
 # Bump version (choose one)
-bump2version patch   # 0.7.6 → 0.7.7
-bump2version minor   # 0.7.6 → 0.8.0
-bump2version major   # 0.7.6 → 1.0.0
+bump2version patch   # 0.7.11 → 0.7.12
+bump2version minor   # 0.7.11 → 0.8.0
+bump2version major   # 0.7.11 → 1.0.0
 ```
 
 This automatically updates:
@@ -238,5 +238,5 @@ git push origin main
 
 ---
 
-**Current Version**: 0.7.6
-**Last Updated**: 2025-10-23
+**Current Version**: 0.7.11
+**Last Updated**: 2025-11-05

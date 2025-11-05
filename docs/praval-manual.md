@@ -1,6 +1,6 @@
 ---
 title: |
-  ![](logo.png){ width=2.5in }
+  ![](assets/logo.png){ width=2.5in }
 
   Praval: The Complete Manual
 subtitle: "Building Multi-Agent AI Systems from First Principles"
