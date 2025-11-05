@@ -1,6 +1,6 @@
 # Praval Development Makefile
 
-.PHONY: help setup test test-cov build clean format lint type-check dev-install release docs-html docs-clean docs-serve docs-check
+.PHONY: help setup test test-cov build clean format lint type-check dev-install release docs-html docs-clean docs-serve docs-check pdf pdf-lualatex pdf-xelatex pdf-tectonic pdf-compare pdf-clean
 
 # Default target
 help:
@@ -23,6 +23,14 @@ help:
 	@echo "  docs-serve   - Build and open documentation in browser"
 	@echo "  docs-check   - Check documentation for errors"
 	@echo "  docs-deploy  - Build and deploy docs to praval-ai website"
+	@echo ""
+	@echo "📄 PDF Manual:"
+	@echo "  pdf          - Generate PDF with LuaLaTeX (recommended)"
+	@echo "  pdf-lualatex - Generate PDF with LuaLaTeX engine"
+	@echo "  pdf-xelatex  - Generate PDF with XeLaTeX engine"
+	@echo "  pdf-tectonic - Generate PDF with Tectonic engine"
+	@echo "  pdf-compare  - Generate PDFs with all engines for comparison"
+	@echo "  pdf-clean    - Clean generated PDFs"
 	@echo ""
 	@echo "📦 Build & Release:"
 	@echo "  build        - Build package (requires 80% test coverage)"
@@ -155,3 +163,78 @@ docs-deploy: docs-html
 	@echo "✅ Documentation deployed!"
 	@echo ""
 	@echo "📋 Next: cd ~/Github/praval-ai && git add docs/ && git commit && git push"
+
+# PDF Manual Generation
+PDF_DIR = docs/generated
+MANUAL_SRC = docs/praval-manual.md
+COMMON_OPTS = -V geometry:margin=1.2in \
+              -V fontsize=11pt \
+              -V linestretch=1.15 \
+              -V linkcolor=blue \
+              -V urlcolor=blue \
+              --toc \
+              --toc-depth=2 \
+              --number-sections \
+              --highlight-style=tango
+
+$(PDF_DIR):
+	mkdir -p $(PDF_DIR)
+
+# LuaLaTeX (Recommended)
+pdf-lualatex: $(PDF_DIR)
+	@echo "📄 Generating PDF with LuaLaTeX..."
+	pandoc $(MANUAL_SRC) -o $(PDF_DIR)/praval-manual.pdf \
+		--pdf-engine=lualatex \
+		-V documentclass=report \
+		-V logo=logo.png \
+		$(COMMON_OPTS) \
+		--pdf-engine-opt=-shell-escape
+	@echo "✅ Generated: $(PDF_DIR)/praval-manual.pdf"
+
+# XeLaTeX (Current)
+pdf-xelatex: $(PDF_DIR)
+	@echo "📄 Generating PDF with XeLaTeX..."
+	pandoc $(MANUAL_SRC) -o $(PDF_DIR)/praval-manual-xelatex.pdf \
+		--pdf-engine=xelatex \
+		$(COMMON_OPTS)
+	@echo "✅ Generated: $(PDF_DIR)/praval-manual-xelatex.pdf"
+
+# Tectonic (Modern, requires installation)
+pdf-tectonic: $(PDF_DIR)
+	@if command -v tectonic >/dev/null 2>&1; then \
+		echo "📄 Generating PDF with Tectonic..."; \
+		pandoc $(MANUAL_SRC) -o $(PDF_DIR)/praval-manual-tectonic.pdf \
+			--pdf-engine=tectonic \
+			$(COMMON_OPTS); \
+		echo "✅ Generated: $(PDF_DIR)/praval-manual-tectonic.pdf"; \
+	else \
+		echo "❌ Tectonic not installed. Run: brew install tectonic"; \
+		exit 1; \
+	fi
+
+# Generate all versions for comparison
+pdf-compare: $(PDF_DIR)
+	@echo "📊 Generating PDFs with all engines for comparison..."
+	@echo ""
+	@echo "1/3 - LuaLaTeX..."
+	@$(MAKE) pdf-lualatex --no-print-directory
+	@echo ""
+	@echo "2/3 - XeLaTeX..."
+	@$(MAKE) pdf-xelatex --no-print-directory
+	@echo ""
+	@echo "3/3 - Tectonic (if available)..."
+	@$(MAKE) pdf-tectonic --no-print-directory || echo "   (skipped - not installed)"
+	@echo ""
+	@echo "✅ All PDFs generated in $(PDF_DIR)/"
+	@echo ""
+	@echo "File sizes:"
+	@ls -lh $(PDF_DIR)/praval-manual*.pdf 2>/dev/null | awk '{print "  " $$9 " - " $$5}' || echo "  No PDFs found"
+
+# Default PDF target (uses recommended engine)
+pdf: pdf-lualatex
+
+# Clean generated PDFs
+pdf-clean:
+	@echo "🧹 Cleaning generated PDFs..."
+	rm -f $(PDF_DIR)/praval-manual*.pdf
+	@echo "✅ PDFs cleaned"
