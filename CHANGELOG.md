@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.12] - 2025-11-06
+
+### Fixed
+- 🐛 **Critical: Reef Broadcast Agent Invocation** - Fixed issue where @agent decorated functions were not being invoked when reef.broadcast() was called
+  - Agents now subscribe to both their own channel AND the default broadcast channel
+  - Prevents duplicate invocations through handler delegation
+  - Unblocks Phase 3B agent processing pipeline
+
+### Changed
+- Enhanced agent subscription mechanism in @agent decorator
+- `ReefChannel` handler invocation already supported both scenarios
+
+### Testing
+- Added comprehensive test suite: `tests/test_reef_broadcast_fix.py` (12 tests)
+- Tests cover: basic invocation, multiple agents, no duplicates, custom channels, concurrency, regressions
+- All 89 tests passing (12 new + 53 decorator + 24 reef)
+
+### Technical Details
+- **Modified**: `src/praval/decorators.py` (~10 lines)
+- **Added**: `tests/test_reef_broadcast_fix.py` (445 lines)
+- **Breaking Changes**: None - fully backward compatible
+
+### Impact
+- ✅ Agents now correctly receive broadcasts from reef.broadcast()
+- ✅ Unblocks entire Phase 3B agent processing pipeline
+- ✅ Enables proper spore-based communication patterns
+- ✅ No regressions to existing functionality
+
 ## [0.7.11] - 2025-11-05
 
 ### Added
