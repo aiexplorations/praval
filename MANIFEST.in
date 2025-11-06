@@ -1,6 +1,6 @@
 include README.md
 include LICENSE
-include logo.png
+include docs/assets/logo.png
 include pyproject.toml
 recursive-include src *.py
 recursive-include examples *.py

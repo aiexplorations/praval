@@ -139,6 +139,7 @@ Thumbs.db
 agent_states/
 knowledge_graph_*.json
 .praval/
+temp_plans/
 
 # VentureLens output files (exclude generated reports)
 VentureLens_*.html

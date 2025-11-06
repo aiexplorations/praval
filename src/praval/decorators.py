@@ -188,7 +188,17 @@ def agent(name: Optional[str] = None,
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
-        
+
+        # CRITICAL FIX for reef broadcast invocation:
+        # Subscribe agent to the default broadcast channel so it receives
+        # spores from reef.broadcast(). This ensures agents listening on their
+        # own channel ALSO receive system-wide broadcasts.
+        #
+        # The handler is delegated through on_spore_received to the custom
+        # agent_handler set above, preventing duplicate invocations.
+        reef = get_reef()
+        reef.subscribe(agent_name, underlying_agent.on_spore_received, channel=reef.default_channel, replace=True)
+
         # Auto-register tools from the tool registry
         _auto_register_tools(underlying_agent, agent_name)
         
