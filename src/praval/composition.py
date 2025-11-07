@@ -3,6 +3,12 @@ Composition utilities for decorator-based agents.
 
 This module provides utilities for composing and orchestrating agents
 decorated with the @agent decorator.
+
+Key Functions:
+- start_agents(): Local agents with initial data (InMemoryBackend)
+- run_agents(): Distributed agents with RabbitMQ (use AgentRunner)
+- agent_pipeline(): Sequential agent processing
+- AgentSession: Grouped agent communication
 """
 
 from typing import Callable, List, Dict, Any, Optional
@@ -11,6 +17,7 @@ import threading
 
 from .core.reef import get_reef
 from .decorators import get_agent_info
+from .core.agent_runner import run_agents as _run_agents_impl
 
 
 def agent_pipeline(*agents: Callable, channel: str = "pipeline") -> Callable:
@@ -190,36 +197,79 @@ class AgentSession:
         }
 
 
-def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] = None, 
+def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] = None,
                  channel: str = "startup") -> str:
     """
     Convenience function to start multiple agents with initial data.
-    
+
+    Use this for LOCAL agents (InMemoryBackend). For DISTRIBUTED agents with RabbitMQ,
+    use run_agents() instead.
+
     Args:
         *agent_funcs: Functions decorated with @agent
         initial_data: Initial data to broadcast (optional)
         channel: Channel to use for startup communication
-        
+
     Returns:
         Spore ID of startup broadcast
-        
+
     Example:
-        start_agents(explorer, analyzer, curator, 
+        start_agents(explorer, analyzer, curator,
                     initial_data={"task": "analyze market trends"})
     """
     # Subscribe all agents to startup channel
     reef = get_reef()
     reef.create_channel(channel)
-    
+
     for agent_func in agent_funcs:
         if not hasattr(agent_func, '_praval_agent'):
             raise ValueError(f"Function {agent_func.__name__} is not decorated with @agent")
-        
+
         agent_info = get_agent_info(agent_func)
         agent_info["underlying_agent"].subscribe_to_channel(channel)
-    
+
     # Broadcast initial data if provided
     if initial_data:
         return reef.system_broadcast(initial_data, channel)
     else:
         return reef.system_broadcast({"type": "agents_started"}, channel)
+
+
+def run_agents(*agent_funcs: Callable, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Run distributed agents with proper async lifecycle management.
+
+    This is the recommended way to run agents with RabbitMQ backend. It:
+    1. Creates and manages an asyncio event loop
+    2. Initializes the RabbitMQ backend
+    3. Ensures agents consume messages from the broker
+    4. Handles graceful shutdown on signals (SIGTERM, SIGINT)
+
+    Args:
+        *agent_funcs: Functions decorated with @agent
+        backend_config: RabbitMQ configuration dict:
+            {
+                'url': 'amqp://user:pass@host:5672/',
+                'exchange_name': 'praval.agents',
+                'verify_tls': True/False
+            }
+
+    Example:
+        @agent("processor")
+        def processor(spore):
+            return {"status": "processed"}
+
+        @agent("analyzer")
+        def analyzer(spore):
+            return {"analysis": "complete"}
+
+        run_agents(
+            processor,
+            analyzer,
+            backend_config={
+                'url': 'amqp://localhost:5672/',
+                'exchange_name': 'praval.agents'
+            }
+        )
+    """
+    return _run_agents_impl(*agent_funcs, backend_config=backend_config)
