@@ -71,7 +71,8 @@ class AgentRunner:
         agents: List[Callable],
         backend_config: Optional[Dict[str, Any]] = None,
         backend: Optional[Any] = None,
-        loop: Optional[asyncio.AbstractEventLoop] = None
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        channel_queue_map: Optional[Dict[str, str]] = None
     ):
         """
         Initialize the agent runner.
@@ -86,9 +87,13 @@ class AgentRunner:
                 }
             backend: Optional pre-created RabbitMQBackend instance
             loop: Optional asyncio event loop (creates new one if None)
+            channel_queue_map: Optional mapping of Praval channels to RabbitMQ queues
+                Enables direct queue consumption for pre-configured queues.
+                Example: {"data_received": "agent.data_analyzer"}
         """
         self.agents = agents
         self.backend_config = backend_config or {}
+        self.channel_queue_map = channel_queue_map or {}
         self.backend = backend or self._create_backend()
         self.loop = loop
         self.reef: Optional[Reef] = None
@@ -106,7 +111,8 @@ class AgentRunner:
     def _create_backend(self) -> Any:
         """Create RabbitMQ backend from config."""
         if self.backend_config:
-            return RabbitMQBackend()
+            # Pass channel_queue_map to RabbitMQBackend for direct queue consumption
+            return RabbitMQBackend(channel_queue_map=self.channel_queue_map)
         else:
             # Use InMemory backend if no config provided
             from .reef_backend import InMemoryBackend
@@ -279,7 +285,8 @@ class AgentRunner:
 def run_agents(
     *agents: Callable,
     backend_config: Optional[Dict[str, Any]] = None,
-    backend: Optional[Any] = None
+    backend: Optional[Any] = None,
+    channel_queue_map: Optional[Dict[str, str]] = None
 ) -> None:
     """
     Convenience function to run distributed agents.
@@ -291,20 +298,10 @@ def run_agents(
         *agents: Agent functions decorated with @agent
         backend_config: RabbitMQ configuration (required for distributed mode)
         backend: Optional pre-created backend instance
+        channel_queue_map: Optional mapping of Praval channels to pre-configured RabbitMQ queues.
+            Use when agents should consume from existing queue bindings.
 
-    Example:
-        from praval import agent
-        from praval.core.agent_runner import run_agents
-
-        @agent("processor")
-        def process_data(spore):
-            return {"processed": True}
-
-        @agent("analyzer")
-        def analyze_results(spore):
-            return {"analysis": "complete"}
-
-        # Run with RabbitMQ
+    Example (Topic-based routing):
         run_agents(
             process_data,
             analyze_results,
@@ -313,10 +310,25 @@ def run_agents(
                 'exchange_name': 'praval.agents'
             }
         )
+
+    Example (Queue-based consumption):
+        run_agents(
+            process_data,
+            analyze_results,
+            backend_config={
+                'url': 'amqp://localhost:5672/',
+                'exchange_name': 'praval.agents'
+            },
+            channel_queue_map={
+                "data_received": "agent.data_analyzer",
+                "results": "agent.results_handler"
+            }
+        )
     """
     runner = AgentRunner(
         agents=list(agents),
         backend_config=backend_config,
-        backend=backend
+        backend=backend,
+        channel_queue_map=channel_queue_map
     )
     runner.run()

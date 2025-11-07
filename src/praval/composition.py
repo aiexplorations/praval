@@ -235,7 +235,11 @@ def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] 
         return reef.system_broadcast({"type": "agents_started"}, channel)
 
 
-def run_agents(*agent_funcs: Callable, backend_config: Optional[Dict[str, Any]] = None) -> None:
+def run_agents(
+    *agent_funcs: Callable,
+    backend_config: Optional[Dict[str, Any]] = None,
+    channel_queue_map: Optional[Dict[str, str]] = None
+) -> None:
     """
     Run distributed agents with proper async lifecycle management.
 
@@ -253,16 +257,12 @@ def run_agents(*agent_funcs: Callable, backend_config: Optional[Dict[str, Any]] 
                 'exchange_name': 'praval.agents',
                 'verify_tls': True/False
             }
+        channel_queue_map: Optional mapping of Praval channels to RabbitMQ queues.
+            Use this when agents should consume from pre-configured queues instead
+            of topic-based subscriptions.
+            Example: {"data_received": "agent.data_analyzer"}
 
-    Example:
-        @agent("processor")
-        def processor(spore):
-            return {"status": "processed"}
-
-        @agent("analyzer")
-        def analyzer(spore):
-            return {"analysis": "complete"}
-
+    Example (Topic-based, Praval-managed routing):
         run_agents(
             processor,
             analyzer,
@@ -271,5 +271,23 @@ def run_agents(*agent_funcs: Callable, backend_config: Optional[Dict[str, Any]] 
                 'exchange_name': 'praval.agents'
             }
         )
+
+    Example (Queue-based, pre-configured RabbitMQ):
+        run_agents(
+            processor,
+            analyzer,
+            backend_config={
+                'url': 'amqp://localhost:5672/',
+                'exchange_name': 'praval.agents'
+            },
+            channel_queue_map={
+                "data_received": "agent.data_analyzer",
+                "qc_inspection_received": "agent.vision_inspector"
+            }
+        )
     """
-    return _run_agents_impl(*agent_funcs, backend_config=backend_config)
+    return _run_agents_impl(
+        *agent_funcs,
+        backend_config=backend_config,
+        channel_queue_map=channel_queue_map
+    )
