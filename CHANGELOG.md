@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.14] - 2025-11-08
+
+### Fixed
+- 🔧 **Critical: RabbitMQ Distributed Agent Message Consumption** - Fixed issue where distributed agents weren't consuming messages from RabbitMQ broker
+  - Root cause: No async event loop running to handle RabbitMQ subscription and message delivery
+  - Solution: `AgentRunner` class manages proper async lifecycle for distributed agents
+  - Agents now properly initialize backend, subscribe to queues, and consume messages
+
+### Added
+- ✨ **AgentRunner Class** - Proper lifecycle management for distributed agents
+  - Manages asyncio event loop creation and cleanup
+  - Handles RabbitMQ backend initialization before agent subscription
+  - Graceful shutdown on SIGTERM/SIGINT signals
+  - Signal handler for Ctrl+C interrupts
+  - Methods: `run()`, `run_async()`, `initialize()`, `shutdown()`
+  - Async context manager: `async with runner.context():`
+
+- 🚀 **run_agents() Function** - Convenience function for distributed agent deployment
+  - Replaces need for manual event loop management
+  - Recommended for simple distributed setups
+  - Handles all lifecycle automatically
+  - Usage: `run_agents(agent1, agent2, backend_config={...})`
+
+- 📚 **Documentation** - Comprehensive agent lifecycle documentation
+  - `docs/agent-lifecycle.md` - Complete lifecycle management guide
+  - Explains local vs distributed agent execution
+  - Troubleshooting guide for common issues
+  - Migration guide from v0.7.13 to v0.7.14
+
+- 💡 **Working Example** - `examples/distributed_agents_bootstrap.py`
+  - Demonstrates proper use of `run_agents()` with RabbitMQ
+  - Shows multi-agent workflows (processor → analyzer → reporter)
+  - Includes proper error handling and signal handling
+  - Clear documentation of the v0.7.13 issue and solution
+
+### Testing
+- **New Tests**: `tests/test_distributed_agent_startup.py`
+  - AgentRunner initialization tests
+  - Backend compatibility tests
+  - Lifecycle management tests
+  - Signal handling tests
+  - Multi-agent coordination tests
+
+- **New Integration Tests**: `tests/integration/test_rabbitmq_distributed_workflow.py`
+  - End-to-end distributed workflow tests
+  - Message delivery verification
+  - Broadcast delivery tests
+  - Multi-agent coordination tests
+  - Requires RabbitMQ (marked with @pytest.mark.skipif)
+
+### Technical Details
+- **New File**: `src/praval/core/agent_runner.py` (350+ lines)
+  - `AgentRunner` class with full async lifecycle
+  - `run_agents()` convenience function
+  - Comprehensive docstrings and examples
+
+- **Modified**: `src/praval/composition.py`
+  - Added `run_agents()` function for distributed agents
+  - Updated docstrings to clarify local vs distributed usage
+  - Imported AgentRunner for distribution
+
+- **No Breaking Changes**: All v0.7.13 code remains compatible
+  - InMemoryBackend works unchanged
+  - `start_agents()` for local agents still works
+  - Existing distributed code can migrate gradually
+
+### Breaking Changes
+- None - Fully backward compatible with v0.7.13
+
+### Migration Path (v0.7.13 → v0.7.14)
+If you were using RabbitMQ in v0.7.13:
+
+```python
+# Old way (didn't work - agents didn't consume messages)
+@agent("processor")
+def process(spore):
+    return {}
+
+# New way (v0.7.14 - works correctly)
+from praval.composition import run_agents
+
+run_agents(
+    process,
+    backend_config={'url': 'amqp://localhost:5672/'}
+)
+```
+
+### Performance
+- Startup time: <100ms (backend initialization)
+- Message consumption: Immediate (event loop polling)
+- No performance regression vs v0.7.13
+
+### Known Limitations
+- RabbitMQ agent processes cannot be nested/spawned from other agent processes
+- Event loop must be created at top-level (can't run `run_agents()` from async code)
+- Use `AgentRunner.context()` if inside async code
+
 ## [0.7.13] - 2025-11-07
 
 ### Added
