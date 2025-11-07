@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.15] - 2025-11-08
+
+### Fixed
+- 🔧 **RabbitMQ Queue Consumption with Pre-configured Queues** - Agents can now consume from pre-configured RabbitMQ queues instead of only topic-based subscriptions
+  - Added `channel_queue_map` parameter to `run_agents()` and `AgentRunner`
+  - Enables agents to work with existing RabbitMQ setups with queue bindings
+  - Solves issue where messages on different exchanges weren't reaching agents
+
+### Added
+- 📚 **Queue-Based Consumption Support**
+  - RabbitMQBackend now supports both topic-based (default) and queue-based consumption modes
+  - Channel-to-queue mapping allows direct consumption from pre-configured queues
+  - Example: `{"data_received": "agent.data_analyzer"}` maps channel to queue
+
+- 🚀 **Enhanced run_agents() Function**
+  - New `channel_queue_map` parameter for queue-based routing
+  - Documentation with examples for both topic-based and queue-based approaches
+  - Hybrid mode support (some channels use queues, others use topics)
+
+- 🏗️ **Enhanced AgentRunner Class**
+  - Accepts `channel_queue_map` in constructor
+  - Automatically creates RabbitMQBackend with queue mappings
+  - Full documentation and examples
+
+- 📖 **Documentation**: `docs/rabbitmq-queue-consumption.md`
+  - Explains topic-based vs queue-based routing
+  - Real-world examples with pre-configured RabbitMQ setups
+  - Hybrid approach examples
+  - Troubleshooting guide
+
+### Technical Details
+- **Modified**: `src/praval/core/reef_backend.py`
+  - RabbitMQBackend.__init__() now accepts `channel_queue_map`
+  - subscribe() method supports both modes based on mapping
+  - Enhanced documentation with mode explanations
+
+- **Modified**: `src/praval/core/agent_runner.py`
+  - AgentRunner.__init__() accepts `channel_queue_map`
+  - _create_backend() passes mapping to RabbitMQBackend
+  - run_agents() function supports channel_queue_map parameter
+
+- **Modified**: `src/praval/composition.py`
+  - run_agents() function updated with `channel_queue_map` parameter
+  - Enhanced documentation with dual-mode examples
+
+### Breaking Changes
+- None - Fully backward compatible
+
+### Migration Path (v0.7.14 → v0.7.15)
+No changes needed. All v0.7.14 code works unchanged.
+
+To use pre-configured queues:
+```python
+# Old way (still works - topic-based)
+run_agents(agent1, agent2, backend_config={...})
+
+# New way (queue-based for existing RabbitMQ setups)
+run_agents(
+    agent1, agent2,
+    backend_config={...},
+    channel_queue_map={
+        "channel1": "existing.queue.1",
+        "channel2": "existing.queue.2"
+    }
+)
+```
+
+### Backward Compatibility
+✅ All v0.7.14 code continues to work
+✅ Default behavior (topic-based) unchanged
+✅ No breaking API changes
+✅ Can mix topic and queue-based consumption in same runner
+
 ## [0.7.14] - 2025-11-08
 
 ### Fixed

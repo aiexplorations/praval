@@ -226,14 +226,29 @@ class RabbitMQBackend(ReefBackend):
     - Distributed message routing
     - Persistent message delivery
     - Topic-based wildcards (AMQP routing keys)
+    - Direct queue consumption (for pre-configured queues)
     - Native Spore wire format
     - Automatic reconnection handling
+
+    Modes of Operation:
+    1. Topic-based subscription (default):
+       - Subscribes to topics on configured exchange
+       - Best for Praval-managed message routing
+       - Example: channel "data_received" → topic "data_received.*"
+
+    2. Queue-based consumption (new):
+       - Directly consumes from pre-configured RabbitMQ queues
+       - Best for existing RabbitMQ setups with queue bindings
+       - Specify channel_queue_map when creating backend
+       - Example: {"data_received": "agent.data_analyzer"}
     """
 
-    def __init__(self, transport=None):
+    def __init__(self, transport=None, channel_queue_map: Optional[Dict[str, str]] = None):
         super().__init__()
         self.transport = transport
-        self.subscriptions: Dict[str, List[str]] = {}  # channel -> [routing_keys]
+        self.subscriptions: Dict[str, List[str]] = {}  # channel -> [routing_keys/queue_names]
+        self.channel_queue_map = channel_queue_map or {}  # channel -> pre-configured queue name mapping
+        self.queue_consumers: Dict[str, Any] = {}  # queue_name -> consumer task
 
     async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -252,6 +267,11 @@ class RabbitMQBackend(ReefBackend):
 
         Raises:
             ConnectionError: If RabbitMQ connection fails
+
+        Note:
+            If channel_queue_map was provided in __init__, this will set up
+            direct queue consumers after backend initialization. This allows
+            agents to consume from pre-configured queues in existing RabbitMQ setups.
         """
         if not self.transport:
             try:
@@ -308,6 +328,16 @@ class RabbitMQBackend(ReefBackend):
         Subscribe to RabbitMQ channel.
 
         Messages are received as Spore objects via native AMQP format.
+
+        Supports two modes:
+        1. Topic-based subscription (default):
+           - Subscribes to topics on configured exchange
+           - Uses wildcard routing: "channel_name.*"
+
+        2. Queue-based consumption (if channel_queue_map configured):
+           - Directly consumes from pre-configured queue
+           - Useful for existing RabbitMQ setups with queue bindings
+           - Queue name mapped from channel via channel_queue_map
         """
         if not self.connected:
             raise RuntimeError("RabbitMQ backend not connected")
@@ -319,18 +349,41 @@ class RabbitMQBackend(ReefBackend):
                 if self._spore_matches_channel(spore, channel):
                     await handler(spore)
 
-            # Generate topic with wildcards
-            topic = self._generate_topic(channel)
+            # Check if this channel has a mapped queue
+            if channel in self.channel_queue_map:
+                # Mode 2: Direct queue consumption
+                queue_name = self.channel_queue_map[channel]
+                logger.debug(
+                    f"RabbitMQBackend: Using queue-based consumption for channel '{channel}' → queue '{queue_name}'"
+                )
 
-            # Subscribe to topic
-            await self.transport.subscribe(topic, spore_handler)
+                # Subscribe to the pre-configured queue
+                await self.transport.subscribe_to_queue(queue_name, spore_handler)
 
-            # Track subscription
-            if channel not in self.subscriptions:
-                self.subscriptions[channel] = []
-            self.subscriptions[channel].append(topic)
+                # Track subscription
+                if channel not in self.subscriptions:
+                    self.subscriptions[channel] = []
+                self.subscriptions[channel].append(queue_name)
 
-            logger.debug(f"RabbitMQBackend subscribed to channel: {channel} (topic: {topic})")
+                logger.debug(
+                    f"RabbitMQBackend subscribed to queue: {queue_name} (for channel: {channel})"
+                )
+            else:
+                # Mode 1: Topic-based subscription (default)
+                topic = self._generate_topic(channel)
+                logger.debug(
+                    f"RabbitMQBackend: Using topic-based subscription for channel '{channel}' → topic '{topic}'"
+                )
+
+                # Subscribe to topic
+                await self.transport.subscribe(topic, spore_handler)
+
+                # Track subscription
+                if channel not in self.subscriptions:
+                    self.subscriptions[channel] = []
+                self.subscriptions[channel].append(topic)
+
+                logger.debug(f"RabbitMQBackend subscribed to channel: {channel} (topic: {topic})")
 
         except Exception as e:
             self.stats['errors'] += 1
