@@ -163,33 +163,58 @@ class AMQPTransport(MessageTransport):
         except Exception as e:
             raise ConnectionError(f"Failed to initialize AMQP transport: {e}")
     
-    async def publish(self, topic: str, message: bytes, 
+    async def publish(self, topic: str, message: Union[bytes, 'Spore'],
                      priority: int = 5, ttl: Optional[int] = None) -> None:
-        """Publish message to AMQP exchange."""
+        """
+        Publish message to AMQP exchange.
+
+        Supports both raw bytes (backward compatibility) and native Spore objects.
+        When a Spore is provided, it uses the native AMQP format (Spore as wire protocol).
+
+        Args:
+            topic: Routing key for the message
+            message: Either bytes (legacy) or Spore object (native)
+            priority: Message priority (1-10, mapped to AMQP 0-255)
+            ttl: Time-to-live in seconds (legacy parameter, ignored for Spore)
+        """
         if not self.connected or not self.exchange:
             raise PublishError("AMQP transport not connected")
-        
+
         try:
-            amqp_message = aio_pika.Message(
-                message,
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                priority=min(max(priority, 0), 255),  # AMQP priority range
-                expiration=ttl * 1000 if ttl else None,  # TTL in milliseconds
-                message_id=str(uuid.uuid4()),
-                timestamp=time.time()
-            )
-            
+            # Check if message is a Spore object (native format)
+            if hasattr(message, 'to_amqp_message'):
+                # Native Spore format - direct conversion
+                amqp_message = message.to_amqp_message()
+            else:
+                # Legacy bytes format - wrap in AMQP message
+                amqp_message = aio_pika.Message(
+                    message,
+                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                    priority=min(max(priority, 0), 255),  # AMQP priority range
+                    expiration=ttl * 1000 if ttl else None,  # TTL in milliseconds
+                    message_id=str(uuid.uuid4()),
+                    timestamp=time.time()
+                )
+
             await self.exchange.publish(amqp_message, routing_key=topic)
             logger.debug(f"Published AMQP message to topic: {topic}")
-            
+
         except Exception as e:
             raise PublishError(f"Failed to publish AMQP message: {e}")
     
     async def subscribe(self, topic: str, callback: Callable) -> None:
-        """Subscribe to AMQP topic with wildcard support."""
+        """
+        Subscribe to AMQP topic with wildcard support.
+
+        Messages can be received in two ways:
+        1. Native Spore format: Automatically converted from AMQP headers+body to Spore
+        2. Legacy raw bytes: Passed as-is for backward compatibility
+
+        The handler is called with either a Spore object or bytes, depending on the callback signature.
+        """
         if not self.connected or not self.channel:
             raise ConnectionError("AMQP transport not connected")
-        
+
         try:
             # Create unique queue for this subscription
             queue_name = f"praval.{uuid.uuid4().hex[:8]}.{topic.replace('#', 'all').replace('*', 'any')}"
@@ -199,21 +224,29 @@ class AMQPTransport(MessageTransport):
                 exclusive=False,
                 auto_delete=True
             )
-            
+
             # Bind queue to exchange with routing key
             await queue.bind(self.exchange, routing_key=topic)
-            
-            # Setup consumer
+
+            # Setup consumer that tries native Spore format first
             async def message_handler(message):
                 async with message.process():
                     try:
-                        await callback(message.body)
+                        # Try to convert to native Spore format
+                        # This requires importing Spore class (circular import safe via lazy import)
+                        try:
+                            from .reef import Spore
+                            spore = Spore.from_amqp_message(message)
+                            await callback(spore)
+                        except ImportError:
+                            # Fallback to raw bytes if Spore not available
+                            await callback(message.body)
                     except Exception as e:
                         logger.error(f"AMQP message callback error: {e}")
-            
+
             await queue.consume(message_handler)
             logger.info(f"Subscribed to AMQP topic: {topic}")
-            
+
         except Exception as e:
             raise ConnectionError(f"Failed to subscribe to AMQP topic: {e}")
     

@@ -129,14 +129,137 @@ class Spore:
             knowledge_size = len(str(self.knowledge)) if self.knowledge else 0
             metadata_size = len(str(self.metadata)) if self.metadata else 0
             refs_size = len(str(self.knowledge_references)) if self.knowledge_references else 0
-            
+
             # Add approximate overhead for other fields
             overhead = 500  # Estimated JSON overhead
-            
+
             return knowledge_size + metadata_size + refs_size + overhead
         except:
             # Fallback to actual serialization if estimation fails
             return len(self.to_json())
+
+    def to_amqp_message(self) -> 'aio_pika.Message':
+        """
+        Convert Spore to AMQP message with metadata in headers.
+
+        Design:
+        - Body: Knowledge payload (JSON serialized)
+        - Headers: Spore metadata (spore_id, type, from_agent, etc.)
+        - Properties: AMQP message properties (priority, TTL, etc.)
+
+        This makes Spore the native AMQP format, eliminating intermediate conversions.
+
+        Returns:
+            aio_pika.Message: AMQP message ready for publication
+
+        Raises:
+            ImportError: If aio-pika is not installed
+        """
+        try:
+            import aio_pika
+        except ImportError:
+            raise ImportError("aio-pika package required for AMQP serialization")
+
+        # Serialize knowledge to JSON bytes
+        knowledge_bytes = json.dumps(self.knowledge).encode('utf-8')
+
+        # Build AMQP headers with spore metadata
+        headers = {
+            'spore_id': self.id,
+            'spore_type': self.spore_type.value,
+            'from_agent': self.from_agent,
+            'to_agent': self.to_agent or '',
+            'created_at': self.created_at.isoformat(),
+            'expires_at': (self.expires_at.isoformat() if self.expires_at else ''),
+            'priority': str(self.priority),
+            'reply_to': (self.reply_to or ''),
+            'version': '1.0',  # Protocol versioning for future compatibility
+        }
+
+        # Calculate TTL in milliseconds (if expires_at is set)
+        expiration_ms = None
+        if self.expires_at:
+            ttl_seconds = (self.expires_at - datetime.now()).total_seconds()
+            if ttl_seconds > 0:
+                expiration_ms = int(ttl_seconds * 1000)
+
+        # Create AMQP message with properties
+        return aio_pika.Message(
+            body=knowledge_bytes,
+            headers=headers,
+            message_id=self.id,
+            timestamp=self.created_at,
+            priority=min(max(self.priority, 0), 255),  # AMQP priority range 0-255
+            expiration=expiration_ms,  # TTL in milliseconds
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            content_type='application/json',
+        )
+
+    @classmethod
+    def from_amqp_message(cls, amqp_msg: 'aio_pika.Message') -> 'Spore':
+        """
+        Create Spore directly from AMQP message.
+
+        Reconstructs a Spore object from AMQP message headers and body,
+        with zero intermediate conversions (AMQP message directly becomes Spore).
+
+        Args:
+            amqp_msg: aio_pika.Message from AMQP broker
+
+        Returns:
+            Spore: Reconstructed spore object with all metadata
+
+        Raises:
+            ImportError: If aio-pika is not installed
+            ValueError: If required spore headers are missing
+        """
+        try:
+            import aio_pika
+        except ImportError:
+            raise ImportError("aio-pika package required for AMQP deserialization")
+
+        headers = amqp_msg.headers or {}
+
+        # Parse knowledge from message body
+        try:
+            knowledge = json.loads(amqp_msg.body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Fallback if body is not valid JSON
+            knowledge = {"raw_content": amqp_msg.body.decode('utf-8', errors='replace')}
+
+        # Parse expires_at timestamp
+        expires_at = None
+        if headers.get('expires_at'):
+            try:
+                expires_at = datetime.fromisoformat(headers['expires_at'])
+            except (ValueError, TypeError):
+                expires_at = None
+
+        # Parse created_at timestamp
+        created_at = datetime.now()
+        if headers.get('created_at'):
+            try:
+                created_at = datetime.fromisoformat(headers['created_at'])
+            except (ValueError, TypeError):
+                created_at = datetime.now()
+        elif amqp_msg.timestamp:
+            created_at = amqp_msg.timestamp
+
+        # Reconstruct Spore from headers
+        return cls(
+            id=headers.get('spore_id', amqp_msg.message_id or str(uuid.uuid4())),
+            spore_type=SporeType(headers.get('spore_type', 'knowledge')),
+            from_agent=headers.get('from_agent', 'unknown'),
+            to_agent=(headers.get('to_agent') or None),
+            knowledge=knowledge,
+            created_at=created_at,
+            expires_at=expires_at,
+            priority=int(headers.get('priority', 5)),
+            reply_to=(headers.get('reply_to') or None),
+            metadata={},  # Metadata not serialized in AMQP headers (to keep headers small)
+            knowledge_references=[],
+            data_references=[]
+        )
 
 
 class ReefChannel:
@@ -319,24 +442,46 @@ class ReefChannel:
 class Reef:
     """
     The Reef manages all communication channels and facilitates agent communication.
-    
+
     Like a coral reef ecosystem, it:
     - Maintains multiple communication channels
     - Enables knowledge flow between polyps (agents)
     - Supports both direct and broadcast communication
     - Provides network health monitoring
+
+    The Reef uses pluggable backends for transport:
+    - InMemoryBackend: Local agent communication (default)
+    - RabbitMQBackend: Distributed agent communication
+    - Future: HTTP, gRPC, Kafka, etc.
+
+    Agents work unchanged regardless of backend choice.
     """
-    
-    def __init__(self, default_max_workers: int = 4):
+
+    def __init__(self, default_max_workers: int = 4, backend=None):
+        """
+        Initialize Reef with optional backend.
+
+        Args:
+            default_max_workers: Thread workers per channel (InMemory only)
+            backend: ReefBackend instance (defaults to InMemoryBackend)
+        """
         self.channels: Dict[str, ReefChannel] = {}
         self.default_channel = "main"
         self.default_max_workers = default_max_workers
         self.lock = threading.RLock()
         self._shutdown = False
-        
+
+        # Set backend (default to InMemory for backward compatibility)
+        if backend is None:
+            from .reef_backend import InMemoryBackend
+            backend = InMemoryBackend()
+
+        self.backend = backend
+        self._backend_initialized = False
+
         # Create default channel
         self.create_channel(self.default_channel)
-        
+
         # Start background cleanup
         self.cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self.cleanup_thread.start()
@@ -355,6 +500,28 @@ class Reef:
     def get_channel(self, name: str) -> Optional[ReefChannel]:
         """Get a reef channel by name."""
         return self.channels.get(name)
+
+    async def initialize_backend(self, config: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Initialize the Reef backend (async operation for distributed backends).
+
+        Call this method to set up distributed backends like RabbitMQ.
+        InMemoryBackend initializes immediately, so this is optional for local usage.
+
+        Args:
+            config: Backend-specific configuration (passed to backend.initialize())
+        """
+        if not self._backend_initialized:
+            await self.backend.initialize(config or {})
+            self._backend_initialized = True
+            logger.info(f"Reef backend initialized: {self.backend.__class__.__name__}")
+
+    async def close_backend(self) -> None:
+        """Shutdown the backend (async operation for distributed backends)."""
+        if self._backend_initialized:
+            await self.backend.shutdown()
+            self._backend_initialized = False
+            logger.info(f"Reef backend shutdown: {self.backend.__class__.__name__}")
     
     def send(self, 
              from_agent: str,
@@ -494,16 +661,18 @@ class Reef:
         with self.lock:
             stats = {
                 'total_channels': len(self.channels),
+                'backend': self.backend.__class__.__name__,
+                'backend_stats': self.backend.get_stats(),
                 'channel_stats': {}
             }
-            
+
             for name, channel in self.channels.items():
                 stats['channel_stats'][name] = {
                     'active_spores': len(channel.spores),
                     'subscribers': len(channel.subscribers),
                     **channel.stats
                 }
-            
+
             return stats
     
     def shutdown(self, wait: bool = True) -> None:
