@@ -307,28 +307,41 @@ def broadcast(data: Dict[str, Any], channel: Optional[str] = None, message_type:
     """
     Quick broadcast function that uses the current agent's communication.
     Can only be used within @agent decorated functions.
-    
+
     Args:
         data: Data to broadcast
-        channel: Channel to broadcast to (defaults to agent's channel)
+        channel: Channel to broadcast to (defaults to reef's default channel for system-wide broadcasting)
         message_type: Message type to set (automatically added to data)
-        
+
     Returns:
         Spore ID of the broadcast message
-        
+
     Raises:
         RuntimeError: If called outside of an @agent function
+
+    Example:
+        # Broadcast to all agents on the default channel
+        broadcast({"type": "analysis_request", "data": findings})
+
+        # Broadcast to a specific channel
+        broadcast({"type": "alert"}, channel="urgent_alerts")
     """
     if not hasattr(_agent_context, 'agent') or _agent_context.agent is None:
         raise RuntimeError("broadcast() can only be used within @agent decorated functions")
-    
+
     # Add message type to data if specified
     broadcast_data = data.copy()
     if message_type:
         broadcast_data["type"] = message_type
-    
-    target_channel = channel or _agent_context.channel
-    return _agent_context.agent.broadcast_knowledge(broadcast_data, channel=target_channel)
+
+    # Default to reef's default channel (system-wide broadcast) if no channel specified
+    # This enables simple broadcast-based communication for smaller projects
+    # For larger projects with separation of concerns, specify explicit channels
+    if channel is None:
+        reef = get_reef()
+        channel = reef.default_channel
+
+    return _agent_context.agent.broadcast_knowledge(broadcast_data, channel=channel)
 
 
 def get_agent_info(agent_func: Callable) -> Dict[str, Any]:
