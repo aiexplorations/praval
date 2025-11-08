@@ -87,7 +87,7 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.15"
+__version__ = "0.7.16"
 __all__ = [
     # Core classes
     "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",

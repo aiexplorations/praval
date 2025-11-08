@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.16] - 2025-11-08
+
+### Fixed
+- 🔧 **broadcast() Now Works for Agent Chaining** - Fixed silent failure where broadcast() messages weren't reaching other agents
+  - broadcast() now defaults to reef's default channel ("main") instead of agent's own channel
+  - Enables simple agent-to-agent communication patterns (researcher → analyst → writer)
+  - Prevents silent failures - messages now reach intended recipients
+  - Maintains backward compatibility - explicit channel specification still works
+
+### Added
+- 🎯 **Broadcast Channel Options**
+  - Simple mode (default): broadcast() reaches all agents on default channel
+  - Advanced mode: explicit channel parameter for separation of concerns
+  - Examples in docstring showing both approaches
+
+- 🧪 **Comprehensive Broadcast Tests** (`tests/test_broadcast_chaining.py`)
+  - 5 new tests covering: simple broadcasts, multi-stage chains, explicit channels, filtering, isolation
+  - Tests verify agent chaining works correctly
+  - Validates agents don't receive their own broadcasts
+
+- 📖 **Website Sidebar Example** (`examples/website_sidebar_example.py`)
+  - Demonstrates three-agent collaboration pattern
+  - Shows broadcast-based message passing with responds_to filtering
+  - Ready-to-run example for documentation
+
+### Changed
+- 📝 **Updated broadcast() Docstring**
+  - Clarified that channel parameter is optional
+  - Added examples of default and explicit usage
+  - Documented design philosophy: simple by default, explicit when needed
+
+### Technical Details
+- **Modified**: `src/praval/decorators.py`
+  - broadcast() function now gets reef's default_channel when channel=None
+  - Updated docstring with clear examples
+  - Added comments explaining design decisions
+
 ## [0.7.15] - 2025-11-08
 
 ### Fixed
