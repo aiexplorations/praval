@@ -316,3 +316,12 @@ def get_trace_store() -> SQLiteTraceStore:
         _global_store = SQLiteTraceStore(config.storage_path)
 
     return _global_store
+
+
+def reset_trace_store() -> None:
+    """Reset the global trace store to None.
+
+    This is primarily used for testing to ensure test isolation.
+    """
+    global _global_store
+    _global_store = None

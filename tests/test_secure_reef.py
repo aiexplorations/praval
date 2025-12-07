@@ -12,6 +12,7 @@ This module tests:
 
 import asyncio
 import pytest
+import pytest_asyncio
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Any
@@ -109,21 +110,21 @@ class TestSecureReef:
     @pytest.fixture
     def mock_transport_factory(self):
         """Mock transport factory for testing."""
-        with patch('src.praval.core.secure_reef.TransportFactory') as mock_factory:
+        with patch('praval.core.secure_reef.TransportFactory') as mock_factory:
             mock_transport = MockTransport()
             mock_factory.create_transport.return_value = mock_transport
             yield mock_factory, mock_transport
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def secure_reef(self, mock_transport_factory):
         """Create secure reef for testing."""
         factory, transport = mock_transport_factory
-        
+
         reef = SecureReef(
             protocol=TransportProtocol.AMQP,
             transport_config={'host': 'localhost', 'port': 5672}
         )
-        
+
         await reef.initialize("test_agent")
         return reef, transport
     
@@ -131,24 +132,25 @@ class TestSecureReef:
     async def test_secure_reef_initialization(self, mock_transport_factory):
         """Test secure reef initialization."""
         factory, transport = mock_transport_factory
-        
+
         reef = SecureReef(
             protocol=TransportProtocol.MQTT,
             transport_config={'host': 'localhost', 'port': 1883}
         )
-        
+
         await reef.initialize("test_agent")
-        
+
         # Verify initialization
         assert reef.agent_name == "test_agent"
         assert reef.connected == True
         assert reef.key_manager is not None
         assert reef.spore_factory is not None
-        
+
         # Verify transport initialization
         factory.create_transport.assert_called_once_with(TransportProtocol.MQTT)
-        transport.initialize.assert_called_once()
-        
+        # MockTransport.initialize is a real method, verify via state
+        assert transport.connected == True
+
         # Verify key registration
         keys = await reef.key_registry.get_agent_keys("test_agent")
         assert keys is not None
@@ -256,7 +258,7 @@ class TestSecureReef:
         await reef.key_registry.register_agent("sender", sender_km.get_public_keys())
         
         # Create and serialize secure spore
-        from src.praval.core.secure_spore import SecureSporeFactory
+        from praval.core.secure_spore import SecureSporeFactory
         sender_factory = SecureSporeFactory(sender_km)
         
         knowledge = {"received": "message", "data": [1, 2, 3]}
@@ -289,7 +291,7 @@ class TestSecureReef:
         reef.register_handler(SporeType.KNOWLEDGE, lambda s: received_spores.append(s))
         
         # Create expired spore
-        from src.praval.core.secure_spore import SecureSpore
+        from praval.core.secure_spore import SecureSpore
         expired_spore = SecureSpore(
             id="expired-test",
             spore_type=SporeType.KNOWLEDGE,
@@ -320,7 +322,7 @@ class TestSecureReef:
         reef.register_handler(SporeType.KNOWLEDGE, lambda s: received_spores.append(s))
         
         # Create spore from same agent
-        from src.praval.core.secure_spore import SecureSpore
+        from praval.core.secure_spore import SecureSpore
         own_spore = SecureSpore(
             id="own-test",
             spore_type=SporeType.KNOWLEDGE,
@@ -364,7 +366,7 @@ class TestSecureReef:
         sender_km = SporeKeyManager("sender")
         await reef.key_registry.register_agent("sender", sender_km.get_public_keys())
         
-        from src.praval.core.secure_spore import SecureSporeFactory
+        from praval.core.secure_spore import SecureSporeFactory
         sender_factory = SecureSporeFactory(sender_km)
         
         secure_spore = sender_factory.create_secure_spore(
@@ -568,7 +570,15 @@ class TestSecureReef:
 
 class TestSecureReefPerformance:
     """Test secure reef performance characteristics."""
-    
+
+    @pytest.fixture
+    def mock_transport_factory(self):
+        """Mock transport factory for testing."""
+        with patch('praval.core.secure_reef.TransportFactory') as mock_factory:
+            mock_transport = MockTransport()
+            mock_factory.create_transport.return_value = mock_transport
+            yield mock_factory, mock_transport
+
     @pytest.mark.asyncio
     async def test_message_throughput(self, mock_transport_factory):
         """Test secure spore throughput."""

@@ -21,10 +21,10 @@ class TestMemoryManagerInitialization:
     def test_memory_manager_basic_initialization(self):
         """Test basic memory manager initialization with defaults."""
         manager = MemoryManager(agent_id="test_agent")
-        
+
         assert manager.agent_id == "test_agent"
-        # Backend will be "memory" since vector dependencies aren't available
-        assert manager.backend == "memory"
+        # Backend depends on available dependencies (chromadb > qdrant > memory)
+        assert manager.backend in ("memory", "qdrant", "chromadb")
         assert manager.qdrant_url == "http://localhost:6333"
         assert manager.collection_name == "praval_memories"
         assert manager.storage_path is None

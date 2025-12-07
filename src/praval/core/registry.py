@@ -84,3 +84,12 @@ def register_agent(agent: Agent) -> Agent:
 def get_registry() -> PravalRegistry:
     """Get the global registry instance."""
     return _global_registry
+
+
+def reset_registry() -> None:
+    """
+    Reset the global registry to a clean state.
+
+    This is primarily used for testing to ensure test isolation.
+    """
+    _global_registry.clear()

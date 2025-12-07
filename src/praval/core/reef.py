@@ -764,3 +764,20 @@ _global_reef = Reef()
 def get_reef() -> Reef:
     """Get the global reef instance."""
     return _global_reef
+
+
+def reset_reef() -> None:
+    """
+    Reset the global reef instance to a clean state.
+
+    This is primarily used for testing to ensure test isolation.
+    Clears all channels and reinitializes with just the default channel.
+    """
+    global _global_reef
+    with _global_reef.lock:
+        # Clear all channels
+        _global_reef.channels.clear()
+        # Recreate default channel
+        _global_reef.create_channel(_global_reef.default_channel)
+        _global_reef._shutdown = False
+        _global_reef._backend_initialized = False

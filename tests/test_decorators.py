@@ -645,16 +645,17 @@ class TestBroadcastFunction:
         """Test that broadcast() works when called within agent context."""
         mock_agent = Mock()
         mock_agent.broadcast_knowledge.return_value = "spore_id_123"
-        
+
         _agent_context.agent = mock_agent
         _agent_context.channel = "test_channel"
-        
+
         result = broadcast({"test": "data"})
-        
+
         assert result == "spore_id_123"
+        # broadcast() defaults to reef's default channel ('main') for agent chaining
         mock_agent.broadcast_knowledge.assert_called_once_with(
-            {"test": "data"}, 
-            channel="test_channel"
+            {"test": "data"},
+            channel="main"
         )
     
     def test_broadcast_with_custom_channel(self):
@@ -677,16 +678,17 @@ class TestBroadcastFunction:
         """Test that broadcast() adds message type to data."""
         mock_agent = Mock()
         mock_agent.broadcast_knowledge.return_value = "spore_id_789"
-        
+
         _agent_context.agent = mock_agent
         _agent_context.channel = "test_channel"
-        
+
         result = broadcast({"content": "hello"}, message_type="greeting")
-        
+
         assert result == "spore_id_789"
+        # broadcast() defaults to reef's default channel ('main') for agent chaining
         mock_agent.broadcast_knowledge.assert_called_once_with(
             {"content": "hello", "type": "greeting"},
-            channel="test_channel"
+            channel="main"
         )
     
     def test_broadcast_preserves_original_data(self):
@@ -708,15 +710,16 @@ class TestBroadcastFunction:
         """Test that message_type parameter overwrites existing 'type' key."""
         mock_agent = Mock()
         mock_agent.broadcast_knowledge.return_value = "spore_id_111"
-        
-        _agent_context.agent = mock_agent  
+
+        _agent_context.agent = mock_agent
         _agent_context.channel = "test_channel"
-        
+
         broadcast({"type": "old_type", "data": "test"}, message_type="new_type")
-        
+
+        # broadcast() defaults to reef's default channel ('main') for agent chaining
         mock_agent.broadcast_knowledge.assert_called_once_with(
             {"type": "new_type", "data": "test"},
-            channel="test_channel"
+            channel="main"
         )
 
 

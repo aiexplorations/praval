@@ -407,10 +407,20 @@ class Agent:
         if channel:
             channel.unsubscribe(self.name)
     
+    @property
+    def spore_handler(self) -> Optional[Callable]:
+        """
+        Get the current spore handler for this agent.
+
+        Returns:
+            The custom spore handler function, or None if not set
+        """
+        return getattr(self, '_custom_spore_handler', None)
+
     def set_spore_handler(self, handler: Callable) -> None:
         """
         Set a custom spore handler for this agent.
-        
+
         Args:
             handler: Function that takes a Spore object and handles it
         """

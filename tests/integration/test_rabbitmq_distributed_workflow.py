@@ -104,6 +104,7 @@ class TestDistributedWorkflow:
         finally:
             loop.close()
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.skipif(
         not HAS_RABBITMQ,
@@ -131,6 +132,7 @@ class TestDistributedWorkflow:
         except ConnectionError as e:
             pytest.skip(f"RabbitMQ not available: {e}")
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.skipif(
         not HAS_RABBITMQ,
@@ -166,6 +168,7 @@ class TestDistributedWorkflow:
         finally:
             await runner.shutdown()
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.skipif(
         not HAS_RABBITMQ,

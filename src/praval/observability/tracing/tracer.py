@@ -164,3 +164,12 @@ def get_tracer(name: str = "praval") -> Tracer:
         _global_tracer = Tracer(name)
 
     return _global_tracer
+
+
+def reset_tracer() -> None:
+    """Reset the global tracer to None.
+
+    This is primarily used for testing to ensure test isolation.
+    """
+    global _global_tracer
+    _global_tracer = None
