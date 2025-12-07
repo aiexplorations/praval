@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.17] - 2025-12-07
+
+### Added
+- 🧪 **Comprehensive Storage System Tests** - 340+ new test cases for storage providers
+  - Tests for FileSystem, PostgreSQL, Redis, S3, Qdrant providers
+  - Tests for StorageRegistry, DataManager, and exception handling
+  - Testcontainers integration for real database testing
+  - Added `testcontainers[postgres,redis,qdrant]` and `moto[s3]` dev dependencies
+
+- 🔧 **Test Isolation Infrastructure**
+  - Added `tests/conftest.py` with autouse fixture for global state reset
+  - Added `reset_tracer()` function in observability tracer module
+  - Added `reset_trace_store()` function in SQLite store module
+  - Comprehensive reset of Reef, Registry, ToolRegistry, Agent context
+
+- 📖 **New Examples**
+  - `blog_multi_agent_demo.py` - Multi-agent collaboration example
+  - `blog_tools_and_observability_demo.py` - Tools and tracing example
+
+### Fixed
+- 🐛 **Test Suite Reliability** - Fixed test pollution causing failures in full suite run
+  - Tests now properly isolated with global singleton reset between tests
+  - Improved test pass rate from 906 to 964 tests
+
+### Technical Details
+- **Modified**: `src/praval/observability/tracing/tracer.py` - Added reset function
+- **Modified**: `src/praval/observability/storage/sqlite_store.py` - Added reset function
+- **Added**: `tests/conftest.py` - Pytest fixtures for test isolation
+- **Added**: `tests/storage/` - Complete storage provider test suite
+
 ## [0.7.16] - 2025-11-08
 
 ### Fixed
