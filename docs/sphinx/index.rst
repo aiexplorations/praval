@@ -73,7 +73,7 @@ Create a simple agent in just a few lines:
 
 .. code-block:: python
 
-   from praval import agent, chat, broadcast, start_agents
+   from praval import agent, chat, broadcast, start_agents, get_reef
 
    @agent("researcher", responds_to=["research_query"])
    def research_agent(spore):
@@ -89,14 +89,18 @@ Create a simple agent in just a few lines:
 
        return {"research": result}
 
-   # Start the agent system
-   start_agents()
+   # Start the agent system with initial data
+   start_agents(
+       research_agent,
+       initial_data={
+           "type": "research_query",
+           "query": "What are the latest developments in multi-agent AI?"
+       }
+   )
 
-   # Send a research query
-   broadcast({
-       "type": "research_query",
-       "query": "What are the latest developments in multi-agent AI?"
-   })
+   # Wait for agents to complete and clean up
+   get_reef().wait_for_completion()
+   get_reef().shutdown()
 
 That's it! You've created an intelligent research agent that:
 
@@ -191,12 +195,7 @@ Agents communicate through a structured messaging protocol:
 
 .. code-block:: python
 
-   # Broadcast a message to all listening agents
-   broadcast({
-       "type": "task_request",
-       "task": "analyze_data",
-       "priority": "high"
-   })
+   from praval import agent, start_agents, get_reef
 
    # Agents automatically filter messages they care about
    @agent("analyst", responds_to=["task_request"])
@@ -204,6 +203,17 @@ Agents communicate through a structured messaging protocol:
        if spore.knowledge.get("task") == "analyze_data":
            # Process the task
            return {"status": "completed"}
+
+   # Start with initial data - this triggers the agent
+   start_agents(
+       handle_tasks,
+       initial_data={
+           "type": "task_request",
+           "task": "analyze_data",
+           "priority": "high"
+       }
+   )
+   get_reef().wait_for_completion()
 
 Memory System
 -------------

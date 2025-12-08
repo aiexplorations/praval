@@ -4,11 +4,20 @@ Decorator-based Agent API for Praval Framework.
 This module provides a Pythonic decorator interface for creating agents
 that automatically handle reef communication and coordination.
 
-Example:
-    @agent("explorer", channel="knowledge")
+Example::
+
+    from praval import agent, chat, broadcast, start_agents, get_reef
+
+    @agent("explorer", responds_to=["concept_request"])
     def explore_concepts(spore):
         concepts = chat("Find concepts related to: " + spore.knowledge.get("concept", ""))
-        return {"discovered": concepts.split(",")}
+        broadcast({"type": "discovery", "discovered": concepts.split(",")})
+        return {"discovered": concepts}
+
+    # Start the agent system
+    start_agents(explore_concepts, initial_data={"type": "concept_request", "concept": "AI"})
+    get_reef().wait_for_completion()
+    get_reef().shutdown()
 """
 
 import inspect
@@ -74,26 +83,27 @@ def agent(name: Optional[str] = None,
         memory: Memory configuration - True for defaults, dict for custom config, False to disable
         knowledge_base: Path to knowledge base files for auto-indexing
     
-    Examples:
-        Basic agent:
-        @agent("explorer", channel="knowledge", responds_to=["concept_request"])
+    Examples::
+
+        # Basic agent with message filtering
+        @agent("explorer", responds_to=["concept_request"])
         def explore_concepts(spore):
             '''Find related concepts and broadcast discoveries.'''
             concepts = chat("Related to: " + spore.knowledge.get("concept", ""))
             return {"type": "discovery", "discovered": concepts.split(",")}
-        
-        Agent with memory:
+
+    Memory-enabled agent::
+
         @agent("researcher", memory=True)
         def research_agent(spore):
             '''Research agent with memory capabilities.'''
             query = spore.knowledge.get("query")
-            # Remember the research
             research_agent.remember(f"Researched: {query}")
-            # Recall similar past research
             past_research = research_agent.recall(query)
             return {"research": "completed", "past_similar": len(past_research)}
-        
-        Agent with knowledge base:
+
+    Agent with knowledge base::
+
         @agent("expert", memory=True, knowledge_base="./knowledge/")
         def expert_agent(spore):
             '''Expert with pre-loaded knowledge base.'''

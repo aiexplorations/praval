@@ -274,12 +274,15 @@ Example Doesn't Run
 No Output
 ---------
 
-Some examples run asynchronously. Add a sleep at the end:
+Make sure you wait for agents to complete:
 
 .. code-block:: python
 
-   import time
-   time.sleep(3)  # Give agents time to complete
+   from praval import get_reef
+
+   # After start_agents(), wait for completion
+   get_reef().wait_for_completion()
+   get_reef().shutdown()
 
 Memory Examples Fail
 --------------------

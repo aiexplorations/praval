@@ -9,7 +9,7 @@
 
   *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
 
-  [![Version](https://img.shields.io/badge/version-0.7.17-blue.svg)](https://github.com/aiexplorations/praval/releases)
+  [![Version](https://img.shields.io/badge/version-0.7.18-blue.svg)](https://github.com/aiexplorations/praval/releases)
   [![PyPI](https://img.shields.io/pypi/v/praval.svg)](https://pypi.org/project/praval/)
   [![Python](https://img.shields.io/pypi/pyversions/praval.svg)](https://pypi.org/project/praval/)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -22,7 +22,7 @@
 **Transform complexity into simplicity.** Instead of monolithic AI systems with 800+ lines of tangled logic, Praval enables you to create specialized agents that collaborate naturally:
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 @agent("researcher", responds_to=["research_query"])
 def research_agent(spore):
@@ -40,6 +40,8 @@ def analysis_agent(spore):
 # They coordinate automatically!
 start_agents(research_agent, analysis_agent,
     initial_data={"type": "research_query", "query": "quantum computing"})
+get_reef().wait_for_completion()  # Wait for all agents to finish
+get_reef().shutdown()
 ```
 
 **Result**: 489 lines → 50 lines. Complex coordination → Simple collaboration.
@@ -108,7 +110,7 @@ pip install -e .[all]
 ## 30-Second Example
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 # Define specialized agents
 @agent("researcher", responds_to=["query"])
@@ -132,6 +134,8 @@ def writer(spore):
 # Launch the agent ecosystem
 start_agents(researcher, analyst, writer,
     initial_data={"type": "query", "topic": "AI agents"})
+get_reef().wait_for_completion()  # Deterministic completion
+get_reef().shutdown()
 ```
 
 **What happens**: Agents coordinate automatically through message passing. No central orchestrator needed.

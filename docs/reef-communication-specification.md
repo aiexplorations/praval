@@ -286,13 +286,19 @@ analyzer.subscribe_to_channel("alerts")
 - Agent-specific communication preferences
 - Message retention policies
 
-## Non-Requirements (Out of Scope)
+## Advanced Features (v0.7.18+)
 
-1. **Persistence Across Process Restarts** - Messages are in-memory only
-2. **Network Distribution** - Single-process communication only
-3. **Message Encryption** - Security is handled at application layer
-4. **Complex Routing** - Simple direct and broadcast patterns only
-5. **Message Ordering Guarantees** - Best-effort delivery
+The following features are available with optional dependencies:
+
+1. **Network Distribution** - Multi-process/distributed communication via AMQP (RabbitMQ), MQTT, or STOMP protocols. Install with `pip install praval[secure]`
+2. **Message Encryption** - End-to-end encryption using PyNaCl with key management. Available through `SecureReef` class
+3. **Transport Abstraction** - Protocol-agnostic message transport supporting multiple backends
+
+## Current Limitations
+
+1. **Persistence Across Process Restarts** - Messages are in-memory only for the default Reef
+2. **Complex Routing** - Simple direct and broadcast patterns only
+3. **Message Ordering Guarantees** - Best-effort delivery
 
 ## Success Criteria
 

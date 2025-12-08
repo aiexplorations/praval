@@ -93,21 +93,25 @@ Praval automatically detects which provider to use based on available API keys.
 Let's create a simple research agent:
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, start_agents, get_reef
 
 @agent("researcher")
 def research_agent(spore):
     """I research topics and provide insights."""
     topic = spore.knowledge.get("topic", "AI")
     result = chat(f"Provide a brief overview of: {topic}")
+    print(f"Research on {topic}: {result}")
     return {"summary": result}
 
-# Start the agent system
-start_agents()
+# Start the agent system with initial data
+start_agents(
+    research_agent,
+    initial_data={"topic": "quantum computing"}
+)
 
-# Interact with the agent
-result = research_agent({"topic": "quantum computing"})
-print(result["summary"])
+# Wait for processing to complete
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 **That's it!** You've created your first Praval agent.
@@ -148,21 +152,25 @@ topic = spore.knowledge.get("topic", "AI")
 ```
 
 A **Spore** is Praval's message format. It's a structured container carrying:
-- `knowledge`: Data dictionary
-- `type`: Message type
-- `sender`: Who sent it
+- `knowledge`: Data dictionary (including the message `type` field)
+- `from_agent`: Who sent it (agent name)
+- `spore_type`: Type of spore (BROADCAST, KNOWLEDGE, etc.)
 - `metadata`: Additional context
 
 ### 4. Starting Agents
 
 ```python
-start_agents()
+start_agents(
+    research_agent,
+    initial_data={"topic": "quantum computing"}
+)
 ```
 
-This initializes the agent communication system. It:
-- Starts the Reef (message bus)
-- Registers all agents
-- Prepares them to receive messages
+This initializes and runs the agent system. It:
+- Creates the Reef (message bus) if needed
+- Registers all provided agents
+- Broadcasts the `initial_data` to trigger the workflow
+- Returns immediately (use `get_reef().wait_for_completion()` to wait)
 
 ## Multi-Agent Communication
 
@@ -278,9 +286,12 @@ Now that you have the basics:
 ```python
 @agent("responder", responds_to=["request"])
 def responder(spore):
+    print("Handling request")
     return {"response": "done"}
 
-broadcast({"type": "request"})
+# Trigger via start_agents with initial_data
+start_agents(responder, initial_data={"type": "request"})
+get_reef().wait_for_completion()
 ```
 
 ### Pattern 2: Pipeline
@@ -360,19 +371,17 @@ export QDRANT_URL=http://localhost:6333
 export PRAVAL_LOG_LEVEL=INFO
 ```
 
-### Programmatic Configuration
+### Provider Selection
+
+Praval uses environment variables for configuration. To select a specific provider and model programmatically, set the environment variables before importing praval:
 
 ```python
-from praval import configure
+import os
+os.environ["PRAVAL_DEFAULT_PROVIDER"] = "openai"
+os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-4-turbo"
 
-configure({
-    "default_provider": "openai",
-    "default_model": "gpt-4-turbo",
-    "max_concurrent_agents": 10,
-    "memory_config": {
-        "embedding_model": "all-MiniLM-L6-v2"
-    }
-})
+from praval import agent, chat, start_agents
+# ... your agent code
 ```
 
 ## Getting Help

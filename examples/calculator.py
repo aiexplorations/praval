@@ -26,7 +26,7 @@ import os
 # Add the src directory to the path to import praval
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, tool
+from praval import agent, chat, tool, start_agents, get_reef, get_tool_registry
 
 # Configure logging
 logging.basicConfig(
@@ -249,31 +249,40 @@ def percentage_of(percent: float, number: float) -> float:
 # CALCULATOR AGENT DEFINITION
 # ==========================================
 
+# Global variable to store the last response for CLI display
+_last_response = {"result": None}
+
+
 @agent(
     "calculator",
-    system_message="""You are a precise mathematical assistant. You have access to various 
-    mathematical tools to perform calculations accurately. Always use the appropriate tool 
-    for calculations rather than estimating. Provide clear, step-by-step explanations when 
+    responds_to=["calculator_query"],
+    system_message="""You are a precise mathematical assistant. You have access to various
+    mathematical tools to perform calculations accurately. Always use the appropriate tool
+    for calculations rather than estimating. Provide clear, step-by-step explanations when
     helpful, and format your responses in a friendly, conversational manner.""",
     memory=True
 )
 def calculator_agent(spore):
     """
     Intelligent calculator agent that processes mathematical queries.
-    
+
     The agent automatically selects and uses appropriate mathematical tools
     based on the user's natural language input, providing accurate calculations
     with conversational responses.
-    
-    All tools are automatically registered and available through the new
+
+    All tools are automatically registered and available through the
     Praval tool system.
     """
     query = spore.knowledge.get("query", "")
     logger.info(f"Processing mathematical query: {query}")
-    
-    # The agent will automatically use the registered tools based on the query
-    # Praval's LLM integration handles tool selection and execution
-    return {"status": "processing", "query": query}
+
+    # Use chat() inside the agent context - this is the proper pattern
+    response = chat(query)
+
+    # Store response for CLI to display
+    _last_response["result"] = response
+
+    return {"status": "complete", "query": query, "response": response}
 
 
 # ==========================================
@@ -282,12 +291,10 @@ def calculator_agent(spore):
 
 def show_help():
     """Display available mathematical operations and examples."""
-    from praval import get_tool_registry
-    
     print()
     print("📚 Available Mathematical Operations:")
     print("=" * 40)
-    
+
     # Get tools by category from the registry
     registry = get_tool_registry()
     categories = {}
@@ -345,45 +352,64 @@ def run_calculator_cli():
     print("=" * 55)
     print()
     
-    # Display initial tool count
-    tool_count = len(calculator_agent.list_tools())
+    # Display initial tool count using the tool registry
+    registry = get_tool_registry()
+    tool_count = len(registry.get_tools_for_agent("calculator"))
     print(f"📊 Calculator agent initialized with {tool_count} mathematical tools")
     print()
-    
+
     while True:
         try:
             # Get user input
             user_input = input("🤖 Ask me: ").strip()
-            
+
             if not user_input:
                 continue
-            
+
             # Handle special commands
             if user_input.lower() in ['quit', 'exit', 'q']:
                 print("👋 Thanks for using Agentic Calculator!")
                 logger.info("Calculator session ended by user")
                 break
-            
+
             if user_input.lower() in ['help', 'h']:
                 show_help()
                 continue
-            
+
             # Process mathematical query using the agent
             print("🔄 Calculating...")
             logger.info(f"User input: {user_input}")
-            
+
             try:
-                # Send query to the calculator agent via direct chat
-                response = calculator_agent._praval_agent.chat(user_input)
-                print(f"📊 {response}")
-                logger.info(f"Agent response generated successfully")
+                # Reset the response holder
+                _last_response["result"] = None
+
+                # Use start_agents() to trigger the agent with the query
+                # This is the proper pattern for @agent decorated functions
+                start_agents(
+                    calculator_agent,
+                    initial_data={
+                        "type": "calculator_query",
+                        "query": user_input
+                    }
+                )
+
+                # Wait for the agent to complete processing
+                get_reef().wait_for_completion()
+
+                # Display the response
+                if _last_response["result"]:
+                    print(f"📊 {_last_response['result']}")
+                    logger.info("Agent response generated successfully")
+                else:
+                    print("📊 Query processed.")
                 print()
-                
+
             except Exception as e:
                 print(f"❌ Calculation error: {str(e)}")
                 logger.error(f"Error processing query: {str(e)}")
                 print()
-            
+
         except KeyboardInterrupt:
             print("\n👋 Thanks for using Agentic Calculator!")
             logger.info("Calculator session interrupted by user")
@@ -397,9 +423,8 @@ def main():
     """Main entry point for the agentic calculator."""
     try:
         logger.info("Starting Agentic Calculator with new tool system...")
-        
+
         # Display summary of registered tools
-        from praval import get_tool_registry
         registry = get_tool_registry()
         all_tools = registry.list_all_tools()
         calculator_tools = registry.get_tools_for_agent("calculator")

@@ -141,35 +141,40 @@ def agent_function(spore):
 
 **What**: Structured messages carrying knowledge between agents.
 
-**Structure**:
+**Structure** (Spore dataclass):
 ```python
-{
-    "type": "message_type",      # Required: message category
-    "knowledge": {               # Optional: data payload
+Spore(
+    id="unique-uuid",                    # Auto-generated
+    spore_type=SporeType.BROADCAST,      # Enum: KNOWLEDGE, BROADCAST, etc.
+    from_agent="researcher",             # Sender agent name
+    to_agent=None,                       # Target (None for broadcasts)
+    knowledge={                          # Data payload
+        "type": "message_type",          # Message type for filtering
         "key": "value",
         ...
     },
-    "sender": "agent_name",      # Auto-filled: who sent it
-    "timestamp": 1234567890,     # Auto-filled: when sent
-    "metadata": {...}            # Optional: extra context
-}
+    created_at=datetime.now(),
+    metadata={...}                       # Optional: extra context
+)
 ```
 
 **Accessing spore data:**
 ```python
 def my_agent(spore):
-    msg_type = spore.type
+    msg_type = spore.knowledge.get("type")  # Type is in knowledge dict
     data = spore.knowledge.get("key")
-    sender = spore.sender
+    sender = spore.from_agent               # Note: from_agent, not sender
 ```
 
-**Spore types** are how agents filter messages:
+**Message filtering** with `responds_to`:
 ```python
 @agent("listener", responds_to=["event_a", "event_b"])
 def listener(spore):
-    if spore.type == "event_a":
+    # Agent only receives spores where knowledge["type"] matches responds_to
+    msg_type = spore.knowledge.get("type")
+    if msg_type == "event_a":
         # Handle event A
-    elif spore.type == "event_b":
+    elif msg_type == "event_b":
         # Handle event B
 ```
 
@@ -201,7 +206,9 @@ broadcast({"type": "event"})
 from praval import get_reef
 
 reef = get_reef()
-messages = reef.get_history(channel="main")
+reef.wait_for_completion()  # Wait for all agents to finish
+reef.shutdown()             # Clean up resources
+stats = reef.get_network_stats()  # Get communication statistics
 ```
 
 ### Registry
@@ -248,7 +255,9 @@ def listener2(spore):
 def listener3(spore):
     print("Listener 3 won't hear 'event'")
 
-broadcast({"type": "event"})
+# Trigger via start_agents
+start_agents(listener1, listener2, listener3, initial_data={"type": "event"})
+get_reef().wait_for_completion()
 # Output:
 # Listener 1 heard event
 # Listener 2 heard event
@@ -468,14 +477,13 @@ export PRAVAL_DEFAULT_PROVIDER=anthropic
 export PRAVAL_DEFAULT_MODEL=claude-3-opus-20240229
 ```
 
-**Programmatic:**
+**Programmatic** (set environment before import):
 ```python
-from praval import configure
+import os
+os.environ["PRAVAL_DEFAULT_PROVIDER"] = "openai"
+os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-4-turbo"
 
-configure({
-    "default_provider": "openai",
-    "default_model": "gpt-4-turbo"
-})
+from praval import agent, chat, start_agents
 ```
 
 ## Agent Lifecycle
@@ -496,22 +504,21 @@ When Python executes this:
 - Registers with Registry
 - Subscribes to Reef
 
-### 2. Activation
+### 2. Activation & Execution
 
 ```python
-start_agents()
+start_agents(
+    worker,
+    initial_data={"type": "task", "data": "..."}
+)
+get_reef().wait_for_completion()
 ```
 
 This:
 - Initializes the Reef
-- Activates all registered agents
-- Prepares message routing
-
-### 3. Execution
-
-```python
-broadcast({"type": "task"})
-```
+- Registers all provided agents
+- Broadcasts `initial_data` to trigger the workflow
+- `wait_for_completion()` blocks until all agents finish
 
 For each matching agent:
 - Reef delivers spore

@@ -356,26 +356,31 @@ export QDRANT_COLLECTION=praval_vectors
 
 ### Programmatic Configuration
 
-```python
-from praval.storage import configure_storage
+Register providers directly with the data manager:
 
-configure_storage({
-    "providers": {
-        "filesystem": {
-            "base_path": "./data",
-            "auto_create": True
-        },
-        "postgresql": {
-            "host": "localhost",
-            "database": "praval"
-        },
-        "redis": {
-            "host": "localhost",
-            "db": 0
-        }
-    },
-    "default_provider": "filesystem"
-})
+```python
+from praval import get_data_manager
+from praval.storage.providers import FileSystemProvider, PostgreSQLProvider, RedisProvider
+
+dm = get_data_manager()
+
+# Register filesystem provider
+dm.register_provider("filesystem", FileSystemProvider(
+    base_path="./data",
+    auto_create=True
+))
+
+# Register PostgreSQL provider
+dm.register_provider("postgresql", PostgreSQLProvider(
+    host="localhost",
+    database="praval"
+))
+
+# Register Redis provider
+dm.register_provider("redis", RedisProvider(
+    host="localhost",
+    db=0
+))
 ```
 
 ## Advanced Patterns

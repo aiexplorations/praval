@@ -17,21 +17,25 @@ A research agent that takes a topic, researches it using an LLM, and returns str
 Create a file `my_first_agent.py`:
 
 ```python
-from praval import agent, chat, start_agents
+from praval import agent, chat, start_agents, get_reef
 
 @agent("researcher")
 def research_agent(spore):
     """A simple research agent."""
     topic = spore.knowledge.get("topic", "artificial intelligence")
     result = chat(f"Provide a brief overview of: {topic}")
+    print(f"Research on {topic}: {result}")
     return {"summary": result}
 
-# Start the agent system
-start_agents()
+# Start the agent system with initial data
+start_agents(
+    research_agent,
+    initial_data={"topic": "quantum computing"}
+)
 
-# Test the agent
-result = research_agent({"topic": "quantum computing"})
-print(result["summary"])
+# Wait for processing to complete
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 **Run it**:
@@ -60,10 +64,10 @@ def research_agent(spore):
     topic = spore.knowledge.get("topic", "artificial intelligence")
 ```
 
-`spore` is the message container. It has:
-- `knowledge`: Dictionary of data
-- `type`: Message type
-- `sender`: Who sent it
+`spore` is the message container (a Spore dataclass). It has:
+- `knowledge`: Dictionary of data (includes the message `type` field)
+- `from_agent`: Who sent it (agent name)
+- `spore_type`: Type of spore (BROADCAST, KNOWLEDGE, etc.)
 - `metadata`: Extra context
 
 ### The `chat()` Function
@@ -103,6 +107,8 @@ def research_agent(spore):
 Make it robust:
 
 ```python
+from praval import agent, chat, start_agents, get_reef
+
 @agent("researcher", system_message="""
 You are an expert researcher specializing in technology topics.
 Provide concise, factual overviews with:
@@ -115,24 +121,26 @@ def research_agent(spore):
     topic = spore.knowledge.get("topic")
 
     if not topic:
+        print("Error: No topic provided")
         return {"error": "No topic provided"}
 
     try:
         result = chat(f"Provide a brief overview of: {topic}")
+        print(f"Research on {topic}: {result}")
         return {"summary": result, "topic": topic}
     except Exception as e:
+        print(f"Error: {e}")
         return {"error": str(e), "topic": topic}
 
-# Start the system
-start_agents()
+# Start the system with initial data
+start_agents(
+    research_agent,
+    initial_data={"topic": "machine learning"}
+)
 
-# Test with valid topic
-result1 = research_agent({"topic": "machine learning"})
-print("Valid:", result1)
-
-# Test without topic
-result2 = research_agent({})
-print("Invalid:", result2)
+# Wait for processing to complete
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 ## Step 5: Add Broadcasting
@@ -140,16 +148,18 @@ print("Invalid:", result2)
 Let other agents know about the research:
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
-@agent("researcher")
+@agent("researcher", responds_to=["research_request"])
 def research_agent(spore):
     topic = spore.knowledge.get("topic")
 
     if not topic:
+        print("Error: No topic provided")
         return {"error": "No topic provided"}
 
     result = chat(f"Research: {topic}")
+    print(f"Research complete for: {topic}")
 
     # Broadcast results to other agents
     broadcast({
@@ -160,11 +170,15 @@ def research_agent(spore):
 
     return {"summary": result}
 
-# Start the system
-start_agents()
+# Start the system with initial data
+start_agents(
+    research_agent,
+    initial_data={"type": "research_request", "topic": "neural networks"}
+)
 
-# Trigger research
-research_agent({"topic": "neural networks"})
+# Wait for processing to complete
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 ## Step 6: Create a Listener
@@ -172,11 +186,12 @@ research_agent({"topic": "neural networks"})
 Add an agent that responds to research:
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
-@agent("researcher")
+@agent("researcher", responds_to=["research_request"])
 def research_agent(spore):
     topic = spore.knowledge.get("topic")
+    print(f"Researching: {topic}...")
     result = chat(f"Research: {topic}")
 
     broadcast({
@@ -196,22 +211,24 @@ def summarizer(spore):
     print(f"Summary:\n{summary}")
     return {"summary": summary}
 
-# Start the system
-start_agents()
+# Start the system with initial data
+start_agents(
+    research_agent,
+    summarizer,
+    initial_data={"type": "research_request", "topic": "blockchain"}
+)
 
-# Trigger the workflow
-research_agent({"topic": "blockchain"})
-
-# Give time for processing
-import time
-time.sleep(2)
+# Wait for all agents to complete
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 **What happens**:
-1. `research_agent` receives the topic
-2. It researches and broadcasts `research_complete`
-3. `summarizer` hears the broadcast
-4. It creates and prints a summary
+1. `start_agents` broadcasts `research_request` to all agents
+2. `research_agent` receives it (due to `responds_to=["research_request"]`)
+3. It researches and broadcasts `research_complete`
+4. `summarizer` hears the broadcast (due to `responds_to=["research_complete"]`)
+5. It creates and prints a summary
 
 ## Complete Example
 
@@ -222,10 +239,9 @@ Here's the full working code:
 my_first_agent.py - A complete research agent example
 """
 
-from praval import agent, chat, broadcast, start_agents
-import time
+from praval import agent, chat, broadcast, start_agents, get_reef
 
-@agent("researcher", system_message="""
+@agent("researcher", responds_to=["research_request"], system_message="""
 You are an expert technology researcher.
 Provide detailed but concise overviews covering:
 - Core concept definition
@@ -280,14 +296,16 @@ def summarizer(spore):
     return {"summary": summary, "topic": topic}
 
 if __name__ == "__main__":
-    # Start the agent system
-    start_agents()
+    # Start the agent system with initial data
+    start_agents(
+        research_agent,
+        summarizer,
+        initial_data={"type": "research_request", "topic": "quantum computing"}
+    )
 
-    # Research a topic
-    research_agent({"topic": "quantum computing"})
-
-    # Give agents time to complete
-    time.sleep(3)
+    # Wait for all agents to complete
+    get_reef().wait_for_completion()
+    get_reef().shutdown()
 
     print("\nDone!")
 ```
@@ -332,8 +350,9 @@ Done!
 ## Troubleshooting
 
 **Agent doesn't respond**:
-- Check you called `start_agents()`
-- Verify `responds_to` types match broadcast types
+- Check you called `start_agents()` with the agent functions
+- Verify `responds_to` types match the `type` field in `initial_data`
+- Ensure you call `get_reef().wait_for_completion()` to wait for agents
 
 **No LLM response**:
 - Verify API key is set: `echo $OPENAI_API_KEY`

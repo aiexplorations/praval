@@ -215,9 +215,21 @@ def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] 
     Returns:
         Spore ID of startup broadcast
 
-    Example:
+    Example::
+
+        from praval import agent, chat, start_agents, get_reef
+
+        @agent("explorer", responds_to=["research_request"])
+        def explorer(spore):
+            return {"findings": chat(spore.knowledge.get("topic"))}
+
+        # Start agents with initial data
         start_agents(explorer, analyzer, curator,
-                    initial_data={"task": "analyze market trends"})
+                    initial_data={"type": "research_request", "topic": "market trends"})
+
+        # Wait for all agents to complete
+        get_reef().wait_for_completion()
+        get_reef().shutdown()
     """
     # Subscribe all agents to startup channel
     reef = get_reef()
