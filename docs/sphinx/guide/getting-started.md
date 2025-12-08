@@ -169,7 +169,7 @@ This initializes the agent communication system. It:
 Now let's create agents that collaborate:
 
 ```python
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 @agent("researcher", responds_to=["research_request"])
 def researcher(spore):
@@ -195,18 +195,16 @@ def summarizer(spore):
     print(f"Summary:\n{summary}")
     return {"summary": summary}
 
-# Start the system
-start_agents()
+# Start the system with initial data
+start_agents(
+    researcher,
+    summarizer,
+    initial_data={"type": "research_request", "topic": "neural networks"}
+)
 
-# Trigger the workflow
-broadcast({
-    "type": "research_request",
-    "topic": "neural networks"
-})
-
-# Give agents time to process
-import time
-time.sleep(3)
+# Wait for all agents to complete processing
+get_reef().wait_for_completion()
+get_reef().shutdown()
 ```
 
 **What happens:**

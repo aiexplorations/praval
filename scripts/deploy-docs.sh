@@ -48,26 +48,48 @@ rsync -av --delete "$DOCS_BUILD_DIR/" "$WEBSITE_DOCS_DIR/v$VERSION/"
 echo "📋 Updating latest documentation..."
 rsync -av --delete "$DOCS_BUILD_DIR/" "$WEBSITE_DOCS_DIR/latest/"
 
-# Create versions.json for version switcher
-echo "📝 Creating versions.json..."
-cat > "$WEBSITE_DOCS_DIR/versions.json" <<EOF
-{
-  "current": "$VERSION",
-  "latest": "$VERSION",
-  "versions": [
-    {
-      "version": "$VERSION",
-      "url": "/docs/v$VERSION/",
-      "title": "v$VERSION (latest)"
-    },
-    {
-      "version": "latest",
-      "url": "/docs/latest/",
-      "title": "Latest (v$VERSION)"
-    }
-  ]
+# Update versions.json for version switcher (preserving historical versions)
+echo "📝 Updating versions.json..."
+if [ -f "$WEBSITE_DOCS_DIR/versions.json" ]; then
+    # Read existing versions (excluding current and latest entries)
+    EXISTING_VERSIONS=$(python3 -c "
+import json
+with open('$WEBSITE_DOCS_DIR/versions.json') as f:
+    data = json.load(f)
+existing = [v for v in data.get('versions', []) if v['version'] not in ['latest', '$VERSION']]
+# Output as JSON array
+print(json.dumps(existing))
+" 2>/dev/null || echo "[]")
+else
+    EXISTING_VERSIONS="[]"
+fi
+
+# Create new versions.json with current version at top and preserved history
+python3 -c "
+import json
+
+existing = $EXISTING_VERSIONS
+
+# Build new versions list
+versions = [
+    {'version': '$VERSION', 'url': '/docs/v$VERSION/', 'title': 'v$VERSION (latest)'},
+    {'version': 'latest', 'url': '/docs/latest/', 'title': 'Latest (v$VERSION)'}
+]
+
+# Add existing versions (they're already filtered)
+versions.extend(existing)
+
+# Create the full structure
+data = {
+    'current': '$VERSION',
+    'latest': '$VERSION',
+    'versions': versions
 }
-EOF
+
+with open('$WEBSITE_DOCS_DIR/versions.json', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+echo "   ✓ versions.json updated with historical versions preserved"
 
 # Create docs index page
 echo "📝 Creating docs index page..."

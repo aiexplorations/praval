@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.18] - 2025-12-08
+
+### Added
+- 🎯 **Deterministic Multi-Agent Synchronization** - `wait_for_completion()` method for reliable agent coordination
+  - `reef.wait_for_completion(timeout=30.0)` - Block until all agents finish processing
+  - Replaces error-prone `time.sleep()` patterns with deterministic completion tracking
+  - Uses future tracking with `_active_futures` and thread-safe `_futures_lock`
+  - Supports both `ReefChannel` and `Reef` levels
+
+### Fixed
+- 🔧 **broadcast() Channel Resolution** - Fixed silent failures in agent chaining
+  - `broadcast()` now correctly uses the startup channel set by `start_agents()`
+  - Stores `_startup_channel` on agents during `start_agents()` for proper channel propagation
+  - Prevents messages from being sent to wrong channels in multi-agent workflows
+  - Maintains backward compatibility with explicit channel parameter
+
+### Changed
+- 📝 **Updated All Examples** - 13 examples updated to use new synchronization pattern
+  - Replaced `time.sleep()` with `get_reef().wait_for_completion()`
+  - Added proper `get_reef().shutdown()` calls for clean termination
+  - Examples now demonstrate production-ready patterns
+
+### Technical Details
+- **Modified**: `src/praval/core/reef.py` - Added `wait_for_completion()` method with future tracking
+- **Modified**: `src/praval/decorators.py` - Fixed `broadcast()` channel resolution
+- **Modified**: `src/praval/composition.py` - Store `_startup_channel` on agents
+- **Updated**: Examples 001-010, blog demos, website sidebar example
+
+### Migration Path (v0.7.17 → v0.7.18)
+```python
+# Old way (v0.7.17) - unreliable timing
+start_agents(agent1, agent2, initial_data={...})
+time.sleep(3)  # Hope agents finish in time
+
+# New way (v0.7.18) - deterministic completion
+from praval import get_reef
+
+start_agents(agent1, agent2, initial_data={...})
+get_reef().wait_for_completion()  # Block until all agents done
+get_reef().shutdown()  # Clean termination
+```
+
 ## [0.7.17] - 2025-12-07
 
 ### Added
