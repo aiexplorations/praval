@@ -21,7 +21,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, broadcast, start_agents, get_registry
+from praval import agent, broadcast, start_agents, get_registry, get_reef
 
 
 @agent("coordinator")
@@ -301,22 +301,28 @@ def main():
     for i, task in enumerate(tasks, 1):
         print(f"=== Task {i}: {task} ===")
         print()
-        
+
         # Start all agents - they'll discover and coordinate as needed
         try:
             start_agents(
                 task_coordinator,
                 research_specialist,
-                planning_specialist, 
+                planning_specialist,
                 quality_reviewer,
                 final_summarizer,
                 initial_data={"task": task}
             )
+
+            # Wait for agents to complete
+            get_reef().wait_for_completion()
         except Exception as e:
             print(f"⚠️  Agent coordination completed with some background processing issues (expected without full LLM setup): {e}")
-        
+
         print("\n" + "─" * 60 + "\n")
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("Key Insights:")
     print("- Agents discover each other through the registry")
     print("- Coordination happens dynamically based on task needs")

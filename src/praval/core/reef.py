@@ -281,6 +281,8 @@ class ReefChannel:
         self.lock = threading.RLock()
         self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=f"reef-{name}")
         self._shutdown = False
+        self._active_futures: List[Future] = []  # Track active handler executions
+        self._futures_lock = threading.Lock()
         self.stats = {
             'spores_carried': 0,
             'spores_delivered': 0,
@@ -335,7 +337,7 @@ class ReefChannel:
         """Execute handler asynchronously, supporting both sync and async handlers."""
         if self._shutdown:
             return None
-        
+
         def safe_handler_wrapper():
             try:
                 # Check if handler is async
@@ -358,8 +360,14 @@ class ReefChannel:
                 # Log errors but don't break the system
                 logger.warning(f"Agent handler error in channel {self.name}: {e}")
                 return None
-        
-        return self.executor.submit(safe_handler_wrapper)
+
+        future = self.executor.submit(safe_handler_wrapper)
+
+        # Track the future for wait_for_completion()
+        with self._futures_lock:
+            self._active_futures.append(future)
+
+        return future
     
     def subscribe(self, agent_name: str, handler: Callable[[Spore], None], replace: bool = True) -> None:
         """
@@ -433,6 +441,51 @@ class ReefChannel:
                 **self.stats
             }
     
+    def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
+        """
+        Wait for all active handler executions to complete.
+
+        This method blocks until all currently running and pending handlers finish,
+        including handlers that spawn new handlers (cascading messages).
+
+        Args:
+            timeout: Maximum time to wait in seconds. None means wait indefinitely.
+
+        Returns:
+            True if all handlers completed, False if timeout occurred.
+        """
+        from concurrent.futures import wait as futures_wait, FIRST_COMPLETED, ALL_COMPLETED
+
+        start_time = time.time()
+
+        while True:
+            # Get current active futures
+            with self._futures_lock:
+                # Clean up completed futures
+                self._active_futures = [f for f in self._active_futures if not f.done()]
+                pending = list(self._active_futures)
+
+            if not pending:
+                return True
+
+            # Calculate remaining timeout
+            remaining_timeout = None
+            if timeout is not None:
+                elapsed = time.time() - start_time
+                remaining_timeout = max(0, timeout - elapsed)
+                if remaining_timeout <= 0:
+                    return False
+
+            # Wait for at least one future to complete
+            try:
+                futures_wait(pending, timeout=remaining_timeout, return_when=ALL_COMPLETED)
+            except Exception:
+                pass
+
+            # Check if we've timed out
+            if timeout is not None and (time.time() - start_time) >= timeout:
+                return False
+
     def shutdown(self, wait: bool = True) -> None:
         """Shutdown the channel's thread pool."""
         self._shutdown = True
@@ -674,15 +727,49 @@ class Reef:
                 }
 
             return stats
-    
+
+    def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
+        """
+        Wait for all active agent handlers to complete across all channels.
+
+        This method blocks until all currently running handlers finish,
+        including cascading handlers triggered by broadcast() calls within agents.
+
+        Args:
+            timeout: Maximum time to wait in seconds. None means wait indefinitely.
+
+        Returns:
+            True if all handlers completed, False if timeout occurred.
+
+        Example:
+            start_agents(researcher, summarizer, initial_data={...})
+            get_reef().wait_for_completion()  # Block until all agents done
+            get_reef().shutdown()
+        """
+        start_time = time.time()
+
+        for channel in self.channels.values():
+            # Calculate remaining timeout for this channel
+            remaining_timeout = None
+            if timeout is not None:
+                elapsed = time.time() - start_time
+                remaining_timeout = max(0, timeout - elapsed)
+                if remaining_timeout <= 0:
+                    return False
+
+            if not channel.wait_for_completion(timeout=remaining_timeout):
+                return False
+
+        return True
+
     def shutdown(self, wait: bool = True) -> None:
         """Shutdown the reef and all its channels."""
         self._shutdown = True
-        
+
         # Shutdown all channels
         for channel in self.channels.values():
             channel.shutdown(wait=wait)
-        
+
         # Wait for cleanup thread to finish if requested
         if wait and self.cleanup_thread.is_alive():
             self.cleanup_thread.join(timeout=5.0)

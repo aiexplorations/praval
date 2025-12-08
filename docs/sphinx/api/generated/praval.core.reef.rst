@@ -9,6 +9,7 @@
    .. autosummary::
    
       get_reef
+      reset_reef
    
    .. rubric:: Classes
 

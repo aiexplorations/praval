@@ -21,7 +21,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, tool, start_agents
+from praval import agent, tool, start_agents, get_reef
 
 # Define tools first - these represent the philosopher's capabilities
 @tool("contemplate", owned_by="philosopher", category="reasoning", 
@@ -178,14 +178,20 @@ def main():
     
     for i, question in enumerate(questions, 1):
         print(f"--- Question {i}: {question} ---")
-        
+
         result = start_agents(
             philosophical_agent,
             initial_data={"question": question}
         )
-        
+
+        # Wait for agent processing to complete
+        get_reef().wait_for_completion()
+
         print()
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("=" * 70)
     print("Key Insights:")
     print("✓ Agent identity drives behavior and tool selection")

@@ -5,10 +5,10 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.6 includes comprehensive tool system with @tool decorator,
-PDF support for knowledge base, Unified Data Storage & Retrieval System with support for
-PostgreSQL, Redis, S3, Qdrant, and filesystem storage providers, plus enhanced
-Secure Spores Enterprise Edition and comprehensive memory system integration.
+Version 0.7.18 adds wait_for_completion() for deterministic multi-agent synchronization,
+fixes broadcast() channel resolution to use startup channel by default, and includes
+comprehensive tool system with @tool decorator, PDF support for knowledge base,
+Unified Data Storage & Retrieval System, and Secure Spores Enterprise Edition.
 """
 
 from .core.agent import Agent
@@ -20,7 +20,7 @@ from .composition import (
     AgentSession, start_agents
 )
 
-# Enhanced agent decorator with memory support (v0.3.0)
+# Enhanced agent decorator with memory support (v0.7.0+)
 from .decorators import agent, chat, achat, broadcast, get_agent_info
 
 # Tool system imports (v0.7.2+)
@@ -87,7 +87,7 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.16"
+__version__ = "0.7.18"
 __all__ = [
     # Core classes
     "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",

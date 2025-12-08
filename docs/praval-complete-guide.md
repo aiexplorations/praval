@@ -1,10 +1,10 @@
 ---
-title: "Praval v0.6.1: The Complete Guide to Multi-Agent AI Systems"
-author: 
+title: "Praval v0.7.17: The Complete Guide to Multi-Agent AI Systems"
+author:
   - "Rajesh Sampathkumar (@aiexplorations)"
   - "Claude Code"
-date: "August 2025"
-version: "0.6.1"
+date: "December 2025"
+version: "0.7.17"
 ---
 
 <div style="text-align: center; page-break-after: always;">
@@ -21,17 +21,17 @@ version: "0.6.1"
 
 ### Authors
 
-**Rajesh Sampathkumar** ([@aiexplorations](https://github.com/aiexplorations))  
+**Rajesh Sampathkumar** ([@aiexplorations](https://github.com/aiexplorations))
 *Framework Creator & Lead Developer*
 
-**Claude Code**  
+**Claude Code**
 *AI Assistant & Documentation Collaborator*
 
 ---
 
-**Version:** 1.3  
-**Last Updated:** August 2025  
-**Framework Version:** 0.6.1 (with Unified Data Storage & Retrieval System)
+**Version:** 2.0
+**Last Updated:** December 2025
+**Framework Version:** 0.7.17 (with Tool System, Observability, and RabbitMQ Support)
 
 </div>
 
@@ -86,7 +86,23 @@ This comprehensive guide serves as both philosophical manifesto and practical ma
 - [The Foundation of Persistent Intelligence](#the-foundation-of-persistent-intelligence)
 - [Theoretical Foundation](#theoretical-foundation)
 
-**PART IX: ADVANCED TOPICS**
+**PART IX: TOOL SYSTEM** *(v0.7.2+)*
+- [Tool System Overview](#tool-system-overview)
+- [Creating Tools with @tool Decorator](#creating-tools-with-tool-decorator)
+- [Registering Tools with Agents](#registering-tools-with-agents)
+- [Tool Collections](#tool-collections)
+
+**PART X: OBSERVABILITY** *(v0.7.x)*
+- [OpenTelemetry Integration](#opentelemetry-integration)
+- [Tracing Agent Interactions](#tracing-agent-interactions)
+- [Exporting Traces](#exporting-traces)
+
+**PART XI: RABBITMQ & DISTRIBUTED AGENTS** *(v0.7.15+)*
+- [RabbitMQ Backend](#rabbitmq-backend)
+- [Queue Consumption Patterns](#queue-consumption-patterns)
+- [Channel-to-Queue Mapping](#channel-to-queue-mapping)
+
+**PART XII: ADVANCED TOPICS**
 - [Configuration and Deployment](#configuration-and-deployment)
 - [Best Practices](#best-practices)
 
@@ -3975,7 +3991,253 @@ This bug fix was fundamental to Praval's core functionality. Without it, the fra
 
 ---
 
-# PART VI: ADVANCED TOPICS
+# PART IX: TOOL SYSTEM *(v0.7.2+)*
+
+Praval's tool system allows agents to invoke external capabilities through a clean, decorator-based API.
+
+## Tool System Overview
+
+Tools are functions that agents can call to perform actions beyond LLM inference. The tool system provides:
+
+- **Decorator-based definition**: Use `@tool` to convert functions into agent-callable tools
+- **Automatic parameter extraction**: Tool parameters are inferred from function signatures
+- **Type validation**: Parameters are validated based on type hints
+- **Agent registration**: Tools can be registered with specific agents or globally
+
+## Creating Tools with @tool Decorator
+
+```python
+from praval import tool
+
+@tool(name="web_search", description="Search the web for information")
+def search_web(query: str, max_results: int = 10) -> str:
+    """
+    Search the web for the given query.
+
+    Args:
+        query: The search query string
+        max_results: Maximum number of results to return
+
+    Returns:
+        Search results as formatted string
+    """
+    # Implementation here
+    return perform_search(query, max_results)
+
+@tool(name="calculator", description="Perform mathematical calculations")
+def calculate(expression: str) -> float:
+    """Evaluate a mathematical expression."""
+    return eval(expression)  # Use safe_eval in production
+```
+
+## Registering Tools with Agents
+
+Tools can be registered with agents in multiple ways:
+
+```python
+from praval import Agent, agent, tool, register_tool_with_agent
+
+# Method 1: Via Agent class
+agent = Agent("researcher")
+
+@agent.tool
+def search(query: str) -> str:
+    return web_search(query)
+
+# Method 2: Via @agent decorator
+@agent("analyst", tools=[search_web, calculate])
+def analyst(spore):
+    # Agent can now use search_web and calculate
+    pass
+
+# Method 3: Dynamic registration
+register_tool_with_agent("analyst", search_web)
+```
+
+## Tool Collections
+
+Group related tools into collections for easier management:
+
+```python
+from praval import ToolCollection
+
+# Create a collection of related tools
+research_tools = ToolCollection(
+    name="research",
+    tools=[search_web, fetch_article, summarize_text]
+)
+
+# Register entire collection with an agent
+@agent("researcher", tool_collections=[research_tools])
+def researcher(spore):
+    pass
+```
+
+---
+
+# PART X: OBSERVABILITY *(v0.7.x)*
+
+Praval includes built-in observability through OpenTelemetry integration for tracing, metrics, and debugging.
+
+## OpenTelemetry Integration
+
+The observability system provides zero-configuration tracing for:
+
+- Agent function calls
+- LLM provider requests
+- Reef communication (spore sends/receives)
+- Memory operations
+- Tool invocations
+
+```python
+from praval.observability import enable_tracing, show_recent_traces
+
+# Enable automatic tracing
+enable_tracing()
+
+# Your agents are now traced automatically
+@agent("researcher", responds_to=["query"])
+def researcher(spore):
+    result = chat(f"Research: {spore.knowledge['topic']}")
+    broadcast({"type": "research_done", "result": result})
+```
+
+## Tracing Agent Interactions
+
+View traces in the console:
+
+```python
+from praval.observability import show_recent_traces
+
+# After running agents
+show_recent_traces(limit=10)
+
+# Output shows:
+# - Agent execution spans
+# - LLM call durations
+# - Message passing timing
+# - Memory operation latency
+```
+
+## Exporting Traces
+
+Export traces to external monitoring platforms:
+
+```python
+from praval.observability import export_traces_to_otlp
+
+# Export to Jaeger, Zipkin, or any OTLP-compatible backend
+export_traces_to_otlp("http://localhost:4318/v1/traces")
+
+# Configure via environment
+# OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+# OTEL_SERVICE_NAME=praval-agents
+```
+
+---
+
+# PART XI: RABBITMQ & DISTRIBUTED AGENTS *(v0.7.15+)*
+
+Praval supports distributed agent deployments using RabbitMQ as a message broker.
+
+## RabbitMQ Backend
+
+The RabbitMQ backend enables agents to communicate across processes and machines:
+
+```python
+from praval import agent, chat, broadcast, start_agents
+from praval.core.reef import get_reef
+
+# Configure RabbitMQ backend
+reef = get_reef()
+reef.configure_backend(
+    backend="rabbitmq",
+    url="amqp://guest:guest@localhost:5672/"
+)
+
+@agent("worker", responds_to=["task"])
+def worker(spore):
+    result = chat(f"Process: {spore.knowledge['data']}")
+    broadcast({"type": "task_done", "result": result})
+```
+
+## Queue Consumption Patterns
+
+Praval v0.7.15+ supports direct queue consumption with channel-to-queue mapping:
+
+```python
+from praval.core.reef import get_reef
+
+reef = get_reef()
+
+# Map channels to RabbitMQ queues
+reef.configure_queue_mapping({
+    "tasks": "praval.tasks.queue",
+    "results": "praval.results.queue",
+    "notifications": "praval.notifications.queue"
+})
+
+# Agents subscribed to "tasks" channel consume from praval.tasks.queue
+@agent("processor", responds_to=["task"], channel="tasks")
+def processor(spore):
+    pass
+```
+
+## Channel-to-Queue Mapping
+
+Configure how Praval channels map to RabbitMQ queues:
+
+```python
+# Environment variable configuration
+# PRAVAL_RABBITMQ_QUEUE_MAP=tasks:praval.tasks,results:praval.results
+
+# Or programmatic configuration
+reef.configure_backend(
+    backend="rabbitmq",
+    url="amqp://localhost:5672/",
+    queue_map={
+        "main": "praval.main.queue",
+        "tasks": "praval.tasks.queue"
+    },
+    exchange="praval.exchange",
+    exchange_type="topic"
+)
+```
+
+### Distributed Deployment Example
+
+```python
+# worker_process.py - Run on multiple machines
+from praval import agent, chat, broadcast
+from praval.core.reef import get_reef
+
+reef = get_reef()
+reef.configure_backend(
+    backend="rabbitmq",
+    url="amqp://rabbitmq.cluster:5672/"
+)
+
+@agent("distributed_worker", responds_to=["distributed_task"])
+def worker(spore):
+    task_id = spore.knowledge.get("task_id")
+    data = spore.knowledge.get("data")
+
+    result = chat(f"Process task {task_id}: {data}")
+
+    broadcast({
+        "type": "task_complete",
+        "task_id": task_id,
+        "result": result
+    })
+
+if __name__ == "__main__":
+    # This worker will consume from the distributed_task queue
+    start_agents(worker)
+```
+
+---
+
+# PART XII: ADVANCED TOPICS
 
 ## Production Deployment
 

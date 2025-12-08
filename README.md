@@ -9,7 +9,7 @@
 
   *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
 
-  [![Version](https://img.shields.io/badge/version-0.7.11-blue.svg)](https://github.com/aiexplorations/praval/releases)
+  [![Version](https://img.shields.io/badge/version-0.7.17-blue.svg)](https://github.com/aiexplorations/praval/releases)
   [![PyPI](https://img.shields.io/pypi/v/praval.svg)](https://pypi.org/project/praval/)
   [![Python](https://img.shields.io/pypi/pyversions/praval.svg)](https://pypi.org/project/praval/)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -177,19 +177,19 @@ start_agents(researcher, analyst, writer,
 
 ## Real-World Examples
 
-### Business Analysis Platform
-**489 lines → 50 lines** of clean, maintainable code. [See full example →](examples/venturelens.py)
+### Simple Multi-Agent System
+The quickest way to understand Praval's multi-agent pattern. [See example →](examples/simple_multi_agent.py)
 
-### Knowledge Graph Mining
-Concurrent agents extract concepts and relationships. [See example →](examples/pythonic_knowledge_graph.py)
+### Memory-Enabled Agents
+Agents with persistent memory using ChromaDB. [See example →](examples/005_memory_enabled_agents.py)
 
-### RAG Chatbot
-Memory-enabled conversational agents with semantic search. [See example →](examples/rag_chatbot.py)
+### Secure Distributed Agents
+End-to-end encrypted agent communication. [See example →](examples/011_secure_spore_demo.py)
 
-### Research Assistant
-Automated paper discovery and analysis. [See example →](examples/arxiv_paper_downloader.py)
+### RabbitMQ Distributed Agents
+Multi-process agent communication over message queues. [See example →](examples/distributed_agents_with_rabbitmq.py)
 
-**More examples** in the [`examples/`](examples/) directory covering memory systems, tool integration, and enterprise patterns.
+**More examples** in the [`examples/`](examples/) directory covering agent identity, communication patterns, resilience, and enterprise features.
 
 ---
 
@@ -298,14 +298,12 @@ docker-compose -f docker/docker-compose.secure.yml up -d
 
 ## Documentation
 
-- **📘 [Complete Manual](docs/praval-manual.md)**: Comprehensive guide covering all features
-- **🏗️ [Architecture](docs/architecture-diagram.md)**: System design and component overview
-- **🧠 [Memory System](docs/memory-system.md)**: Multi-layered memory capabilities
-- **📡 [Reef Communication](docs/reef-communication-specification.md)**: Spore protocol specification
+- **🚀 [Quickstart Guide](docs/quickstart.md)**: Single vs multi-agent patterns explained
+- **🧠 [Memory API Reference](docs/memory-api-reference.md)**: Memory methods and configuration
+- **📡 [Reef Communication](docs/reef-communication-specification.md)**: Spore protocol and channel behavior
 - **🔒 [Secure Spores](docs/secure_spores_architecture.md)**: Enterprise security features
 - **📊 [Observability](docs/observability/README.md)**: Tracing and monitoring guide
 - **🔧 [Tool System](docs/tool-system-specification.md)**: External capability integration
-- **🐳 [Deployment](docs/DEPLOYMENT.md)**: Production deployment guide
 
 ---
 

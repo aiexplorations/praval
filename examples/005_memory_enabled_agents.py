@@ -3,7 +3,7 @@
 Example 005: Memory-Enabled Agents
 ==================================
 
-This example demonstrates the new memory capabilities in Praval v0.3.0:
+This example demonstrates the memory capabilities in Praval v0.7.17:
 - Embedded ChromaDB vector storage (zero external dependencies)
 - Knowledge base auto-indexing
 - Lightweight spore communication with knowledge references
@@ -27,7 +27,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, broadcast, start_agents
+from praval import agent, broadcast, start_agents, get_reef
 
 
 def create_sample_knowledge_base():
@@ -59,8 +59,14 @@ def create_sample_knowledge_base():
 @agent("learning_agent", memory=True, responds_to=["learning_session"])
 def memory_learning_agent(spore):
     """
-    I am a learning agent with persistent memory who remembers past 
-    interactions and adapts my responses based on what I've learned.
+    A learning agent with persistent memory who remembers past
+    interactions and adapts responses based on what it has learned.
+
+    Memory methods available when memory=True:
+        remember(content, importance=0.5, memory_type="episodic") -> str (memory_id)
+        recall(query, limit=10) -> List[MemoryEntry]
+        recall_by_id(memory_id) -> Optional[MemoryEntry]
+        get_conversation_context(turns=10) -> List[dict]
     """
     topic = spore.knowledge.get("topic", "general knowledge")
     student_id = spore.knowledge.get("student_id", "default")
@@ -119,8 +125,8 @@ def memory_learning_agent(spore):
     return {"learning_response": learning_response, "sessions_recalled": len(past_sessions)}
 
 
-@agent("teaching_agent", memory=True, responds_to=["teach_request"], 
-       knowledge_base=None)  # Will be set dynamically in main()
+@agent("teaching_agent", memory=True, responds_to=["teach_request"],
+       knowledge_base=None)  # Note: knowledge_base must be set at decoration time; see kb_memory_teaching_agent in main()
 def memory_teaching_agent(spore):
     """
     I am a teaching agent with access to a knowledge base who remembers 
@@ -299,7 +305,7 @@ def main():
         for i, session in enumerate(learning_sessions, 1):
             print(f"=== Learning Session {i}: {session['topic']} (Student: {session['student_id']}) ===")
             print()
-            
+
             result = start_agents(
                 memory_learning_agent,
                 kb_memory_teaching_agent,  # Use knowledge base enabled version
@@ -309,21 +315,27 @@ def main():
                     **session
                 }
             )
-            
+
+            # Wait for agents to complete
+            get_reef().wait_for_completion()
+
             print(f"\n--- Session {i} Results ---")
             if result and isinstance(result, dict):
                 sessions_recalled = result.get("sessions_recalled", 0)
                 student_sessions = result.get("student_sessions", 0)
                 knowledge_sources = result.get("knowledge_sources", 0)
                 patterns_analyzed = result.get("patterns_analyzed", 0)
-                
+
                 print(f"📊 Learning: {sessions_recalled} past sessions recalled")
                 print(f"👨‍🏫 Teaching: {student_sessions} previous sessions with this student")
                 print(f"📚 Knowledge: {knowledge_sources} knowledge base sources used")
                 print(f"🤔 Reflection: {patterns_analyzed} patterns analyzed")
-            
+
             print("\n" + "─" * 60 + "\n")
-        
+
+        # Shutdown reef after all iterations
+        get_reef().shutdown()
+
         print("✅ MEMORY CAPABILITIES DEMONSTRATED:")
         print("- ✓ ChromaDB embedded vector storage working")
         print("- ✓ Knowledge base auto-indexed and searchable") 

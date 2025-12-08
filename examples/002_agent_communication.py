@@ -21,7 +21,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, broadcast, start_agents
+from praval import agent, broadcast, start_agents, get_reef
 
 
 @agent("questioner", responds_to=["start_dialogue"])
@@ -137,16 +137,22 @@ def main():
     
     for topic in topics:
         print(f"--- Dialogue about: {topic.upper()} ---")
-        
+
         # This will trigger both agents through their communication
         start_agents(
             curious_questioner,
             thoughtful_responder,
             initial_data={"type": "start_dialogue", "topic": topic}
         )
-        
+
+        # Wait for agents to complete
+        get_reef().wait_for_completion()
+
         print()
-    
+
+    # Shutdown after all iterations
+    get_reef().shutdown()
+
     print("Key Insights:")
     print("- Agents communicate through structured messages (spores)")
     print("- responds_to filters ensure agents only handle relevant messages")

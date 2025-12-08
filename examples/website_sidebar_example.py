@@ -21,7 +21,6 @@ Setup:
 """
 
 import os
-import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -46,7 +45,7 @@ print("✓ API key found - starting agents...\n")
 # ============================================================================
 # Import Praval components
 # ============================================================================
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 # ============================================================================
 # Define three specialized agents that coordinate through message passing
@@ -115,10 +114,9 @@ if __name__ == "__main__":
         initial_data={"type": "query", "topic": "AI agents"}
     )
 
-    # Give agents time to complete their async work
-    # In production, you'd use proper event monitoring or callbacks
-    print("\nWaiting for agents to complete their work...")
-    time.sleep(15)  # Adjust based on LLM response times
+    # Wait for all agents to complete their work
+    get_reef().wait_for_completion()
+    get_reef().shutdown()
 
     print("\n" + "=" * 70)
     print("HOW IT WORKS:")

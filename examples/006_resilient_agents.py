@@ -21,9 +21,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, broadcast, start_agents
+from praval import agent, broadcast, start_agents, get_reef
 import random
-import time
 
 
 # Global state to simulate system conditions
@@ -297,7 +296,7 @@ def main():
     
     for i, request in enumerate(test_requests, 1):
         print(f"=== Request {i}: {request} ===")
-        
+
         # Start all resilience agents
         start_agents(
             primary_processing_agent,
@@ -311,12 +310,15 @@ def main():
                 "request_id": f"req_{i:03d}"
             }
         )
-        
+
+        # Wait for agents to complete
+        get_reef().wait_for_completion()
+
         print("\n" + "─" * 40 + "\n")
-        
-        # Brief pause to make the demonstration clearer
-        time.sleep(0.5)
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("Key Insights:")
     print("- Systems can gracefully handle individual agent failures")
     print("- Backup agents provide seamless error recovery")

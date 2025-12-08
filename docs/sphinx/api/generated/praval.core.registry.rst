@@ -10,6 +10,7 @@
    
       get_registry
       register_agent
+      reset_registry
    
    .. rubric:: Classes
 

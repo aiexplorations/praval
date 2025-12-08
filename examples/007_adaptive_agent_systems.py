@@ -18,9 +18,8 @@ Key Concepts:
 Run: python examples/007_adaptive_agent_systems.py
 """
 
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 import random
-import time
 from collections import defaultdict
 from dotenv import load_dotenv
 
@@ -380,15 +379,20 @@ def main():
                     "conditions": conditions
                 }
             )
-            
+
+            # Wait for agents to complete
+            get_reef().wait_for_completion()
+
             task_counter += 1
-            time.sleep(0.3)  # Brief pause for clarity
-        
+
         print(f"\n--- End of {conditions} scenario ---")
         print(f"Active strategies: {len(adaptation_state['active_strategies'])}")
         print(f"Optimization attempts: {len(adaptation_state['optimization_history'])}")
         print()
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("=" * 60)
     print("SYSTEM EVOLUTION SUMMARY")
     print("=" * 60)

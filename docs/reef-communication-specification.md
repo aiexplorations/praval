@@ -42,6 +42,78 @@ Following Praval's coral ecosystem metaphor:
 - Minimal configuration required for basic usage
 - Advanced features available when needed
 
+## @agent Decorator Integration (v0.7.16+)
+
+### Default Channel Behavior
+
+When using the `@agent` decorator with `broadcast()`:
+
+```python
+from praval import agent, broadcast
+
+@agent("researcher", responds_to=["task"])
+def researcher(spore):
+    # broadcast() defaults to reef's "main" channel
+    broadcast({"type": "result", "data": "..."})
+
+    # Explicitly specify a different channel
+    broadcast({"type": "private_update"}, channel="internal")
+```
+
+**Key behavior:**
+- `broadcast()` without a channel parameter sends to the **"main"** channel
+- All agents are subscribed to the "main" channel by default
+- This enables simple agent chaining without explicit channel management
+
+### The `responds_to` Filter
+
+The `responds_to` parameter filters which messages an agent processes:
+
+```python
+@agent("writer", responds_to=["research_complete", "update_request"])
+def writer(spore):
+    # This agent ONLY processes messages where:
+    # spore.knowledge["type"] in ["research_complete", "update_request"]
+    msg_type = spore.knowledge.get("type")
+    print(f"Processing: {msg_type}")
+```
+
+**Filter mechanism:**
+1. Agent receives spore from reef
+2. Checks `spore.knowledge.get("type")`
+3. If type is in `responds_to` list → process message
+4. If type is NOT in list → silently ignore
+
+**Special cases:**
+- `responds_to=None` (default): Agent receives ALL messages
+- `responds_to=[]` (empty list): Agent receives NO messages
+
+### Message Flow Diagram
+
+```
+start_agents(initial_data={"type": "task", "query": "..."})
+                        |
+                        v
+                   [main channel]
+                        |
+        +---------------+---------------+
+        |                               |
+        v                               v
+  [researcher]                    [analyzer]
+  responds_to: ["task"]          responds_to: ["task"]
+        |                               |
+   broadcast()                     broadcast()
+  type: "research_done"           type: "analysis_done"
+        |                               |
+        v                               v
+                   [main channel]
+                        |
+                        v
+                    [writer]
+           responds_to: ["research_done",
+                        "analysis_done"]
+```
+
 ## API Specification
 
 ### Core Classes

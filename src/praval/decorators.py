@@ -139,10 +139,13 @@ def agent(name: Optional[str] = None,
                 if spore_type not in responds_to:
                     # This agent doesn't respond to this message type
                     return
-            
+
             # Set agent context for chat() and broadcast() functions
             _agent_context.agent = underlying_agent
             _agent_context.channel = agent_channel
+            # Set startup channel if agent was registered via start_agents()
+            # This allows broadcast() to default to the channel all agents share
+            _agent_context.startup_channel = getattr(underlying_agent, '_startup_channel', None)
             
             try:
                 # Resolve knowledge references in spore if memory is enabled
@@ -184,6 +187,7 @@ def agent(name: Optional[str] = None,
                 # Clean up context
                 _agent_context.agent = None
                 _agent_context.channel = None
+                _agent_context.startup_channel = None
         
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
@@ -310,7 +314,8 @@ def broadcast(data: Dict[str, Any], channel: Optional[str] = None, message_type:
 
     Args:
         data: Data to broadcast
-        channel: Channel to broadcast to (defaults to reef's default channel for system-wide broadcasting)
+        channel: Channel to broadcast to. Defaults to the channel set by start_agents(),
+                 or reef's default channel if not in a start_agents() context.
         message_type: Message type to set (automatically added to data)
 
     Returns:
@@ -320,7 +325,7 @@ def broadcast(data: Dict[str, Any], channel: Optional[str] = None, message_type:
         RuntimeError: If called outside of an @agent function
 
     Example:
-        # Broadcast to all agents on the default channel
+        # Broadcast to all agents on the same channel (set by start_agents)
         broadcast({"type": "analysis_request", "data": findings})
 
         # Broadcast to a specific channel
@@ -334,12 +339,16 @@ def broadcast(data: Dict[str, Any], channel: Optional[str] = None, message_type:
     if message_type:
         broadcast_data["type"] = message_type
 
-    # Default to reef's default channel (system-wide broadcast) if no channel specified
-    # This enables simple broadcast-based communication for smaller projects
-    # For larger projects with separation of concerns, specify explicit channels
+    # Channel resolution priority:
+    # 1. Explicitly passed channel parameter
+    # 2. Channel set by start_agents() (stored in _agent_context.startup_channel)
+    # 3. Reef's default channel (fallback for standalone agents)
     if channel is None:
-        reef = get_reef()
-        channel = reef.default_channel
+        # Check if we're in a start_agents() context with a specific channel
+        channel = getattr(_agent_context, 'startup_channel', None)
+        if channel is None:
+            reef = get_reef()
+            channel = reef.default_channel
 
     return _agent_context.agent.broadcast_knowledge(broadcast_data, channel=channel)
 

@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 from praval.storage import (
     storage_enabled, get_storage_registry, get_data_manager,
     PostgreSQLProvider, RedisProvider, S3Provider, 
@@ -472,11 +472,15 @@ async def main():
         # Start the agent system
         result = start_agents(
             data_collector_agent,
-            business_analyst_agent, 
+            business_analyst_agent,
             report_viewer_agent,
             initial_data={"type": "start_analysis"}
         )
-        
+
+        # Wait for agents to complete
+        get_reef().wait_for_completion()
+        get_reef().shutdown()
+
         print(f"\n✅ Demo completed successfully!")
         print(f"📁 Demo files stored in: {temp_dir}")
         print("\n🎯 Key Features Demonstrated:")

@@ -208,7 +208,9 @@ def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] 
     Args:
         *agent_funcs: Functions decorated with @agent
         initial_data: Initial data to broadcast (optional)
-        channel: Channel to use for startup communication
+        channel: Channel to use for agent communication (default: "startup").
+                 All agents will be subscribed to this channel and broadcast()
+                 will default to this channel.
 
     Returns:
         Spore ID of startup broadcast
@@ -226,7 +228,14 @@ def start_agents(*agent_funcs: Callable, initial_data: Optional[Dict[str, Any]] 
             raise ValueError(f"Function {agent_func.__name__} is not decorated with @agent")
 
         agent_info = get_agent_info(agent_func)
-        agent_info["underlying_agent"].subscribe_to_channel(channel)
+        underlying_agent = agent_info["underlying_agent"]
+
+        # Subscribe agent to the startup channel
+        underlying_agent.subscribe_to_channel(channel)
+
+        # Store the startup channel on the agent so broadcast() can use it
+        # This ensures broadcast() defaults to the same channel agents are subscribed to
+        underlying_agent._startup_channel = channel
 
     # Broadcast initial data if provided
     if initial_data:

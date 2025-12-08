@@ -18,9 +18,8 @@ Key Concepts:
 Run: python examples/009_emergent_collective_intelligence.py
 """
 
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 import random
-import time
 from collections import defaultdict, Counter
 
 
@@ -399,12 +398,15 @@ def main():
                 "inquiry_id": inquiry_id
             }
         )
-        
+
+        # Wait for agents to complete
+        get_reef().wait_for_completion()
+
         print("\n" + "─" * 60 + "\n")
-        
-        # Brief pause between inquiries
-        time.sleep(0.5)
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("COLLECTIVE INTELLIGENCE SUMMARY")
     print("=" * 60)
     

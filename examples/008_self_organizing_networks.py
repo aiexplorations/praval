@@ -18,9 +18,8 @@ Key Concepts:
 Run: python examples/008_self_organizing_networks.py
 """
 
-from praval import agent, chat, broadcast, start_agents
+from praval import agent, chat, broadcast, start_agents, get_reef
 import random
-import time
 from collections import defaultdict
 from dotenv import load_dotenv
 
@@ -397,7 +396,7 @@ def main():
     for i, challenge in enumerate(challenges, 1):
         print(f"=== Challenge {i}: {challenge} ===")
         print()
-        
+
         # Initiate network exploration - agents will self-organize from here
         start_agents(
             network_exploration_agent,
@@ -412,13 +411,19 @@ def main():
                 "my_capabilities": ["exploration", "networking"]
             }
         )
-        
+
+        # Wait for agents to complete
+        get_reef().wait_for_completion()
+
         print("\n" + "─" * 50)
         print("Network State:")
         print(f"  Agent connections: {dict(network_state['agent_connections'])}")
         print(f"  Active collaborations: {len(network_state['active_collaborations'])}")
         print("─" * 50 + "\n")
-    
+
+    # Shutdown reef after all iterations
+    get_reef().shutdown()
+
     print("SELF-ORGANIZING NETWORK SUMMARY")
     print("=" * 60)
     print(f"Successful collaborations: {network_state['network_metrics']['successful_collaborations']}")

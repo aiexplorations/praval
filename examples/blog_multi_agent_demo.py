@@ -13,8 +13,6 @@ Run (from the `praval` project root) with a configured environment, e.g.:
     python -m examples.blog_multi_agent_demo
 """
 
-import time
-
 from praval import agent, chat, broadcast, start_agents, get_reef
 
 
@@ -46,10 +44,9 @@ def main() -> None:
         writer,
         initial_data={"type": "query", "topic": "multi-agent AI systems"},
     )
-    # Give agents some time to process messages and complete LLM calls
-    time.sleep(5)
-    # Gracefully shut down the reef so no new work is scheduled
-    # during interpreter shutdown.
+    # Wait for all agents to complete processing
+    get_reef().wait_for_completion()
+    # Gracefully shut down the reef
     get_reef().shutdown(wait=True)
 
 

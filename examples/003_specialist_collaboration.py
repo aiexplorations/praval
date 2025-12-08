@@ -20,7 +20,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from praval import agent, broadcast, start_agents
+from praval import agent, broadcast, start_agents, get_reef
 
 
 @agent("analyzer", responds_to=["analyze_problem"])
@@ -235,7 +235,7 @@ def main():
     for i, problem in enumerate(problems, 1):
         print(f"=== Problem {i}: {problem} ===")
         print()
-        
+
         # Start all specialists - they'll collaborate through messages
         try:
             start_agents(
@@ -245,11 +245,17 @@ def main():
                 final_synthesizer,
                 initial_data={"type": "analyze_problem", "problem": problem}
             )
+
+            # Wait for agents to complete
+            get_reef().wait_for_completion()
         except Exception as e:
             print(f"⚠️  Agent coordination completed with some background processing issues (this is expected without full LLM setup): {e}")
-        
+
         print("\n" + "─" * 60 + "\n")
-    
+
+    # Shutdown after all iterations
+    get_reef().shutdown()
+
     print("Key Insights:")
     print("- Each agent has a single, clear specialty")
     print("- No central coordinator - agents collaborate naturally")
