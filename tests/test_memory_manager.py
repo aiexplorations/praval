@@ -659,3 +659,107 @@ class TestMemoryManagerIntegration:
         # Verify calls to appropriate subsystems
         mock_episodic_instance.store_conversation_turn.assert_called_once()
         mock_semantic_instance.store_fact.assert_called_once()
+
+
+class TestGetActiveBackend:
+    """Test the get_active_backend() method."""
+
+    def test_get_active_backend_memory_only(self):
+        """Test get_active_backend() in memory-only mode."""
+        with patch('praval.memory.memory_manager.ShortTermMemory') as mock_short_term:
+            mock_short_term_instance = Mock()
+            mock_short_term.return_value = mock_short_term_instance
+
+            manager = MemoryManager(
+                agent_id="backend_test_agent",
+                backend="memory"
+            )
+
+            result = manager.get_active_backend()
+
+            assert result["name"] == "memory"
+            assert result["type"] == "in_memory"
+            assert result["available"] is True
+            assert result["details"]["provider"] == "memory"
+            assert "note" in result["details"]
+            assert "will not persist" in result["details"]["note"]
+
+    @patch('praval.memory.memory_manager.EmbeddedVectorStore')
+    @patch('praval.memory.memory_manager.ShortTermMemory')
+    @patch('praval.memory.memory_manager.EpisodicMemory')
+    @patch('praval.memory.memory_manager.SemanticMemory')
+    def test_get_active_backend_chromadb(self, mock_semantic, mock_episodic,
+                                          mock_short_term, mock_embedded_store):
+        """Test get_active_backend() with ChromaDB backend."""
+        mock_embedded_instance = Mock()
+        mock_embedded_store.return_value = mock_embedded_instance
+        mock_short_term_instance = Mock()
+        mock_short_term.return_value = mock_short_term_instance
+
+        manager = MemoryManager(
+            agent_id="chromadb_backend_test",
+            backend="chromadb",
+            storage_path="/tmp/test_storage",
+            collection_name="test_collection"
+        )
+
+        result = manager.get_active_backend()
+
+        assert result["name"] == "chromadb"
+        assert result["type"] == "persistent"
+        assert result["available"] is True
+        assert result["details"]["provider"] == "chromadb"
+        assert result["details"]["storage_path"] == "/tmp/test_storage"
+        assert result["details"]["collection_name"] == "test_collection"
+
+    @patch('praval.memory.memory_manager.EmbeddedVectorStore')
+    @patch('praval.memory.memory_manager.LongTermMemory')
+    @patch('praval.memory.memory_manager.ShortTermMemory')
+    @patch('praval.memory.memory_manager.EpisodicMemory')
+    @patch('praval.memory.memory_manager.SemanticMemory')
+    def test_get_active_backend_qdrant(self, mock_semantic, mock_episodic,
+                                        mock_short_term, mock_long_term, mock_embedded_store):
+        """Test get_active_backend() with Qdrant backend (fallback)."""
+        # Make embedded store fail to trigger Qdrant fallback
+        mock_embedded_store.side_effect = Exception("ChromaDB failed")
+        mock_long_term_instance = Mock()
+        mock_long_term.return_value = mock_long_term_instance
+        mock_short_term_instance = Mock()
+        mock_short_term.return_value = mock_short_term_instance
+
+        manager = MemoryManager(
+            agent_id="qdrant_backend_test",
+            backend="auto",
+            qdrant_url="http://test-qdrant:6333",
+            collection_name="qdrant_test_collection"
+        )
+
+        result = manager.get_active_backend()
+
+        assert result["name"] == "qdrant"
+        assert result["type"] == "persistent"
+        assert result["available"] is True
+        assert result["details"]["provider"] == "qdrant"
+        assert result["details"]["qdrant_url"] == "http://test-qdrant:6333"
+        assert result["details"]["collection_name"] == "qdrant_test_collection"
+
+    def test_get_active_backend_returns_dict(self):
+        """Test that get_active_backend() always returns a well-formed dict."""
+        with patch('praval.memory.memory_manager.ShortTermMemory') as mock_short_term:
+            mock_short_term_instance = Mock()
+            mock_short_term.return_value = mock_short_term_instance
+
+            manager = MemoryManager(
+                agent_id="dict_test_agent",
+                backend="memory"
+            )
+
+            result = manager.get_active_backend()
+
+            # Verify structure
+            assert isinstance(result, dict)
+            assert "name" in result
+            assert "type" in result
+            assert "available" in result
+            assert "details" in result
+            assert isinstance(result["details"], dict)

@@ -21,10 +21,14 @@ Example::
 """
 
 import inspect
+import logging
 import threading
 import time
 from typing import Dict, Any, Optional, Callable, Union, List
 from functools import wraps
+
+
+logger = logging.getLogger(__name__)
 
 from .core.agent import Agent
 from .core.reef import get_reef
@@ -32,6 +36,54 @@ from .core.tool_registry import get_tool_registry
 
 # Thread-local storage for current agent context
 _agent_context = threading.local()
+
+
+def _handle_agent_error(
+    error: Exception,
+    spore: Any,
+    agent_name: str,
+    on_error: Union[str, Callable[[Exception, Any], None]],
+    context: str = "handler"
+) -> None:
+    """
+    Handle errors in agent handlers based on the on_error configuration.
+
+    Args:
+        error: The exception that occurred
+        spore: The spore being processed when error occurred
+        agent_name: Name of the agent
+        on_error: Error handling strategy ("log", "raise", "ignore", or callable)
+        context: Context string for logging (e.g., "handler", "memory_storage")
+    """
+    if on_error == "ignore":
+        return
+
+    if on_error == "log":
+        logger.error(
+            f"Error in agent '{agent_name}' ({context}): {type(error).__name__}: {error}",
+            exc_info=True
+        )
+        return
+
+    if on_error == "raise":
+        raise error
+
+    if callable(on_error):
+        try:
+            on_error(error, spore)
+        except Exception as callback_error:
+            logger.error(
+                f"Error in custom error handler for agent '{agent_name}': {callback_error}",
+                exc_info=True
+            )
+        return
+
+    # Unknown on_error value - default to logging
+    logger.warning(f"Unknown on_error value '{on_error}' for agent '{agent_name}', defaulting to 'log'")
+    logger.error(
+        f"Error in agent '{agent_name}' ({context}): {type(error).__name__}: {error}",
+        exc_info=True
+    )
 
 
 def _auto_register_tools(agent: Agent, agent_name: str) -> None:
@@ -64,16 +116,17 @@ def _auto_register_tools(agent: Agent, agent_name: str) -> None:
         pass
 
 
-def agent(name: Optional[str] = None, 
+def agent(name: Optional[str] = None,
           channel: Optional[str] = None,
           system_message: Optional[str] = None,
           auto_broadcast: bool = True,
           responds_to: Optional[List[str]] = None,
           memory: Union[bool, Dict[str, Any]] = False,
-          knowledge_base: Optional[str] = None):
+          knowledge_base: Optional[str] = None,
+          on_error: Union[str, Callable[[Exception, Any], None]] = "log"):
     """
     Decorator that turns a function into an autonomous agent.
-    
+
     Args:
         name: Agent name (defaults to function name)
         channel: Channel to subscribe to (defaults to name + "_channel")
@@ -82,7 +135,12 @@ def agent(name: Optional[str] = None,
         responds_to: List of message types this agent responds to (None = all messages)
         memory: Memory configuration - True for defaults, dict for custom config, False to disable
         knowledge_base: Path to knowledge base files for auto-indexing
-    
+        on_error: Error handling strategy:
+            - "log" (default): Log error and continue processing
+            - "raise": Re-raise exception to caller
+            - "ignore": Silently ignore errors (not recommended)
+            - callable: Custom error handler function(exception, spore)
+
     Examples::
 
         # Basic agent with message filtering
@@ -110,6 +168,17 @@ def agent(name: Optional[str] = None,
             question = spore.knowledge.get("question")
             relevant = expert_agent.recall(question, limit=3)
             return {"answer": [r.content for r in relevant]}
+
+    Agent with custom error handling::
+
+        def my_error_handler(error, spore):
+            print(f"Error in agent: {error}")
+            # Custom recovery logic here
+
+        @agent("processor", on_error=my_error_handler)
+        def process_agent(spore):
+            '''Process with custom error handling.'''
+            return {"processed": True}
     """
     def decorator(func: Callable) -> Callable:
         # Auto-generate name from function if not provided
@@ -156,7 +225,8 @@ def agent(name: Optional[str] = None,
             # Set startup channel if agent was registered via start_agents()
             # This allows broadcast() to default to the channel all agents share
             _agent_context.startup_channel = getattr(underlying_agent, '_startup_channel', None)
-            
+
+            result = None
             try:
                 # Resolve knowledge references in spore if memory is enabled
                 if memory_enabled and hasattr(spore, 'has_knowledge_references'):
@@ -165,18 +235,20 @@ def agent(name: Optional[str] = None,
                             resolved_knowledge = underlying_agent.resolve_spore_knowledge(spore)
                             spore.resolved_knowledge = resolved_knowledge
                         except Exception as e:
-                            # If knowledge resolution fails, continue without resolved knowledge
-                            pass
-                
+                            # Knowledge resolution errors are non-fatal, log and continue
+                            _handle_agent_error(
+                                e, spore, agent_name, on_error, context="knowledge_resolution"
+                            )
+
                 # Call the decorated function
                 result = func(spore)
-                
+
                 # Store conversation turn in memory if enabled
                 if memory_enabled and underlying_agent.memory:
                     try:
                         query = str(spore.knowledge) if spore.knowledge else "interaction"
                         response = str(result) if result else "no_response"
-                        
+
                         underlying_agent.memory.store_conversation_turn(
                             agent_id=agent_name,
                             user_message=query,
@@ -184,20 +256,29 @@ def agent(name: Optional[str] = None,
                             context={"spore_id": spore.id, "spore_type": spore.spore_type.value}
                         )
                     except Exception as e:
-                        # Don't fail the agent if memory storage fails
-                        pass
-                
+                        # Memory storage errors are non-fatal, log and continue
+                        _handle_agent_error(
+                            e, spore, agent_name, on_error, context="memory_storage"
+                        )
+
                 # Auto-broadcast return values if enabled and result exists
                 if auto_broadcast and result and isinstance(result, dict):
                     underlying_agent.broadcast_knowledge(
                         {**result, "_from": agent_name, "_timestamp": time.time()},
                         channel=agent_channel
                     )
+
+            except Exception as e:
+                # Main handler error - use configured error handling strategy
+                _handle_agent_error(e, spore, agent_name, on_error, context="handler")
+
             finally:
                 # Clean up context
                 _agent_context.agent = None
                 _agent_context.channel = None
                 _agent_context.startup_channel = None
+
+            return result
         
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
@@ -246,7 +327,8 @@ def agent(name: Optional[str] = None,
         func._praval_responds_to = responds_to
         func._praval_memory_enabled = memory_enabled
         func._praval_knowledge_base = knowledge_base
-        
+        func._praval_on_error = on_error
+
         # Return the original function with metadata attached
         return func
     
@@ -381,6 +463,7 @@ def get_agent_info(agent_func: Callable) -> Dict[str, Any]:
         "channel": agent_func._praval_channel,
         "auto_broadcast": agent_func._praval_auto_broadcast,
         "responds_to": agent_func._praval_responds_to,
+        "on_error": getattr(agent_func, '_praval_on_error', 'log'),
         "underlying_agent": agent_func._praval_agent
     }
 

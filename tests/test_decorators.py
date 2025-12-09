@@ -731,14 +731,15 @@ class TestGetAgentInfo:
         @agent("info_agent", channel="info_channel", auto_broadcast=False, responds_to=["info"])
         def test_func(spore):
             return {"result": "info"}
-        
+
         info = get_agent_info(test_func)
-        
+
         expected = {
             "name": "info_agent",
-            "channel": "info_channel", 
+            "channel": "info_channel",
             "auto_broadcast": False,
             "responds_to": ["info"],
+            "on_error": "log",  # Default error handling
             "underlying_agent": test_func._praval_agent
         }
         assert info == expected
@@ -939,9 +940,179 @@ class TestErrorHandling:
         
         thread1.join()
         thread2.join()
-        
+
         # Verify context isolation
         assert context_results[1]["agent"] == mock_agent1
         assert context_results[1]["channel"] == "channel_1"
-        assert context_results[2]["agent"] == mock_agent2  
+        assert context_results[2]["agent"] == mock_agent2
         assert context_results[2]["channel"] == "channel_2"
+
+
+class TestOnErrorParameter:
+    """Test the on_error parameter for error handling in agents."""
+
+    def setup_method(self):
+        """Clean agent context before each test."""
+        _agent_context.agent = None
+        _agent_context.channel = None
+
+    def test_on_error_default_is_log(self):
+        """Test that on_error defaults to 'log'."""
+        @agent("default_error_agent")
+        def test_func(spore):
+            return {"result": "ok"}
+
+        assert test_func._praval_on_error == "log"
+
+    def test_on_error_stored_in_metadata(self):
+        """Test that on_error value is stored in function metadata."""
+        @agent("raise_error_agent", on_error="raise")
+        def test_func(spore):
+            return {"result": "ok"}
+
+        assert test_func._praval_on_error == "raise"
+
+    def test_on_error_ignore(self):
+        """Test that on_error='ignore' is stored correctly."""
+        @agent("ignore_error_agent", on_error="ignore")
+        def test_func(spore):
+            return {"result": "ok"}
+
+        assert test_func._praval_on_error == "ignore"
+
+    def test_on_error_callable(self):
+        """Test that on_error can be a callable."""
+        def custom_handler(error, spore):
+            pass
+
+        @agent("custom_error_agent", on_error=custom_handler)
+        def test_func(spore):
+            return {"result": "ok"}
+
+        assert test_func._praval_on_error == custom_handler
+        assert callable(test_func._praval_on_error)
+
+    def test_get_agent_info_includes_on_error(self):
+        """Test that get_agent_info returns on_error setting."""
+        @agent("info_error_agent", on_error="raise")
+        def test_func(spore):
+            return {"result": "ok"}
+
+        info = get_agent_info(test_func)
+        assert info["on_error"] == "raise"
+
+    def test_get_agent_info_default_on_error(self):
+        """Test that get_agent_info shows default on_error for older agents."""
+        @agent("old_agent")
+        def test_func(spore):
+            return {"result": "ok"}
+
+        info = get_agent_info(test_func)
+        assert info["on_error"] == "log"
+
+    @patch('praval.decorators.Agent')
+    def test_on_error_raise_propagates_handler_error(self, mock_agent_class):
+        """Test that on_error='raise' propagates exceptions from handler."""
+        mock_agent = Mock()
+        mock_agent_class.return_value = mock_agent
+
+        @agent("raise_agent", on_error="raise")
+        def test_func(spore):
+            raise ValueError("Test error")
+
+        spore = Mock()
+        spore.knowledge = {"type": "test"}
+
+        handler = mock_agent.set_spore_handler.call_args[0][0]
+
+        with pytest.raises(ValueError, match="Test error"):
+            handler(spore)
+
+    @patch('praval.decorators.Agent')
+    def test_on_error_log_continues_after_error(self, mock_agent_class):
+        """Test that on_error='log' logs error and continues."""
+        mock_agent = Mock()
+        mock_agent_class.return_value = mock_agent
+
+        @agent("log_agent", on_error="log")
+        def test_func(spore):
+            raise ValueError("Test error")
+
+        spore = Mock()
+        spore.knowledge = {"type": "test"}
+
+        handler = mock_agent.set_spore_handler.call_args[0][0]
+
+        # Should not raise - logs and continues
+        result = handler(spore)
+        assert result is None  # No return value when error occurs
+
+    @patch('praval.decorators.Agent')
+    def test_on_error_ignore_silently_continues(self, mock_agent_class):
+        """Test that on_error='ignore' silently continues after error."""
+        mock_agent = Mock()
+        mock_agent_class.return_value = mock_agent
+
+        @agent("ignore_agent", on_error="ignore")
+        def test_func(spore):
+            raise ValueError("Test error")
+
+        spore = Mock()
+        spore.knowledge = {"type": "test"}
+
+        handler = mock_agent.set_spore_handler.call_args[0][0]
+
+        # Should not raise - silently ignores
+        result = handler(spore)
+        assert result is None
+
+    @patch('praval.decorators.Agent')
+    def test_on_error_callable_receives_error_and_spore(self, mock_agent_class):
+        """Test that custom error handler receives error and spore."""
+        mock_agent = Mock()
+        mock_agent_class.return_value = mock_agent
+
+        received_error = None
+        received_spore = None
+
+        def custom_handler(error, spore):
+            nonlocal received_error, received_spore
+            received_error = error
+            received_spore = spore
+
+        @agent("custom_agent", on_error=custom_handler)
+        def test_func(spore):
+            raise ValueError("Custom error")
+
+        spore = Mock()
+        spore.knowledge = {"type": "test"}
+
+        handler = mock_agent.set_spore_handler.call_args[0][0]
+        handler(spore)
+
+        assert received_error is not None
+        assert isinstance(received_error, ValueError)
+        assert str(received_error) == "Custom error"
+        assert received_spore == spore
+
+    @patch('praval.decorators.Agent')
+    def test_on_error_callable_exception_is_logged(self, mock_agent_class):
+        """Test that exceptions in custom error handler are logged."""
+        mock_agent = Mock()
+        mock_agent_class.return_value = mock_agent
+
+        def failing_handler(error, spore):
+            raise RuntimeError("Handler failed")
+
+        @agent("failing_handler_agent", on_error=failing_handler)
+        def test_func(spore):
+            raise ValueError("Original error")
+
+        spore = Mock()
+        spore.knowledge = {"type": "test"}
+
+        handler = mock_agent.set_spore_handler.call_args[0][0]
+
+        # Should not raise - handler error is logged
+        result = handler(spore)
+        assert result is None

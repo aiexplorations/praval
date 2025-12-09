@@ -130,7 +130,15 @@ class MemoryManager:
         # Auto-index knowledge base if provided
         if self.knowledge_base_path and vector_store:
             self._index_knowledge_base()
-    
+
+        # Log startup summary
+        logger.info(
+            f"MemoryManager initialized for agent '{agent_id}': "
+            f"backend={self.backend}, "
+            f"episodic={'enabled' if self.episodic_memory else 'disabled'}, "
+            f"semantic={'enabled' if self.semantic_memory else 'disabled'}"
+        )
+
     def store_memory(self,
                     agent_id: str,
                     content: str,
@@ -418,15 +426,53 @@ class MemoryManager:
             "episodic_memory": False,
             "semantic_memory": False
         }
-        
+
         vector_store = self.embedded_store or self.long_term_memory
         if vector_store:
             health["persistent_memory"] = vector_store.health_check()
             health["episodic_memory"] = health["persistent_memory"]  # Depends on persistent
             health["semantic_memory"] = health["persistent_memory"]  # Depends on persistent
-        
+
         return health
-    
+
+    def get_active_backend(self) -> Dict[str, Any]:
+        """
+        Get information about the currently active memory backend.
+
+        Returns:
+            Dictionary containing:
+                - name: Backend name ("chromadb", "qdrant", "memory")
+                - type: "persistent" or "in_memory"
+                - available: Whether the backend is operational
+                - details: Backend-specific information
+        """
+        result = {
+            "name": self.backend,
+            "type": "persistent" if self.backend in ["chromadb", "qdrant"] else "in_memory",
+            "available": True,
+            "details": {}
+        }
+
+        if self.embedded_store:
+            result["details"] = {
+                "storage_path": self.storage_path,
+                "collection_name": self.collection_name,
+                "provider": "chromadb"
+            }
+        elif self.long_term_memory:
+            result["details"] = {
+                "qdrant_url": self.qdrant_url,
+                "collection_name": self.collection_name,
+                "provider": "qdrant"
+            }
+        else:
+            result["details"] = {
+                "note": "Using in-memory storage only - data will not persist",
+                "provider": "memory"
+            }
+
+        return result
+
     def _should_store_long_term(self, memory: MemoryEntry) -> bool:
         """Decide whether a memory should be stored long-term"""
         # Store important memories
