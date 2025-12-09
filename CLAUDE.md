@@ -14,7 +14,7 @@ All pytest, pip, python commands must be run within the activated venv.
 
 ## Project Overview
 
-- **Version**: 0.7.17
+- **Version**: 0.7.19
 - **Python Support**: 3.9, 3.10, 3.11, 3.12
 - **License**: MIT
 
@@ -216,9 +216,49 @@ pip install praval[all]       # Everything
 pip install praval[dev]       # Development tools
 ```
 
+## Documentation Build
+
+### Build Sphinx Docs
+```bash
+source venv/bin/activate
+
+# Clean and build
+make docs-clean
+make docs-html
+
+# Output location
+ls docs/_build/html/
+```
+
+### Serve Docs Locally
+```bash
+make docs-serve
+# Opens http://localhost:8000
+```
+
+### Deploy to praval-ai Website
+After a release, update the praval-ai repo with new docs:
+```bash
+# 1. Build docs in praval repo
+make docs-clean && make docs-html
+
+# 2. Copy to praval-ai repo (replace X.Y.Z with version)
+cp -r docs/_build/html /path/to/praval-ai/docs/vX.Y.Z
+cp -r docs/_build/html /path/to/praval-ai/docs/latest
+
+# 3. Update praval-ai/docs/versions.json with new version
+
+# 4. Commit and push praval-ai
+```
+
 ## Key Documentation
 
 - `docs/quickstart.md` - Single vs multi-agent patterns
 - `docs/memory-api-reference.md` - Memory API
 - `docs/reef-communication-specification.md` - Spore protocol
 - `examples/simple_multi_agent.py` - Reference example
+
+## Related Repositories
+
+- **praval-ai**: Website and hosted documentation (https://github.com/aiexplorations/praval-ai)
+- **PyPI**: https://pypi.org/project/praval/
