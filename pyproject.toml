@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.7.19"
+version = "0.7.20"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = {text = "MIT"}

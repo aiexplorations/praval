@@ -314,7 +314,7 @@ class RabbitMQBackend(ReefBackend):
             routing_key = self._generate_routing_key(spore, channel)
 
             # Use native Spore AMQP serialization
-            await self.transport.publish(spore, routing_key)
+            await self.transport.publish(routing_key, spore)
 
             self.stats['spores_sent'] += 1
 

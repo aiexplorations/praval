@@ -14,7 +14,7 @@ All pytest, pip, python commands must be run within the activated venv.
 
 ## Project Overview
 
-- **Version**: 0.7.19
+- **Version**: 0.7.20
 - **Python Support**: 3.9, 3.10, 3.11, 3.12
 - **License**: MIT
 
