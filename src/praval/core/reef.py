@@ -508,6 +508,10 @@ class Reef:
     - Future: HTTP, gRPC, Kafka, etc.
 
     Agents work unchanged regardless of backend choice.
+
+    Message Routing:
+    - When using InMemoryBackend: Messages routed through local ReefChannel
+    - When using RabbitMQBackend (or other distributed): Messages routed through backend
     """
 
     def __init__(self, default_max_workers: int = 4, backend=None):
@@ -538,6 +542,34 @@ class Reef:
         # Start background cleanup
         self.cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self.cleanup_thread.start()
+
+    def _is_distributed_backend(self) -> bool:
+        """
+        Check if the current backend is distributed (requires async message routing).
+
+        Returns:
+            True if using RabbitMQ or other distributed backend, False for InMemory.
+        """
+        from .reef_backend import InMemoryBackend
+        return not isinstance(self.backend, InMemoryBackend) and self._backend_initialized
+
+    def _run_async(self, coro):
+        """
+        Run an async coroutine from sync context.
+
+        Handles the async/sync boundary for backends that require async operations.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            # We're already in an async context, create a task
+            return asyncio.ensure_future(coro)
+        except RuntimeError:
+            # No running loop, create a new one
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
     
     def create_channel(self, name: str, max_capacity: int = 1000, max_workers: Optional[int] = None) -> ReefChannel:
         """Create a new reef channel."""
@@ -627,9 +659,16 @@ class Reef:
             reply_to=reply_to,
             knowledge_references=final_references
         )
-        
-        # Send through channel
-        reef_channel.send_spore(spore)
+
+        # Route through backend for distributed systems, or local channel for in-memory
+        if self._is_distributed_backend():
+            # Use distributed backend (RabbitMQ, etc.)
+            logger.debug(f"Routing spore {spore.id} through distributed backend to channel: {channel}")
+            self._run_async(self.backend.send(spore, channel))
+        else:
+            # Use local in-memory channel
+            reef_channel.send_spore(spore)
+
         return spore.id
     
     def broadcast(self, 
@@ -701,13 +740,23 @@ class Reef:
             channel: Channel name (uses default if None)
             replace: If True (default), replaces existing handlers for this agent.
                     If False, adds handler to the list.
+
+        Note:
+            For distributed backends (RabbitMQ, etc.), this also subscribes to
+            the backend's message broker, enabling cross-process communication.
         """
         if channel is None:
             channel = self.default_channel
 
         reef_channel = self.get_channel(channel)
         if reef_channel:
+            # Always register locally (needed for local message tracking)
             reef_channel.subscribe(agent_name, handler, replace=replace)
+
+        # Also subscribe through distributed backend if active
+        if self._is_distributed_backend():
+            logger.debug(f"Subscribing agent '{agent_name}' to distributed backend channel: {channel}")
+            self._run_async(self.backend.subscribe(channel, handler))
     
     def get_network_stats(self) -> Dict[str, Any]:
         """Get statistics about the reef network."""
