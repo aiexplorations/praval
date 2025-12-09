@@ -81,7 +81,13 @@ class MemoryManager:
                 )
                 self.backend = "chromadb"
                 logger.info("Embedded ChromaDB memory initialized successfully")
+            except ImportError as e:
+                # Expected when chromadb dependency not installed - log at debug level
+                logger.debug(f"ChromaDB not available, will try fallback: {e}")
+                if backend != "auto":
+                    raise
             except Exception as e:
+                # Unexpected error - log at error level
                 logger.error(f"Failed to initialize embedded memory: {e}")
                 if backend != "auto":
                     raise

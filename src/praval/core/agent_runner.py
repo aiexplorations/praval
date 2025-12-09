@@ -124,6 +124,11 @@ class AgentRunner:
 
         This is called automatically by run(), but can be called separately
         for more control over startup sequence.
+
+        For distributed backends (RabbitMQ), this:
+        1. Initializes the connection to the message broker
+        2. Subscribes each agent to the backend for their channels
+        3. Sets up a shared channel for inter-agent communication
         """
         logger.info(f"Initializing {len(self.agents)} agents...")
 
@@ -141,10 +146,39 @@ class AgentRunner:
             logger.error(f"✗ Failed to initialize backend: {e}")
             raise
 
-        # Log agent registrations
+        # Create a shared channel for inter-agent communication (mirrors start_agents behavior)
+        shared_channel = "distributed_agents"
+        self.reef.create_channel(shared_channel)
+
+        # Subscribe agents to backend now that it's initialized
+        # The @agent decorator subscribes to local channels at import time,
+        # but backend isn't initialized then, so we need to do it here.
         for agent in self.agents:
             agent_name = agent._praval_name
             agent_channel = agent._praval_channel
+            underlying_agent = agent._praval_agent
+
+            # Set startup channel so broadcast() defaults to shared channel
+            underlying_agent._startup_channel = shared_channel
+
+            # Subscribe to the shared channel for inter-agent communication
+            underlying_agent.subscribe_to_channel(shared_channel)
+
+            # Subscribe to agent's own channel via backend
+            if self.reef._is_distributed_backend():
+                handler = underlying_agent.on_spore_received
+                # Subscribe to agent's own channel
+                await self.backend.subscribe(agent_channel, handler)
+                logger.debug(f"Subscribed '{agent_name}' to backend channel '{agent_channel}'")
+
+                # Subscribe to shared channel
+                await self.backend.subscribe(shared_channel, handler)
+                logger.debug(f"Subscribed '{agent_name}' to backend channel '{shared_channel}'")
+
+                # Subscribe to default broadcast channel
+                await self.backend.subscribe(self.reef.default_channel, handler)
+                logger.debug(f"Subscribed '{agent_name}' to backend default channel")
+
             logger.info(f"  ✓ Agent '{agent_name}' ready on channel '{agent_channel}'")
 
     async def run_async(self) -> None:
