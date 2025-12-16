@@ -27,6 +27,15 @@ import inspect
 
 logger = logging.getLogger(__name__)
 
+# Default maximum spore payload size (10MB)
+MAX_SPORE_SIZE_BYTES = 10 * 1024 * 1024
+
+
+class SporeValidationError(Exception):
+    """Raised when spore validation fails."""
+
+    pass
+
 
 class SporeType(Enum):
     """Types of spores that can flow through the reef."""
@@ -71,6 +80,51 @@ class Spore:
             self.knowledge_references = []
         if self.data_references is None:
             self.data_references = []
+
+        # Validate the spore
+        self.validate()
+
+    def validate(self, max_size: int = None) -> None:
+        """
+        Validate the spore payload.
+
+        Args:
+            max_size: Maximum allowed payload size in bytes (default: MAX_SPORE_SIZE_BYTES)
+
+        Raises:
+            SporeValidationError: If validation fails
+        """
+        if max_size is None:
+            max_size = MAX_SPORE_SIZE_BYTES
+
+        # Validate knowledge type
+        if self.knowledge is not None and not isinstance(self.knowledge, dict):
+            raise SporeValidationError(
+                f"knowledge must be a dict, got {type(self.knowledge).__name__}"
+            )
+
+        # Validate payload size
+        try:
+            payload_json = json.dumps(self.knowledge) if self.knowledge else "{}"
+            payload_size = len(payload_json.encode("utf-8"))
+        except (TypeError, ValueError) as e:
+            raise SporeValidationError(f"knowledge is not JSON-serializable: {e}")
+
+        if payload_size > max_size:
+            raise SporeValidationError(
+                f"Spore payload too large: {payload_size} bytes "
+                f"(max: {max_size} bytes = {max_size / 1024 / 1024:.1f}MB). "
+                f"Consider using knowledge_references for large data."
+            )
+
+    def get_payload_size(self) -> int:
+        """Get the size of the knowledge payload in bytes."""
+        if self.knowledge is None:
+            return 0
+        try:
+            return len(json.dumps(self.knowledge).encode("utf-8"))
+        except (TypeError, ValueError):
+            return 0
     
     def to_json(self) -> str:
         """Serialize spore to JSON for transmission."""
