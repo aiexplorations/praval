@@ -5,12 +5,15 @@ The Agent class provides a simple, composable interface for LLM-based
 conversations with support for multiple providers, tools, and state persistence.
 """
 
+import logging
 import os
 import inspect
 import time
 import threading
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # Auto-load .env files if available
 try:
@@ -452,15 +455,14 @@ class Agent:
                 **default_config
             )
             
-            # Note: logger not imported, using print for now
-            print(f"Memory system initialized for agent {self.name}")
+            logger.info(f"Memory system initialized for agent {self.name}")
             
         except ImportError as e:
-            print(f"Memory system not available: {e}")
+            logger.warning(f"Memory system not available: {e}")
             self.memory = None
             self.memory_enabled = False
         except Exception as e:
-            print(f"Failed to initialize memory system for {self.name}: {e}")
+            logger.warning(f"Failed to initialize memory system for {self.name}: {e}")
             self.memory = None
             self.memory_enabled = False
     
@@ -479,9 +481,9 @@ class Agent:
             Memory ID if successful, None otherwise
         """
         if not self.memory:
-            print(f"Memory not enabled for agent {self.name}")
+            logger.debug(f"Memory not enabled for agent {self.name}")
             return None
-        
+
         try:
             from ..memory import MemoryType
             
@@ -503,7 +505,7 @@ class Agent:
             )
             
         except Exception as e:
-            print(f"Failed to store memory: {e}")
+            logger.warning(f"Failed to store memory: {e}")
             return None
     
     def recall(self, query: str, limit: int = 5, 
@@ -520,9 +522,9 @@ class Agent:
             List of MemoryEntry objects
         """
         if not self.memory:
-            print(f"Memory not enabled for agent {self.name}")
+            logger.debug(f"Memory not enabled for agent {self.name}")
             return []
-        
+
         try:
             from ..memory import MemoryQuery
             
@@ -537,7 +539,7 @@ class Agent:
             return results.entries
             
         except Exception as e:
-            print(f"Failed to recall memories: {e}")
+            logger.warning(f"Failed to recall memories: {e}")
             return []
     
     def recall_by_id(self, memory_id: str) -> List:
@@ -572,7 +574,7 @@ class Agent:
         try:
             return self.memory.get_knowledge_references(content, importance)
         except Exception as e:
-            print(f"Failed to create knowledge reference: {e}")
+            logger.warning(f"Failed to create knowledge reference: {e}")
             return []
     
     def resolve_spore_knowledge(self, spore) -> Dict[str, Any]:
@@ -593,7 +595,7 @@ class Agent:
             reef = get_reef()
             return reef.resolve_knowledge_references(spore, self.memory)
         except Exception as e:
-            print(f"Failed to resolve spore knowledge: {e}")
+            logger.warning(f"Failed to resolve spore knowledge: {e}")
             return spore.knowledge
     
     def send_lightweight_knowledge(self, to_agent: str, 
