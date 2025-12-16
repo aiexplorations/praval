@@ -486,10 +486,50 @@ class ReefChannel:
             if timeout is not None and (time.time() - start_time) >= timeout:
                 return False
 
-    def shutdown(self, wait: bool = True) -> None:
-        """Shutdown the channel's thread pool."""
+    def shutdown(self, wait: bool = True, timeout: float = 30.0) -> bool:
+        """
+        Shutdown the channel's thread pool.
+
+        Args:
+            wait: Whether to wait for pending handlers to complete
+            timeout: Maximum seconds to wait (only if wait=True)
+
+        Returns:
+            True if shutdown completed cleanly, False if timeout occurred
+        """
         self._shutdown = True
-        self.executor.shutdown(wait=wait)
+
+        if not wait:
+            self.executor.shutdown(wait=False)
+            return True
+
+        # Cancel pending futures
+        with self._futures_lock:
+            for future in self._active_futures:
+                if not future.done():
+                    future.cancel()
+
+        # Shutdown executor
+        self.executor.shutdown(wait=True)
+
+        # Verify all futures completed within timeout
+        start = time.time()
+        while time.time() - start < timeout:
+            with self._futures_lock:
+                pending = [f for f in self._active_futures if not f.done()]
+            if not pending:
+                return True
+            time.sleep(0.1)
+
+        with self._futures_lock:
+            pending = [f for f in self._active_futures if not f.done()]
+        if pending:
+            logger.warning(
+                f"Channel {self.name} shutdown timed out with {len(pending)} pending handlers"
+            )
+            return False
+
+        return True
 
 
 class Reef:
@@ -811,17 +851,39 @@ class Reef:
 
         return True
 
-    def shutdown(self, wait: bool = True) -> None:
-        """Shutdown the reef and all its channels."""
+    def shutdown(self, wait: bool = True, timeout: float = 30.0) -> bool:
+        """
+        Shutdown the reef and all its channels.
+
+        Args:
+            wait: Whether to wait for pending handlers
+            timeout: Maximum total seconds to wait across all channels
+
+        Returns:
+            True if all channels shut down cleanly, False if timeout occurred
+        """
         self._shutdown = True
 
-        # Shutdown all channels
+        all_clean = True
+        remaining_timeout = timeout
+
+        # Shutdown all channels, distributing timeout
         for channel in self.channels.values():
-            channel.shutdown(wait=wait)
+            start = time.time()
+            if not channel.shutdown(wait=wait, timeout=remaining_timeout):
+                all_clean = False
+            elapsed = time.time() - start
+            remaining_timeout = max(0.1, remaining_timeout - elapsed)
 
         # Wait for cleanup thread to finish if requested
         if wait and self.cleanup_thread.is_alive():
-            self.cleanup_thread.join(timeout=5.0)
+            cleanup_timeout = min(5.0, remaining_timeout)
+            self.cleanup_thread.join(timeout=cleanup_timeout)
+            if self.cleanup_thread.is_alive():
+                logger.warning("Cleanup thread did not stop within timeout")
+                all_clean = False
+
+        return all_clean
     
     def create_knowledge_reference_spore(self,
                                         from_agent: str,
@@ -881,16 +943,34 @@ class Reef:
         return resolved_knowledge
     
     def _cleanup_loop(self) -> None:
-        """Background thread to clean up expired spores."""
+        """
+        Background thread to clean up expired spores.
+
+        Runs every 60 seconds. Logs errors instead of silently ignoring them.
+        Uses interruptible sleep to respond quickly to shutdown signals.
+        """
         while not self._shutdown:
             try:
-                time.sleep(60)  # Cleanup every minute
-                if not self._shutdown:  # Double-check before cleanup
+                # Use interruptible sleep - check shutdown flag every second
+                for _ in range(60):
+                    if self._shutdown:
+                        break
+                    time.sleep(1)
+
+                if not self._shutdown:
                     for channel in self.channels.values():
-                        channel.cleanup_expired()
+                        try:
+                            expired = channel.cleanup_expired()
+                            if expired > 0:
+                                logger.debug(
+                                    f"Cleaned up {expired} expired spores from {channel.name}"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Error cleaning up channel {channel.name}: {e}")
             except Exception as e:
-                # Silent cleanup failures to prevent thread death
-                pass
+                logger.error(f"Error in cleanup loop: {e}")
+                # Don't exit the loop on error, but add backoff to prevent tight loop
+                time.sleep(5)
 
 
 # Global reef instance
