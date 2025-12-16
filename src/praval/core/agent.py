@@ -105,6 +105,10 @@ class Agent:
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.conversation_history: List[Dict[str, str]] = []
+
+        # Lifecycle management
+        self._closed = False
+        self._subscribed_channels: List[str] = []
         
         # Setup configuration
         config_dict = config or {}
@@ -385,31 +389,39 @@ class Agent:
     def subscribe_to_channel(self, channel_name: str) -> None:
         """
         Subscribe this agent to a reef channel.
-        
+
         Args:
             channel_name: Name of the channel to subscribe to
         """
         from .reef import get_reef
-        
+
         reef = get_reef()
         # Create channel if it doesn't exist
         reef.create_channel(channel_name)
         reef.subscribe(self.name, self.on_spore_received, channel_name)
-    
+
+        # Track subscription for cleanup
+        if channel_name not in self._subscribed_channels:
+            self._subscribed_channels.append(channel_name)
+
     def unsubscribe_from_channel(self, channel_name: str) -> None:
         """
         Unsubscribe this agent from a reef channel.
-        
+
         Args:
             channel_name: Name of the channel to unsubscribe from
         """
         from .reef import get_reef
-        
+
         reef = get_reef()
         channel = reef.get_channel(channel_name)
         if channel:
             channel.unsubscribe(self.name)
-    
+
+        # Remove from tracking
+        if channel_name in self._subscribed_channels:
+            self._subscribed_channels.remove(channel_name)
+
     @property
     def spore_handler(self) -> Optional[Callable]:
         """
@@ -428,7 +440,89 @@ class Agent:
             handler: Function that takes a Spore object and handles it
         """
         self._custom_spore_handler = handler
-    
+
+    # ==========================================
+    # LIFECYCLE MANAGEMENT
+    # ==========================================
+
+    def close(self) -> None:
+        """
+        Release all resources held by the agent.
+
+        This method:
+        - Unsubscribes from all reef channels
+        - Shuts down the memory system
+        - Clears conversation history
+
+        Safe to call multiple times. After calling close(), the agent
+        should not be used for further operations.
+
+        Example:
+            agent = Agent("assistant")
+            try:
+                response = agent.chat("Hello")
+            finally:
+                agent.close()
+
+            # Or use as context manager:
+            with Agent("assistant") as agent:
+                response = agent.chat("Hello")
+        """
+        if self._closed:
+            return
+
+        self._closed = True
+
+        # Unsubscribe from reef channels
+        try:
+            from .reef import get_reef
+            reef = get_reef()
+            for channel_name in self._subscribed_channels[:]:  # Copy to avoid mutation during iteration
+                try:
+                    channel = reef.get_channel(channel_name)
+                    if channel:
+                        channel.unsubscribe(self.name)
+                except Exception as e:
+                    logger.warning(f"Error unsubscribing {self.name} from {channel_name}: {e}")
+            self._subscribed_channels.clear()
+        except Exception as e:
+            logger.warning(f"Error during reef cleanup for {self.name}: {e}")
+
+        # Shutdown memory system
+        if self.memory:
+            try:
+                if hasattr(self.memory, 'shutdown'):
+                    self.memory.shutdown()
+            except Exception as e:
+                logger.warning(f"Error shutting down memory for {self.name}: {e}")
+            self.memory = None
+
+        # Clear conversation history
+        self.conversation_history.clear()
+
+        logger.debug(f"Agent {self.name} closed")
+
+    def __enter__(self) -> 'Agent':
+        """Context manager entry - returns the agent."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - ensures cleanup."""
+        self.close()
+
+    def __del__(self):
+        """Destructor - attempt cleanup if not already done."""
+        try:
+            if not getattr(self, '_closed', True):
+                self.close()
+        except Exception:
+            pass  # Suppress errors during garbage collection
+
+    @property
+    def is_closed(self) -> bool:
+        """Check if the agent has been closed."""
+        return self._closed
+
     # ==========================================
     # MEMORY SYSTEM METHODS
     # ==========================================
