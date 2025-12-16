@@ -167,8 +167,8 @@ def _instrument_memory_operations() -> None:
                 span_name="memory.store_memory",
                 kind=SpanKind.INTERNAL
             )
-            def instrumented_store_mem(self, content, memory_type, **kwargs):
-                return original_store_mem(self, content, memory_type, **kwargs)
+            def instrumented_store_mem(self, agent_id, content, memory_type=None, **kwargs):
+                return original_store_mem(self, agent_id, content, memory_type, **kwargs)
 
             memory_manager.MemoryManager.store_memory = instrumented_store_mem
         except AttributeError:
@@ -249,16 +249,16 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.openai import OpenAIProvider
 
-            original_generate = OpenAIProvider.generate
+            original_openai_generate = OpenAIProvider.generate
 
             @instrument_function(
                 span_name="llm.OpenAIProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_openai(self, messages, tools=None, _orig=original_openai_generate):
+                return _orig(self, messages, tools)
 
-            OpenAIProvider.generate = instrumented_generate
+            OpenAIProvider.generate = instrumented_generate_openai
         except (ImportError, AttributeError) as e:
             logger.debug(f"Could not instrument OpenAI provider: {e}")
 
@@ -266,14 +266,14 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.anthropic import AnthropicProvider
 
-            original_generate = AnthropicProvider.generate
+            original_anthropic_generate = AnthropicProvider.generate
 
             @instrument_function(
                 span_name="llm.AnthropicProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate_anthropic(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_anthropic(self, messages, tools=None, _orig=original_anthropic_generate):
+                return _orig(self, messages, tools)
 
             AnthropicProvider.generate = instrumented_generate_anthropic
         except (ImportError, AttributeError) as e:
@@ -283,14 +283,14 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.cohere import CohereProvider
 
-            original_generate = CohereProvider.generate
+            original_cohere_generate = CohereProvider.generate
 
             @instrument_function(
                 span_name="llm.CohereProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate_cohere(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_cohere(self, messages, tools=None, _orig=original_cohere_generate):
+                return _orig(self, messages, tools)
 
             CohereProvider.generate = instrumented_generate_cohere
         except (ImportError, AttributeError) as e:

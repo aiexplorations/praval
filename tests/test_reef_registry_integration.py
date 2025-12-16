@@ -6,6 +6,7 @@ seamlessly with agent and tool discovery through the registry.
 """
 
 import pytest
+from contextlib import ExitStack
 from typing import Dict, Any, List
 from unittest.mock import Mock, patch
 
@@ -202,22 +203,19 @@ class TestReefRegistryIntegration:
                     broadcasts_received[agent_type].append(spore.knowledge)
             return handler
         
-        # Set up broadcast handlers for all agents
-        patches = []
-        for agent_type in agent_types:
-            patch_obj = patch.object(
-                agents[agent_type], 
-                'on_spore_received', 
-                side_effect=create_broadcast_handler(agent_type)
-            )
-            patches.append(patch_obj)
-        
-        # Apply all patches and broadcast
-        with patch.multiple(*patches):
+        # Set up broadcast handlers for all agents using ExitStack
+        with ExitStack() as stack:
+            for agent_type in agent_types:
+                stack.enter_context(patch.object(
+                    agents[agent_type],
+                    'on_spore_received',
+                    side_effect=create_broadcast_handler(agent_type)
+                ))
+
             # Create broadcaster agent
             broadcaster = Agent("system_broadcaster")
             register_agent(broadcaster)
-            
+
             # Broadcast system-wide announcement
             broadcaster.broadcast_knowledge({
                 "announcement": "system_maintenance_scheduled",
@@ -225,7 +223,7 @@ class TestReefRegistryIntegration:
                 "duration": "2_hours",
                 "affected_services": ["all"]
             })
-            
+
             # All registered agents should receive broadcast
             for agent_type in agent_types:
                 assert len(broadcasts_received[agent_type]) == 1
@@ -272,17 +270,16 @@ class TestReefRegistryIntegration:
                     messages_received[agent_name].append(spore.knowledge)
             return handler
         
-        patches = []
-        for specialist in specialists:
-            agent = created_agents[specialist]
-            patch_obj = patch.object(
-                agent,
-                'on_spore_received',
-                side_effect=create_message_handler(specialist)
-            )
-            patches.append(patch_obj)
-        
-        with patch.multiple(*patches):
+        # Apply patches using ExitStack
+        with ExitStack() as stack:
+            for specialist in specialists:
+                agent = created_agents[specialist]
+                stack.enter_context(patch.object(
+                    agent,
+                    'on_spore_received',
+                    side_effect=create_message_handler(specialist)
+                ))
+
             # Send specific tasks to specialists
             coordinator.send_knowledge(
                 to_agent="nlp_specialist",
@@ -292,23 +289,23 @@ class TestReefRegistryIntegration:
                     "deadline": "2024-01-20"
                 }
             )
-            
+
             coordinator.send_knowledge(
-                to_agent="cv_specialist", 
+                to_agent="cv_specialist",
                 knowledge={
                     "task": "object_detection",
                     "dataset": "security_cameras",
                     "deadline": "2024-01-25"
                 }
             )
-            
+
             # Verify targeted delivery
             assert len(messages_received["nlp_specialist"]) == 1
             assert len(messages_received["cv_specialist"]) == 1
-            
+
             nlp_task = messages_received["nlp_specialist"][0]
             cv_task = messages_received["cv_specialist"][0]
-            
+
             assert nlp_task["task"] == "sentiment_analysis"
             assert cv_task["task"] == "object_detection"
     

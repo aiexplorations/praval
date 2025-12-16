@@ -294,7 +294,8 @@ class TestToolRegistry:
         assert stats["total_tools"] == 3
         assert stats["shared_tools"] == 1
         assert stats["agents_with_tools"] == 1
-        assert stats["categories"] == 2
+        # Categories: "general" (add_tool default), "math" (multiply_tool), "utility" (shared_tool)
+        assert stats["categories"] == 3
 
 
 class TestToolDecorator:
