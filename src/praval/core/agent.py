@@ -512,6 +512,11 @@ class Agent:
 
     def __del__(self):
         """Destructor - attempt cleanup if not already done."""
+        # Skip cleanup during Python shutdown (imports won't work)
+        import sys
+        if sys.meta_path is None:
+            return
+
         try:
             if not getattr(self, '_closed', True):
                 self.close()
