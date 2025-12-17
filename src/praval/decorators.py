@@ -89,12 +89,12 @@ def _handle_agent_error(
 def _auto_register_tools(agent: Agent, agent_name: str) -> None:
     """
     Auto-register tools from the tool registry for an agent.
-    
+
     This function automatically registers tools that are:
     1. Owned by the agent
     2. Shared (available to all agents)
     3. Any tools already assigned to this agent in the registry
-    
+
     Args:
         agent: The Agent instance to register tools for
         agent_name: Name of the agent
@@ -102,18 +102,43 @@ def _auto_register_tools(agent: Agent, agent_name: str) -> None:
     try:
         registry = get_tool_registry()
         available_tools = registry.get_tools_for_agent(agent_name)
-        
+
         for tool in available_tools:
-            # Register the tool function with the agent
+            # Register the tool with its proper name from the registry,
+            # not the function name. This preserves explicit tool names
+            # like "calculator_add" instead of using "add" from func.__name__.
+            tool_name = tool.metadata.tool_name
             tool_func = tool.func
-            
-            # Add the tool to the agent using the existing tool decorator
-            agent.tool(tool_func)
-            
+
+            # Get function signature for parameter extraction
+            import inspect
+            sig = inspect.signature(tool_func)
+
+            # Extract parameters from type hints
+            parameters = {}
+            for param_name, param in sig.parameters.items():
+                param_type = param.annotation
+                if param_type != inspect.Parameter.empty:
+                    type_name = getattr(param_type, '__name__', str(param_type))
+                else:
+                    type_name = 'any'
+                parameters[param_name] = {
+                    'type': type_name,
+                    'required': param.default == inspect.Parameter.empty
+                }
+
+            # Directly register with the proper tool name
+            agent.tools[tool_name] = {
+                "function": tool_func,
+                "description": tool.metadata.description or tool_func.__doc__ or "",
+                "parameters": parameters
+            }
+
     except Exception as e:
         # Don't fail agent creation if tool registration fails
-        # Just log the error (in a real implementation, we'd use proper logging)
-        pass
+        # Just log the error
+        import logging
+        logging.getLogger(__name__).debug(f"Tool auto-registration failed: {e}")
 
 
 def agent(name: Optional[str] = None,

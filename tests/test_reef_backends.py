@@ -271,8 +271,9 @@ class TestRabbitMQBackend:
         assert mock_transport.publish.called
         # The spore should be passed directly (not serialized)
         call_args = mock_transport.publish.call_args
-        # First arg should be the spore or compatible object
-        assert hasattr(call_args[0][0], 'to_amqp_message')
+        # First positional arg is routing_key (string)
+        # Second positional arg should be the spore object
+        assert hasattr(call_args[0][1], 'to_amqp_message')
 
     @pytest.mark.asyncio
     async def test_generate_routing_key(self, mock_transport):

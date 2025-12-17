@@ -13,6 +13,19 @@ os.environ["PRAVAL_OBSERVABILITY"] = "on"
 os.environ["PRAVAL_SAMPLE_RATE"] = "1.0"
 
 
+@pytest.fixture(autouse=True)
+def initialize_observability():
+    """Initialize observability instrumentation for each test in this module.
+
+    This is needed because the main conftest.py resets instrumentation between
+    tests for isolation. The observability tests need instrumentation active.
+    """
+    from praval.observability import initialize_instrumentation
+    initialize_instrumentation()
+    yield
+    # Cleanup happens in main conftest
+
+
 class TestBasicInstrumentation:
     """Test that basic instrumentation is working."""
 
