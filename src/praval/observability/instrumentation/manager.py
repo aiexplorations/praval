@@ -198,8 +198,8 @@ def _instrument_memory_operations() -> None:
 def _instrument_storage_providers() -> None:
     """Instrument storage provider operations."""
     try:
-        # Instrument EmbeddedStore from the memory module
-        from praval.memory.embedded_store import EmbeddedStore
+        # Instrument EmbeddedVectorStore from the memory module
+        from praval.memory.embedded_store import EmbeddedVectorStore as EmbeddedStore
         from .utils import instrument_function
         from ..tracing import SpanKind
 

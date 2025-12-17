@@ -16,20 +16,29 @@ from praval.memory.long_term_memory import LongTermMemory, QDRANT_AVAILABLE, OPE
 from praval.memory.memory_types import MemoryEntry, MemoryType, MemoryQuery, MemorySearchResult
 
 
+# Create mock Distance class for tests when qdrant isn't installed
+class MockDistance:
+    COSINE = "cosine"
+    EUCLID = "euclidean"
+    DOT = "dot"
+
+
 class TestLongTermMemoryInitialization:
     """Test LongTermMemory initialization with comprehensive coverage."""
-    
+
+    @patch('praval.memory.long_term_memory.VectorParams')
+    @patch('praval.memory.long_term_memory.Distance', MockDistance)
     @patch('praval.memory.long_term_memory.QdrantClient')
-    def test_long_term_memory_default_initialization(self, mock_qdrant_client):
+    def test_long_term_memory_default_initialization(self, mock_qdrant_client, mock_vector_params):
         """Test long-term memory with default parameters."""
         mock_client = Mock()
         mock_qdrant_client.return_value = mock_client
-        
+
         # Mock collection check
         mock_collections = Mock()
         mock_collections.collections = []
         mock_client.get_collections.return_value = mock_collections
-        
+
         with patch('praval.memory.long_term_memory.QDRANT_AVAILABLE', True):
             memory = LongTermMemory()
         
@@ -42,17 +51,19 @@ class TestLongTermMemoryInitialization:
         mock_qdrant_client.assert_called_once_with(url="http://localhost:6333")
         mock_client.create_collection.assert_called_once()
     
+    @patch('praval.memory.long_term_memory.VectorParams')
+    @patch('praval.memory.long_term_memory.Distance', MockDistance)
     @patch('praval.memory.long_term_memory.QdrantClient')
-    def test_long_term_memory_custom_initialization(self, mock_qdrant_client):
+    def test_long_term_memory_custom_initialization(self, mock_qdrant_client, mock_vector_params):
         """Test long-term memory with custom parameters."""
         mock_client = Mock()
         mock_qdrant_client.return_value = mock_client
-        
+
         # Mock collection check
         mock_collections = Mock()
         mock_collections.collections = []
         mock_client.get_collections.return_value = mock_collections
-        
+
         with patch('praval.memory.long_term_memory.QDRANT_AVAILABLE', True):
             memory = LongTermMemory(
                 qdrant_url="http://custom:6334",
@@ -60,12 +71,12 @@ class TestLongTermMemoryInitialization:
                 vector_size=768,
                 distance_metric="euclidean"
             )
-        
+
         assert memory.qdrant_url == "http://custom:6334"
         assert memory.collection_name == "custom_memories"
         assert memory.vector_size == 768
         assert memory.distance_metric == "euclidean"
-        
+
         mock_qdrant_client.assert_called_once_with(url="http://custom:6334")
     
     def test_long_term_memory_qdrant_unavailable(self):
@@ -106,17 +117,19 @@ class TestLongTermMemoryInitialization:
             with pytest.raises(Exception, match="Connection failed"):
                 LongTermMemory()
     
+    @patch('praval.memory.long_term_memory.VectorParams')
+    @patch('praval.memory.long_term_memory.Distance', MockDistance)
     @patch('praval.memory.long_term_memory.QdrantClient')
-    def test_long_term_memory_distance_metric_mapping(self, mock_qdrant_client):
+    def test_long_term_memory_distance_metric_mapping(self, mock_qdrant_client, mock_vector_params):
         """Test distance metric mapping to Qdrant types."""
         mock_client = Mock()
         mock_qdrant_client.return_value = mock_client
-        
+
         # Mock collection check
         mock_collections = Mock()
         mock_collections.collections = []
         mock_client.get_collections.return_value = mock_collections
-        
+
         with patch('praval.memory.long_term_memory.QDRANT_AVAILABLE', True):
             with patch('praval.memory.long_term_memory.models') as mock_models:
                 memory = LongTermMemory(distance_metric="dot")
@@ -127,24 +140,38 @@ class TestLongTermMemoryInitialization:
 
 class TestLongTermMemoryStorage:
     """Test memory storage functionality."""
-    
+
     def setup_method(self):
         """Set up test environment."""
         self.mock_client = Mock()
         self.mock_embedding = [0.1, 0.2, 0.3] * 512  # 1536 dimensions
-    
+
+    @patch('praval.memory.long_term_memory.PointStruct')
+    @patch('praval.memory.long_term_memory.VectorParams')
+    @patch('praval.memory.long_term_memory.Distance', MockDistance)
     @patch('praval.memory.long_term_memory.QdrantClient')
-    def test_store_memory_basic(self, mock_qdrant_client):
+    def test_store_memory_basic(self, mock_qdrant_client, mock_vector_params, mock_point_struct):
         """Test basic memory storage."""
         mock_qdrant_client.return_value = self.mock_client
-        
+
         # Mock collection exists
         mock_collection = Mock()
         mock_collection.name = "praval_memories"
         mock_collections = Mock()
         mock_collections.collections = [mock_collection]
         self.mock_client.get_collections.return_value = mock_collections
-        
+
+        # Mock PointStruct to return a mock with expected attributes
+        mock_point = Mock()
+        mock_point.id = "store_test"
+        mock_point.vector = self.mock_embedding
+        mock_point.payload = {
+            "agent_id": "test_agent",
+            "memory_type": "semantic",
+            "content": "Test storage content"
+        }
+        mock_point_struct.return_value = mock_point
+
         with patch('praval.memory.long_term_memory.QDRANT_AVAILABLE', True):
             memory = LongTermMemory()
         
@@ -179,18 +206,26 @@ class TestLongTermMemoryStorage:
             assert point.payload["memory_type"] == "semantic"
             assert point.payload["content"] == "Test storage content"
     
+    @patch('praval.memory.long_term_memory.PointStruct')
+    @patch('praval.memory.long_term_memory.VectorParams')
+    @patch('praval.memory.long_term_memory.Distance', MockDistance)
     @patch('praval.memory.long_term_memory.QdrantClient')
-    def test_store_memory_with_existing_embedding(self, mock_qdrant_client):
+    def test_store_memory_with_existing_embedding(self, mock_qdrant_client, mock_vector_params, mock_point_struct):
         """Test storing memory with pre-existing embedding."""
         mock_qdrant_client.return_value = self.mock_client
-        
+
         # Mock collection exists
         mock_collection = Mock()
         mock_collection.name = "praval_memories"
         mock_collections = Mock()
         mock_collections.collections = [mock_collection]
         self.mock_client.get_collections.return_value = mock_collections
-        
+
+        existing_embedding = [0.5, 0.6, 0.7] * 512
+        mock_point = Mock()
+        mock_point.vector = existing_embedding
+        mock_point_struct.return_value = mock_point
+
         with patch('praval.memory.long_term_memory.QDRANT_AVAILABLE', True):
             memory = LongTermMemory()
         
