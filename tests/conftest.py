@@ -19,7 +19,7 @@ def _reset_agent_context():
 
 
 def _reset_observability():
-    """Reset observability global state (config, tracer, trace store)."""
+    """Reset observability global state (config, tracer, trace store, instrumentation)."""
     try:
         from praval.observability.config import reset_config
         reset_config()
@@ -35,6 +35,12 @@ def _reset_observability():
     try:
         from praval.observability.storage.sqlite_store import reset_trace_store
         reset_trace_store()
+    except ImportError:
+        pass
+
+    try:
+        from praval.observability.instrumentation.manager import reset_instrumentation
+        reset_instrumentation()
     except ImportError:
         pass
 

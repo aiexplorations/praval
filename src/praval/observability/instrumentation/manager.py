@@ -198,8 +198,8 @@ def _instrument_memory_operations() -> None:
 def _instrument_storage_providers() -> None:
     """Instrument storage provider operations."""
     try:
-        # Instrument the simpler EmbeddedStore instead of BaseStorageProvider
-        from praval.storage.embedded_store import EmbeddedStore
+        # Instrument EmbeddedStore from the memory module
+        from praval.memory.embedded_store import EmbeddedStore
         from .utils import instrument_function
         from ..tracing import SpanKind
 
@@ -309,3 +309,15 @@ def is_instrumented() -> bool:
         True if instrumentation is active
     """
     return _instrumentation_initialized
+
+
+def reset_instrumentation() -> None:
+    """Reset the instrumentation state.
+
+    This is primarily used for testing to ensure test isolation.
+    Note: This only resets the initialization flag. The actual monkey-patched
+    methods remain in place, but they will be re-patched on next initialization.
+    """
+    global _instrumentation_initialized
+    _instrumentation_initialized = False
+    logger.debug("Instrumentation state reset")
