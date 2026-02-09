@@ -154,9 +154,14 @@ class TestTracer:
         assert tracer1.name == "praval"
 
     def test_global_tracer_with_name(self):
-        """Test global tracer with custom name."""
-        tracer = get_tracer("custom-name")
-        assert tracer.name == "praval"  # Still uses same instance
+        """Test global tracer singleton behavior with different name calls."""
+        # First call creates the tracer with the given name
+        tracer1 = get_tracer("first-name")
+        # Second call with different name still returns the same instance
+        tracer2 = get_tracer("different-name")
+
+        assert tracer1 is tracer2  # Same instance
+        assert tracer1.name == "first-name"  # Name from first call is preserved
 
 
 class TestIDGeneration:

@@ -34,8 +34,8 @@ def run_with_timeout(cmd, timeout=30):
     except Exception as e:
         return -2, "", f"ERROR: {str(e)}"
 
-def test_example(example_file):
-    """Test a single example file."""
+def run_single_example(example_file):
+    """Run a single example file and check if it passes."""
     print(f"\n🧪 Testing {example_file}...")
     
     # Run the example
@@ -89,7 +89,7 @@ def main():
     
     for example_file in example_files:
         try:
-            success = test_example(example_file)
+            success = run_single_example(example_file)
             results[example_file] = success
             if success:
                 passed += 1

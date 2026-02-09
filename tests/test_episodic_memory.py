@@ -143,21 +143,23 @@ class TestEpisodicMemoryConversationStorage:
     def test_conversation_importance_calculation_length_bonus(self):
         """Test conversation importance calculation with length bonus."""
         self.mock_long_term.store.return_value = "length_test"
-        
-        # Long conversation should get importance bonus
-        long_user_message = "This is a very long user message that contains detailed information and goes on for quite a while, providing extensive context and multiple questions that require thoughtful responses from the AI assistant."
-        long_agent_response = "Thank you for your detailed question. I'll do my best to provide a comprehensive response that addresses all of your concerns. Let me break this down into several parts to ensure I cover everything thoroughly..."
-        
+
+        # Long conversation should get importance bonus (total > 500 chars for +0.2 bonus)
+        # Use simple text without any of the important_keywords: problem, error, help,
+        # learn, remember, important, critical, urgent, goal, plan, decision
+        long_user_message = "x" * 300  # 300 characters
+        long_agent_response = "y" * 250  # 250 characters, total 550 > 500
+
         self.memory.store_conversation_turn(
             agent_id="length_agent",
             user_message=long_user_message,
             agent_response=long_agent_response
         )
-        
+
         call_args = self.mock_long_term.store.call_args[0][0]
         importance = call_args.metadata["importance"]
-        
-        # Should have length bonus (0.5 + 0.2 = 0.7)
+
+        # Should have length bonus (0.5 + 0.2 = 0.7) for total > 500 chars
         assert importance == 0.7
     
     def test_conversation_importance_calculation_keyword_bonus(self):
@@ -315,13 +317,19 @@ class TestEpisodicMemoryConversationContext:
     
     def test_get_conversation_context_from_short_term(self):
         """Test getting conversation context from short-term memory."""
-        # Mock short-term memory to return conversation memories
-        conv_memories = [
-            self.create_conversation_memory("conv_3", "context_agent", "How are you?", "I'm fine"),
-            self.create_conversation_memory("conv_2", "context_agent", "What's up?", "Not much"),
-            self.create_conversation_memory("conv_1", "context_agent", "Hello", "Hi there"),
-        ]
-        
+        # Mock short-term memory to return conversation memories with explicit timestamps
+        # so sorting by created_at (most recent first) produces predictable results
+        conv_3 = self.create_conversation_memory("conv_3", "context_agent", "How are you?", "I'm fine")
+        conv_3.created_at = datetime.now()  # Most recent
+
+        conv_2 = self.create_conversation_memory("conv_2", "context_agent", "What's up?", "Not much")
+        conv_2.created_at = datetime.now() - timedelta(minutes=5)
+
+        conv_1 = self.create_conversation_memory("conv_1", "context_agent", "Hello", "Hi there")
+        conv_1.created_at = datetime.now() - timedelta(minutes=10)  # Oldest
+
+        conv_memories = [conv_3, conv_2, conv_1]
+
         # Add some non-conversation memories to test filtering
         non_conv_memory = MemoryEntry(
             id="non_conv",
@@ -330,18 +338,18 @@ class TestEpisodicMemoryConversationContext:
             content="Some semantic content",
             metadata={"type": "knowledge"}
         )
-        
+
         all_memories = conv_memories + [non_conv_memory]
         self.mock_short_term.get_recent.return_value = all_memories
-        
+
         result = self.memory.get_conversation_context("context_agent", turns=2)
-        
-        # Should return only conversation memories, limited to requested turns
+
+        # Should return only conversation memories, sorted by created_at (most recent first)
         assert len(result) == 2
         assert all(m.metadata.get("type") == "conversation_turn" for m in result)
-        assert result[0].id == "conv_3"
-        assert result[1].id == "conv_2"
-        
+        assert result[0].id == "conv_3"  # Most recent
+        assert result[1].id == "conv_2"  # Second most recent
+
         # Verify short-term memory was queried correctly
         self.mock_short_term.get_recent.assert_called_once_with(agent_id="context_agent", limit=4)  # turns * 2
     

@@ -112,11 +112,11 @@ class TestMemoryManagerBackendInitialization:
             backend="chromadb"
         )
         
-        # Verify embedded store was created
-        mock_embedded_store.assert_called_once_with(
-            storage_path=None,
-            collection_name="praval_memories"
-        )
+        # Verify embedded store was created with expected params
+        mock_embedded_store.assert_called_once()
+        call_kwargs = mock_embedded_store.call_args[1]
+        assert call_kwargs["storage_path"] is None
+        assert call_kwargs["collection_name"] == "praval_memories"
         
         # Verify backend is set correctly
         assert manager.backend == "chromadb"

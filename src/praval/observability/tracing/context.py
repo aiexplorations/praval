@@ -6,6 +6,7 @@ Handles propagation of trace context through Spore metadata and thread-local sto
 
 import threading
 from typing import Optional
+from collections.abc import Mapping
 
 from .span import Span
 
@@ -53,6 +54,8 @@ class TraceContext:
             return None
 
         metadata = spore.metadata
+        if not isinstance(metadata, Mapping):
+            return None
         if "trace_id" in metadata and "span_id" in metadata:
             return cls(
                 trace_id=metadata["trace_id"],
@@ -70,7 +73,7 @@ class TraceContext:
         if not hasattr(spore, 'metadata'):
             return
 
-        if spore.metadata is None:
+        if spore.metadata is None or not isinstance(spore.metadata, Mapping):
             spore.metadata = {}
 
         spore.metadata["trace_id"] = self.trace_id

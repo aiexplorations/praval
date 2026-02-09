@@ -5,10 +5,10 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.18 adds wait_for_completion() for deterministic multi-agent synchronization,
-fixes broadcast() channel resolution to use startup channel by default, and includes
-comprehensive tool system with @tool decorator, PDF support for knowledge base,
-Unified Data Storage & Retrieval System, and Secure Spores Enterprise Edition.
+Version 0.7.21 adds reef performance options (shared pool, handler batching),
+reef authorization hooks, agent history caps, and stability fixes across observability and storage,
+plus improved tests for transports, reef backends, and optional providers.
+
 """
 
 from .core.agent import Agent
@@ -87,7 +87,7 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.20"
+__version__ = "0.7.21"
 __all__ = [
     # Core classes
     "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",

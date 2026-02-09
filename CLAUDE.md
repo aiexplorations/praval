@@ -14,7 +14,7 @@ All pytest, pip, python commands must be run within the activated venv.
 
 ## Project Overview
 
-- **Version**: 0.7.20
+- **Version**: 0.7.21
 - **Python Support**: 3.9, 3.10, 3.11, 3.12
 - **License**: MIT
 
@@ -29,21 +29,58 @@ praval/
 │   ├── tools.py                  # @tool decorator implementation
 │   ├── core/                     # Core components
 │   │   ├── agent.py             # Agent base class
+│   │   ├── agent_runner.py      # Agent execution engine
 │   │   ├── reef.py              # Communication system (Spore protocol)
+│   │   ├── reef_backend.py      # Reef backend implementations
 │   │   ├── registry.py          # Agent discovery
-│   │   ├── secure_reef.py       # Encrypted communication
+│   │   ├── secure_reef.py       # Encrypted reef communication
+│   │   ├── secure_spore.py      # Encrypted spore handling
+│   │   ├── storage.py           # Core storage utilities
+│   │   ├── exceptions.py        # Framework exceptions
 │   │   ├── transport.py         # RabbitMQ/AMQP transport
 │   │   └── tool_registry.py     # Tool registration
-│   ├── memory/                   # Memory system (ChromaDB)
-│   ├── storage/                  # Storage providers (PostgreSQL, Redis, S3, Qdrant)
-│   ├── observability/           # OpenTelemetry tracing
+│   ├── memory/                   # Memory system
+│   │   ├── memory_manager.py    # Unified memory interface
+│   │   ├── memory_types.py      # Memory type definitions
+│   │   ├── short_term_memory.py # Working memory
+│   │   ├── long_term_memory.py  # Persistent vector storage
+│   │   ├── episodic_memory.py   # Conversation tracking
+│   │   ├── semantic_memory.py   # Knowledge retrieval
+│   │   └── embedded_store.py    # ChromaDB integration
+│   ├── storage/                  # Storage providers
+│   │   ├── providers/           # Provider implementations
+│   │   │   ├── filesystem.py    # Local filesystem
+│   │   │   ├── postgresql.py    # PostgreSQL
+│   │   │   ├── redis_provider.py # Redis
+│   │   │   ├── s3_provider.py   # AWS S3
+│   │   │   └── qdrant_provider.py # Qdrant vector DB
+│   │   ├── base_provider.py     # Provider base class
+│   │   ├── data_manager.py      # Unified data access
+│   │   ├── decorators.py        # Storage decorators
+│   │   └── storage_registry.py  # Provider registry
+│   ├── observability/           # Tracing & monitoring
+│   │   ├── tracing/             # Span & context management
+│   │   ├── instrumentation/     # Auto-instrumentation
+│   │   ├── storage/             # SQLite trace storage
+│   │   └── export/              # OTLP & console exporters
 │   └── providers/               # LLM providers (OpenAI, Anthropic, Cohere)
 ├── examples/                     # Working examples
 │   ├── simple_multi_agent.py    # Basic multi-agent pattern (START HERE)
-│   ├── 001-011_*.py             # Numbered progressive examples
+│   ├── 001_single_agent_identity.py
+│   ├── 002_agent_communication.py
+│   ├── 003_specialist_collaboration.py
+│   ├── 004_registry_discovery.py
+│   ├── 005_memory_enabled_agents.py
+│   ├── 006_resilient_agents.py
+│   ├── 007_adaptive_agent_systems.py
+│   ├── 008_self_organizing_networks.py
+│   ├── 009_emergent_collective_intelligence.py
+│   ├── 010_unified_storage_demo.py
+│   ├── 011_secure_spore_demo.py
 │   └── distributed_agents_with_rabbitmq.py
 ├── tests/                        # Test suite
 ├── docs/                         # Documentation
+│   └── sphinx/                  # Sphinx documentation source
 └── pyproject.toml               # Package configuration
 ```
 
@@ -100,7 +137,7 @@ def process_data(items: List[str], config: Optional[Dict[str, Any]] = None) -> D
 ```
 
 ### Testing Requirements
-- Minimum 80% code coverage
+- Minimum 90% code coverage
 - Use pytest with pytest-asyncio for async tests
 - Mark tests: `@pytest.mark.unit`, `@pytest.mark.integration`
 
@@ -115,8 +152,8 @@ pip install -e .[dev]
 # Run tests
 pytest tests/ -v
 
-# Run with coverage (must be >80%)
-pytest --cov=praval --cov-report=html --cov-fail-under=80
+# Run with coverage (must be >90%)
+pytest --cov=praval --cov-report=html --cov-fail-under=90
 
 # Format code
 black src tests
@@ -137,12 +174,30 @@ black src tests && isort src tests && flake8 src tests && mypy src && pytest tes
 ### Test Structure
 ```
 tests/
-├── test_agent.py          # Agent class tests
-├── test_decorators.py     # @agent decorator tests
-├── test_reef.py           # Communication system tests
-├── test_memory.py         # Memory system tests
-├── test_tools.py          # Tool system tests
-└── integration/           # Integration tests
+├── test_agent.py              # Agent class tests
+├── test_decorators.py         # @agent decorator tests
+├── test_reef.py               # Communication system tests
+├── test_memory_manager.py     # Memory manager tests
+├── test_tool_system.py        # Tool system tests
+├── test_composition.py        # Agent composition tests
+├── test_secure_spore.py       # Secure messaging tests
+├── test_transport.py          # AMQP transport tests
+├── storage/                   # Storage provider tests
+│   ├── test_base_provider.py
+│   ├── test_data_manager.py
+│   ├── test_filesystem_provider.py
+│   ├── test_postgresql_provider.py
+│   ├── test_redis_provider.py
+│   ├── test_s3_provider.py
+│   └── test_qdrant_provider.py
+├── observability/             # Observability tests
+│   ├── test_tracer.py
+│   ├── test_span.py
+│   ├── test_context.py
+│   └── test_instrumentation.py
+├── integration/               # Integration tests
+│   └── test_rabbitmq_distributed_workflow.py
+└── validation/                # Validation scripts
 ```
 
 ### Running Specific Tests
@@ -159,13 +214,23 @@ pytest tests/ -m integration                # Only integration tests
 Version is defined in two places - keep them in sync:
 - `pyproject.toml` line 7: `version = "X.Y.Z"`
 - `src/praval/__init__.py` line 90: `__version__ = "X.Y.Z"`
+- `src/praval/__init__.py` docstring (update release notes)
 
-### Release Steps
+### Quick Release (Recommended)
+Use the Makefile release wizard:
+```bash
+source venv/bin/activate
+make release
+# Follow prompts to select: patch/minor/major
+# Updates version, builds, and prepares for upload
+```
+
+### Manual Release Steps
 ```bash
 # 1. Ensure all tests pass
-pytest tests/ -v --cov=praval --cov-fail-under=80
+pytest tests/ -v --cov=praval --cov-fail-under=90
 
-# 2. Update version in pyproject.toml and src/praval/__init__.py
+# 2. Update version in pyproject.toml, src/praval/__init__.py, and docstring
 
 # 3. Commit version bump
 git add pyproject.toml src/praval/__init__.py
@@ -181,6 +246,11 @@ python -m build
 # 6. Upload to PyPI (wheel only)
 twine upload dist/praval-X.Y.Z-py3-none-any.whl
 ```
+
+### Post-Release
+After PyPI release, update the pravalagents.com website:
+1. Update version displayed on the site
+2. Deploy new documentation (see Documentation Build section)
 
 ### Version Semantics
 - **Major (X)**: Breaking API changes
@@ -256,9 +326,15 @@ cp -r docs/_build/html /path/to/praval-ai/docs/latest
 - `docs/quickstart.md` - Single vs multi-agent patterns
 - `docs/memory-api-reference.md` - Memory API
 - `docs/reef-communication-specification.md` - Spore protocol
+- `docs/secure_spores_architecture.md` - Secure Spores Enterprise
+- `docs/tool-system-specification.md` - Tool system (@tool decorator)
+- `docs/DEPLOYMENT.md` - Docker deployment guide
+- `docs/praval-complete-guide.md` - Comprehensive framework guide
 - `examples/simple_multi_agent.py` - Reference example
 
 ## Related Repositories
 
-- **praval-ai**: Website and hosted documentation (https://github.com/aiexplorations/praval-ai)
+- **Website**: https://pravalagents.com (documentation and demos)
+- **praval-ai repo**: Website source (https://github.com/aiexplorations/praval-ai)
 - **PyPI**: https://pypi.org/project/praval/
+- **GitHub**: https://github.com/aiexplorations/praval

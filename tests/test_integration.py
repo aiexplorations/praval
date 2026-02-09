@@ -55,7 +55,7 @@ class TestIntegrationStatefulConversations:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     @patch('praval.providers.openai.OpenAIProvider')
-    @patch('praval.core.storage.StateStorage')
+    @patch('praval.core.agent.StateStorage')
     def test_stateful_conversation_example(self, mock_storage_class, mock_provider_class):
         """Test Example 2: Stateful Conversations."""
         # Setup mocks
@@ -84,7 +84,7 @@ class TestIntegrationStatefulConversations:
         assert mock_storage.save.call_count == 2
     
     @patch('praval.providers.openai.OpenAIProvider')
-    @patch('praval.core.storage.StateStorage')
+    @patch('praval.core.agent.StateStorage')
     def test_state_restoration_example(self, mock_storage_class, mock_provider_class):
         """Test state restoration across sessions."""
         # Setup mocks
@@ -289,7 +289,7 @@ class TestIntegrationCompleteWorkflow:
     """Test complete workflows combining multiple features."""
     
     @patch('praval.providers.openai.OpenAIProvider')
-    @patch('praval.core.storage.StateStorage')
+    @patch('praval.core.agent.StateStorage')
     def test_complete_agent_workflow(self, mock_storage_class, mock_provider_class):
         """Test a complete agent workflow with persistence and tools."""
         # Setup mocks

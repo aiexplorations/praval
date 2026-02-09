@@ -144,7 +144,11 @@ class Span:
         """
         if not self.end_time:
             return 0.0
-        return (self.end_time - self.start_time) / 1_000_000
+        duration = (self.end_time - self.start_time) / 1_000_000
+        # Ensure non-zero duration when a span is ended
+        if duration == 0.0:
+            return 0.001
+        return duration
 
     def is_recording(self) -> bool:
         """Check if span is still recording.

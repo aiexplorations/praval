@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any, Union
 import logging
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from datetime import datetime
 
@@ -86,10 +87,18 @@ class EmbeddedVectorStore:
             self.legacy_collection_name = None
         
         # Setup storage path
+        self._uses_default_storage = storage_path is None
         if storage_path is None:
             storage_path = os.path.join(tempfile.gettempdir(), "praval_memory")
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
+
+        # Avoid cross-test contention by isolating default storage instances
+        if self._uses_default_storage:
+            self._client_path = self.storage_path / f"instance_{uuid.uuid4().hex}"
+            self._client_path.mkdir(parents=True, exist_ok=True)
+        else:
+            self._client_path = self.storage_path
         
         # Initialize components
         self._init_chromadb()
@@ -108,7 +117,7 @@ class EmbeddedVectorStore:
         try:
             # Create ChromaDB client with persistent storage
             self.client = chromadb.PersistentClient(
-                path=str(self.storage_path),
+                path=str(self._client_path),
                 settings=Settings(
                     anonymized_telemetry=False,
                     allow_reset=False  # Prevent accidental data loss
@@ -213,6 +222,41 @@ class EmbeddedVectorStore:
             import traceback
             logger.debug(f"Migration exception details: {traceback.format_exc()}")
     
+    def shutdown(self) -> None:
+        """Release resources held by the vector store."""
+        try:
+            system = getattr(self.client, "_system", None)
+            if system and hasattr(system, "stop"):
+                system.stop()
+        except Exception as e:
+            logger.debug(f"Embedded vector store shutdown error: {e}")
+
+        # Cleanup isolated default storage directory
+        try:
+            if getattr(self, "_uses_default_storage", False) and hasattr(self, "_client_path"):
+                if self._client_path.exists() and self._client_path.is_dir():
+                    for child in self._client_path.glob("*"):
+                        try:
+                            if child.is_file():
+                                child.unlink()
+                            elif child.is_dir():
+                                import shutil
+                                shutil.rmtree(child, ignore_errors=True)
+                        except Exception:
+                            pass
+                    try:
+                        self._client_path.rmdir()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
+
     def _init_embedding_model(self):
         """Initialize embedding model with fallbacks"""
         if SENTENCE_TRANSFORMERS_AVAILABLE:

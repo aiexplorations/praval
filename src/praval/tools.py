@@ -7,6 +7,11 @@ global tool registry and can be associated with specific agents.
 """
 
 import inspect
+import logging
+import importlib
+import importlib.util
+import glob
+import hashlib
 from typing import Optional, List, Callable, Union, Any
 from functools import wraps
 
@@ -177,21 +182,39 @@ def discover_tools(
     Discover tools based on various criteria.
     
     Args:
-        module: Module name to search for tools
-        pattern: File pattern to search (e.g., "*_tool.py")
+        module: Module name to import (tools register on import)
+        pattern: File pattern to search (e.g., "**/*_tool.py")
         category: Category to filter by
         
     Returns:
         List of discovered Tool instances
     """
     registry = get_tool_registry()
-    
+    logger = logging.getLogger(__name__)
+
     if category:
         return registry.get_tools_by_category(category)
-    
-    # For module and pattern discovery, we'd need to implement
-    # module introspection and file system scanning
-    # For now, return all tools as a basic implementation
+
+    if module:
+        try:
+            importlib.import_module(module)
+        except Exception as e:
+            logger.debug("Tool discovery failed to import module '%s': %s", module, e)
+
+    if pattern:
+        for file_path in glob.glob(pattern, recursive=True):
+            if not file_path.endswith('.py'):
+                continue
+            try:
+                module_id = hashlib.md5(file_path.encode('utf-8')).hexdigest()
+                module_name = f"_praval_toolscan_{module_id}"
+                spec = importlib.util.spec_from_file_location(module_name, file_path)
+                if spec and spec.loader:
+                    module_obj = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module_obj)
+            except Exception as e:
+                logger.debug("Tool discovery failed to load '%s': %s", file_path, e)
+
     return registry.list_all_tools()
 
 

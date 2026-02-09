@@ -155,6 +155,8 @@ class EpisodicMemory:
         ]
         
         if len(conversation_memories) >= turns:
+            # Sort by creation time (most recent first) before returning
+            conversation_memories.sort(key=lambda x: x.created_at, reverse=True)
             return conversation_memories[:turns]
         
         # Fallback to long-term memory if needed

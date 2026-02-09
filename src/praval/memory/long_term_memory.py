@@ -22,6 +22,10 @@ except ImportError:
     QDRANT_AVAILABLE = False
     QdrantClient = None
     models = None
+    # Provide stub classes for tests that mock QDRANT_AVAILABLE
+    Distance = None
+    VectorParams = None
+    PointStruct = None
 
 try:
     import openai

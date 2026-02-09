@@ -10,7 +10,7 @@ from typing import List
 
 from praval.tools import (
     tool, get_tool_info, is_tool, list_tools, register_tool_with_agent,
-    unregister_tool_from_agent, ToolCollection
+    unregister_tool_from_agent, ToolCollection, discover_tools
 )
 from praval.core.tool_registry import (
     ToolRegistry, Tool, ToolMetadata, get_tool_registry, reset_tool_registry
@@ -294,7 +294,8 @@ class TestToolRegistry:
         assert stats["total_tools"] == 3
         assert stats["shared_tools"] == 1
         assert stats["agents_with_tools"] == 1
-        assert stats["categories"] == 2
+        # Categories: "general" (add_tool default), "math" (multiply_tool), "utility" (shared_tool)
+        assert stats["categories"] == 3
 
 
 class TestToolDecorator:
@@ -391,6 +392,64 @@ class TestToolDecorator:
             @tool("invalid_tool")
             def invalid_function(x, y):  # No type hints
                 return x + y
+
+
+
+
+class TestToolDiscovery:
+    """Test discover_tools module and pattern discovery."""
+
+    def setup_method(self):
+        reset_tool_registry()
+
+    def test_discover_tools_by_module(self, tmp_path, monkeypatch):
+        module_path = tmp_path / "sample_tools.py"
+        module_path.write_text("""from praval import tool
+@tool('mod_tool', owned_by='mod_agent')
+def mod_tool(x: int) -> int:
+    return x
+""")
+
+        monkeypatch.syspath_prepend(str(tmp_path))
+        discover_tools(module='sample_tools')
+
+        registry = get_tool_registry()
+        assert registry.get_tool('mod_tool') is not None
+
+    def test_discover_tools_by_pattern(self, tmp_path):
+        file_path = tmp_path / "pattern_tool.py"
+        file_path.write_text("""from praval import tool
+@tool('pattern_tool', owned_by='pattern_agent')
+def pattern_tool(x: int) -> int:
+    return x
+""")
+
+        discover_tools(pattern=str(tmp_path / "*.py"))
+        registry = get_tool_registry()
+        assert registry.get_tool('pattern_tool') is not None
+
+
+class TestAgentToolRegistryBridge:
+    """Test that Agent.tool registers tools into the global registry."""
+
+    def setup_method(self):
+        reset_tool_registry()
+
+    def test_agent_tool_registers_in_registry(self):
+        from praval import Agent
+        from praval.providers.factory import ProviderFactory
+
+        with patch.object(ProviderFactory, 'create_provider', return_value=Mock()):
+            agent = Agent("bridge_agent", provider="openai")
+
+            @agent.tool
+            def bridge_tool(x: int) -> int:
+                return x + 1
+
+        registry = get_tool_registry()
+        tool_obj = registry.get_tool('bridge_tool')
+        assert tool_obj is not None
+        assert tool_obj.metadata.owned_by == "bridge_agent"
 
 
 class TestToolUtilities:

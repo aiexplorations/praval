@@ -27,8 +27,10 @@ class TestPDFKnowledgeBase:
         """Set up test environment before each test"""
         self.temp_dir = Path(tempfile.mkdtemp())
         # Mock the EmbeddedVectorStore to avoid ChromaDB initialization issues
+        # Use enable_collection_separation=False so tests can mock self.store()
+        # instead of needing knowledge_collection which requires ChromaDB init
         with patch('praval.memory.embedded_store.EmbeddedVectorStore._init_chromadb'):
-            self.store = EmbeddedVectorStore()
+            self.store = EmbeddedVectorStore(enable_collection_separation=False)
         self.agent_id = "test_agent"
         
     def teardown_method(self):
@@ -279,35 +281,45 @@ class TestPDFKnowledgeBase:
         """Test indexing with some successful and some failed files"""
         # Create a good text file
         text_file = self.create_test_text_file("Good text content about AI research.")
-        
+
         # Create a good PDF
         mock_page_good = Mock()
         mock_page_good.extract_text.return_value = "This is good PDF content with sufficient length for indexing."
-        
-        # Create a bad PDF that will fail
+
+        # Track file paths during open() to know which PDF is being processed
+        pdf_paths_opened = []
+        original_open = open
+
+        def track_open(path, *args, **kwargs):
+            if str(path).endswith('.pdf'):
+                pdf_paths_opened.append(str(path))
+            return original_open(path, *args, **kwargs)
+
+        # Create a side_effect that uses pdf_paths_opened to decide response
         def mock_pdf_reader_side_effect(file_handle):
-            if "good.pdf" in str(file_handle):
+            # Check the most recently opened PDF path
+            if pdf_paths_opened and "good.pdf" in pdf_paths_opened[-1]:
                 mock_reader = Mock()
                 mock_reader.pages = [mock_page_good]
                 return mock_reader
             else:
                 raise Exception("Corrupted PDF")
-        
+
         mock_pdf_reader.side_effect = mock_pdf_reader_side_effect
-        
+
         good_pdf = self.create_mock_pdf(["content"], "good.pdf")
         bad_pdf = self.create_mock_pdf(["content"], "bad.pdf")
-        
+
         indexed_entries = []
         self.store.store = lambda entry: indexed_entries.append(entry)
-        
-        with patch('builtins.open', mock_open(read_data=b"pdf content")):
+
+        with patch('builtins.open', track_open):
             count = self.store.index_knowledge_files(self.temp_dir, self.agent_id)
-        
+
         # Should index text file and good PDF, skip bad PDF
         assert count == 2  # text + good PDF
         assert len(indexed_entries) == 2
-        
+
         # Verify content
         contents = [entry.content for entry in indexed_entries]
         assert any("AI research" in content for content in contents)

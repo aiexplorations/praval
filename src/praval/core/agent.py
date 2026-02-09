@@ -5,12 +5,16 @@ The Agent class provides a simple, composable interface for LLM-based
 conversations with support for multiple providers, tools, and state persistence.
 """
 
+import logging
+import asyncio
 import os
 import inspect
 import time
 import threading
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # Auto-load .env files if available
 try:
@@ -21,6 +25,7 @@ except ImportError:
     pass
 
 from .exceptions import PravalError, ProviderError, ConfigurationError, ToolError
+from .tool_registry import Tool, ToolMetadata, get_tool_registry
 from .storage import StateStorage
 from ..providers.factory import ProviderFactory
 
@@ -74,7 +79,8 @@ class Agent:
         config: Optional[Dict[str, Any]] = None,
         memory_enabled: bool = False,
         memory_config: Optional[Dict[str, Any]] = None,
-        knowledge_base: Optional[str] = None
+        knowledge_base: Optional[str] = None,
+        max_history: Optional[int] = 100
     ):
         """
         Initialize a new Agent.
@@ -88,6 +94,7 @@ class Agent:
             memory_enabled: Whether to enable vector memory capabilities
             memory_config: Configuration for memory system
             knowledge_base: Path to knowledge base files to auto-index
+            max_history: Max conversation turns to retain (None for unbounded)
             
         Raises:
             ValueError: If name is empty or configuration is invalid
@@ -102,6 +109,11 @@ class Agent:
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.conversation_history: List[Dict[str, str]] = []
+        self.max_history = max_history
+
+        # Lifecycle management
+        self._closed = False
+        self._subscribed_channels: List[str] = []
         
         # Setup configuration
         config_dict = config or {}
@@ -138,7 +150,20 @@ class Agent:
                 "role": "system",
                 "content": self.config.system_message
             })
+            self._trim_history()
+
+    # ==========================================
     
+
+    def _trim_history(self) -> None:
+        if self.max_history is None:
+            return
+        if self.max_history <= 0:
+            self.conversation_history.clear()
+            return
+        if len(self.conversation_history) > self.max_history:
+            self.conversation_history = self.conversation_history[-self.max_history:]
+
     def _detect_provider(self) -> str:
         """
         Automatically detect LLM provider from environment variables or config.
@@ -188,6 +213,7 @@ class Agent:
             "role": "user",
             "content": message
         })
+        self._trim_history()
         
         try:
             # Generate response using provider
@@ -201,6 +227,9 @@ class Agent:
                 "role": "assistant",
                 "content": response
             })
+            self._trim_history()
+
+    # ==========================================
             
             # Save state if persistence is enabled
             if self.persist_state:
@@ -235,13 +264,40 @@ class Agent:
         if sig.return_annotation == inspect.Signature.empty:
             raise ValueError("Tool functions must have a return type hint")
         
-        # Register tool
-        self.tools[func.__name__] = {
+        # Register tool on the agent
+        tool_name = func.__name__
+        self.tools[tool_name] = {
             "function": func,
             "description": func.__doc__ or "",
             "parameters": self._extract_parameters(sig)
         }
-        
+
+        # Best-effort: also register in the global tool registry for discovery
+        try:
+            registry = get_tool_registry()
+            existing = registry.get_tool(tool_name)
+            if existing and existing.func is func:
+                return func
+            if existing and existing.func is not func:
+                logger.debug(
+                    "Tool name collision for '%s'; skipping registry registration.",
+                    tool_name
+                )
+                return func
+
+            metadata = ToolMetadata(
+                tool_name=tool_name,
+                owned_by=self.name,
+                description=func.__doc__ or "",
+                category="general",
+                shared=False
+            )
+            registry.register_tool(Tool(func, metadata))
+        except ToolError as e:
+            logger.debug("Tool registry registration failed for '%s': %s", tool_name, e)
+        except Exception as e:
+            logger.debug("Unexpected tool registry error for '%s': %s", tool_name, e)
+
         return func
     
     def _extract_parameters(self, signature: inspect.Signature) -> Dict[str, Any]:
@@ -341,7 +397,7 @@ class Agent:
         
         # Subscribe to receive response
         reef = get_reef()
-        reef.subscribe(self.name, response_handler)
+        reef.subscribe(self.name, response_handler, replace=False)
         
         try:
             # Send request
@@ -359,10 +415,17 @@ class Agent:
                 return None
                 
         finally:
-            # Note: In a full implementation, we'd want proper cleanup
-            # of the subscription, but for now this basic approach works
-            pass
-    
+            # Ensure handler is removed to avoid leaks
+            channel = reef.get_channel(reef.default_channel)
+            if channel:
+                try:
+                    handlers = channel.subscribers.get(self.name, [])
+                    if response_handler in handlers:
+                        handlers.remove(response_handler)
+                except Exception:
+                    pass
+
+
     def on_spore_received(self, spore) -> None:
         """
         Handle received spores from the reef.
@@ -375,38 +438,52 @@ class Agent:
         """
         # Use custom handler if set, otherwise do nothing
         if hasattr(self, '_custom_spore_handler') and self._custom_spore_handler:
-            self._custom_spore_handler(spore)
+            result = self._custom_spore_handler(spore)
+            if inspect.iscoroutine(result):
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(result)
+                except RuntimeError:
+                    asyncio.run(result)
         # Default implementation does nothing
         # Subclasses can override for custom behavior
     
     def subscribe_to_channel(self, channel_name: str) -> None:
         """
         Subscribe this agent to a reef channel.
-        
+
         Args:
             channel_name: Name of the channel to subscribe to
         """
         from .reef import get_reef
-        
+
         reef = get_reef()
         # Create channel if it doesn't exist
         reef.create_channel(channel_name)
         reef.subscribe(self.name, self.on_spore_received, channel_name)
-    
+
+        # Track subscription for cleanup
+        if channel_name not in self._subscribed_channels:
+            self._subscribed_channels.append(channel_name)
+
     def unsubscribe_from_channel(self, channel_name: str) -> None:
         """
         Unsubscribe this agent from a reef channel.
-        
+
         Args:
             channel_name: Name of the channel to unsubscribe from
         """
         from .reef import get_reef
-        
+
         reef = get_reef()
         channel = reef.get_channel(channel_name)
         if channel:
             channel.unsubscribe(self.name)
-    
+
+        # Remove from tracking
+        if channel_name in self._subscribed_channels:
+            self._subscribed_channels.remove(channel_name)
+
     @property
     def spore_handler(self) -> Optional[Callable]:
         """
@@ -425,7 +502,94 @@ class Agent:
             handler: Function that takes a Spore object and handles it
         """
         self._custom_spore_handler = handler
-    
+
+    # ==========================================
+    # LIFECYCLE MANAGEMENT
+    # ==========================================
+
+    def close(self) -> None:
+        """
+        Release all resources held by the agent.
+
+        This method:
+        - Unsubscribes from all reef channels
+        - Shuts down the memory system
+        - Clears conversation history
+
+        Safe to call multiple times. After calling close(), the agent
+        should not be used for further operations.
+
+        Example:
+            agent = Agent("assistant")
+            try:
+                response = agent.chat("Hello")
+            finally:
+                agent.close()
+
+            # Or use as context manager:
+            with Agent("assistant") as agent:
+                response = agent.chat("Hello")
+        """
+        if self._closed:
+            return
+
+        self._closed = True
+
+        # Unsubscribe from reef channels
+        try:
+            from .reef import get_reef
+            reef = get_reef()
+            for channel_name in self._subscribed_channels[:]:  # Copy to avoid mutation during iteration
+                try:
+                    channel = reef.get_channel(channel_name)
+                    if channel:
+                        channel.unsubscribe(self.name)
+                except Exception as e:
+                    logger.warning(f"Error unsubscribing {self.name} from {channel_name}: {e}")
+            self._subscribed_channels.clear()
+        except Exception as e:
+            logger.warning(f"Error during reef cleanup for {self.name}: {e}")
+
+        # Shutdown memory system
+        if self.memory:
+            try:
+                if hasattr(self.memory, 'shutdown'):
+                    self.memory.shutdown()
+            except Exception as e:
+                logger.warning(f"Error shutting down memory for {self.name}: {e}")
+            self.memory = None
+
+        # Clear conversation history
+        self.conversation_history.clear()
+
+        logger.debug(f"Agent {self.name} closed")
+
+    def __enter__(self) -> 'Agent':
+        """Context manager entry - returns the agent."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - ensures cleanup."""
+        self.close()
+
+    def __del__(self):
+        """Destructor - attempt cleanup if not already done."""
+        # Skip cleanup during Python shutdown
+        # The import itself can fail during shutdown, so wrap everything
+        try:
+            import sys
+            if sys.meta_path is None:
+                return
+            if not getattr(self, '_closed', True):
+                self.close()
+        except Exception:
+            pass  # Suppress all errors during garbage collection
+
+    @property
+    def is_closed(self) -> bool:
+        """Check if the agent has been closed."""
+        return self._closed
+
     # ==========================================
     # MEMORY SYSTEM METHODS
     # ==========================================
@@ -452,15 +616,14 @@ class Agent:
                 **default_config
             )
             
-            # Note: logger not imported, using print for now
-            print(f"Memory system initialized for agent {self.name}")
+            logger.info(f"Memory system initialized for agent {self.name}")
             
         except ImportError as e:
-            print(f"Memory system not available: {e}")
+            logger.warning(f"Memory system not available: {e}")
             self.memory = None
             self.memory_enabled = False
         except Exception as e:
-            print(f"Failed to initialize memory system for {self.name}: {e}")
+            logger.warning(f"Failed to initialize memory system for {self.name}: {e}")
             self.memory = None
             self.memory_enabled = False
     
@@ -479,9 +642,9 @@ class Agent:
             Memory ID if successful, None otherwise
         """
         if not self.memory:
-            print(f"Memory not enabled for agent {self.name}")
+            logger.debug(f"Memory not enabled for agent {self.name}")
             return None
-        
+
         try:
             from ..memory import MemoryType
             
@@ -503,7 +666,7 @@ class Agent:
             )
             
         except Exception as e:
-            print(f"Failed to store memory: {e}")
+            logger.warning(f"Failed to store memory: {e}")
             return None
     
     def recall(self, query: str, limit: int = 5, 
@@ -520,9 +683,9 @@ class Agent:
             List of MemoryEntry objects
         """
         if not self.memory:
-            print(f"Memory not enabled for agent {self.name}")
+            logger.debug(f"Memory not enabled for agent {self.name}")
             return []
-        
+
         try:
             from ..memory import MemoryQuery
             
@@ -537,7 +700,7 @@ class Agent:
             return results.entries
             
         except Exception as e:
-            print(f"Failed to recall memories: {e}")
+            logger.warning(f"Failed to recall memories: {e}")
             return []
     
     def recall_by_id(self, memory_id: str) -> List:
@@ -572,7 +735,7 @@ class Agent:
         try:
             return self.memory.get_knowledge_references(content, importance)
         except Exception as e:
-            print(f"Failed to create knowledge reference: {e}")
+            logger.warning(f"Failed to create knowledge reference: {e}")
             return []
     
     def resolve_spore_knowledge(self, spore) -> Dict[str, Any]:
@@ -593,7 +756,7 @@ class Agent:
             reef = get_reef()
             return reef.resolve_knowledge_references(spore, self.memory)
         except Exception as e:
-            print(f"Failed to resolve spore knowledge: {e}")
+            logger.warning(f"Failed to resolve spore knowledge: {e}")
             return spore.knowledge
     
     def send_lightweight_knowledge(self, to_agent: str, 

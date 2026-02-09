@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 from .core.agent import Agent
 from .core.reef import get_reef
-from .core.tool_registry import get_tool_registry
+from .core.exceptions import ToolError
+from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
 
 # Thread-local storage for current agent context
 _agent_context = threading.local()
@@ -89,12 +90,12 @@ def _handle_agent_error(
 def _auto_register_tools(agent: Agent, agent_name: str) -> None:
     """
     Auto-register tools from the tool registry for an agent.
-    
+
     This function automatically registers tools that are:
     1. Owned by the agent
     2. Shared (available to all agents)
     3. Any tools already assigned to this agent in the registry
-    
+
     Args:
         agent: The Agent instance to register tools for
         agent_name: Name of the agent
@@ -102,18 +103,101 @@ def _auto_register_tools(agent: Agent, agent_name: str) -> None:
     try:
         registry = get_tool_registry()
         available_tools = registry.get_tools_for_agent(agent_name)
-        
+
         for tool in available_tools:
-            # Register the tool function with the agent
+            # Register the tool with its proper name from the registry,
+            # not the function name. This preserves explicit tool names
+            # like "calculator_add" instead of using "add" from func.__name__.
+            tool_name = tool.metadata.tool_name
             tool_func = tool.func
-            
-            # Add the tool to the agent using the existing tool decorator
-            agent.tool(tool_func)
-            
+
+            # Get function signature for parameter extraction
+            import inspect
+            sig = inspect.signature(tool_func)
+
+            # Extract parameters from type hints
+            parameters = {}
+            for param_name, param in sig.parameters.items():
+                param_type = param.annotation
+                if param_type != inspect.Parameter.empty:
+                    type_name = getattr(param_type, '__name__', str(param_type))
+                else:
+                    type_name = 'any'
+                parameters[param_name] = {
+                    'type': type_name,
+                    'required': param.default == inspect.Parameter.empty
+                }
+
+            # Directly register with the proper tool name
+            agent.tools[tool_name] = {
+                "function": tool_func,
+                "description": tool.metadata.description or tool_func.__doc__ or "",
+                "parameters": parameters
+            }
+
     except Exception as e:
         # Don't fail agent creation if tool registration fails
-        # Just log the error (in a real implementation, we'd use proper logging)
-        pass
+        # Just log the error
+        import logging
+        logging.getLogger(__name__).debug(f"Tool auto-registration failed: {e}")
+
+
+
+
+def _attach_tool(agent: Agent, tool_name: str, tool_func: Callable, description: str, parameters: Dict[str, Any]) -> None:
+    """Attach a tool to an agent's local tool map without overwriting existing entries."""
+    if tool_name in agent.tools:
+        return
+    agent.tools[tool_name] = {
+        "function": tool_func,
+        "description": description or "",
+        "parameters": parameters or {}
+    }
+
+
+def _attach_registry_tool(agent: Agent, tool: Tool) -> None:
+    """Attach a ToolRegistry tool to the agent's local tool map."""
+    _attach_tool(
+        agent,
+        tool.metadata.tool_name,
+        tool.func,
+        tool.metadata.description or tool.func.__doc__ or "",
+        tool.metadata.parameters or {}
+    )
+
+
+def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[Tool]:
+    """Ensure a callable is registered in the tool registry and return the Tool object."""
+    registry = get_tool_registry()
+
+    if hasattr(tool_func, '_praval_tool'):
+        tool_obj = tool_func._praval_tool
+        # Ensure registry has it (in case registry was reset)
+        existing = registry.get_tool(tool_obj.metadata.tool_name)
+        if not existing:
+            try:
+                registry.register_tool(tool_obj)
+            except ToolError:
+                pass
+        return tool_obj
+
+    # Create and register tool from raw callable
+    metadata = ToolMetadata(
+        tool_name=tool_func.__name__,
+        owned_by=agent_name,
+        description=tool_func.__doc__ or "",
+        category="general",
+        shared=False
+    )
+    try:
+        tool_obj = Tool(tool_func, metadata)
+        registry.register_tool(tool_obj)
+        return tool_obj
+    except ToolError:
+        existing = registry.get_tool(metadata.tool_name)
+        return existing
+    except Exception:
+        return None
 
 
 def agent(name: Optional[str] = None,
@@ -123,6 +207,9 @@ def agent(name: Optional[str] = None,
           responds_to: Optional[List[str]] = None,
           memory: Union[bool, Dict[str, Any]] = False,
           knowledge_base: Optional[str] = None,
+          tools: Optional[List[Union[str, Callable]]] = None,
+          tool_categories: Optional[List[str]] = None,
+          auto_discover_tools: bool = True,
           on_error: Union[str, Callable[[Exception, Any], None]] = "log"):
     """
     Decorator that turns a function into an autonomous agent.
@@ -294,8 +381,33 @@ def agent(name: Optional[str] = None,
         reef = get_reef()
         reef.subscribe(agent_name, underlying_agent.on_spore_received, channel=reef.default_channel, replace=True)
 
-        # Auto-register tools from the tool registry
-        _auto_register_tools(underlying_agent, agent_name)
+        # Tool attachment based on decorator params
+        registry = get_tool_registry()
+        if tool_categories:
+            for category in tool_categories:
+                for tool in registry.get_tools_by_category(category):
+                    _attach_registry_tool(underlying_agent, tool)
+
+        if tools:
+            for tool_entry in tools:
+                if isinstance(tool_entry, str):
+                    tool_obj = registry.get_tool(tool_entry)
+                    if tool_obj:
+                        _attach_registry_tool(underlying_agent, tool_obj)
+                    else:
+                        logger.debug("Tool '%s' not found in registry", tool_entry)
+                elif callable(tool_entry):
+                    tool_obj = _register_callable_tool(agent_name, tool_entry)
+                    if tool_obj:
+                        _attach_registry_tool(underlying_agent, tool_obj)
+                    else:
+                        logger.debug("Tool callable '%s' failed to register", getattr(tool_entry, '__name__', str(tool_entry)))
+                else:
+                    logger.debug("Unsupported tool entry type: %s", type(tool_entry))
+
+        if auto_discover_tools:
+            # Auto-register tools from the tool registry
+            _auto_register_tools(underlying_agent, agent_name)
         
         # Add memory methods to the function for easy access
         if memory_enabled:

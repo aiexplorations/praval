@@ -49,8 +49,8 @@ class TestAgentInitialization:
         agent = Agent("assistant", config=config)
         assert agent.name == "assistant"
         assert agent.provider_name == "anthropic"
-        assert agent.config["temperature"] == 0.7
-        assert agent.config["max_tokens"] == 1000
+        assert agent.config.temperature == 0.7
+        assert agent.config.max_tokens == 1000
         
     def test_agent_invalid_provider_raises_error(self):
         """Test that invalid provider raises appropriate error."""
@@ -121,25 +121,25 @@ class TestAgentChat:
 class TestAgentStatePersistence:
     """Test Agent state persistence functionality."""
     
-    @patch('praval.core.storage.StateStorage')
+    @patch('praval.core.agent.StateStorage')
     def test_persist_state_saves_conversation(self, mock_storage_class):
         """Test that state persistence saves conversation history."""
         mock_storage = Mock()
         mock_storage_class.return_value = mock_storage
-        
+
         agent = Agent("persistent_agent", persist_state=True)
         agent.conversation_history = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"}
         ]
         agent._save_state()
-        
+
         mock_storage.save.assert_called_once_with(
-            "persistent_agent", 
+            "persistent_agent",
             agent.conversation_history
         )
         
-    @patch('praval.core.storage.StateStorage')
+    @patch('praval.core.agent.StateStorage')
     def test_load_state_restores_conversation(self, mock_storage_class):
         """Test that loading state restores conversation history."""
         mock_storage = Mock()
@@ -149,9 +149,9 @@ class TestAgentStatePersistence:
         ]
         mock_storage.load.return_value = saved_history
         mock_storage_class.return_value = mock_storage
-        
+
         agent = Agent("persistent_agent", persist_state=True)
-        
+
         assert agent.conversation_history == saved_history
         mock_storage.load.assert_called_once_with("persistent_agent")
         

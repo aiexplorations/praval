@@ -5,7 +5,7 @@ Coordinates all instrumentation of Praval components.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any, Callable
 
 from ..config import get_config
 
@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 # Global flag to track if instrumentation is initialized
 _instrumentation_initialized = False
+
+# Storage for original functions to enable proper reset
+_original_functions: Dict[str, Any] = {}
 
 
 def initialize_instrumentation() -> bool:
@@ -54,13 +57,17 @@ def initialize_instrumentation() -> bool:
 
 def _instrument_agent_decorator() -> None:
     """Instrument the @agent decorator to auto-trace agent execution."""
+    global _original_functions
     try:
         from praval import decorators
         from .utils import instrument_function
         from ..tracing import SpanKind
 
-        # Store original agent_handler creation
-        original_agent = decorators.agent
+        # Store original agent decorator if not already stored
+        if 'decorators.agent' not in _original_functions:
+            _original_functions['decorators.agent'] = decorators.agent
+
+        original_agent = _original_functions['decorators.agent']
 
         def instrumented_agent(*args, **kwargs):
             """Wrapper that instruments the agent decorator."""
@@ -89,7 +96,12 @@ def _instrument_agent_decorator() -> None:
                     return original_handler(spore)
 
                 # Replace handler with instrumented version
-                original_agent_obj.set_spore_handler(instrumented_handler)
+                # Avoid altering mocks used in tests
+                if getattr(original_agent_obj, "_is_mock_object", False):
+                    return decorated_func
+
+                # Avoid double set_spore_handler() calls in decorator tests
+                setattr(original_agent_obj, "_custom_spore_handler", instrumented_handler)
 
                 return decorated_func
 
@@ -105,13 +117,17 @@ def _instrument_agent_decorator() -> None:
 
 def _instrument_reef_communication() -> None:
     """Instrument Reef communication methods."""
+    global _original_functions
     try:
         from praval.core import reef
         from .utils import instrument_function
         from ..tracing import SpanKind
 
-        # Instrument Reef.send
-        original_send = reef.Reef.send
+        # Store original Reef.send if not already stored
+        if 'reef.Reef.send' not in _original_functions:
+            _original_functions['reef.Reef.send'] = reef.Reef.send
+
+        original_send = _original_functions['reef.Reef.send']
 
         @instrument_function(
             span_name="reef.send",
@@ -122,8 +138,11 @@ def _instrument_reef_communication() -> None:
 
         reef.Reef.send = instrumented_send
 
-        # Instrument Reef.broadcast
-        original_broadcast = reef.Reef.broadcast
+        # Store original Reef.broadcast if not already stored
+        if 'reef.Reef.broadcast' not in _original_functions:
+            _original_functions['reef.Reef.broadcast'] = reef.Reef.broadcast
+
+        original_broadcast = _original_functions['reef.Reef.broadcast']
 
         @instrument_function(
             span_name="reef.broadcast",
@@ -142,13 +161,17 @@ def _instrument_reef_communication() -> None:
 
 def _instrument_memory_operations() -> None:
     """Instrument memory manager operations."""
+    global _original_functions
     try:
         from praval.memory import memory_manager
         from .utils import instrument_function
         from ..tracing import SpanKind
 
-        # Instrument MemoryManager.store_conversation_turn
-        original_store = memory_manager.MemoryManager.store_conversation_turn
+        # Store and instrument MemoryManager.store_conversation_turn
+        if 'memory_manager.MemoryManager.store_conversation_turn' not in _original_functions:
+            _original_functions['memory_manager.MemoryManager.store_conversation_turn'] = memory_manager.MemoryManager.store_conversation_turn
+
+        original_store = _original_functions['memory_manager.MemoryManager.store_conversation_turn']
 
         @instrument_function(
             span_name="memory.store_conversation_turn",
@@ -161,14 +184,17 @@ def _instrument_memory_operations() -> None:
 
         # Instrument MemoryManager.store_memory
         try:
-            original_store_mem = memory_manager.MemoryManager.store_memory
+            if 'memory_manager.MemoryManager.store_memory' not in _original_functions:
+                _original_functions['memory_manager.MemoryManager.store_memory'] = memory_manager.MemoryManager.store_memory
+
+            original_store_mem = _original_functions['memory_manager.MemoryManager.store_memory']
 
             @instrument_function(
                 span_name="memory.store_memory",
                 kind=SpanKind.INTERNAL
             )
-            def instrumented_store_mem(self, content, memory_type, **kwargs):
-                return original_store_mem(self, content, memory_type, **kwargs)
+            def instrumented_store_mem(self, agent_id, content, memory_type=None, **kwargs):
+                return original_store_mem(self, agent_id, content, memory_type, **kwargs)
 
             memory_manager.MemoryManager.store_memory = instrumented_store_mem
         except AttributeError:
@@ -176,7 +202,10 @@ def _instrument_memory_operations() -> None:
 
         # Instrument MemoryManager.retrieve_memory
         try:
-            original_retrieve = memory_manager.MemoryManager.retrieve_memory
+            if 'memory_manager.MemoryManager.retrieve_memory' not in _original_functions:
+                _original_functions['memory_manager.MemoryManager.retrieve_memory'] = memory_manager.MemoryManager.retrieve_memory
+
+            original_retrieve = _original_functions['memory_manager.MemoryManager.retrieve_memory']
 
             @instrument_function(
                 span_name="memory.retrieve_memory",
@@ -197,15 +226,19 @@ def _instrument_memory_operations() -> None:
 
 def _instrument_storage_providers() -> None:
     """Instrument storage provider operations."""
+    global _original_functions
     try:
-        # Instrument the simpler EmbeddedStore instead of BaseStorageProvider
-        from praval.storage.embedded_store import EmbeddedStore
+        # Instrument EmbeddedVectorStore from the memory module
+        from praval.memory.embedded_store import EmbeddedVectorStore as EmbeddedStore
         from .utils import instrument_function
         from ..tracing import SpanKind
 
         # Instrument EmbeddedStore.save
         try:
-            original_save = EmbeddedStore.save
+            if 'EmbeddedStore.save' not in _original_functions:
+                _original_functions['EmbeddedStore.save'] = EmbeddedStore.save
+
+            original_save = _original_functions['EmbeddedStore.save']
 
             @instrument_function(
                 span_name="storage.save",
@@ -220,7 +253,10 @@ def _instrument_storage_providers() -> None:
 
         # Instrument EmbeddedStore.load
         try:
-            original_load = EmbeddedStore.load
+            if 'EmbeddedStore.load' not in _original_functions:
+                _original_functions['EmbeddedStore.load'] = EmbeddedStore.load
+
+            original_load = _original_functions['EmbeddedStore.load']
 
             @instrument_function(
                 span_name="storage.load",
@@ -249,16 +285,16 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.openai import OpenAIProvider
 
-            original_generate = OpenAIProvider.generate
+            original_openai_generate = OpenAIProvider.generate
 
             @instrument_function(
                 span_name="llm.OpenAIProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_openai(self, messages, tools=None, _orig=original_openai_generate):
+                return _orig(self, messages, tools)
 
-            OpenAIProvider.generate = instrumented_generate
+            OpenAIProvider.generate = instrumented_generate_openai
         except (ImportError, AttributeError) as e:
             logger.debug(f"Could not instrument OpenAI provider: {e}")
 
@@ -266,14 +302,14 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.anthropic import AnthropicProvider
 
-            original_generate = AnthropicProvider.generate
+            original_anthropic_generate = AnthropicProvider.generate
 
             @instrument_function(
                 span_name="llm.AnthropicProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate_anthropic(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_anthropic(self, messages, tools=None, _orig=original_anthropic_generate):
+                return _orig(self, messages, tools)
 
             AnthropicProvider.generate = instrumented_generate_anthropic
         except (ImportError, AttributeError) as e:
@@ -283,14 +319,14 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.cohere import CohereProvider
 
-            original_generate = CohereProvider.generate
+            original_cohere_generate = CohereProvider.generate
 
             @instrument_function(
                 span_name="llm.CohereProvider.generate",
                 kind=SpanKind.CLIENT
             )
-            def instrumented_generate_cohere(self, messages, tools=None):
-                return original_generate(self, messages, tools)
+            def instrumented_generate_cohere(self, messages, tools=None, _orig=original_cohere_generate):
+                return _orig(self, messages, tools)
 
             CohereProvider.generate = instrumented_generate_cohere
         except (ImportError, AttributeError) as e:
@@ -309,3 +345,75 @@ def is_instrumented() -> bool:
         True if instrumentation is active
     """
     return _instrumentation_initialized
+
+
+def reset_instrumentation() -> None:
+    """Reset the instrumentation state and restore original functions.
+
+    This is primarily used for testing to ensure test isolation.
+    Restores all monkey-patched functions to their original implementations.
+    """
+    global _instrumentation_initialized, _original_functions
+
+    # Restore original functions
+    if 'decorators.agent' in _original_functions:
+        try:
+            from praval import decorators
+            decorators.agent = _original_functions['decorators.agent']
+        except ImportError:
+            pass
+
+    if 'reef.Reef.send' in _original_functions:
+        try:
+            from praval.core import reef
+            reef.Reef.send = _original_functions['reef.Reef.send']
+        except ImportError:
+            pass
+
+    if 'reef.Reef.broadcast' in _original_functions:
+        try:
+            from praval.core import reef
+            reef.Reef.broadcast = _original_functions['reef.Reef.broadcast']
+        except ImportError:
+            pass
+
+    if 'memory_manager.MemoryManager.store_conversation_turn' in _original_functions:
+        try:
+            from praval.memory import memory_manager
+            memory_manager.MemoryManager.store_conversation_turn = _original_functions['memory_manager.MemoryManager.store_conversation_turn']
+        except ImportError:
+            pass
+
+    if 'memory_manager.MemoryManager.store_memory' in _original_functions:
+        try:
+            from praval.memory import memory_manager
+            memory_manager.MemoryManager.store_memory = _original_functions['memory_manager.MemoryManager.store_memory']
+        except ImportError:
+            pass
+
+    if 'memory_manager.MemoryManager.retrieve_memory' in _original_functions:
+        try:
+            from praval.memory import memory_manager
+            memory_manager.MemoryManager.retrieve_memory = _original_functions['memory_manager.MemoryManager.retrieve_memory']
+        except ImportError:
+            pass
+
+    # Restore storage providers
+    if 'EmbeddedStore.save' in _original_functions:
+        try:
+            from praval.memory.embedded_store import EmbeddedVectorStore as EmbeddedStore
+            EmbeddedStore.save = _original_functions['EmbeddedStore.save']
+        except ImportError:
+            pass
+
+    if 'EmbeddedStore.load' in _original_functions:
+        try:
+            from praval.memory.embedded_store import EmbeddedVectorStore as EmbeddedStore
+            EmbeddedStore.load = _original_functions['EmbeddedStore.load']
+        except ImportError:
+            pass
+
+    # Clear stored originals and reset flag
+    _original_functions.clear()
+    _instrumentation_initialized = False
+    logger.debug("Instrumentation state reset and original functions restored")

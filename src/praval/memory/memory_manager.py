@@ -567,6 +567,12 @@ class MemoryManager:
         )
         return [memory_id]
     
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
+
     def shutdown(self):
         """Shutdown all memory systems"""
         self.short_term_memory.shutdown()
