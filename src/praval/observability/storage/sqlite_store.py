@@ -7,10 +7,14 @@ Stores traces locally for querying and analysis.
 import json
 import sqlite3
 import threading
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from ..tracing.span import Span
+
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteTraceStore:
@@ -50,10 +54,17 @@ class SQLiteTraceStore:
             db_path: Path to SQLite database file
         """
         self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._lock = threading.Lock()
-        self._init_schema()
+        self._init_error = None
+
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._init_schema()
+        except (OSError, sqlite3.OperationalError) as e:
+            # Defer hard failure until a connection is actually requested.
+            self._init_error = e
+            logger.warning(f"Failed to initialize SQLite trace store at {self.db_path}: {e}")
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection.
@@ -61,6 +72,10 @@ class SQLiteTraceStore:
         Returns:
             SQLite connection
         """
+        if self._init_error is not None:
+            raise sqlite3.OperationalError(
+                f"SQLite trace store unavailable at {self.db_path}: {self._init_error}"
+            )
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn

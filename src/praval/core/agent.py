@@ -6,6 +6,7 @@ conversations with support for multiple providers, tools, and state persistence.
 """
 
 import logging
+import asyncio
 import os
 import inspect
 import time
@@ -24,6 +25,7 @@ except ImportError:
     pass
 
 from .exceptions import PravalError, ProviderError, ConfigurationError, ToolError
+from .tool_registry import Tool, ToolMetadata, get_tool_registry
 from .storage import StateStorage
 from ..providers.factory import ProviderFactory
 
@@ -77,7 +79,8 @@ class Agent:
         config: Optional[Dict[str, Any]] = None,
         memory_enabled: bool = False,
         memory_config: Optional[Dict[str, Any]] = None,
-        knowledge_base: Optional[str] = None
+        knowledge_base: Optional[str] = None,
+        max_history: Optional[int] = 100
     ):
         """
         Initialize a new Agent.
@@ -91,6 +94,7 @@ class Agent:
             memory_enabled: Whether to enable vector memory capabilities
             memory_config: Configuration for memory system
             knowledge_base: Path to knowledge base files to auto-index
+            max_history: Max conversation turns to retain (None for unbounded)
             
         Raises:
             ValueError: If name is empty or configuration is invalid
@@ -105,6 +109,7 @@ class Agent:
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.conversation_history: List[Dict[str, str]] = []
+        self.max_history = max_history
 
         # Lifecycle management
         self._closed = False
@@ -145,7 +150,20 @@ class Agent:
                 "role": "system",
                 "content": self.config.system_message
             })
+            self._trim_history()
+
+    # ==========================================
     
+
+    def _trim_history(self) -> None:
+        if self.max_history is None:
+            return
+        if self.max_history <= 0:
+            self.conversation_history.clear()
+            return
+        if len(self.conversation_history) > self.max_history:
+            self.conversation_history = self.conversation_history[-self.max_history:]
+
     def _detect_provider(self) -> str:
         """
         Automatically detect LLM provider from environment variables or config.
@@ -195,6 +213,7 @@ class Agent:
             "role": "user",
             "content": message
         })
+        self._trim_history()
         
         try:
             # Generate response using provider
@@ -208,6 +227,9 @@ class Agent:
                 "role": "assistant",
                 "content": response
             })
+            self._trim_history()
+
+    # ==========================================
             
             # Save state if persistence is enabled
             if self.persist_state:
@@ -242,13 +264,40 @@ class Agent:
         if sig.return_annotation == inspect.Signature.empty:
             raise ValueError("Tool functions must have a return type hint")
         
-        # Register tool
-        self.tools[func.__name__] = {
+        # Register tool on the agent
+        tool_name = func.__name__
+        self.tools[tool_name] = {
             "function": func,
             "description": func.__doc__ or "",
             "parameters": self._extract_parameters(sig)
         }
-        
+
+        # Best-effort: also register in the global tool registry for discovery
+        try:
+            registry = get_tool_registry()
+            existing = registry.get_tool(tool_name)
+            if existing and existing.func is func:
+                return func
+            if existing and existing.func is not func:
+                logger.debug(
+                    "Tool name collision for '%s'; skipping registry registration.",
+                    tool_name
+                )
+                return func
+
+            metadata = ToolMetadata(
+                tool_name=tool_name,
+                owned_by=self.name,
+                description=func.__doc__ or "",
+                category="general",
+                shared=False
+            )
+            registry.register_tool(Tool(func, metadata))
+        except ToolError as e:
+            logger.debug("Tool registry registration failed for '%s': %s", tool_name, e)
+        except Exception as e:
+            logger.debug("Unexpected tool registry error for '%s': %s", tool_name, e)
+
         return func
     
     def _extract_parameters(self, signature: inspect.Signature) -> Dict[str, Any]:
@@ -348,7 +397,7 @@ class Agent:
         
         # Subscribe to receive response
         reef = get_reef()
-        reef.subscribe(self.name, response_handler)
+        reef.subscribe(self.name, response_handler, replace=False)
         
         try:
             # Send request
@@ -366,10 +415,17 @@ class Agent:
                 return None
                 
         finally:
-            # Note: In a full implementation, we'd want proper cleanup
-            # of the subscription, but for now this basic approach works
-            pass
-    
+            # Ensure handler is removed to avoid leaks
+            channel = reef.get_channel(reef.default_channel)
+            if channel:
+                try:
+                    handlers = channel.subscribers.get(self.name, [])
+                    if response_handler in handlers:
+                        handlers.remove(response_handler)
+                except Exception:
+                    pass
+
+
     def on_spore_received(self, spore) -> None:
         """
         Handle received spores from the reef.
@@ -382,7 +438,13 @@ class Agent:
         """
         # Use custom handler if set, otherwise do nothing
         if hasattr(self, '_custom_spore_handler') and self._custom_spore_handler:
-            self._custom_spore_handler(spore)
+            result = self._custom_spore_handler(spore)
+            if inspect.iscoroutine(result):
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(result)
+                except RuntimeError:
+                    asyncio.run(result)
         # Default implementation does nothing
         # Subclasses can override for custom behavior
     

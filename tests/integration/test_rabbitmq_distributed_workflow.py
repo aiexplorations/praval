@@ -30,10 +30,49 @@ from praval.core.reef_backend import RabbitMQBackend, InMemoryBackend
 
 logger = logging.getLogger(__name__)
 
-# Skip all tests in this module if RabbitMQ support not available
+
+def _can_connect_to_rabbitmq() -> bool:
+    """Check if we can actually connect and authenticate to RabbitMQ."""
+    if not HAS_RABBITMQ:
+        return False
+    try:
+        import socket
+        # First check if port is open
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 5672))
+        sock.close()
+        if result != 0:
+            return False
+
+        # Port is open, try actual AMQP connection with authentication
+        async def _check_auth():
+            try:
+                connection = await aio_pika.connect_robust(
+                    'amqp://guest:guest@localhost:5672/',
+                    timeout=2.0
+                )
+                await connection.close()
+                return True
+            except Exception:
+                return False
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(_check_auth())
+    except Exception:
+        return False
+
+
+RABBITMQ_AVAILABLE = _can_connect_to_rabbitmq()
+
+# Skip all tests in this module if RabbitMQ is not available
 pytestmark = pytest.mark.skipif(
-    not HAS_RABBITMQ,
-    reason="aio-pika not installed or RabbitMQ not available"
+    not RABBITMQ_AVAILABLE,
+    reason="RabbitMQ not available on localhost:5672"
 )
 
 

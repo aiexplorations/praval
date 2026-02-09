@@ -18,6 +18,64 @@ class TestAgentToolIntegration:
         """Setup for each test method."""
         reset_tool_registry()
     
+
+    def test_agent_tools_param_by_name(self):
+        """Test @agent tools param attaches tools by name."""
+        @tool("named_tool", owned_by="named_agent")
+        def named_tool(x: int) -> int:
+            return x + 1
+
+        @agent("named_agent", tools=["named_tool"], auto_discover_tools=False)
+        def named_agent(spore):
+            return {"status": "ready"}
+
+        assert named_agent.has_tool("named_tool")
+
+    def test_agent_tools_param_by_callable(self):
+        """Test @agent tools param attaches callable tools."""
+        def local_tool(x: int, y: int) -> int:
+            return x * y
+
+        @agent("callable_agent", tools=[local_tool], auto_discover_tools=False)
+        def callable_agent(spore):
+            return {"status": "ready"}
+
+        assert callable_agent.has_tool("local_tool")
+
+    def test_agent_tool_categories_param(self):
+        """Test @agent tool_categories attaches category tools."""
+        @tool("trig_sin", category="trig", owned_by="math_agent")
+        def trig_sin(x: float) -> float:
+            return x
+
+        @tool("trig_cos", category="trig", owned_by="math_agent")
+        def trig_cos(x: float) -> float:
+            return x
+
+        @agent("category_agent", tool_categories=["trig"], auto_discover_tools=False)
+        def category_agent(spore):
+            return {"status": "ready"}
+
+        assert category_agent.has_tool("trig_sin")
+        assert category_agent.has_tool("trig_cos")
+
+    def test_agent_auto_discover_disable(self):
+        """Test auto_discover_tools=False skips owned/shared tools."""
+        @tool("owned_tool", owned_by="no_auto")
+        def owned_tool(x: int) -> int:
+            return x
+
+        @tool("shared_tool", shared=True)
+        def shared_tool(x: int) -> int:
+            return x
+
+        @agent("no_auto", auto_discover_tools=False)
+        def no_auto(spore):
+            return {"status": "ready"}
+
+        assert not no_auto.has_tool("owned_tool")
+        assert not no_auto.has_tool("shared_tool")
+
     def test_agent_auto_discovers_owned_tools(self):
         """Test that agents automatically discover tools owned by them."""
         # Define tools first

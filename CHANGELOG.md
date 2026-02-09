@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Reef performance options: shared thread pool (`use_shared_pool`) and handler batching (`batch_size`).
+- Reef authorization hook (`auth_provider`) for per-action checks.
+- Agent conversation history cap via `max_history` (default 100, None = unbounded).
+
+### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
+- Spore payload size estimation uses JSON-based byte estimation (faster, less memory).
+- Async backend calls use a persistent event loop instead of per-call loops.
+- Async handlers run on per-channel shared event loop.
+
+### Security
+- Optional broadcast rate limiting (per-agent, per-second).
+- Provider error messages redact API keys when present.
+
+### Planned (API/Architecture)
+- Split Reef into core transport layer vs API facade (backward compatible facade).
+- Introduce `ReefCore` as the internal core implementation.
+- Slim `@agent` decorator into smaller composable decorators.
+- Make `Spore` immutable (breaking if user code mutates spores).
+
+
 ## [0.7.18] - 2025-12-08
 
 ### Added
@@ -24,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Maintains backward compatibility with explicit channel parameter
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 📝 **Updated All Examples** - 13 examples updated to use new synchronization pattern
   - Replaced `time.sleep()` with `get_reef().wait_for_completion()`
   - Added proper `get_reef().shutdown()` calls for clean termination
@@ -105,6 +128,7 @@ get_reef().shutdown()  # Clean termination
   - Ready-to-run example for documentation
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 📝 **Updated broadcast() Docstring**
   - Clarified that channel parameter is optional
   - Added examples of default and explicit usage
@@ -366,6 +390,7 @@ await reef.initialize_backend({'url': 'amqp://localhost:5672/'})
   - Unblocks Phase 3B agent processing pipeline
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - Enhanced agent subscription mechanism in @agent decorator
 - `ReefChannel` handler invocation already supported both scenarios
 
@@ -436,6 +461,7 @@ PRAVAL_SAMPLE_RATE="1.0"  # 0.0-1.0
 - 📖 **Building Agents Tutorial** - Step-by-step Jupyter notebook for learning Praval
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 🎯 **Default Subscribe Behavior** - Now replaces handlers by default (set `replace=False` for append behavior)
 
 ### Examples
@@ -458,6 +484,7 @@ PRAVAL_SAMPLE_RATE="1.0"  # 0.0-1.0
 ## [0.7.9] - 2025-10-23
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 🚀 **Flexible Installation Options** - Choose your installation size!
   - **Minimal** (`pip install praval`): ~50MB - Core agents and LLM providers only
   - **Memory** (`pip install praval[memory]`): ~500MB - Adds vector storage and embeddings
@@ -491,6 +518,7 @@ PRAVAL_SAMPLE_RATE="1.0"  # 0.0-1.0
 ## [0.7.8] - 2025-10-23
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 🔒 **Distribution Strategy** - Now distributing wheel-only packages to PyPI
   - Source code, examples, and documentation remain private
   - Only compiled wheel (.whl) available on PyPI
@@ -521,6 +549,7 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
   - Can be enabled when ready for automated releases
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - 🎯 **Version Control Strategy** - Moved to manual deliberate version bumps
   - Auto-versioning workflow disabled for more control
   - Prevents accidental major version jumps
@@ -671,6 +700,7 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
   - Production-ready patterns for enterprise deployments
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - Updated version to 0.6.1 across all configuration files
 - Enhanced framework documentation to reflect new capabilities
 - Improved error handling throughout storage system
@@ -704,6 +734,7 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
   - Repository reorganization with proper structure
 
 ### Changed
+- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
 - Updated version numbering to follow semantic versioning
 - Reorganized repository structure for better maintainability
 - Enhanced error handling and resilience throughout framework

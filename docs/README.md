@@ -14,6 +14,7 @@ Comprehensive documentation for the Praval Multi-Agent AI Framework.
 - **[Architecture Diagram](architecture-diagram.png)** - Visual system architecture
 
 ### Technical Specifications
+- **[API Structure Changes (Planned)](notes/api-structure-changes.md)** - Upcoming refactors and migration notes
 - **[Reef Communication Specification](reef-communication-specification.md)** - Message-passing protocol details
 - **[Memory System](memory-system.md)** - Comprehensive memory architecture
 - **[Secure Spores Architecture](secure_spores_architecture.md)** - Enterprise security features

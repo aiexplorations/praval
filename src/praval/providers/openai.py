@@ -12,6 +12,22 @@ import openai
 from ..core.exceptions import ProviderError
 
 
+
+
+def _redact_secrets(message: str) -> str:
+    if not message:
+        return message
+    secrets = [
+        os.getenv("OPENAI_API_KEY"),
+        os.getenv("ANTHROPIC_API_KEY"),
+        os.getenv("COHERE_API_KEY")
+    ]
+    redacted = message
+    for secret in secrets:
+        if secret and secret in redacted:
+            redacted = redacted.replace(secret, "***")
+    return redacted
+
 class OpenAIProvider:
     """
     OpenAI provider for LLM interactions.
@@ -39,7 +55,7 @@ class OpenAIProvider:
                 
             self.client = openai.OpenAI(api_key=api_key)
         except Exception as e:
-            raise ProviderError(f"Failed to initialize OpenAI client: {str(e)}") from e
+            raise ProviderError(f"Failed to initialize OpenAI client: {_redact_secrets(str(e))}") from e
     
     def generate(
         self, 
@@ -92,7 +108,7 @@ class OpenAIProvider:
             return ""
             
         except Exception as e:
-            raise ProviderError(f"OpenAI API error: {str(e)}") from e
+            raise ProviderError(f"OpenAI API error: {_redact_secrets(str(e))}") from e
     
     def _format_tools_for_openai(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

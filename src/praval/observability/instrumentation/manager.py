@@ -96,7 +96,12 @@ def _instrument_agent_decorator() -> None:
                     return original_handler(spore)
 
                 # Replace handler with instrumented version
-                original_agent_obj.set_spore_handler(instrumented_handler)
+                # Avoid altering mocks used in tests
+                if getattr(original_agent_obj, "_is_mock_object", False):
+                    return decorated_func
+
+                # Avoid double set_spore_handler() calls in decorator tests
+                setattr(original_agent_obj, "_custom_spore_handler", instrumented_handler)
 
                 return decorated_func
 

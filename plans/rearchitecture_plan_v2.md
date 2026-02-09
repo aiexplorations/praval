@@ -1696,3 +1696,106 @@ No dependency changes required.
 | P3 | Async handlers | 1% | LOW | MEDIUM | 🟢 LOW |
 
 **Overall Assessment:** MEDIUM risk. Two changes (S1, M5) have meaningful probability of affecting users. Both have clear migration paths and the benefits outweigh the risks.
+
+---
+
+## Tool System Completion (T) - Full-Fledged Tool Support
+
+### Goals
+- Unify tool registration and metadata so agents, registry, and providers use one canonical format.
+- Provide consistent tool calling across OpenAI, Anthropic, and Cohere.
+- Deliver a straightforward, documented API with working examples.
+
+### Scope
+- **T1** Unify tool registration: bridge `Agent.tool` into `ToolRegistry` and keep tool names stable.
+- **T2** Provider parity: implement tool calling and follow-up responses for Anthropic/Cohere.
+- **T3** Tool discovery: implement module and pattern discovery (not stubbed).
+- **T4** `@agent` tool params: add `tools=`, `tool_categories=`, and `auto_discover_tools=`.
+- **T5** Docs + examples: replace placeholder tutorial and align spec with code.
+
+### Implementation Steps
+1. **Canonical tool schema**
+   - Normalize to `{"function", "description", "parameters"}` with stable tool names.
+   - When `Agent.tool` is used, auto-register into `ToolRegistry` with metadata.
+
+2. **Decorator integration**
+   - Extend `@agent` to accept `tools`, `tool_categories`, `auto_discover_tools`.
+   - Resolve tool names or callables via `ToolRegistry` and attach to agent tools.
+
+3. **Provider support**
+   - Implement tool schema conversion for Anthropic/Cohere.
+   - Add tool call execution path and follow-up response handling, similar to OpenAI.
+
+4. **Discovery**
+   - `discover_tools(module=...)`: import module and register decorated tools.
+   - `discover_tools(pattern=...)`: glob files, import, and register tools.
+   - Fail-safe: log errors, do not crash agent startup.
+
+5. **Docs + tests**
+   - Replace `docs/sphinx/tutorials/tool-integration.md` placeholder.
+   - Add provider tool-call tests for Anthropic/Cohere.
+   - Add integration examples under `examples/`.
+
+
+### Test Expectations
+- **Unit**: validate tool registration (name stability, metadata extraction, type hints required).
+- **Decorator**: `@agent` tool params resolve tool names, categories, and auto-discovery correctly.
+- **Provider parity**: Anthropic/Cohere tool calls execute tools and return follow-up responses.
+- **Discovery**: module and pattern discovery register tools without crashing on import errors.
+- **Integration**: end-to-end tool call flows with at least one provider.
+
+### Examples (Authoritative API)
+
+**1) Minimal Tool + Agent**
+```python
+from praval import agent, tool, start_agents, get_reef
+
+@tool("add_numbers", owned_by="calculator", category="math")
+def add(x: int, y: int) -> int:
+    return x + y
+
+@agent("calculator", tools=["add_numbers"])
+def calc(spore):
+    return {"result": add(2, 3)}
+
+start_agents(calc, initial_data={"type": "run"})
+get_reef().wait_for_completion()
+get_reef().shutdown()
+```
+
+**2) Shared Tool Across Agents**
+```python
+from praval import agent, tool
+
+@tool("logger", shared=True, category="utility")
+def log(level: str, message: str) -> str:
+    import logging
+    logging.getLogger("praval.tools").info(f"[{level}] {message}")
+    return "ok"
+
+@agent("writer")
+def writer(spore):
+    log("info", "writing started")
+    return {"status": "done"}
+```
+
+**3) Category-Based Tools + Provider Tool Call**
+```python
+from praval import agent, tool, Agent
+
+@tool("weather", category="external", shared=True)
+def get_weather(city: str) -> str:
+    return f"Sunny in {city}"
+
+@agent("assistant", tool_categories=["external"])
+def assistant(spore):
+    return {"answer": "Ask me the weather."}
+
+llm = Agent("assistant")
+llm.tools["weather"] = {
+    "function": get_weather,
+    "description": "Get weather",
+    "parameters": {"city": {"type": "str", "required": True}}
+}
+print(llm.chat("What's the weather in Paris?"))
+```

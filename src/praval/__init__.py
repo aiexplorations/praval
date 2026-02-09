@@ -5,10 +5,10 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.18 adds wait_for_completion() for deterministic multi-agent synchronization,
-fixes broadcast() channel resolution to use startup channel by default, and includes
-comprehensive tool system with @tool decorator, PDF support for knowledge base,
-Unified Data Storage & Retrieval System, and Secure Spores Enterprise Edition.
+Version 0.7.20 includes wait_for_completion() for deterministic multi-agent synchronization,
+broadcast() channel resolution using startup channel by default, comprehensive tool system
+with @tool decorator, PDF support for knowledge base, Unified Data Storage & Retrieval System,
+Secure Spores Enterprise Edition, and improved test isolation and instrumentation.
 """
 
 from .core.agent import Agent
