@@ -14,7 +14,7 @@ All pytest, pip, python commands must be run within the activated venv.
 
 ## Project Overview
 
-- **Version**: 0.7.20
+- **Version**: 0.7.21
 - **Python Support**: 3.9, 3.10, 3.11, 3.12
 - **License**: MIT
 
@@ -137,7 +137,7 @@ def process_data(items: List[str], config: Optional[Dict[str, Any]] = None) -> D
 ```
 
 ### Testing Requirements
-- Minimum 80% code coverage
+- Minimum 90% code coverage
 - Use pytest with pytest-asyncio for async tests
 - Mark tests: `@pytest.mark.unit`, `@pytest.mark.integration`
 
@@ -152,8 +152,8 @@ pip install -e .[dev]
 # Run tests
 pytest tests/ -v
 
-# Run with coverage (must be >80%)
-pytest --cov=praval --cov-report=html --cov-fail-under=80
+# Run with coverage (must be >90%)
+pytest --cov=praval --cov-report=html --cov-fail-under=90
 
 # Format code
 black src tests
@@ -228,7 +228,7 @@ make release
 ### Manual Release Steps
 ```bash
 # 1. Ensure all tests pass
-pytest tests/ -v --cov=praval --cov-fail-under=80
+pytest tests/ -v --cov=praval --cov-fail-under=90
 
 # 2. Update version in pyproject.toml, src/praval/__init__.py, and docstring
 

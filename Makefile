@@ -33,7 +33,7 @@ help:
 	@echo "  pdf-clean    - Clean generated PDFs"
 	@echo ""
 	@echo "📦 Build & Release:"
-	@echo "  build        - Build package (requires 80% test coverage)"
+	@echo "  build        - Build package (requires 90% test coverage)"
 	@echo "  release      - Interactive release wizard (patch/minor/major)"
 	@echo "  clean        - Clean build artifacts"
 
@@ -80,7 +80,7 @@ clean:
 # Coverage enforcement target
 coverage-check:
 	@echo "Checking test coverage..."
-	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-fail-under=80
+	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-fail-under=90
 	@echo "✅ Coverage requirement met!"
 
 # Release target - interactive version bump and release

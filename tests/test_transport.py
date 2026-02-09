@@ -13,6 +13,7 @@ import asyncio
 import pytest
 import ssl
 import time
+from types import SimpleNamespace
 from typing import Dict, Any, Callable, List
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -511,3 +512,225 @@ class TestTransportPerformance:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+class FakeAioPika:
+    class ExchangeType:
+        TOPIC = "topic"
+
+    class DeliveryMode:
+        PERSISTENT = "PERSISTENT"
+
+    class Message:
+        def __init__(self, body, headers=None, message_id=None, timestamp=None, priority=None, expiration=None, delivery_mode=None, content_type=None):
+            self.body = body
+            self.headers = headers or {}
+            self.message_id = message_id
+            self.timestamp = timestamp
+            self.priority = priority
+            self.expiration = expiration
+            self.delivery_mode = SimpleNamespace(name="PERSISTENT")
+            self.content_type = content_type
+
+        def process(self):
+            class _Ctx:
+                async def __aenter__(self_inner):
+                    return self
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+            return _Ctx()
+
+    class _Queue:
+        def __init__(self):
+            self._handler = None
+
+        async def bind(self, exchange, routing_key=None):
+            return None
+
+        async def consume(self, handler):
+            self._handler = handler
+
+    last_queue = None
+
+    class _Channel:
+        async def set_qos(self, prefetch_count=0):
+            return None
+
+        async def declare_exchange(self, name, exchange_type, durable=True):
+            return object()
+
+        async def declare_queue(self, name, durable=True, exclusive=False, auto_delete=True):
+            queue = FakeAioPika._Queue()
+            FakeAioPika.last_queue = queue
+            return queue
+
+    class _Connection:
+        def __init__(self):
+            self.is_closed = False
+
+        async def channel(self):
+            return FakeAioPika._Channel()
+
+        async def close(self):
+            self.is_closed = True
+
+    @staticmethod
+    async def connect_robust(**kwargs):
+        return FakeAioPika._Connection()
+
+
+@pytest.mark.asyncio
+async def test_amqp_transport_initialize_publish_subscribe(monkeypatch):
+    monkeypatch.setitem(__import__('sys').modules, 'aio_pika', FakeAioPika)
+
+    transport = AMQPTransport()
+    await transport.initialize({"url": "amqps://localhost:5671/"})
+    assert transport.connected is True
+
+    # publish raw bytes
+    await transport.publish("test.topic", b"payload", priority=5, ttl=1)
+
+    received = []
+
+    async def cb(spore):
+        received.append(spore)
+
+    await transport.subscribe("test.topic", cb)
+
+    # simulate delivery by calling handler directly
+    queue = FakeAioPika.last_queue
+    msg = FakeAioPika.Message(
+        body=b'{"key": "value"}',
+        headers={"spore_id": "1", "spore_type": "knowledge", "from_agent": "a", "to_agent": "", "created_at": "2025-01-01T00:00:00"},
+        message_id="1",
+        timestamp=0
+    )
+    if queue._handler:
+        await queue._handler(msg)
+
+
+class FakeMQTTMessage:
+    def __init__(self, topic, payload):
+        self.topic = SimpleNamespace(value=topic)
+        self.payload = payload
+
+
+class FakeMQTTMessages:
+    def __init__(self):
+        self._queue = asyncio.Queue()
+
+    def push(self, message):
+        self._queue.put_nowait(message)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        item = await self._queue.get()
+        return item
+
+
+class FakeMQTTClient:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.published = []
+        self.subscribed = []
+        self.unsubscribed = []
+        self.messages = FakeMQTTMessages()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def publish(self, topic, payload, qos=0, retain=False):
+        self.published.append((topic, payload, qos, retain))
+
+    async def subscribe(self, topic, qos=0):
+        self.subscribed.append((topic, qos))
+
+    async def unsubscribe(self, topic):
+        self.unsubscribed.append(topic)
+
+
+class FakeAsyncioMQTT:
+    Client = FakeMQTTClient
+
+
+@pytest.mark.asyncio
+async def test_mqtt_transport_publish_and_subscribe(monkeypatch):
+    monkeypatch.setitem(__import__('sys').modules, 'asyncio_mqtt', FakeAsyncioMQTT)
+
+    transport = MQTTTransport()
+    await transport.initialize({"host": "localhost"})
+    assert transport.connected is True
+
+    await transport.publish("topic1", b"data", priority=10)
+    assert transport.client.published[0][2] == 2
+
+    received = []
+
+    async def cb(payload):
+        received.append(payload)
+
+    await transport.subscribe("topic1", cb)
+    transport.client.messages.push(FakeMQTTMessage("praval/spores/topic1", b"hello"))
+    await asyncio.sleep(0.01)
+    assert received == [b"hello"]
+
+    await transport.close()
+
+
+class FakeStompConn:
+    def __init__(self, *args, **kwargs):
+        self.sent = []
+        self.subscribed = []
+        self.unsubscribed = []
+        self.disconnected = False
+
+    async def connect(self):
+        return None
+
+    async def send(self, destination, body, headers=None):
+        self.sent.append((destination, body, headers))
+
+    async def subscribe(self, destination, handler=None):
+        self.subscribed.append((destination, handler))
+
+    async def unsubscribe(self, destination):
+        self.unsubscribed.append(destination)
+
+    async def disconnect(self):
+        self.disconnected = True
+
+
+class FakeAioStomp:
+    AioStomp = FakeStompConn
+
+
+@pytest.mark.asyncio
+async def test_stomp_transport_publish_and_subscribe(monkeypatch):
+    monkeypatch.setitem(__import__('sys').modules, 'aiostomp', FakeAioStomp)
+
+    transport = STOMPTransport()
+    await transport.initialize({"host": "localhost"})
+    assert transport.connected is True
+
+    await transport.publish("topic1", b"payload", priority=3, ttl=1)
+    assert transport.connection.sent
+
+    received = []
+
+    async def cb(payload):
+        received.append(payload)
+
+    await transport.subscribe("topic1", cb)
+    destination, handler = transport.connection.subscribed[0]
+
+    class Frame:
+        body = "hello"
+
+    await handler(Frame())
+    assert received == [b"hello"]
+
+    await transport.close()

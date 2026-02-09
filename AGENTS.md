@@ -15,7 +15,7 @@
 - `make format`: Run Black and isort formatting.
 - `make lint`: Run flake8 linting.
 - `make type-check`: Run mypy type checks.
-- `make build`: Build the package (enforces 80% coverage).
+- `make build`: Build the package (enforces 90% coverage).
 - `make docs-html`: Build Sphinx docs into `docs/_build/html/`.
 
 ## Coding Style & Naming Conventions
@@ -31,7 +31,7 @@
   - `pytest tests/ -v`
   - `pytest tests/ -m unit`
   - `pytest tests/test_decorators.py -v`
-- Coverage: repo targets `>= 80%` (enforced in `make build`).
+- Coverage: repo targets `>= 90%` (enforced in `make build`).
 
 ## Commit & Pull Request Guidelines
 - Commit prefixes drive versioning (see `docs/CONTRIBUTING.md`):

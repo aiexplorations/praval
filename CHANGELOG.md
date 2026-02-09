@@ -7,27 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Reef performance options: shared thread pool (`use_shared_pool`) and handler batching (`batch_size`).
-- Reef authorization hook (`auth_provider`) for per-action checks.
-- Agent conversation history cap via `max_history` (default 100, None = unbounded).
-
-### Changed
-- Spore is now immutable; mutation requires creating a new Spore (use add_* methods which return new instances).
-- Spore payload size estimation uses JSON-based byte estimation (faster, less memory).
-- Async backend calls use a persistent event loop instead of per-call loops.
-- Async handlers run on per-channel shared event loop.
-
-### Security
-- Optional broadcast rate limiting (per-agent, per-second).
-- Provider error messages redact API keys when present.
-
 ### Planned (API/Architecture)
 - Split Reef into core transport layer vs API facade (backward compatible facade).
 - Introduce `ReefCore` as the internal core implementation.
 - Slim `@agent` decorator into smaller composable decorators.
-- Make `Spore` immutable (breaking if user code mutates spores).
 
+
+## [0.7.21] - 2026-02-09
+
+### Added
+- Reef performance options: shared thread pool (`use_shared_pool`) and handler batching (`batch_size`).
+- Reef authorization hook (`auth_provider`) for per-action checks.
+- Agent conversation history cap via `max_history` (default 100, None = unbounded).
+- Unit tests covering transport backends (AMQP/MQTT/STOMP), agent runner, reef backend, observability exporters, and optional storage providers.
+
+### Changed
+- Spore payload size estimation uses JSON-based byte estimation (faster, less memory).
+- Async backend calls use a persistent event loop instead of per-call loops.
+- Async handlers run on per-channel shared event loop.
+- Embedded vector store uses an isolated default storage subdirectory and cleans up on shutdown.
+
+### Fixed
+- SQLite trace store handles unwritable paths without crashing.
+- Observability context handles non-mapping metadata; span duration now enforces a minimum positive duration.
+- Agent coroutine handlers are awaited in `on_spore_received`.
+- Reef shutdown now resets shared backend state and avoids descriptor leaks.
+- Secure reef configuration now propagates `auth_provider`.
+
+### Security
+- Optional broadcast rate limiting (per-agent, per-second).
+- Provider error messages redact API keys when present.
 
 ## [0.7.18] - 2025-12-08
 
@@ -770,5 +779,6 @@ Use these keywords in commit messages to trigger automatic version bumps:
 - `style:` - Code style changes
 - `chore:` - Maintenance tasks
 
-[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.7.21...HEAD
+[0.7.21]: https://github.com/aiexplorations/praval/compare/v0.7.20...v0.7.21
 [0.5.0]: https://github.com/aiexplorations/praval/releases/tag/v0.5.0
