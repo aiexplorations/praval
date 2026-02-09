@@ -34,20 +34,21 @@ def storage_enabled(
             - Dict: Provider name -> configuration mapping
         auto_register: Whether to auto-register providers from environment
         permissions: Default permissions for storage access
-        **default_configs: Default configurations for providers
+        ``default_configs``: Default configurations for providers
     
-    Examples:
+    Examples::
+
         @storage_enabled("postgres")
         @agent("data_analyst")
         def analyze_data(spore):
             data = storage.query("postgres", "SELECT * FROM customers")
-            
+
         @storage_enabled(["postgres", "s3", "redis"])
         @agent("business_intelligence")
         def generate_report(spore):
             # Access multiple storage backends
             pass
-            
+
         @storage_enabled({
             "postgres": {"host": "localhost", "database": "business"},
             "s3": {"bucket_name": "reports"}
@@ -117,7 +118,8 @@ def requires_storage(*provider_names: str, permissions: Optional[List[str]] = No
         *provider_names: Names of required storage providers
         permissions: Required permissions for storage access
     
-    Example:
+    Example::
+
         @requires_storage("postgres", "s3")
         @agent("data_processor")
         def process_customer_data(spore):

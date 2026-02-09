@@ -31,11 +31,11 @@ def tool(
 ) -> Callable:
     """
     Decorator to register a function as a tool in the Praval framework.
-    
+
     The @tool decorator automatically registers functions as tools that can
     be used by agents. Tools can be owned by specific agents, shared across
     all agents, or organized by category.
-    
+
     Args:
         tool_name: Name of the tool (defaults to function name)
         owned_by: Agent that owns this tool
@@ -45,49 +45,44 @@ def tool(
         version: Version of the tool
         author: Author of the tool
         tags: Tags for tool discovery
-        
+
     Returns:
         Decorated function with tool metadata attached
-        
+
     Raises:
         ToolError: If tool registration fails or validation errors occur
-        
-    Examples:
-        Basic tool owned by specific agent:
-        ```python
+
+    Examples::
+
+        # Basic tool owned by a specific agent
         @tool("add_numbers", owned_by="calculator")
         def add(x: float, y: float) -> float:
-            '''Add two numbers together.'''
+            # Add two numbers together.
             return x + y
-        ```
-        
-        Shared tool available to all agents:
-        ```python
+
+        # Shared tool available to all agents
         @tool("logger", shared=True, category="utility")
         def log_message(level: str, message: str) -> str:
-            '''Log a message at the specified level.'''
+            # Log a message at the specified level.
             import logging
             logger = logging.getLogger("praval.tools")
             getattr(logger, level.lower())(message)
             return f"Logged: {message}"
-        ```
-        
-        Tool with metadata:
-        ```python
+
+        # Tool with metadata
         @tool(
             "validate_email",
-            owned_by="data_processor", 
+            owned_by="data_processor",
             category="validation",
             tags=["email", "validation", "data"],
             version="2.0.0",
             author="Praval Team"
         )
         def validate_email(email: str) -> bool:
-            '''Validate email address format.'''
+            # Validate email address format.
             import re
             pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
             return bool(re.match(pattern, email))
-        ```
     """
     def decorator(func: Callable) -> Callable:
         # Auto-generate tool name from function name if not provided
@@ -183,7 +178,7 @@ def discover_tools(
     
     Args:
         module: Module name to import (tools register on import)
-        pattern: File pattern to search (e.g., "**/*_tool.py")
+        pattern: File pattern to search (e.g., ``**/*_tool.py``)
         category: Category to filter by
         
     Returns:

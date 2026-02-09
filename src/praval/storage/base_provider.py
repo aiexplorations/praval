@@ -277,7 +277,7 @@ class BaseStorageProvider(ABC):
         
         Args:
             operation: Operation name
-            *args, **kwargs: Operation parameters
+            args, kwargs: Operation parameters
             
         Returns:
             StorageResult with operation outcome

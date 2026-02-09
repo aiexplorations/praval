@@ -519,7 +519,8 @@ class Agent:
         Safe to call multiple times. After calling close(), the agent
         should not be used for further operations.
 
-        Example:
+        Example::
+
             agent = Agent("assistant")
             try:
                 response = agent.chat("Hello")

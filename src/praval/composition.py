@@ -31,7 +31,8 @@ def agent_pipeline(*agents: Callable, channel: str = "pipeline") -> Callable:
     Returns:
         Function that triggers the pipeline with initial data
         
-    Example:
+    Example::
+
         pipeline = agent_pipeline(explorer, analyzer, reporter)
         pipeline({"task": "analyze sentiment"})
     """
@@ -67,7 +68,8 @@ def conditional_agent(condition_func: Callable[[Any], bool]):
     Args:
         condition_func: Function that takes a spore and returns bool
         
-    Example:
+    Example::
+
         @conditional_agent(lambda spore: spore.knowledge.get("priority") == "high")
         @agent("urgent_processor")
         def process_urgent(spore):
@@ -101,7 +103,8 @@ def throttled_agent(delay_seconds: float):
     Args:
         delay_seconds: Minimum seconds between executions
         
-    Example:
+    Example::
+
         @throttled_agent(2.0)  # Max once every 2 seconds
         @agent("slow_processor")  
         def process_slowly(spore):
@@ -265,6 +268,7 @@ def run_agents(
     Run distributed agents with proper async lifecycle management.
 
     This is the recommended way to run agents with RabbitMQ backend. It:
+
     1. Creates and manages an asyncio event loop
     2. Initializes the RabbitMQ backend
     3. Ensures agents consume messages from the broker
@@ -272,34 +276,37 @@ def run_agents(
 
     Args:
         *agent_funcs: Functions decorated with @agent
-        backend_config: RabbitMQ configuration dict:
+        backend_config: RabbitMQ configuration dict. Example::
+
             {
-                'url': 'amqp://user:pass@host:5672/',
-                'exchange_name': 'praval.agents',
-                'verify_tls': True/False
+                "url": "amqp://user:pass@host:5672/",
+                "exchange_name": "praval.agents",
+                "verify_tls": True
             }
         channel_queue_map: Optional mapping of Praval channels to RabbitMQ queues.
             Use this when agents should consume from pre-configured queues instead
             of topic-based subscriptions.
-            Example: {"data_received": "agent.data_analyzer"}
+            Example: ``{"data_received": "agent.data_analyzer"}``
 
-    Example (Topic-based, Praval-managed routing):
+    Example (Topic-based, Praval-managed routing)::
+
         run_agents(
             processor,
             analyzer,
             backend_config={
-                'url': 'amqp://localhost:5672/',
-                'exchange_name': 'praval.agents'
+                "url": "amqp://localhost:5672/",
+                "exchange_name": "praval.agents"
             }
         )
 
-    Example (Queue-based, pre-configured RabbitMQ):
+    Example (Queue-based, pre-configured RabbitMQ)::
+
         run_agents(
             processor,
             analyzer,
             backend_config={
-                'url': 'amqp://localhost:5672/',
-                'exchange_name': 'praval.agents'
+                "url": "amqp://localhost:5672/",
+                "exchange_name": "praval.agents"
             },
             channel_queue_map={
                 "data_received": "agent.data_analyzer",

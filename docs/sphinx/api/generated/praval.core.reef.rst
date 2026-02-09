@@ -17,6 +17,14 @@
    
       Reef
       ReefChannel
+      ReefCore
       Spore
       SporeType
+      SubscriptionManager
+   
+   .. rubric:: Exceptions
+
+   .. autosummary::
+   
+      SporeValidationError
    
