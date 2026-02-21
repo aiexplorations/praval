@@ -5,38 +5,40 @@ These tests verify the high-level data management interface
 for agents to interact with multiple storage providers.
 """
 
-import pytest
-import pytest_asyncio
 import threading
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, AsyncMock, patch
 
-from praval.storage.data_manager import (
-    DataManager,
-    get_data_manager,
-    store_data,
-    get_data,
-    query_data,
-    delete_data,
-)
-from praval.storage.storage_registry import StorageRegistry
+import pytest
+import pytest_asyncio
+
 from praval.storage.base_provider import (
     BaseStorageProvider,
-    StorageType,
-    StorageResult,
-    StorageMetadata,
     DataReference,
+    StorageMetadata,
+    StorageResult,
+    StorageType,
+)
+from praval.storage.data_manager import (
+    DataManager,
+    delete_data,
+    get_data,
+    get_data_manager,
+    query_data,
+    store_data,
 )
 from praval.storage.exceptions import (
-    StorageNotFoundError,
     StorageConfigurationError,
+    StorageNotFoundError,
 )
+from praval.storage.storage_registry import StorageRegistry
 
 
 class MockStorageProvider(BaseStorageProvider):
     """Mock provider for testing data manager."""
 
-    def __init__(self, name: str, storage_type: StorageType = StorageType.KEY_VALUE, **kwargs):
+    def __init__(
+        self, name: str, storage_type: StorageType = StorageType.KEY_VALUE, **kwargs
+    ):
         self._storage_type = storage_type
         self._data = {}
         config = kwargs.get("config", {})
@@ -104,7 +106,7 @@ class TestDataManagerInit:
         """Initializes with thread-local agent context."""
         manager = DataManager()
 
-        assert hasattr(manager, '_agent_context')
+        assert hasattr(manager, "_agent_context")
 
 
 # ============================================================================
@@ -168,9 +170,7 @@ class TestStoreOperation:
     async def test_store_success(self, manager_with_provider):
         """Stores data successfully."""
         result = await manager_with_provider.store(
-            "test_provider",
-            "test_key",
-            {"value": 123}
+            "test_provider", "test_key", {"value": 123}
         )
 
         assert result.success is True
@@ -240,9 +240,7 @@ class TestQueryOperation:
     async def test_query_success(self, manager_with_provider):
         """Executes query successfully."""
         result = await manager_with_provider.query(
-            "test_provider",
-            "collection",
-            {"filter": "value"}
+            "test_provider", "collection", {"filter": "value"}
         )
 
         assert result.success is True
@@ -310,9 +308,7 @@ class TestSmartStore:
     async def test_smart_store_with_preference(self, manager_with_providers):
         """Uses preferred provider when specified."""
         result = await manager_with_providers.smart_store(
-            {"value": 123},
-            resource="test_key",
-            preferred_provider="kv_provider"
+            {"value": 123}, resource="test_key", preferred_provider="kv_provider"
         )
 
         assert result.success is True
@@ -321,8 +317,7 @@ class TestSmartStore:
     async def test_smart_store_auto_select_vector(self, manager_with_providers):
         """Selects vector provider for vector data."""
         result = await manager_with_providers.smart_store(
-            {"vector": [0.1, 0.2, 0.3]},
-            resource="test_vector"
+            {"vector": [0.1, 0.2, 0.3]}, resource="test_vector"
         )
 
         assert result.success is True
@@ -333,8 +328,7 @@ class TestSmartStore:
         large_data = {"content": "x" * 2000}  # Large enough to prefer object storage
 
         result = await manager_with_providers.smart_store(
-            large_data,
-            resource="large_data"
+            large_data, resource="large_data"
         )
 
         assert result.success is True
@@ -345,8 +339,7 @@ class TestSmartStore:
         record_data = {"id": 1, "name": "Test", "email": "test@example.com"}
 
         result = await manager_with_providers.smart_store(
-            record_data,
-            resource="user_record"
+            record_data, resource="user_record"
         )
 
         assert result.success is True
@@ -355,8 +348,7 @@ class TestSmartStore:
     async def test_smart_store_generates_id(self, manager_with_providers):
         """Auto-generates resource ID when not provided."""
         result = await manager_with_providers.smart_store(
-            {"value": 123},
-            preferred_provider="kv_provider"
+            {"value": 123}, preferred_provider="kv_provider"
         )
 
         assert result.success is True
@@ -397,9 +389,7 @@ class TestSmartSearch:
     @pytest.mark.asyncio
     async def test_smart_search_vector(self, manager_with_search_providers):
         """Vector search across providers."""
-        results = await manager_with_search_providers.smart_search(
-            [0.1, 0.2, 0.3, 0.4]
-        )
+        results = await manager_with_search_providers.smart_search([0.1, 0.2, 0.3, 0.4])
 
         # Should attempt vector search on vector provider
         assert len(results) >= 0  # May be empty if no data
@@ -407,18 +397,14 @@ class TestSmartSearch:
     @pytest.mark.asyncio
     async def test_smart_search_text(self, manager_with_search_providers):
         """Text search across providers."""
-        results = await manager_with_search_providers.smart_search(
-            "search query"
-        )
+        results = await manager_with_search_providers.smart_search("search query")
 
         assert isinstance(results, list)
 
     @pytest.mark.asyncio
     async def test_smart_search_structured(self, manager_with_search_providers):
         """Structured query search across providers."""
-        results = await manager_with_search_providers.smart_search(
-            {"field": "value"}
-        )
+        results = await manager_with_search_providers.smart_search({"field": "value"})
 
         assert isinstance(results, list)
 
@@ -426,8 +412,7 @@ class TestSmartSearch:
     async def test_smart_search_specific_providers(self, manager_with_search_providers):
         """Search subset of providers."""
         results = await manager_with_search_providers.smart_search(
-            "query",
-            providers=["db_provider"]
+            "query", providers=["db_provider"]
         )
 
         assert isinstance(results, list)
@@ -451,9 +436,7 @@ class TestDataReference:
     def test_create_data_reference(self, manager_with_provider):
         """Creates valid DataReference."""
         ref = manager_with_provider.create_data_reference(
-            "test_provider",
-            "test_resource",
-            custom_key="custom_value"
+            "test_provider", "test_resource", custom_key="custom_value"
         )
 
         assert ref.provider == "test_provider"
@@ -470,7 +453,7 @@ class TestDataReference:
         ref = DataReference(
             provider="test_provider",
             storage_type=StorageType.KEY_VALUE,
-            resource_id="test_key"
+            resource_id="test_key",
         )
 
         result = await manager_with_provider.resolve_data_reference(ref)
@@ -479,7 +462,12 @@ class TestDataReference:
         assert result.data == "stored_data"
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in DataReference.from_uri: uses path instead of netloc for storage_type")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in DataReference.from_uri: uses path instead of netloc"
+            " for storage_type"
+        )
+    )
     async def test_resolve_data_reference_uri(self, manager_with_provider):
         """Resolves URI string to data."""
         await manager_with_provider.store("test_provider", "test_key", "stored_data")
@@ -496,7 +484,7 @@ class TestDataReference:
             provider="test_provider",
             storage_type=StorageType.KEY_VALUE,
             resource_id="test_key",
-            expires_at=datetime.now() - timedelta(hours=1)  # Already expired
+            expires_at=datetime.now() - timedelta(hours=1),  # Already expired
         )
 
         result = await manager_with_provider.resolve_data_reference(ref)
@@ -608,9 +596,15 @@ class TestListProviders:
     async def manager_with_providers(self):
         registry = StorageRegistry()
 
-        await registry.register_provider(MockStorageProvider("kv1", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("kv2", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("db1", StorageType.RELATIONAL))
+        await registry.register_provider(
+            MockStorageProvider("kv1", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("kv2", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("db1", StorageType.RELATIONAL)
+        )
 
         return DataManager(registry=registry)
 
@@ -701,18 +695,25 @@ class TestSelectOptimalProvider:
     async def manager_with_all_types(self):
         registry = StorageRegistry()
 
-        await registry.register_provider(MockStorageProvider("kv", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("vector", StorageType.VECTOR))
-        await registry.register_provider(MockStorageProvider("object", StorageType.OBJECT))
-        await registry.register_provider(MockStorageProvider("relational", StorageType.RELATIONAL))
+        await registry.register_provider(
+            MockStorageProvider("kv", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("vector", StorageType.VECTOR)
+        )
+        await registry.register_provider(
+            MockStorageProvider("object", StorageType.OBJECT)
+        )
+        await registry.register_provider(
+            MockStorageProvider("relational", StorageType.RELATIONAL)
+        )
 
         return DataManager(registry=registry)
 
     def test_select_vector_for_vector_data(self, manager_with_all_types):
         """Selects vector provider for vector data."""
         result = manager_with_all_types._select_optimal_provider(
-            {"vector": [0.1, 0.2, 0.3]},
-            "store"
+            {"vector": [0.1, 0.2, 0.3]}, "store"
         )
 
         assert result == "vector"
@@ -741,10 +742,18 @@ class TestSelectSearchProviders:
     async def manager_with_search_types(self):
         registry = StorageRegistry()
 
-        await registry.register_provider(MockStorageProvider("vector", StorageType.VECTOR))
-        await registry.register_provider(MockStorageProvider("search", StorageType.SEARCH))
-        await registry.register_provider(MockStorageProvider("relational", StorageType.RELATIONAL))
-        await registry.register_provider(MockStorageProvider("document", StorageType.DOCUMENT))
+        await registry.register_provider(
+            MockStorageProvider("vector", StorageType.VECTOR)
+        )
+        await registry.register_provider(
+            MockStorageProvider("search", StorageType.SEARCH)
+        )
+        await registry.register_provider(
+            MockStorageProvider("relational", StorageType.RELATIONAL)
+        )
+        await registry.register_provider(
+            MockStorageProvider("document", StorageType.DOCUMENT)
+        )
 
         return DataManager(registry=registry)
 
@@ -800,6 +809,7 @@ class TestModuleFunctions:
     def test_get_data_manager_singleton(self):
         """Returns same instance on multiple calls."""
         import praval.storage.data_manager as dm
+
         original = dm._global_data_manager
         dm._global_data_manager = None
 
@@ -815,6 +825,7 @@ class TestModuleFunctions:
     async def test_store_data_convenience(self):
         """store_data uses global manager."""
         import praval.storage.data_manager as dm
+
         original_manager = dm._global_data_manager
 
         # Create a custom registry with provider
@@ -834,6 +845,7 @@ class TestModuleFunctions:
     async def test_get_data_convenience(self):
         """get_data uses global manager."""
         import praval.storage.data_manager as dm
+
         original_manager = dm._global_data_manager
 
         registry = StorageRegistry()
@@ -852,6 +864,7 @@ class TestModuleFunctions:
     async def test_query_data_convenience(self):
         """query_data uses global manager."""
         import praval.storage.data_manager as dm
+
         original_manager = dm._global_data_manager
 
         registry = StorageRegistry()
@@ -868,6 +881,7 @@ class TestModuleFunctions:
     async def test_delete_data_convenience(self):
         """delete_data uses global manager."""
         import praval.storage.data_manager as dm
+
         original_manager = dm._global_data_manager
 
         registry = StorageRegistry()

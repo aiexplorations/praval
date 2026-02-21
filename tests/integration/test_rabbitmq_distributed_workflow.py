@@ -12,21 +12,23 @@ Note: These tests require RabbitMQ to be running on localhost:5672.
 They will be skipped if RabbitMQ is not available.
 """
 
-import pytest
 import asyncio
 import logging
 from datetime import datetime
 
+import pytest
+
 try:
     import aio_pika
+
     HAS_RABBITMQ = True
 except ImportError:
     HAS_RABBITMQ = False
 
-from praval.decorators import agent, broadcast
-from praval.core.reef import get_reef, SporeType
 from praval.core.agent_runner import AgentRunner
-from praval.core.reef_backend import RabbitMQBackend, InMemoryBackend
+from praval.core.reef import SporeType
+from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
+from praval.decorators import agent
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +39,11 @@ def _can_connect_to_rabbitmq() -> bool:
         return False
     try:
         import socket
+
         # First check if port is open
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
-        result = sock.connect_ex(('localhost', 5672))
+        result = sock.connect_ex(("localhost", 5672))
         sock.close()
         if result != 0:
             return False
@@ -49,8 +52,7 @@ def _can_connect_to_rabbitmq() -> bool:
         async def _check_auth():
             try:
                 connection = await aio_pika.connect_robust(
-                    'amqp://guest:guest@localhost:5672/',
-                    timeout=2.0
+                    "amqp://guest:guest@localhost:5672/", timeout=2.0
                 )
                 await connection.close()
                 return True
@@ -71,8 +73,7 @@ RABBITMQ_AVAILABLE = _can_connect_to_rabbitmq()
 
 # Skip all tests in this module if RabbitMQ is not available
 pytestmark = pytest.mark.skipif(
-    not RABBITMQ_AVAILABLE,
-    reason="RabbitMQ not available on localhost:5672"
+    not RABBITMQ_AVAILABLE, reason="RabbitMQ not available on localhost:5672"
 )
 
 
@@ -83,27 +84,27 @@ class TestDistributedWorkflow:
     def rabbitmq_config(self):
         """RabbitMQ configuration for tests."""
         return {
-            'url': 'amqp://guest:guest@localhost:5672/',
-            'exchange_name': 'praval.test.agents',
-            'verify_tls': False
+            "url": "amqp://guest:guest@localhost:5672/",
+            "exchange_name": "praval.test.agents",
+            "verify_tls": False,
         }
 
     @pytest.fixture
     def workflow_agents(self):
         """Create agents for workflow testing."""
-        messages_processed = {'count': 0, 'data': []}
+        messages_processed = {"count": 0, "data": []}
 
         @agent("processor")
         def processor_agent(spore):
             """Process incoming data."""
-            data = spore.knowledge.get('data', '')
+            data = spore.knowledge.get("data", "")
             processed = {
-                'original': data,
-                'processed': data.upper() if isinstance(data, str) else str(data),
-                'processor_timestamp': datetime.now().isoformat()
+                "original": data,
+                "processed": data.upper() if isinstance(data, str) else str(data),
+                "processor_timestamp": datetime.now().isoformat(),
             }
-            messages_processed['count'] += 1
-            messages_processed['data'].append(processed)
+            messages_processed["count"] += 1
+            messages_processed["data"].append(processed)
             return processed
 
         @agent("analyzer")
@@ -111,11 +112,11 @@ class TestDistributedWorkflow:
             """Analyze processed data."""
             processed_data = spore.knowledge
             analysis = {
-                'length': len(str(processed_data.get('processed', ''))),
-                'has_uppercase': any(
-                    c.isupper() for c in str(processed_data.get('processed', ''))
+                "length": len(str(processed_data.get("processed", ""))),
+                "has_uppercase": any(
+                    c.isupper() for c in str(processed_data.get("processed", ""))
                 ),
-                'analyzer_timestamp': datetime.now().isoformat()
+                "analyzer_timestamp": datetime.now().isoformat(),
             }
             return analysis
 
@@ -145,16 +146,12 @@ class TestDistributedWorkflow:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        not HAS_RABBITMQ,
-        reason="RabbitMQ not available"
-    )
-    async def test_distributed_workflow_initialization(self, workflow_agents, rabbitmq_config):
+    @pytest.mark.skipif(not HAS_RABBITMQ, reason="RabbitMQ not available")
+    async def test_distributed_workflow_initialization(
+        self, workflow_agents, rabbitmq_config
+    ):
         """Test that distributed workflow initializes correctly with RabbitMQ."""
-        runner = AgentRunner(
-            agents=workflow_agents,
-            backend_config=rabbitmq_config
-        )
+        runner = AgentRunner(agents=workflow_agents, backend_config=rabbitmq_config)
 
         # Verify backend is RabbitMQ
         assert isinstance(runner.backend, RabbitMQBackend)
@@ -166,23 +163,17 @@ class TestDistributedWorkflow:
             # Verify initialization succeeded
             assert runner.reef is not None
             stats = runner.get_stats()
-            assert stats['agents'] == 2
+            assert stats["agents"] == 2
 
         except ConnectionError as e:
             pytest.skip(f"RabbitMQ not available: {e}")
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        not HAS_RABBITMQ,
-        reason="RabbitMQ not available"
-    )
+    @pytest.mark.skipif(not HAS_RABBITMQ, reason="RabbitMQ not available")
     async def test_agent_message_delivery(self, workflow_agents, rabbitmq_config):
         """Test that agents receive messages through RabbitMQ."""
-        runner = AgentRunner(
-            agents=workflow_agents,
-            backend_config=rabbitmq_config
-        )
+        runner = AgentRunner(agents=workflow_agents, backend_config=rabbitmq_config)
 
         try:
             await runner.initialize()
@@ -193,7 +184,7 @@ class TestDistributedWorkflow:
                 from_agent="test_client",
                 to_agent="processor",
                 knowledge={"data": "hello"},
-                spore_type=SporeType.REQUEST
+                spore_type=SporeType.REQUEST,
             )
 
             # Wait a bit for message delivery
@@ -209,16 +200,10 @@ class TestDistributedWorkflow:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        not HAS_RABBITMQ,
-        reason="RabbitMQ not available"
-    )
+    @pytest.mark.skipif(not HAS_RABBITMQ, reason="RabbitMQ not available")
     async def test_broadcast_delivery(self, workflow_agents, rabbitmq_config):
         """Test that broadcast messages reach all agents."""
-        runner = AgentRunner(
-            agents=workflow_agents,
-            backend_config=rabbitmq_config
-        )
+        runner = AgentRunner(agents=workflow_agents, backend_config=rabbitmq_config)
 
         try:
             await runner.initialize()
@@ -228,10 +213,7 @@ class TestDistributedWorkflow:
             # Broadcast a message
             spore_id = await reef.broadcast(
                 from_agent="test_client",
-                knowledge={
-                    "type": "broadcast_test",
-                    "data": "test_broadcast"
-                }
+                knowledge={"type": "broadcast_test", "data": "test_broadcast"},
             )
 
             # Wait for delivery
@@ -252,31 +234,31 @@ class TestDistributedReliability:
     @pytest.fixture
     def reliable_agents(self):
         """Create agents for reliability testing."""
-        execution_log = {'calls': []}
+        execution_log = {"calls": []}
 
         @agent("reliable_agent")
         def reliable(spore):
             """Agent that logs execution."""
-            execution_log['calls'].append({
-                'timestamp': datetime.now().isoformat(),
-                'knowledge': spore.knowledge
-            })
-            return {'status': 'processed'}
+            execution_log["calls"].append(
+                {"timestamp": datetime.now().isoformat(), "knowledge": spore.knowledge}
+            )
+            return {"status": "processed"}
 
         return [reliable], execution_log
 
     @pytest.mark.integration
     def test_agent_runs_without_errors(self):
         """Test that agents execute without raising errors."""
+
         @agent("safe_agent")
         def safe(spore):
             try:
                 # Simulate safe processing
                 result = len(str(spore.knowledge))
-                return {'length': result}
+                return {"length": result}
             except Exception as e:
                 logger.error(f"Agent error: {e}")
-                return {'error': str(e)}
+                return {"error": str(e)}
 
         runner = AgentRunner(agents=[safe])
         assert runner is not None
@@ -289,6 +271,7 @@ class TestMultiAgentCoordination:
     @pytest.fixture
     def coordinating_agents(self):
         """Create agents that coordinate."""
+
         @agent("initiator")
         def initiator(spore):
             return {"initiated": True, "step": 1}
@@ -324,12 +307,12 @@ class TestMultiAgentCoordination:
             # Verify both agents are registered
             assert runner.reef is not None
             stats = runner.get_stats()
-            assert stats['agents'] == 2
+            assert stats["agents"] == 2
 
         finally:
             await runner.shutdown()
             loop.close()
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v', '-k', 'integration'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-k", "integration"])

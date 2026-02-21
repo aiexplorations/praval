@@ -27,7 +27,7 @@ class ObservabilityConfig:
     storage_path: str = "~/.praval/traces.db"
 
     @classmethod
-    def from_env(cls) -> 'ObservabilityConfig':
+    def from_env(cls) -> "ObservabilityConfig":
         """Load configuration from environment variables.
 
         Returns:
@@ -57,7 +57,7 @@ class ObservabilityConfig:
             enabled=enabled,
             sample_rate=sample_rate,
             otlp_endpoint=otlp_endpoint,
-            storage_path=storage_path
+            storage_path=storage_path,
         )
 
     def is_enabled(self) -> bool:
@@ -80,6 +80,7 @@ class ObservabilityConfig:
             return True
 
         import random
+
         return random.random() < self.sample_rate
 
 

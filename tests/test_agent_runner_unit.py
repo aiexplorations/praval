@@ -1,5 +1,5 @@
-import asyncio
 from types import SimpleNamespace
+
 import pytest
 
 from praval.core.agent_runner import AgentRunner
@@ -57,13 +57,16 @@ def test_agent_runner_validates_agents():
 @pytest.mark.asyncio
 async def test_agent_runner_initialize_distributed(dummy_agent):
     backend = FakeBackend()
-    runner = AgentRunner(agents=[dummy_agent], backend=backend, backend_config={"url": "amqp://"})
+    runner = AgentRunner(
+        agents=[dummy_agent], backend=backend, backend_config={"url": "amqp://"}
+    )
 
     await runner.initialize()
 
     reef = get_reef()
     assert backend.initialized is True
-    # In distributed mode, should subscribe to agent channel, shared channel, and default channel
+    # In distributed mode, should subscribe to agent channel, shared channel, and
+    # default channel
     assert dummy_agent._praval_channel in backend.subscriptions
     assert reef.default_channel in backend.subscriptions
     assert "distributed_agents" in backend.subscriptions
@@ -73,7 +76,9 @@ async def test_agent_runner_initialize_distributed(dummy_agent):
 @pytest.mark.asyncio
 async def test_agent_runner_run_async_exits_when_shutdown_set(dummy_agent):
     backend = FakeBackend()
-    runner = AgentRunner(agents=[dummy_agent], backend=backend, backend_config={"url": "amqp://"})
+    runner = AgentRunner(
+        agents=[dummy_agent], backend=backend, backend_config={"url": "amqp://"}
+    )
     runner._shutdown_event.set()
     await runner.run_async()
     assert runner._running is False

@@ -5,8 +5,8 @@ This test suite verifies that broadcast() correctly sends messages to all agents
 on the default channel, enabling agent chains to work as expected.
 """
 
-import pytest
 import time
+
 from praval import agent, broadcast, start_agents
 
 
@@ -33,8 +33,7 @@ class TestBroadcastChaining:
 
         # Start agents with initial trigger
         start_agents(
-            broadcaster, listener1, listener2,
-            initial_data={"type": "trigger"}
+            broadcaster, listener1, listener2, initial_data={"type": "trigger"}
         )
 
         # Wait for async execution
@@ -71,8 +70,7 @@ class TestBroadcastChaining:
 
         # Start pipeline
         start_agents(
-            researcher, analyst, writer,
-            initial_data={"type": "query", "topic": "test"}
+            researcher, analyst, writer, initial_data={"type": "query", "topic": "test"}
         )
 
         # Wait for async execution
@@ -110,11 +108,9 @@ class TestBroadcastChaining:
         def receiver2(spore):
             execution_log.append("receiver2_received")
 
-        # Start agents - only sender should execute (no one listening on "special_channel")
-        start_agents(
-            sender, receiver1, receiver2,
-            initial_data={"type": "start"}
-        )
+        # Start agents - only sender should execute (no one listening on
+        # "special_channel")
+        start_agents(sender, receiver1, receiver2, initial_data={"type": "start"})
 
         # Wait for async execution
         time.sleep(2)
@@ -122,7 +118,8 @@ class TestBroadcastChaining:
         # Sender should execute
         assert "sender_started" in execution_log
 
-        # Receivers should NOT receive (they're on default channel, not "special_channel")
+        # Receivers should NOT receive (they're on default channel, not
+        # "special_channel")
         # This verifies that explicit channels are isolated
         assert "receiver1_received" not in execution_log
         assert "receiver2_received" not in execution_log
@@ -154,8 +151,11 @@ class TestBroadcastChaining:
                 execution_log.append("handler_all_type_b")
 
         start_agents(
-            broadcaster, handler_a, handler_b, handler_all,
-            initial_data={"type": "trigger"}
+            broadcaster,
+            handler_a,
+            handler_b,
+            handler_all,
+            initial_data={"type": "trigger"},
         )
 
         time.sleep(2)
@@ -181,10 +181,7 @@ class TestBroadcastChaining:
                 receive_count["count"] += 1
                 execution_log.append("self_received_own_broadcast")
 
-        start_agents(
-            self_broadcaster,
-            initial_data={"type": "trigger"}
-        )
+        start_agents(self_broadcaster, initial_data={"type": "trigger"})
 
         time.sleep(1)
 

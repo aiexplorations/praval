@@ -6,8 +6,8 @@ import uuid
 from typing import Optional
 
 from ..config import get_config
-from .context import TraceContext, set_current_span, get_current_span
-from .span import Span, SpanKind, NoOpSpan
+from .context import TraceContext, get_current_span, set_current_span
+from .span import NoOpSpan, Span, SpanKind
 
 
 def generate_trace_id() -> str:
@@ -48,7 +48,7 @@ class Tracer:
         name: str,
         parent: Optional[TraceContext] = None,
         kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Optional[dict] = None
+        attributes: Optional[dict] = None,
     ) -> Span:
         """Start a new span.
 
@@ -88,7 +88,7 @@ class Tracer:
             span_id=span_id,
             parent_span_id=parent_span_id,
             kind=kind,
-            attributes=attributes or {}
+            attributes=attributes or {},
         )
 
         return span
@@ -98,7 +98,7 @@ class Tracer:
         name: str,
         parent: Optional[TraceContext] = None,
         kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Optional[dict] = None
+        attributes: Optional[dict] = None,
     ):
         """Start a new span and set it as current.
 

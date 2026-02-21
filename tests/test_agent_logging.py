@@ -8,9 +8,7 @@ Part of rearchitecture issue S4.
 import ast
 import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 class TestAgentLogging:
@@ -39,13 +37,14 @@ class TestAgentLogging:
 
                     from praval import Agent
 
-                    agent = Agent("test_log_agent", memory_enabled=True)
+                    _ = Agent("test_log_agent", memory_enabled=True)
 
         # Check that info log was emitted
         info_records = [r for r in caplog.records if r.levelno == logging.INFO]
-        assert any(
-            "Memory system initialized" in r.message for r in info_records
-        ), f"Expected INFO log about memory initialization. Got: {[r.message for r in info_records]}"
+        assert any("Memory system initialized" in r.message for r in info_records), (
+            f"Expected INFO log about memory initialization. Got: "
+            f"{[r.message for r in info_records]}"
+        )
 
     def test_memory_unavailable_logs_warning(self, caplog):
         """Verify missing memory dependencies log at WARNING level."""
@@ -61,7 +60,9 @@ class TestAgentLogging:
                             import logging
 
                             logger = logging.getLogger("praval.core.agent")
-                            logger.warning("Memory system not available: test import error")
+                            logger.warning(
+                                "Memory system not available: test import error"
+                            )
                             self.memory = None
                             self.memory_enabled = False
 
@@ -71,13 +72,14 @@ class TestAgentLogging:
 
                         from praval import Agent
 
-                        agent = Agent("test_warn_agent", memory_enabled=True)
+                        _ = Agent("test_warn_agent", memory_enabled=True)
 
         # Should log warning, not crash
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert any(
-            "not available" in r.message.lower() for r in warning_records
-        ), f"Expected WARNING log about memory unavailable. Got: {[r.message for r in warning_records]}"
+        assert any("not available" in r.message.lower() for r in warning_records), (
+            f"Expected WARNING log about memory unavailable. Got: "
+            f"{[r.message for r in warning_records]}"
+        )
 
     def test_memory_not_enabled_logs_debug(self, caplog):
         """Verify 'memory not enabled' logs at DEBUG level."""
@@ -91,9 +93,10 @@ class TestAgentLogging:
 
         assert result is None
         debug_records = [r for r in caplog.records if r.levelno == logging.DEBUG]
-        assert any(
-            "Memory not enabled" in r.message for r in debug_records
-        ), f"Expected DEBUG log about memory not enabled. Got: {[r.message for r in debug_records]}"
+        assert any("Memory not enabled" in r.message for r in debug_records), (
+            f"Expected DEBUG log about memory not enabled. Got: "
+            f"{[r.message for r in debug_records]}"
+        )
 
     def test_failed_operations_log_warning(self, caplog):
         """Verify failed memory operations log at WARNING level."""
@@ -112,9 +115,10 @@ class TestAgentLogging:
 
         assert result is None
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert any(
-            "Failed to store memory" in r.message for r in warning_records
-        ), f"Expected WARNING log about failed store. Got: {[r.message for r in warning_records]}"
+        assert any("Failed to store memory" in r.message for r in warning_records), (
+            f"Expected WARNING log about failed store. Got: "
+            f"{[r.message for r in warning_records]}"
+        )
 
     def test_recall_failure_logs_warning(self, caplog):
         """Verify failed recall operations log at WARNING level."""
@@ -133,9 +137,10 @@ class TestAgentLogging:
 
         assert result == []
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert any(
-            "Failed to recall memories" in r.message for r in warning_records
-        ), f"Expected WARNING log about failed recall. Got: {[r.message for r in warning_records]}"
+        assert any("Failed to recall memories" in r.message for r in warning_records), (
+            f"Expected WARNING log about failed recall. Got: "
+            f"{[r.message for r in warning_records]}"
+        )
 
 
 class TestLoggingConfiguration:
@@ -162,15 +167,14 @@ class TestLoggingConfiguration:
                     agent.remember("test")  # Would normally log DEBUG
 
             # Should have no INFO, WARNING, or DEBUG logs
-            non_error_records = [
-                r for r in caplog.records if r.levelno < logging.ERROR
-            ]
+            non_error_records = [r for r in caplog.records if r.levelno < logging.ERROR]
             praval_records = [
                 r for r in non_error_records if r.name == "praval.core.agent"
             ]
-            assert (
-                len(praval_records) == 0
-            ), f"Expected no logs below ERROR. Got: {[r.message for r in praval_records]}"
+            assert len(praval_records) == 0, (
+                f"Expected no logs below ERROR. Got: "
+                f"{[r.message for r in praval_records]}"
+            )
         finally:
             # Reset logger level
             logging.getLogger("praval.core.agent").setLevel(logging.NOTSET)

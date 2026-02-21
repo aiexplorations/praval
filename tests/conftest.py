@@ -12,6 +12,7 @@ def _reset_agent_context():
     """Reset the thread-local agent context used by decorators."""
     try:
         from praval.decorators import _agent_context
+
         _agent_context.agent = None
         _agent_context.channel = None
     except (ImportError, AttributeError):
@@ -19,27 +20,33 @@ def _reset_agent_context():
 
 
 def _reset_observability():
-    """Reset observability global state (config, tracer, trace store, instrumentation)."""
+    """
+    Reset observability global state (config, tracer, trace store, instrumentation).
+    """
     try:
         from praval.observability.config import reset_config
+
         reset_config()
     except ImportError:
         pass
 
     try:
         from praval.observability.tracing.tracer import reset_tracer
+
         reset_tracer()
     except ImportError:
         pass
 
     try:
         from praval.observability.storage.sqlite_store import reset_trace_store
+
         reset_trace_store()
     except ImportError:
         pass
 
     try:
         from praval.observability.instrumentation.manager import reset_instrumentation
+
         reset_instrumentation()
     except ImportError:
         pass

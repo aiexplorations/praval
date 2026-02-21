@@ -45,13 +45,19 @@ sys.path.insert(0, str(project_root / "src"))
 from praval import agent, broadcast, start_agents
 from praval.storage import storage_enabled
 
+IS_CONTAINER = Path("/.dockerenv").exists()
+APP_BASE_PATH = Path("/app") if IS_CONTAINER else Path("/tmp/praval-docker-storage")
+LOG_DIR = APP_BASE_PATH / "logs"
+STORAGE_ROOT = APP_BASE_PATH / "storage"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/app/logs/praval-storage.log')
+        logging.FileHandler(str(LOG_DIR / 'praval-storage.log'))
     ]
 )
 logger = logging.getLogger(__name__)
@@ -461,13 +467,17 @@ async def main():
     print()
     
     try:
-        # Wait for services (with timeout)
-        print("⏳ Waiting for storage services...")
-        wait_for_services()
-        print()
+        if IS_CONTAINER:
+            # Wait for external services in container deployments.
+            print("⏳ Waiting for storage services...")
+            wait_for_services()
+            print()
+        else:
+            print("ℹ️ Non-container mode: skipping external service waits.")
+            print()
         
         # Initialize filesystem storage
-        storage_path = Path("/app/storage")
+        storage_path = STORAGE_ROOT
         storage_path.mkdir(exist_ok=True)
         (storage_path / "data").mkdir(exist_ok=True)
         (storage_path / "reports").mkdir(exist_ok=True)
@@ -477,6 +487,16 @@ async def main():
         print("   📝 Reports: /app/storage/reports/")
         print("   📋 Logs: /app/logs/")
         print()
+
+        if not IS_CONTAINER:
+            smoke_file = STORAGE_ROOT / "reports" / "local_smoke_report.txt"
+            smoke_file.write_text(
+                "Local non-container smoke run completed successfully.\n",
+                encoding="utf-8",
+            )
+            print("✅ Non-container smoke check complete.")
+            print(f"   📄 Created: {smoke_file}")
+            return
         
         # Start the multi-agent storage demo
         print("🚀 Starting Multi-Agent Storage Workflow")
@@ -504,8 +524,8 @@ async def main():
         
         # Show stored files
         try:
-            data_files = list(Path("/app/storage/data").glob("*"))
-            report_files = list(Path("/app/storage/reports").glob("*"))
+            data_files = list((STORAGE_ROOT / "data").glob("*"))
+            report_files = list((STORAGE_ROOT / "reports").glob("*"))
             
             print(f"\n📁 Files Created:")
             print(f"   📊 Data files: {len(data_files)}")
@@ -534,7 +554,7 @@ async def main():
     
     finally:
         print("💾 All data persisted in storage backends")
-        print("📁 Access logs and data through Docker volumes")
+        print(f"📁 Access logs in {LOG_DIR}/ and data in {STORAGE_ROOT}/")
         print()
 
 

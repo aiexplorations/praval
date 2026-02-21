@@ -5,16 +5,14 @@ Tests the MemoryStorageAdapter and UnifiedDataInterface classes that
 bridge Praval's memory system with the unified storage interface.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
 
-from praval.storage.memory_integration import (
-    MemoryStorageAdapter,
-    UnifiedDataInterface
-)
-from praval.storage.base_provider import StorageResult, DataReference, StorageType
-from praval.memory.memory_types import MemoryEntry, MemoryType, MemoryQuery
+import pytest
+
+from praval.memory.memory_types import MemoryEntry, MemoryType
+from praval.storage.base_provider import DataReference, StorageResult, StorageType
+from praval.storage.memory_integration import MemoryStorageAdapter, UnifiedDataInterface
 
 
 class TestMemoryStorageAdapter:
@@ -42,7 +40,7 @@ class TestMemoryStorageAdapter:
             memory_type=MemoryType.SHORT_TERM,
             content="Test content",
             metadata={"key": "value"},
-            importance=0.8
+            importance=0.8,
         )
 
         assert result.success is True
@@ -58,9 +56,7 @@ class TestMemoryStorageAdapter:
         self.mock_memory_manager.store_memory = AsyncMock(return_value=True)
 
         result = await self.adapter.store_memory_as_data(
-            memory_type=MemoryType.SEMANTIC,
-            content="Semantic content",
-            importance=0.9
+            memory_type=MemoryType.SEMANTIC, content="Semantic content", importance=0.9
         )
 
         assert result.success is True
@@ -73,8 +69,7 @@ class TestMemoryStorageAdapter:
         self.mock_memory_manager.store_memory = AsyncMock(return_value=True)
 
         result = await self.adapter.store_memory_as_data(
-            memory_type="episodic",
-            content="Episodic content"
+            memory_type="episodic", content="Episodic content"
         )
 
         assert result.success is True
@@ -86,8 +81,7 @@ class TestMemoryStorageAdapter:
         self.mock_memory_manager.short_term_memory.store.return_value = False
 
         result = await self.adapter.store_memory_as_data(
-            memory_type=MemoryType.SHORT_TERM,
-            content="Test content"
+            memory_type=MemoryType.SHORT_TERM, content="Test content"
         )
 
         assert result.success is False
@@ -96,11 +90,12 @@ class TestMemoryStorageAdapter:
     @pytest.mark.asyncio
     async def test_store_memory_exception(self):
         """Test memory storage with exception."""
-        self.mock_memory_manager.short_term_memory.store.side_effect = Exception("Storage error")
+        self.mock_memory_manager.short_term_memory.store.side_effect = Exception(
+            "Storage error"
+        )
 
         result = await self.adapter.store_memory_as_data(
-            memory_type=MemoryType.SHORT_TERM,
-            content="Test content"
+            memory_type=MemoryType.SHORT_TERM, content="Test content"
         )
 
         assert result.success is False
@@ -118,7 +113,7 @@ class TestMemoryStorageAdapter:
             importance=0.7,
             created_at=datetime.now(),
             accessed_at=datetime.now(),
-            access_count=1
+            access_count=1,
         )
         self.mock_memory_manager.short_term_memory.get.return_value = mock_entry
 
@@ -141,10 +136,12 @@ class TestMemoryStorageAdapter:
             metadata={},
             importance=0.9,
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         self.mock_memory_manager.short_term_memory.get.return_value = None
-        self.mock_memory_manager.long_term_memory.get_memory = AsyncMock(return_value=mock_entry)
+        self.mock_memory_manager.long_term_memory.get_memory = AsyncMock(
+            return_value=mock_entry
+        )
 
         result = await self.adapter.retrieve_memory_as_data("mem_456")
 
@@ -163,11 +160,13 @@ class TestMemoryStorageAdapter:
             metadata={},
             embedding=[0.1, 0.2, 0.3],
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         self.mock_memory_manager.short_term_memory.get.return_value = mock_entry
 
-        result = await self.adapter.retrieve_memory_as_data("mem_789", include_embedding=True)
+        result = await self.adapter.retrieve_memory_as_data(
+            "mem_789", include_embedding=True
+        )
 
         assert result.success is True
         assert result.data["embedding"] == [0.1, 0.2, 0.3]
@@ -176,7 +175,9 @@ class TestMemoryStorageAdapter:
     async def test_retrieve_memory_not_found(self):
         """Test retrieving non-existent memory."""
         self.mock_memory_manager.short_term_memory.get.return_value = None
-        self.mock_memory_manager.long_term_memory.get_memory = AsyncMock(return_value=None)
+        self.mock_memory_manager.long_term_memory.get_memory = AsyncMock(
+            return_value=None
+        )
 
         result = await self.adapter.retrieve_memory_as_data("nonexistent")
 
@@ -186,7 +187,9 @@ class TestMemoryStorageAdapter:
     @pytest.mark.asyncio
     async def test_retrieve_memory_exception(self):
         """Test memory retrieval with exception."""
-        self.mock_memory_manager.short_term_memory.get.side_effect = Exception("Retrieval error")
+        self.mock_memory_manager.short_term_memory.get.side_effect = Exception(
+            "Retrieval error"
+        )
 
         result = await self.adapter.retrieve_memory_as_data("mem_123")
 
@@ -194,7 +197,7 @@ class TestMemoryStorageAdapter:
         assert "Memory retrieval failed" in result.error
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_memory_success(self, mock_query_class):
         """Test successful memory search."""
         # Create mock search result with proper interface
@@ -206,7 +209,7 @@ class TestMemoryStorageAdapter:
             metadata={"tag": "test"},
             importance=0.8,
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
 
         # Create mock result object matching expected interface
@@ -220,7 +223,7 @@ class TestMemoryStorageAdapter:
             query="test query",
             memory_types=[MemoryType.SEMANTIC],
             limit=5,
-            min_similarity=0.7
+            min_similarity=0.7,
         )
 
         assert result.success is True
@@ -232,7 +235,7 @@ class TestMemoryStorageAdapter:
         assert result.metadata["result_count"] == 1
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_memory_no_results(self, mock_query_class):
         """Test memory search with no results."""
         self.mock_memory_manager.search_memories = AsyncMock(return_value=[])
@@ -272,7 +275,7 @@ class TestUnifiedDataInterface:
         interface = UnifiedDataInterface(
             agent_id=self.agent_id,
             memory_manager=self.mock_memory_manager,
-            data_manager=self.mock_data_manager
+            data_manager=self.mock_data_manager,
         )
 
         assert interface.agent_id == self.agent_id
@@ -283,8 +286,7 @@ class TestUnifiedDataInterface:
     def test_interface_initialization_memory_only(self):
         """Test interface initialization with memory only."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         assert interface.memory_adapter is not None
@@ -293,8 +295,7 @@ class TestUnifiedDataInterface:
     def test_interface_initialization_storage_only(self):
         """Test interface initialization with storage only."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         assert interface.memory_adapter is None
@@ -305,8 +306,7 @@ class TestUnifiedDataInterface:
         """Test storing data to memory system."""
         self.mock_memory_manager.short_term_memory.store.return_value = True
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.store("memory:short_term", "Test data")
@@ -317,8 +317,7 @@ class TestUnifiedDataInterface:
     async def test_store_to_memory_no_memory_system(self):
         """Test storing to memory when memory system not available."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.store("memory:short_term", "Test data")
@@ -333,8 +332,7 @@ class TestUnifiedDataInterface:
             return_value=StorageResult(success=True, data={"key": "value"})
         )
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.store("s3:bucket/file.txt", {"content": "data"})
@@ -351,8 +349,7 @@ class TestUnifiedDataInterface:
             return_value=StorageResult(success=True)
         )
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.store("config.json", {"setting": "value"})
@@ -364,8 +361,7 @@ class TestUnifiedDataInterface:
     async def test_store_to_storage_no_storage_system(self):
         """Test storing when storage system not available."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.store("s3:bucket/file.txt", "data")
@@ -383,12 +379,11 @@ class TestUnifiedDataInterface:
             content="Retrieved content",
             metadata={},
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         self.mock_memory_manager.short_term_memory.get.return_value = mock_entry
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.get("memory:mem_get_1")
@@ -400,8 +395,7 @@ class TestUnifiedDataInterface:
     async def test_get_from_memory_no_memory_system(self):
         """Test getting from memory when not available."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.get("memory:some_id")
@@ -416,8 +410,7 @@ class TestUnifiedDataInterface:
             return_value=StorageResult(success=True, data="file content")
         )
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.get("s3:bucket/file.txt")
@@ -429,8 +422,7 @@ class TestUnifiedDataInterface:
     async def test_get_from_storage_no_storage_system(self):
         """Test getting from storage when not available."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.get("s3:bucket/file.txt")
@@ -439,7 +431,7 @@ class TestUnifiedDataInterface:
         assert "Storage system not available" in result.error
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_across_memory_and_storage(self, mock_query_class):
         """Test searching across both memory and storage."""
         # Set up memory search mock
@@ -451,7 +443,7 @@ class TestUnifiedDataInterface:
             metadata={},
             importance=0.8,
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         mock_result = Mock()
         mock_result.memory = mock_memory
@@ -466,7 +458,7 @@ class TestUnifiedDataInterface:
         interface = UnifiedDataInterface(
             agent_id=self.agent_id,
             memory_manager=self.mock_memory_manager,
-            data_manager=self.mock_data_manager
+            data_manager=self.mock_data_manager,
         )
 
         results = await interface.search("test query")
@@ -475,7 +467,7 @@ class TestUnifiedDataInterface:
         self.mock_memory_manager.search_memories.assert_called()
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_memory_only(self, mock_query_class):
         """Test searching only memory system."""
         mock_memory = MemoryEntry(
@@ -486,7 +478,7 @@ class TestUnifiedDataInterface:
             metadata={},
             importance=0.7,
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         mock_result = Mock()
         mock_result.memory = mock_memory
@@ -495,8 +487,7 @@ class TestUnifiedDataInterface:
         self.mock_memory_manager.search_memories = AsyncMock(return_value=[mock_result])
 
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         results = await interface.search("test", locations=["memory:semantic"])
@@ -511,8 +502,7 @@ class TestUnifiedDataInterface:
         self.mock_data_manager.smart_search = AsyncMock(return_value=[storage_result])
 
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         results = await interface.search("config", locations=["s3:configs"])
@@ -532,7 +522,7 @@ class TestUnifiedDataInterface:
         interface = UnifiedDataInterface(
             agent_id=self.agent_id,
             memory_manager=self.mock_memory_manager,
-            data_manager=self.mock_data_manager
+            data_manager=self.mock_data_manager,
         )
 
         results = await interface.search("test")
@@ -541,7 +531,7 @@ class TestUnifiedDataInterface:
         assert len(results) >= 1
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_with_storage_error(self, mock_query_class):
         """Test search continues when storage search fails."""
         mock_memory = MemoryEntry(
@@ -551,7 +541,7 @@ class TestUnifiedDataInterface:
             content="Result despite error",
             metadata={},
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         mock_result = Mock()
         mock_result.memory = mock_memory
@@ -565,7 +555,7 @@ class TestUnifiedDataInterface:
         interface = UnifiedDataInterface(
             agent_id=self.agent_id,
             memory_manager=self.mock_memory_manager,
-            data_manager=self.mock_data_manager
+            data_manager=self.mock_data_manager,
         )
 
         results = await interface.search("test")
@@ -583,13 +573,12 @@ class TestUnifiedDataInterface:
             content="Reference content",
             metadata={},
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         self.mock_memory_manager.short_term_memory.get.return_value = mock_entry
 
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.resolve_reference("memory:ref_mem")
@@ -605,8 +594,7 @@ class TestUnifiedDataInterface:
         )
 
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.resolve_reference("s3://bucket/key")
@@ -620,15 +608,14 @@ class TestUnifiedDataInterface:
         data_ref = DataReference(
             provider="s3",
             storage_type=StorageType.OBJECT,
-            resource_id="bucket/file.txt"
+            resource_id="bucket/file.txt",
         )
         self.mock_data_manager.resolve_data_reference = AsyncMock(
             return_value=StorageResult(success=True, data="file contents")
         )
 
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            data_manager=self.mock_data_manager
+            agent_id=self.agent_id, data_manager=self.mock_data_manager
         )
 
         result = await interface.resolve_reference(data_ref)
@@ -640,8 +627,7 @@ class TestUnifiedDataInterface:
     async def test_resolve_reference_no_storage_for_external(self):
         """Test resolving external reference without storage system."""
         interface = UnifiedDataInterface(
-            agent_id=self.agent_id,
-            memory_manager=self.mock_memory_manager
+            agent_id=self.agent_id, memory_manager=self.mock_memory_manager
         )
 
         result = await interface.resolve_reference("s3://bucket/key")
@@ -655,7 +641,7 @@ class TestUnifiedDataInterface:
         interface = UnifiedDataInterface(
             agent_id=self.agent_id,
             memory_manager=self.mock_memory_manager,
-            data_manager=self.mock_data_manager
+            data_manager=self.mock_data_manager,
         )
 
         result = await interface.resolve_reference(12345)  # Invalid type
@@ -691,7 +677,7 @@ class TestMemoryStorageAdapterEdgeCases:
 
         result = await self.adapter.store_memory_as_data(
             memory_type=MemoryType.SHORT_TERM,
-            content="No metadata test"
+            content="No metadata test",
             # metadata not provided - should default to {}
         )
 
@@ -708,11 +694,13 @@ class TestMemoryStorageAdapterEdgeCases:
             metadata={},
             embedding=[0.5, 0.5, 0.5],
             created_at=datetime.now(),
-            accessed_at=datetime.now()
+            accessed_at=datetime.now(),
         )
         self.mock_memory_manager.short_term_memory.get.return_value = mock_entry
 
-        result = await self.adapter.retrieve_memory_as_data("embed_test", include_embedding=False)
+        result = await self.adapter.retrieve_memory_as_data(
+            "embed_test", include_embedding=False
+        )
 
         assert result.success is True
         assert "embedding" not in result.data
@@ -722,7 +710,7 @@ class TestUnifiedDataInterfaceEdgeCases:
     """Edge case tests for UnifiedDataInterface."""
 
     @pytest.mark.asyncio
-    @patch('praval.storage.memory_integration.MemoryQuery')
+    @patch("praval.storage.memory_integration.MemoryQuery")
     async def test_search_no_specific_locations(self, mock_query_class):
         """Test search with no specific locations defaults to all."""
         mock_memory_manager = Mock()
@@ -736,10 +724,10 @@ class TestUnifiedDataInterfaceEdgeCases:
         interface = UnifiedDataInterface(
             agent_id="test",
             memory_manager=mock_memory_manager,
-            data_manager=mock_data_manager
+            data_manager=mock_data_manager,
         )
 
-        results = await interface.search("query")
+        _ = await interface.search("query")
 
         # Both should be searched when no locations specified
         mock_memory_manager.search_memories.assert_called()
@@ -753,15 +741,14 @@ class TestUnifiedDataInterfaceEdgeCases:
         mock_memory_manager.short_term_memory.store.return_value = True
 
         interface = UnifiedDataInterface(
-            agent_id="full_test",
-            memory_manager=mock_memory_manager
+            agent_id="full_test", memory_manager=mock_memory_manager
         )
 
         result = await interface.store(
             "memory:short_term",
             "Full options content",
             metadata={"custom": "metadata"},
-            importance=0.95
+            importance=0.95,
         )
 
         assert result.success is True

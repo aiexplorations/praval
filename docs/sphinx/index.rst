@@ -141,6 +141,7 @@ What's Inside
    guide/reef-protocol
    guide/tool-system
    guide/storage
+   guide/hitl-troubleshooting
 
 .. toctree::
    :maxdepth: 2
@@ -150,6 +151,7 @@ What's Inside
    tutorials/agent-communication
    tutorials/memory-enabled-agents
    tutorials/tool-integration
+   tutorials/hitl-interventions
    tutorials/multi-agent-systems
 
 .. toctree::

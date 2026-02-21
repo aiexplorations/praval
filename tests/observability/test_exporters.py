@@ -54,10 +54,26 @@ def test_otlp_exporter_export_spans_success(monkeypatch):
         def post(*args, **kwargs):
             return Resp()
 
-    monkeypatch.setitem(__import__('sys').modules, 'requests', FakeRequests)
+    monkeypatch.setitem(__import__("sys").modules, "requests", FakeRequests)
 
     exporter = OTLPExporter("http://localhost")
-    assert exporter.export_spans([{ "trace_id": "t", "span_id": "s", "name": "n", "kind": "INTERNAL", "start_time": 1, "end_time": 2, "duration_ms": 1.0, "attributes": {}, "events": [], "status": "ok", "status_message": "" }])
+    assert exporter.export_spans(
+        [
+            {
+                "trace_id": "t",
+                "span_id": "s",
+                "name": "n",
+                "kind": "INTERNAL",
+                "start_time": 1,
+                "end_time": 2,
+                "duration_ms": 1.0,
+                "attributes": {},
+                "events": [],
+                "status": "ok",
+                "status_message": "",
+            }
+        ]
+    )
 
 
 def test_otlp_exporter_export_spans_failure(monkeypatch):
@@ -70,7 +86,26 @@ def test_otlp_exporter_export_spans_failure(monkeypatch):
         def post(*args, **kwargs):
             return Resp()
 
-    monkeypatch.setitem(__import__('sys').modules, 'requests', FakeRequests)
+    monkeypatch.setitem(__import__("sys").modules, "requests", FakeRequests)
 
     exporter = OTLPExporter("http://localhost")
-    assert exporter.export_spans([{ "trace_id": "t", "span_id": "s", "name": "n", "kind": "INTERNAL", "start_time": 1, "end_time": 2, "duration_ms": 1.0, "attributes": {}, "events": [], "status": "ok", "status_message": "" }]) is False
+    assert (
+        exporter.export_spans(
+            [
+                {
+                    "trace_id": "t",
+                    "span_id": "s",
+                    "name": "n",
+                    "kind": "INTERNAL",
+                    "start_time": 1,
+                    "end_time": 2,
+                    "duration_ms": 1.0,
+                    "attributes": {},
+                    "events": [],
+                    "status": "ok",
+                    "status_message": "",
+                }
+            ]
+        )
+        is False
+    )

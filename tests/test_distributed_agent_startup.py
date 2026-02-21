@@ -9,14 +9,14 @@ These tests verify that:
 5. Signal handling works as expected
 """
 
-import pytest
 import asyncio
 import logging
-from unittest.mock import Mock, AsyncMock, patch
 
-from praval.decorators import agent
-from praval.core.agent_runner import AgentRunner, run_agents
+import pytest
+
+from praval.core.agent_runner import AgentRunner
 from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
+from praval.decorators import agent
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class TestAgentRunner:
     @pytest.fixture
     def sample_agents(self):
         """Create sample agents for testing."""
+
         @agent("processor")
         def processor_agent(spore):
             return {"processed": True}
@@ -49,8 +50,8 @@ class TestAgentRunner:
     def test_runner_initialization_with_rabbitmq_config(self, sample_agents):
         """Test AgentRunner initialization with RabbitMQ config."""
         backend_config = {
-            'url': 'amqp://localhost:5672/',
-            'exchange_name': 'test.agents'
+            "url": "amqp://localhost:5672/",
+            "exchange_name": "test.agents",
         }
 
         runner = AgentRunner(agents=sample_agents, backend_config=backend_config)
@@ -60,6 +61,7 @@ class TestAgentRunner:
 
     def test_runner_invalid_agent_raises_error(self):
         """Test that non-decorated functions raise error."""
+
         def not_an_agent(spore):
             return {}
 
@@ -78,7 +80,7 @@ class TestAgentRunner:
         assert runner.reef is not None
         stats = runner.get_stats()
         # After initialization, status is 'stopped' (not running, but initialized)
-        assert stats['status'] == 'stopped'
+        assert stats["status"] == "stopped"
 
     @pytest.mark.asyncio
     async def test_runner_shutdown_cleans_up_resources(self, sample_agents):
@@ -109,9 +111,9 @@ class TestAgentRunner:
 
         stats = runner.get_stats()
 
-        assert stats['status'] == 'not_initialized'
-        assert stats['agents'] == 2
-        assert stats['running'] is False
+        assert stats["status"] == "not_initialized"
+        assert stats["agents"] == 2
+        assert stats["running"] is False
 
     @pytest.mark.asyncio
     async def test_get_stats_after_initialization(self, sample_agents):
@@ -121,12 +123,13 @@ class TestAgentRunner:
 
         stats = runner.get_stats()
 
-        assert stats['agents'] == 2
-        assert stats['running'] is False
-        assert stats['backend'] == 'InMemoryBackend'
+        assert stats["agents"] == 2
+        assert stats["running"] is False
+        assert stats["backend"] == "InMemoryBackend"
 
     def test_agent_validation(self):
         """Test that AgentRunner validates all agents."""
+
         @agent("valid_agent")
         def valid(spore):
             return {}
@@ -153,6 +156,7 @@ class TestRunAgentsFunction:
     @pytest.fixture
     def agents(self):
         """Create test agents."""
+
         @agent("test_agent")
         def test(spore):
             return {"test": True}
@@ -164,11 +168,12 @@ class TestRunAgentsFunction:
         # We can't test the actual blocking call without mocking extensively
         # Instead, just verify the function exists and is callable
         from praval.composition import run_agents as test_run_agents
+
         assert callable(test_run_agents)
 
         # Verify it has proper documentation
         assert test_run_agents.__doc__ is not None
-        assert 'distributed' in test_run_agents.__doc__.lower()
+        assert "distributed" in test_run_agents.__doc__.lower()
 
 
 class TestAgentRunnerShutdown:
@@ -177,6 +182,7 @@ class TestAgentRunnerShutdown:
     @pytest.fixture
     def runner(self):
         """Create a test runner."""
+
         @agent("test")
         def test_agent(spore):
             return {}
@@ -207,6 +213,7 @@ class TestAgentRunnerShutdown:
     @pytest.mark.asyncio
     async def test_run_async_initializes_before_waiting(self, runner):
         """Test that run_async initializes backend before waiting for shutdown."""
+
         # We'll trigger shutdown immediately to avoid infinite wait
         async def trigger_shutdown():
             await asyncio.sleep(0.1)
@@ -230,24 +237,28 @@ class TestAgentRunnerMultipleAgents:
         """Test AgentRunner handles multiple agents correctly."""
         agents_list = []
         for i in range(5):
+
             @agent(f"agent_{i}")
             def agent_func(spore):
                 return {}
+
             agents_list.append(agent_func)
 
         runner = AgentRunner(agents=agents_list)
 
         assert len(runner.agents) == 5
-        assert all(hasattr(a, '_praval_agent') for a in runner.agents)
+        assert all(hasattr(a, "_praval_agent") for a in runner.agents)
 
     @pytest.mark.asyncio
     async def test_initialization_with_many_agents(self):
         """Test that initialization works with many agents."""
         agents_list = []
         for i in range(3):
+
             @agent(f"agent_{i}")
             def agent_func(spore):
                 return {}
+
             agents_list.append(agent_func)
 
         runner = AgentRunner(agents=agents_list)
@@ -255,8 +266,8 @@ class TestAgentRunnerMultipleAgents:
 
         assert runner.reef is not None
         stats = runner.get_stats()
-        assert stats['agents'] == 3
+        assert stats["agents"] == 3
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

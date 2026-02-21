@@ -24,23 +24,23 @@ Usage:
 """
 
 from .config import ObservabilityConfig, get_config
+from .export import (
+    ConsoleViewer,
+    OTLPExporter,
+    export_traces_to_otlp,
+    print_traces,
+    show_recent_traces,
+)
+from .instrumentation import initialize_instrumentation, is_instrumented
+from .storage import SQLiteTraceStore, get_trace_store
 from .tracing import (
-    Tracer,
-    get_tracer,
     Span,
     SpanKind,
     SpanStatus,
     TraceContext,
+    Tracer,
     get_current_span,
-)
-from .storage import SQLiteTraceStore, get_trace_store
-from .instrumentation import initialize_instrumentation, is_instrumented
-from .export import (
-    OTLPExporter,
-    export_traces_to_otlp,
-    ConsoleViewer,
-    print_traces,
-    show_recent_traces,
+    get_tracer,
 )
 
 __all__ = [

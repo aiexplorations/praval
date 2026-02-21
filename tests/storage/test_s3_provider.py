@@ -6,19 +6,13 @@ These tests use moto to mock AWS S3 - no Docker required.
 
 import pytest
 import pytest_asyncio
-import json
 
-# Skip all tests if boto3/moto are not available
-pytest.importorskip("boto3", reason="boto3 required for S3 tests")
-pytest.importorskip("moto", reason="moto required for S3 tests")
-
-from moto import mock_aws
-import boto3
-
-from praval.storage.providers.s3_provider import S3Provider
-from praval.storage.base_provider import StorageType, StorageResult
+from praval.storage.base_provider import StorageType
 from praval.storage.exceptions import StorageConnectionError
+from praval.storage.providers.s3_provider import S3Provider
 
+boto3 = pytest.importorskip("boto3", reason="boto3 required for S3 tests")
+mock_aws = pytest.importorskip("moto", reason="moto required for S3 tests").mock_aws
 
 # ============================================================================
 # Fixtures
@@ -117,7 +111,7 @@ class TestS3Connection:
         """Creates bucket when create_bucket=True."""
         config = {
             "bucket_name": "new-bucket-" + str(id(TestS3Connection)),
-            "create_bucket": True
+            "create_bucket": True,
         }
 
         provider = S3Provider("test_s3", config)
@@ -150,8 +144,7 @@ class TestS3Store:
     async def test_store_dict(self, s3_provider):
         """Stores dict as JSON."""
         result = await s3_provider.store(
-            "test_object.json",
-            {"key": "value", "number": 123}
+            "test_object.json", {"key": "value", "number": 123}
         )
 
         assert result.success is True
@@ -159,30 +152,21 @@ class TestS3Store:
     @pytest.mark.asyncio
     async def test_store_list(self, s3_provider):
         """Stores list as JSON."""
-        result = await s3_provider.store(
-            "test_list.json",
-            [1, 2, 3, "test"]
-        )
+        result = await s3_provider.store("test_list.json", [1, 2, 3, "test"])
 
         assert result.success is True
 
     @pytest.mark.asyncio
     async def test_store_string(self, s3_provider):
         """Stores string as text."""
-        result = await s3_provider.store(
-            "test_string.txt",
-            "Hello, World!"
-        )
+        result = await s3_provider.store("test_string.txt", "Hello, World!")
 
         assert result.success is True
 
     @pytest.mark.asyncio
     async def test_store_bytes(self, s3_provider):
         """Stores binary data."""
-        result = await s3_provider.store(
-            "test_binary.bin",
-            b"binary data here"
-        )
+        result = await s3_provider.store("test_binary.bin", b"binary data here")
 
         assert result.success is True
 
@@ -192,7 +176,7 @@ class TestS3Store:
         result = await s3_provider.store(
             "test_with_meta.json",
             {"data": "test"},
-            metadata={"custom-key": "custom-value"}
+            metadata={"custom-key": "custom-value"},
         )
 
         assert result.success is True
@@ -200,10 +184,7 @@ class TestS3Store:
     @pytest.mark.asyncio
     async def test_store_returns_etag(self, s3_provider):
         """Returns ETag in result."""
-        result = await s3_provider.store(
-            "etag_test.txt",
-            "test content"
-        )
+        result = await s3_provider.store("etag_test.txt", "test content")
 
         assert result.success is True
         # ETag should be in metadata
@@ -253,7 +234,9 @@ class TestS3Retrieve:
         result = await s3_provider.retrieve("nonexistent_key_" + str(id(self)))
 
         assert result.success is False
-        assert "not found" in result.error.lower() or "nosuchkey" in result.error.lower()
+        assert (
+            "not found" in result.error.lower() or "nosuchkey" in result.error.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_retrieve_includes_metadata(self, s3_provider):

@@ -1,8 +1,10 @@
 """
 Reef Communication System for Praval Framework.
 
-Like coral reefs facilitate communication between polyps through chemical and biological signals,
-this system enables knowledge-first communication between agents through structured JSON message queues.
+Like coral reefs facilitate communication between polyps through chemical and biological
+signals,
+this system enables knowledge-first communication between agents through structured JSON
+message queues.
 
 Components:
 - Spores: JSON messages containing knowledge, data, or requests
@@ -10,22 +12,24 @@ Components:
 - Reef: The message queue network connecting all agents
 """
 
-import json
-import sys
-import time
-import uuid
-import threading
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Callable, Union
-from dataclasses import dataclass, asdict
-from collections import defaultdict, deque
-from collections.abc import Mapping
-from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, Future
 import asyncio
 import inspect
+import json
+import logging
+import sys
+import threading
+import time
+import uuid
+from collections import defaultdict, deque
+from collections.abc import Mapping
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
+if TYPE_CHECKING:
+    import aio_pika
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +54,12 @@ class SporeValidationError(Exception):
 
 class SporeType(Enum):
     """Types of spores that can flow through the reef."""
-    KNOWLEDGE = "knowledge"      # Pure knowledge/data sharing
-    REQUEST = "request"          # Request for information or action
-    RESPONSE = "response"        # Response to a request
-    BROADCAST = "broadcast"      # Message to all agents
-    NOTIFICATION = "notification" # Event notification
+
+    KNOWLEDGE = "knowledge"  # Pure knowledge/data sharing
+    REQUEST = "request"  # Request for information or action
+    RESPONSE = "response"  # Response to a request
+    BROADCAST = "broadcast"  # Message to all agents
+    NOTIFICATION = "notification"  # Event notification
 
 
 @dataclass
@@ -62,18 +67,20 @@ class Spore:
     """
     A spore is a knowledge-carrying message that flows through the reef.
 
-    Spores are immutable. To add references, use add_knowledge_reference()/add_data_reference(),
+    Spores are immutable. To add references, use
+    add_knowledge_reference()/add_data_reference(),
     which return new Spore instances.
-    
+
     Like biological spores, each carries:
-    - Genetic material (knowledge/data)  
+    - Genetic material (knowledge/data)
     - Identification markers (metadata)
     - Survival instructions (processing hints)
-    
+
     Spores can carry either direct knowledge or lightweight references to
     knowledge stored in vector memory, following the principle that
     "light spores travel far."
     """
+
     id: str
     spore_type: SporeType
     from_agent: str
@@ -84,9 +91,9 @@ class Spore:
     priority: int = 5  # 1-10, higher = more urgent
     reply_to: Optional[str] = None  # For request-response patterns
     metadata: Optional[Dict[str, Any]] = None
-    knowledge_references: List[str] = None  # References to stored knowledge  
+    knowledge_references: List[str] = None  # References to stored knowledge
     data_references: List[str] = None  # References to storage system data
-    
+
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
@@ -103,7 +110,8 @@ class Spore:
         Validate the spore payload.
 
         Args:
-            max_size: Maximum allowed payload size in bytes (default: MAX_SPORE_SIZE_BYTES)
+            max_size: Maximum allowed payload size in bytes (default:
+            MAX_SPORE_SIZE_BYTES)
 
         Raises:
             SporeValidationError: If validation fails
@@ -143,48 +151,48 @@ class Spore:
             return len(json.dumps(self.knowledge, ensure_ascii=False).encode("utf-8"))
         except (TypeError, ValueError):
             return 0
-    
+
     def to_json(self) -> str:
         """Serialize spore to JSON for transmission."""
         data = {
-            'id': self.id,
-            'spore_type': self.spore_type.value,
-            'from_agent': self.from_agent,
-            'to_agent': self.to_agent,
-            'knowledge': (self.knowledge if self.knowledge is not None else None),
-            'created_at': self.created_at.isoformat(),
-            'expires_at': (self.expires_at.isoformat() if self.expires_at else None),
-            'priority': self.priority,
-            'reply_to': self.reply_to,
-            'metadata': (self.metadata if self.metadata is not None else {}),
-            'knowledge_references': list(self.knowledge_references),
-            'data_references': list(self.data_references),
+            "id": self.id,
+            "spore_type": self.spore_type.value,
+            "from_agent": self.from_agent,
+            "to_agent": self.to_agent,
+            "knowledge": (self.knowledge if self.knowledge is not None else None),
+            "created_at": self.created_at.isoformat(),
+            "expires_at": (self.expires_at.isoformat() if self.expires_at else None),
+            "priority": self.priority,
+            "reply_to": self.reply_to,
+            "metadata": (self.metadata if self.metadata is not None else {}),
+            "knowledge_references": list(self.knowledge_references),
+            "data_references": list(self.data_references),
         }
         # Handle datetime serialization
-        data['created_at'] = self.created_at.isoformat()
+        data["created_at"] = self.created_at.isoformat()
         if self.expires_at:
-            data['expires_at'] = self.expires_at.isoformat()
-        data['spore_type'] = self.spore_type.value
+            data["expires_at"] = self.expires_at.isoformat()
+        data["spore_type"] = self.spore_type.value
         return json.dumps(data, indent=2)
-    
+
     @classmethod
-    def from_json(cls, json_str: str) -> 'Spore':
+    def from_json(cls, json_str: str) -> "Spore":
         """Deserialize spore from JSON."""
         data = json.loads(json_str)
         # Handle datetime deserialization
-        data['created_at'] = datetime.fromisoformat(data['created_at'])
-        if data.get('expires_at'):
-            data['expires_at'] = datetime.fromisoformat(data['expires_at'])
-        data['spore_type'] = SporeType(data['spore_type'])
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        if data.get("expires_at"):
+            data["expires_at"] = datetime.fromisoformat(data["expires_at"])
+        data["spore_type"] = SporeType(data["spore_type"])
         return cls(**data)
-    
+
     def is_expired(self) -> bool:
         """Check if spore has expired."""
         if not self.expires_at:
             return False
         return datetime.now() > self.expires_at
-    
-    def add_knowledge_reference(self, reference_id: str) -> 'Spore':
+
+    def add_knowledge_reference(self, reference_id: str) -> "Spore":
         """Return a new spore with an added knowledge reference."""
         if reference_id in self.knowledge_references:
             return self
@@ -200,10 +208,10 @@ class Spore:
             reply_to=self.reply_to,
             metadata=(self.metadata if self.metadata is not None else {}),
             knowledge_references=list(self.knowledge_references) + [reference_id],
-            data_references=list(self.data_references)
+            data_references=list(self.data_references),
         )
-    
-    def add_data_reference(self, reference_uri: str) -> 'Spore':
+
+    def add_data_reference(self, reference_uri: str) -> "Spore":
         """Return a new spore with an added data reference."""
         if reference_uri in self.data_references:
             return self
@@ -219,21 +227,21 @@ class Spore:
             reply_to=self.reply_to,
             metadata=(self.metadata if self.metadata is not None else {}),
             knowledge_references=list(self.knowledge_references),
-            data_references=list(self.data_references) + [reference_uri]
+            data_references=list(self.data_references) + [reference_uri],
         )
-    
+
     def has_knowledge_references(self) -> bool:
         """Check if spore has knowledge references"""
         return len(self.knowledge_references) > 0
-    
+
     def has_data_references(self) -> bool:
         """Check if spore has data references"""
         return len(self.data_references) > 0
-    
+
     def has_any_references(self) -> bool:
         """Check if spore has any kind of references"""
         return self.has_knowledge_references() or self.has_data_references()
-    
+
     def get_spore_size_estimate(self) -> int:
         """Estimate spore size for lightweight transmission"""
         try:
@@ -245,7 +253,7 @@ class Spore:
         except Exception:
             return len(self.to_json())
 
-    def to_amqp_message(self) -> 'aio_pika.Message':
+    def to_amqp_message(self) -> "aio_pika.Message":
         """
         Convert Spore to AMQP message with metadata in headers.
 
@@ -268,19 +276,21 @@ class Spore:
             raise ImportError("aio-pika package required for AMQP serialization")
 
         # Serialize knowledge to JSON bytes
-        knowledge_bytes = json.dumps(self.knowledge if self.knowledge is not None else None).encode('utf-8')
+        knowledge_bytes = json.dumps(
+            self.knowledge if self.knowledge is not None else None
+        ).encode("utf-8")
 
         # Build AMQP headers with spore metadata
         headers = {
-            'spore_id': self.id,
-            'spore_type': self.spore_type.value,
-            'from_agent': self.from_agent,
-            'to_agent': self.to_agent or '',
-            'created_at': self.created_at.isoformat(),
-            'expires_at': (self.expires_at.isoformat() if self.expires_at else ''),
-            'priority': str(self.priority),
-            'reply_to': (self.reply_to or ''),
-            'version': '1.0',  # Protocol versioning for future compatibility
+            "spore_id": self.id,
+            "spore_type": self.spore_type.value,
+            "from_agent": self.from_agent,
+            "to_agent": self.to_agent or "",
+            "created_at": self.created_at.isoformat(),
+            "expires_at": (self.expires_at.isoformat() if self.expires_at else ""),
+            "priority": str(self.priority),
+            "reply_to": (self.reply_to or ""),
+            "version": "1.0",  # Protocol versioning for future compatibility
         }
 
         # Calculate TTL in milliseconds (if expires_at is set)
@@ -299,11 +309,11 @@ class Spore:
             priority=min(max(self.priority, 0), 255),  # AMQP priority range 0-255
             expiration=expiration_ms,  # TTL in milliseconds
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            content_type='application/json',
+            content_type="application/json",
         )
 
     @classmethod
-    def from_amqp_message(cls, amqp_msg: 'aio_pika.Message') -> 'Spore':
+    def from_amqp_message(cls, amqp_msg: "aio_pika.Message") -> "Spore":
         """
         Create Spore directly from AMQP message.
 
@@ -321,7 +331,7 @@ class Spore:
             ValueError: If required spore headers are missing
         """
         try:
-            import aio_pika
+            __import__("aio_pika")
         except ImportError:
             raise ImportError("aio-pika package required for AMQP deserialization")
 
@@ -329,24 +339,24 @@ class Spore:
 
         # Parse knowledge from message body
         try:
-            knowledge = json.loads(amqp_msg.body.decode('utf-8'))
+            knowledge = json.loads(amqp_msg.body.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             # Fallback if body is not valid JSON
-            knowledge = {"raw_content": amqp_msg.body.decode('utf-8', errors='replace')}
+            knowledge = {"raw_content": amqp_msg.body.decode("utf-8", errors="replace")}
 
         # Parse expires_at timestamp
         expires_at = None
-        if headers.get('expires_at'):
+        if headers.get("expires_at"):
             try:
-                expires_at = datetime.fromisoformat(headers['expires_at'])
+                expires_at = datetime.fromisoformat(headers["expires_at"])
             except (ValueError, TypeError):
                 expires_at = None
 
         # Parse created_at timestamp
         created_at = datetime.now()
-        if headers.get('created_at'):
+        if headers.get("created_at"):
             try:
-                created_at = datetime.fromisoformat(headers['created_at'])
+                created_at = datetime.fromisoformat(headers["created_at"])
             except (ValueError, TypeError):
                 created_at = datetime.now()
         elif amqp_msg.timestamp:
@@ -354,20 +364,20 @@ class Spore:
 
         # Reconstruct Spore from headers
         return cls(
-            id=headers.get('spore_id', amqp_msg.message_id or str(uuid.uuid4())),
-            spore_type=SporeType(headers.get('spore_type', 'knowledge')),
-            from_agent=headers.get('from_agent', 'unknown'),
-            to_agent=(headers.get('to_agent') or None),
+            id=headers.get("spore_id", amqp_msg.message_id or str(uuid.uuid4())),
+            spore_type=SporeType(headers.get("spore_type", "knowledge")),
+            from_agent=headers.get("from_agent", "unknown"),
+            to_agent=(headers.get("to_agent") or None),
             knowledge=knowledge,
             created_at=created_at,
             expires_at=expires_at,
-            priority=int(headers.get('priority', 5)),
-            reply_to=(headers.get('reply_to') or None),
-            metadata={},  # Metadata not serialized in AMQP headers (to keep headers small)
+            priority=int(headers.get("priority", 5)),
+            reply_to=(headers.get("reply_to") or None),
+            # Metadata not serialized in AMQP headers to keep headers small.
+            metadata={},
             knowledge_references=[],
-            data_references=[]
+            data_references=[],
         )
-
 
 
 class SubscriptionManager:
@@ -406,7 +416,6 @@ class SubscriptionManager:
             return {name: len(handlers) for name, handlers in self._subscribers.items()}
 
 
-
 class ReefChannel:
     _shared_async_loop = None
     _shared_async_thread = None
@@ -416,15 +425,22 @@ class ReefChannel:
 
     """
     A message channel within the reef.
-    
+
     Like channels in a coral reef, they:
     - Have directional flow patterns
-    - Can carry multiple spores simultaneously  
+    - Can carry multiple spores simultaneously
     - Have capacity limits (to prevent overwhelming)
     - Can experience turbulence (message loss/delays)
     """
-    
-    def __init__(self, name: str, max_capacity: int = 1000, max_workers: int = 4, executor: Optional[ThreadPoolExecutor] = None, batch_size: int = 1):
+
+    def __init__(
+        self,
+        name: str,
+        max_capacity: int = 1000,
+        max_workers: int = 4,
+        executor: Optional[ThreadPoolExecutor] = None,
+        batch_size: int = 1,
+    ):
         self.name = name
         self.max_capacity = max_capacity
         self.spores: deque = deque(maxlen=max_capacity)
@@ -432,7 +448,9 @@ class ReefChannel:
         # Backward-compat alias for direct access
         self.subscribers = self._subscriptions._subscribers
         self.lock = threading.RLock()
-        self.executor = executor or ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=f"reef-{name}")
+        self.executor = executor or ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix=f"reef-{name}"
+        )
         self._owns_executor = executor is None
         self._shutdown = False
         self._active_futures: List[Future] = []  # Track active handler executions
@@ -444,15 +462,18 @@ class ReefChannel:
         self._shared_async_registered = False
         self.batch_size = max(1, batch_size)
         self.stats = {
-            'spores_carried': 0,
-            'spores_delivered': 0,
-            'spores_expired': 0,
-            'created_at': datetime.now()
+            "spores_carried": 0,
+            "spores_delivered": 0,
+            "spores_expired": 0,
+            "created_at": datetime.now(),
         }
-    
+
     def _ensure_async_handler_loop(self) -> None:
         if self._uses_shared_async_loop:
-            if ReefChannel._shared_async_loop and ReefChannel._shared_async_loop.is_running():
+            if (
+                ReefChannel._shared_async_loop
+                and ReefChannel._shared_async_loop.is_running()
+            ):
                 self._async_loop = ReefChannel._shared_async_loop
                 if not self._shared_async_registered:
                     ReefChannel._shared_async_users += 1
@@ -460,9 +481,13 @@ class ReefChannel:
                 return
 
             with ReefChannel._shared_async_lock:
-                if ReefChannel._shared_async_loop and ReefChannel._shared_async_loop.is_running():
+                if (
+                    ReefChannel._shared_async_loop
+                    and ReefChannel._shared_async_loop.is_running()
+                ):
                     self._async_loop = ReefChannel._shared_async_loop
                 else:
+
                     def _run_loop():
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
@@ -472,7 +497,9 @@ class ReefChannel:
                         loop.close()
 
                     ReefChannel._shared_async_loop_ready.clear()
-                    ReefChannel._shared_async_thread = threading.Thread(target=_run_loop, daemon=True)
+                    ReefChannel._shared_async_thread = threading.Thread(
+                        target=_run_loop, daemon=True
+                    )
                     ReefChannel._shared_async_thread.start()
                     ReefChannel._shared_async_loop_ready.wait(timeout=5)
                     self._async_loop = ReefChannel._shared_async_loop
@@ -515,32 +542,34 @@ class ReefChannel:
             if len(self.spores) >= self.max_capacity:
                 # Channel at capacity - oldest spores drift away
                 self.spores.popleft()
-            
+
             self.spores.append(spore)
-            self.stats['spores_carried'] += 1
-            
+            self.stats["spores_carried"] += 1
+
             # Immediately try to deliver to subscribers
             self._deliver_spore(spore)
             return True
-    
+
     def _deliver_spore(self, spore: Spore) -> List[Future]:
         """Deliver spore to subscribed agents asynchronously."""
         if spore.is_expired():
-            self.stats['spores_expired'] += 1
+            self.stats["spores_expired"] += 1
             return []
-        
+
         if self._shutdown:
             return []
-        
+
         futures = []
-        
+
         # Deliver to specific agent if targeted
         if spore.to_agent:
             handlers = self._subscriptions.get_handlers(spore.to_agent)
             if handlers:
                 if self.batch_size > 1:
                     for i in range(0, len(handlers), self.batch_size):
-                        future = self._execute_handlers_batch(handlers[i:i+self.batch_size], spore)
+                        future = self._execute_handlers_batch(
+                            handlers[i : i + self.batch_size], spore
+                        )
                         if future:
                             futures.append(future)
                 else:
@@ -548,14 +577,18 @@ class ReefChannel:
                         future = self._execute_handler_async(handler, spore)
                         if future:
                             futures.append(future)
-        
+
         # Deliver broadcasts to all subscribers except sender
         elif spore.spore_type == SporeType.BROADCAST:
-            for agent_name, handlers in self._subscriptions.iter_broadcast(exclude_agent=spore.from_agent):
+            for agent_name, handlers in self._subscriptions.iter_broadcast(
+                exclude_agent=spore.from_agent
+            ):
                 handler_list = list(handlers)
                 if self.batch_size > 1:
                     for i in range(0, len(handler_list), self.batch_size):
-                        future = self._execute_handlers_batch(handler_list[i:i+self.batch_size], spore)
+                        future = self._execute_handlers_batch(
+                            handler_list[i : i + self.batch_size], spore
+                        )
                         if future:
                             futures.append(future)
                 else:
@@ -563,10 +596,12 @@ class ReefChannel:
                         future = self._execute_handler_async(handler, spore)
                         if future:
                             futures.append(future)
-        
+
         return futures
-    
-    def _execute_handlers_batch(self, handlers: List[Callable], spore: Spore) -> Optional[Future]:
+
+    def _execute_handlers_batch(
+        self, handlers: List[Callable], spore: Spore
+    ) -> Optional[Future]:
         if self._shutdown:
             return None
 
@@ -577,11 +612,13 @@ class ReefChannel:
                         self._ensure_async_handler_loop()
                         if not self._async_loop or not self._async_loop.is_running():
                             raise RuntimeError("Async handler loop not available")
-                        future = asyncio.run_coroutine_threadsafe(handler(spore), self._async_loop)
+                        future = asyncio.run_coroutine_threadsafe(
+                            handler(spore), self._async_loop
+                        )
                         future.result()
                     else:
                         handler(spore)
-                    self.stats['spores_delivered'] += 1
+                    self.stats["spores_delivered"] += 1
                 except Exception as e:
                     logger.warning(f"Agent handler error in channel {self.name}: {e}")
             return None
@@ -591,7 +628,9 @@ class ReefChannel:
             self._active_futures.append(future)
         return future
 
-    def _execute_handler_async(self, handler: Callable, spore: Spore) -> Optional[Future]:
+    def _execute_handler_async(
+        self, handler: Callable, spore: Spore
+    ) -> Optional[Future]:
         """Execute handler asynchronously, supporting both sync and async handlers."""
         if self._shutdown:
             return None
@@ -604,14 +643,16 @@ class ReefChannel:
                     self._ensure_async_handler_loop()
                     if not self._async_loop or not self._async_loop.is_running():
                         raise RuntimeError("Async handler loop not available")
-                    future = asyncio.run_coroutine_threadsafe(handler(spore), self._async_loop)
+                    future = asyncio.run_coroutine_threadsafe(
+                        handler(spore), self._async_loop
+                    )
                     result = future.result()
-                    self.stats['spores_delivered'] += 1
+                    self.stats["spores_delivered"] += 1
                     return result
                 else:
                     # Run sync handler directly
                     result = handler(spore)
-                    self.stats['spores_delivered'] += 1
+                    self.stats["spores_delivered"] += 1
                     return result
             except Exception as e:
                 # Log errors but don't break the system
@@ -625,8 +666,10 @@ class ReefChannel:
             self._active_futures.append(future)
 
         return future
-    
-    def subscribe(self, agent_name: str, handler: Callable[[Spore], None], replace: bool = True) -> None:
+
+    def subscribe(
+        self, agent_name: str, handler: Callable[[Spore], None], replace: bool = True
+    ) -> None:
         """
         Subscribe an agent to receive spores from this channel.
 
@@ -646,11 +689,11 @@ class ReefChannel:
             self._subscriptions.set_handler(agent_name, handler)
         else:
             self._subscriptions.add_handler(agent_name, handler)
-    
+
     def unsubscribe(self, agent_name: str) -> None:
         """Unsubscribe an agent from this channel."""
         self._subscriptions.remove_agent(agent_name)
-    
+
     def get_spores_for_agent(self, agent_name: str, limit: int = 10) -> List[Spore]:
         """Get recent spores for a specific agent (polling interface)."""
         with self.lock:
@@ -658,41 +701,47 @@ class ReefChannel:
             for spore in reversed(self.spores):  # Most recent first
                 if len(relevant_spores) >= limit:
                     break
-                
+
                 if spore.is_expired():
                     continue
-                
+
                 # Include if targeted to this agent or is a broadcast
-                if (spore.to_agent == agent_name or 
-                    (spore.spore_type == SporeType.BROADCAST and 
-                     spore.from_agent != agent_name)):
+                if spore.to_agent == agent_name or (
+                    spore.spore_type == SporeType.BROADCAST
+                    and spore.from_agent != agent_name
+                ):
                     relevant_spores.append(spore)
-            
+
             return relevant_spores
-    
+
     def cleanup_expired(self) -> int:
         """Remove expired spores from the channel."""
         with self.lock:
             initial_count = len(self.spores)
-            self.spores = deque([s for s in self.spores if not s.is_expired()], 
-                              maxlen=self.max_capacity)
+            self.spores = deque(
+                [s for s in self.spores if not s.is_expired()], maxlen=self.max_capacity
+            )
             expired_count = initial_count - len(self.spores)
-            self.stats['spores_expired'] += expired_count
+            self.stats["spores_expired"] += expired_count
             return expired_count
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get channel statistics."""
         with self.lock:
             return {
-                'name': self.name,
-                'spores_in_channel': len(self.spores),
-                'max_capacity': self.max_capacity,
-                'subscriber_count': sum(self._subscriptions.counts().values()),
-                'active_threads': len(self.executor._threads) if hasattr(self.executor, '_threads') else 0,
-                'shutdown': self._shutdown,
-                **self.stats
+                "name": self.name,
+                "spores_in_channel": len(self.spores),
+                "max_capacity": self.max_capacity,
+                "subscriber_count": sum(self._subscriptions.counts().values()),
+                "active_threads": (
+                    len(self.executor._threads)
+                    if hasattr(self.executor, "_threads")
+                    else 0
+                ),
+                "shutdown": self._shutdown,
+                **self.stats,
             }
-    
+
     def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
         """
         Wait for all active handler executions to complete.
@@ -706,7 +755,8 @@ class ReefChannel:
         Returns:
             True if all handlers completed, False if timeout occurred.
         """
-        from concurrent.futures import wait as futures_wait, FIRST_COMPLETED, ALL_COMPLETED
+        from concurrent.futures import ALL_COMPLETED
+        from concurrent.futures import wait as futures_wait
 
         start_time = time.time()
 
@@ -730,7 +780,9 @@ class ReefChannel:
 
             # Wait for at least one future to complete
             try:
-                futures_wait(pending, timeout=remaining_timeout, return_when=ALL_COMPLETED)
+                futures_wait(
+                    pending, timeout=remaining_timeout, return_when=ALL_COMPLETED
+                )
             except Exception:
                 pass
 
@@ -806,7 +858,10 @@ class ReefChannel:
             pending = [f for f in self._active_futures if not f.done()]
         if pending:
             logger.warning(
-                f"Channel {self.name} shutdown timed out with {len(pending)} pending handlers"
+                (
+                    f"Channel {self.name} shutdown timed out with {len(pending)} "
+                    f"pending handlers"
+                )
             )
             # Stop async handler loop
             if self._async_loop and self._async_loop.is_running():
@@ -848,7 +903,13 @@ class ReefCore:
     - When using RabbitMQBackend (or other distributed): Messages routed through backend
     """
 
-    def __init__(self, default_max_workers: int = 4, backend=None, use_shared_pool: bool = True, auth_provider: Optional[Callable[[str, Dict[str, Any]], bool]] = None):
+    def __init__(
+        self,
+        default_max_workers: int = 4,
+        backend=None,
+        use_shared_pool: bool = True,
+        auth_provider: Optional[Callable[[str, Dict[str, Any]], bool]] = None,
+    ):
         """
         Initialize Reef with optional backend.
 
@@ -880,13 +941,16 @@ class ReefCore:
         # Set backend (default to InMemory for backward compatibility)
         if backend is None:
             from .reef_backend import InMemoryBackend
+
             backend = InMemoryBackend()
 
         self.backend = backend
         self._backend_initialized = False
 
         if self.use_shared_pool:
-            self._shared_executor = ThreadPoolExecutor(max_workers=self.default_max_workers)
+            self._shared_executor = ThreadPoolExecutor(
+                max_workers=self.default_max_workers
+            )
 
         # Create default channel
         self.create_channel(self.default_channel)
@@ -938,7 +1002,10 @@ class ReefCore:
             True if using RabbitMQ or other distributed backend, False for InMemory.
         """
         from .reef_backend import InMemoryBackend
-        return not isinstance(self.backend, InMemoryBackend) and self._backend_initialized
+
+        return (
+            not isinstance(self.backend, InMemoryBackend) and self._backend_initialized
+        )
 
     def _run_async(self, coro):
         """
@@ -947,7 +1014,7 @@ class ReefCore:
         Handles the async/sync boundary for backends that require async operations.
         """
         try:
-            loop = asyncio.get_running_loop()
+            _ = asyncio.get_running_loop()
             # We're already in an async context, create a task
             return asyncio.ensure_future(coro)
         except RuntimeError:
@@ -958,18 +1025,26 @@ class ReefCore:
             future = asyncio.run_coroutine_threadsafe(coro, self._async_loop)
             return future.result()
 
-    def create_channel(self, name: str, max_capacity: int = 1000, max_workers: Optional[int] = None, batch_size: int = 1) -> ReefChannel:
+    def create_channel(
+        self,
+        name: str,
+        max_capacity: int = 1000,
+        max_workers: Optional[int] = None,
+        batch_size: int = 1,
+    ) -> ReefChannel:
         """Create a new reef channel."""
         with self.lock:
             if name in self.channels:
                 return self.channels[name]
-            
+
             workers = max_workers or self.default_max_workers
             executor = self._shared_executor if self.use_shared_pool else None
-            channel = ReefChannel(name, max_capacity, workers, executor=executor, batch_size=batch_size)
+            channel = ReefChannel(
+                name, max_capacity, workers, executor=executor, batch_size=batch_size
+            )
             self.channels[name] = channel
             return channel
-    
+
     def get_channel(self, name: str) -> Optional[ReefChannel]:
         """Get a reef channel by name."""
         return self.channels.get(name)
@@ -995,52 +1070,62 @@ class ReefCore:
             await self.backend.shutdown()
             self._backend_initialized = False
             logger.info(f"Reef backend shutdown: {self.backend.__class__.__name__}")
-    
-    def send(self, 
-             from_agent: str,
-             to_agent: Optional[str],
-             knowledge: Dict[str, Any],
-             spore_type: SporeType = SporeType.KNOWLEDGE,
-             channel: str = None,
-             priority: int = 5,
-             expires_in_seconds: Optional[int] = None,
-             reply_to: Optional[str] = None,
-             knowledge_references: Optional[List[str]] = None,
-             auto_reference_large_knowledge: bool = True) -> str:
+
+    def send(
+        self,
+        from_agent: str,
+        to_agent: Optional[str],
+        knowledge: Dict[str, Any],
+        spore_type: SporeType = SporeType.KNOWLEDGE,
+        channel: str = None,
+        priority: int = 5,
+        expires_in_seconds: Optional[int] = None,
+        reply_to: Optional[str] = None,
+        knowledge_references: Optional[List[str]] = None,
+        auto_reference_large_knowledge: bool = True,
+    ) -> str:
         """Send a spore through the reef."""
-        
+
         # Use default channel if none specified
         if channel is None:
             channel = self.default_channel
 
-        self._authorize("send", {
-            "from_agent": from_agent,
-            "to_agent": to_agent,
-            "channel": channel,
-            "spore_type": spore_type.value
-        })
-        
+        self._authorize(
+            "send",
+            {
+                "from_agent": from_agent,
+                "to_agent": to_agent,
+                "channel": channel,
+                "spore_type": spore_type.value,
+            },
+        )
+
         reef_channel = self.get_channel(channel)
         if not reef_channel:
             raise ValueError(f"Reef channel '{channel}' not found")
-        
+
         # Create expiration time if specified
         expires_at = None
         if expires_in_seconds:
             expires_at = datetime.now() + timedelta(seconds=expires_in_seconds)
-        
+
         # Handle knowledge references for lightweight spores
         final_knowledge = knowledge
         final_references = knowledge_references or []
-        
+
         # Auto-reference large knowledge if enabled
         if auto_reference_large_knowledge and knowledge:
             knowledge_size = _estimate_payload_size_bytes(knowledge)
             if knowledge_size > 1000:  # Threshold for large knowledge
                 # TODO: Store knowledge and replace with reference
                 # This would require access to a memory manager
-                logger.debug(f"Large knowledge detected ({knowledge_size} bytes) - consider using references")
-        
+                logger.debug(
+                    (
+                        f"Large knowledge detected ({knowledge_size} bytes) - "
+                        f"consider using references"
+                    )
+                )
+
         # Create spore
         spore = Spore(
             id=str(uuid.uuid4()),
@@ -1052,20 +1137,25 @@ class ReefCore:
             expires_at=expires_at,
             priority=priority,
             reply_to=reply_to,
-            knowledge_references=final_references
+            knowledge_references=final_references,
         )
 
         # Route through backend for distributed systems, or local channel for in-memory
         if self._is_distributed_backend():
             # Use distributed backend (RabbitMQ, etc.)
-            logger.debug(f"Routing spore {spore.id} through distributed backend to channel: {channel}")
+            logger.debug(
+                (
+                    f"Routing spore {spore.id} through distributed backend to "
+                    f"channel: {channel}"
+                )
+            )
             self._run_async(self.backend.send(spore, channel))
         else:
             # Use local in-memory channel
             reef_channel.send_spore(spore)
 
         return spore.id
-    
+
     def _check_broadcast_rate_limit(self, from_agent: str) -> None:
         if not self.broadcast_rate_limit_per_sec:
             return
@@ -1084,40 +1174,32 @@ class ReefCore:
 
         counter.append(now)
 
-    def broadcast(self, 
-                  from_agent: str,
-                  knowledge: Dict[str, Any],
-                  channel: str = None) -> str:
+    def broadcast(
+        self, from_agent: str, knowledge: Dict[str, Any], channel: str = None
+    ) -> str:
         """Broadcast knowledge to all agents in the reef."""
         self._check_broadcast_rate_limit(from_agent)
-        self._authorize("broadcast", {
-            "from_agent": from_agent,
-            "channel": channel
-        })
+        self._authorize("broadcast", {"from_agent": from_agent, "channel": channel})
         return self.send(
             from_agent=from_agent,
             to_agent=None,
             knowledge=knowledge,
             spore_type=SporeType.BROADCAST,
-            channel=channel
+            channel=channel,
         )
-    
-    def system_broadcast(self,
-                        knowledge: Dict[str, Any],
-                        channel: str = None) -> str:
+
+    def system_broadcast(self, knowledge: Dict[str, Any], channel: str = None) -> str:
         """Broadcast system-level messages to all agents in a channel."""
-        return self.broadcast(
-            from_agent="system",
-            knowledge=knowledge,
-            channel=channel
-        )
-    
-    def request(self,
-                from_agent: str,
-                to_agent: str,
-                request: Dict[str, Any],
-                channel: str = None,
-                expires_in_seconds: int = 300) -> str:
+        return self.broadcast(from_agent="system", knowledge=knowledge, channel=channel)
+
+    def request(
+        self,
+        from_agent: str,
+        to_agent: str,
+        request: Dict[str, Any],
+        channel: str = None,
+        expires_in_seconds: int = 300,
+    ) -> str:
         """Send a knowledge request to another agent."""
         return self.send(
             from_agent=from_agent,
@@ -1125,15 +1207,17 @@ class ReefCore:
             knowledge=request,
             spore_type=SporeType.REQUEST,
             channel=channel,
-            expires_in_seconds=expires_in_seconds
+            expires_in_seconds=expires_in_seconds,
         )
-    
-    def reply(self,
-              from_agent: str,
-              to_agent: str,
-              response: Dict[str, Any],
-              reply_to_spore_id: str,
-              channel: str = None) -> str:
+
+    def reply(
+        self,
+        from_agent: str,
+        to_agent: str,
+        response: Dict[str, Any],
+        reply_to_spore_id: str,
+        channel: str = None,
+    ) -> str:
         """Reply to a knowledge request."""
         return self.send(
             from_agent=from_agent,
@@ -1141,14 +1225,16 @@ class ReefCore:
             knowledge=response,
             spore_type=SporeType.RESPONSE,
             channel=channel,
-            reply_to=reply_to_spore_id
+            reply_to=reply_to_spore_id,
         )
-    
-    def subscribe(self,
-                  agent_name: str,
-                  handler: Callable[[Spore], None],
-                  channel: str = None,
-                  replace: bool = True) -> None:
+
+    def subscribe(
+        self,
+        agent_name: str,
+        handler: Callable[[Spore], None],
+        channel: str = None,
+        replace: bool = True,
+    ) -> None:
         """
         Subscribe an agent to receive spores from a channel.
 
@@ -1166,10 +1252,7 @@ class ReefCore:
         if channel is None:
             channel = self.default_channel
 
-        self._authorize("subscribe", {
-            "agent_name": agent_name,
-            "channel": channel
-        })
+        self._authorize("subscribe", {"agent_name": agent_name, "channel": channel})
 
         reef_channel = self.get_channel(channel)
         if reef_channel:
@@ -1178,24 +1261,29 @@ class ReefCore:
 
         # Also subscribe through distributed backend if active
         if self._is_distributed_backend():
-            logger.debug(f"Subscribing agent '{agent_name}' to distributed backend channel: {channel}")
+            logger.debug(
+                (
+                    f"Subscribing agent '{agent_name}' to distributed backend "
+                    f"channel: {channel}"
+                )
+            )
             self._run_async(self.backend.subscribe(channel, handler))
-    
+
     def get_network_stats(self) -> Dict[str, Any]:
         """Get statistics about the reef network."""
         with self.lock:
             stats = {
-                'total_channels': len(self.channels),
-                'backend': self.backend.__class__.__name__,
-                'backend_stats': self.backend.get_stats(),
-                'channel_stats': {}
+                "total_channels": len(self.channels),
+                "backend": self.backend.__class__.__name__,
+                "backend_stats": self.backend.get_stats(),
+                "channel_stats": {},
             }
 
             for name, channel in self.channels.items():
-                stats['channel_stats'][name] = {
-                    'active_spores': len(channel.spores),
-                    'subscribers': len(channel.subscribers),
-                    **channel.stats
+                stats["channel_stats"][name] = {
+                    "active_spores": len(channel.spores),
+                    "subscribers": len(channel.subscribers),
+                    **channel.stats,
                 }
 
             return stats
@@ -1289,23 +1377,25 @@ class ReefCore:
                 all_clean = False
 
         return all_clean
-    
+
     def __del__(self):
         try:
             self.shutdown(wait=False)
         except Exception:
             pass
 
-    def create_knowledge_reference_spore(self,
-                                        from_agent: str,
-                                        to_agent: Optional[str],
-                                        knowledge_summary: str,
-                                        knowledge_references: List[str],
-                                        spore_type: SporeType = SporeType.KNOWLEDGE,
-                                        channel: str = None) -> str:
+    def create_knowledge_reference_spore(
+        self,
+        from_agent: str,
+        to_agent: Optional[str],
+        knowledge_summary: str,
+        knowledge_references: List[str],
+        spore_type: SporeType = SporeType.KNOWLEDGE,
+        channel: str = None,
+    ) -> str:
         """
         Create a lightweight spore with knowledge references
-        
+
         This follows the reef principle: "light spores travel far"
         """
         return self.send(
@@ -1314,45 +1404,49 @@ class ReefCore:
             knowledge={
                 "type": "knowledge_reference",
                 "summary": knowledge_summary,
-                "reference_count": len(knowledge_references)
+                "reference_count": len(knowledge_references),
             },
             spore_type=spore_type,
             channel=channel,
             knowledge_references=knowledge_references,
-            auto_reference_large_knowledge=False  # Already handled
+            auto_reference_large_knowledge=False,  # Already handled
         )
-    
-    def resolve_knowledge_references(self, spore: Spore, memory_manager) -> Dict[str, Any]:
+
+    def resolve_knowledge_references(
+        self, spore: Spore, memory_manager
+    ) -> Dict[str, Any]:
         """
         Resolve knowledge references in a spore to actual knowledge
-        
+
         Args:
             spore: The spore with knowledge references
             memory_manager: Agent's memory manager to resolve references
-            
+
         Returns:
             Combined knowledge from references
         """
         if not spore.has_knowledge_references():
             return spore.knowledge
-        
+
         resolved_knowledge = dict(spore.knowledge) if spore.knowledge else {}
         resolved_knowledge["referenced_knowledge"] = []
-        
+
         for ref_id in spore.knowledge_references:
             try:
                 memories = memory_manager.recall_by_id(ref_id)
                 if memories:
-                    resolved_knowledge["referenced_knowledge"].append({
-                        "reference_id": ref_id,
-                        "content": memories[0].content,
-                        "metadata": memories[0].metadata
-                    })
+                    resolved_knowledge["referenced_knowledge"].append(
+                        {
+                            "reference_id": ref_id,
+                            "content": memories[0].content,
+                            "metadata": memories[0].metadata,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Failed to resolve knowledge reference {ref_id}: {e}")
-        
+
         return resolved_knowledge
-    
+
     def _cleanup_loop(self) -> None:
         """
         Background thread to clean up expired spores.
@@ -1374,10 +1468,13 @@ class ReefCore:
                             expired = channel.cleanup_expired()
                             if expired > 0:
                                 logger.debug(
-                                    f"Cleaned up {expired} expired spores from {channel.name}"
+                                    f"Cleaned up {expired} expired spores from "
+                                    f"{channel.name}"
                                 )
                         except Exception as e:
-                            logger.warning(f"Error cleaning up channel {channel.name}: {e}")
+                            logger.warning(
+                                f"Error cleaning up channel {channel.name}: {e}"
+                            )
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
                 # Don't exit the loop on error, but add backoff to prevent tight loop
@@ -1386,6 +1483,7 @@ class ReefCore:
 
 class Reef(ReefCore):
     """Facade for backwards-compatible Reef API."""
+
     pass
 
 
@@ -1405,7 +1503,6 @@ def reset_reef() -> None:
     This is primarily used for testing to ensure test isolation.
     Clears all channels and reinitializes with just the default channel.
     """
-    global _global_reef
     with _global_reef.lock:
         # Clear all channels
         _global_reef.channels.clear()

@@ -6,8 +6,8 @@ Supports:
 - Console output for debugging
 """
 
-from .otlp_exporter import OTLPExporter, export_traces_to_otlp
 from .console_viewer import ConsoleViewer, print_traces, show_recent_traces
+from .otlp_exporter import OTLPExporter, export_traces_to_otlp
 
 __all__ = [
     "OTLPExporter",

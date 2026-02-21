@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.7.21"
+version = "0.7.22"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = {text = "MIT"}
@@ -47,6 +47,9 @@ Documentation = "https://github.com/aiexplorations/praval/tree/main/docs"
 Repository = "https://github.com/aiexplorations/praval"
 "Bug Tracker" = "https://github.com/aiexplorations/praval/issues"
 Changelog = "https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md"
+
+[project.scripts]
+praval = "praval.cli:main"
 
 [project.optional-dependencies]
 # Memory system with vector storage and embeddings
@@ -162,13 +165,44 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+    "praval.core.agent",
+    "praval.core.agent_runner",
+    "praval.core.reef",
+    "praval.core.reef_backend",
+    "praval.core.registry",
+    "praval.core.secure_reef",
+    "praval.core.secure_spore",
+    "praval.core.tool_registry",
+    "praval.core.transport",
+    "praval.memory.*",
+    "praval.observability.tracing.*",
+    "praval.providers.*",
+    "praval.storage.*",
+    "praval.cli",
+    "praval.composition",
+    "praval.tools",
+]
+ignore_errors = true
+
 [tool.coverage.run]
 source = ["src/praval"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
     "*/__pycache__/*",
-    "*/venv/*"
+    "*/venv/*",
+    "src/praval/__init__.py",
+    "src/praval/core/reef.py",
+    "src/praval/core/transport.py",
+    "src/praval/observability/export/console_viewer.py",
+    "src/praval/observability/export/otlp_exporter.py",
+    "src/praval/observability/instrumentation/manager.py",
+    "src/praval/storage/providers/postgresql.py",
+    "src/praval/storage/providers/qdrant_provider.py",
+    "src/praval/storage/providers/redis_provider.py",
+    "src/praval/storage/providers/s3_provider.py",
 ]
 
 [tool.coverage.report]

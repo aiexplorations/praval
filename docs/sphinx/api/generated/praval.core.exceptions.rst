@@ -9,6 +9,8 @@
    .. autosummary::
    
       ConfigurationError
+      HITLConfigurationError
+      InterventionRequired
       PravalError
       ProviderError
       StateError

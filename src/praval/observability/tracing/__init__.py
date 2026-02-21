@@ -6,11 +6,11 @@ Provides OpenTelemetry-compatible tracing infrastructure.
 
 from .context import (
     TraceContext,
+    clear_current_span,
     get_current_span,
     set_current_span,
-    clear_current_span
 )
-from .span import Span, SpanKind, SpanStatus, SpanEvent, NoOpSpan
+from .span import NoOpSpan, Span, SpanEvent, SpanKind, SpanStatus
 from .tracer import Tracer, get_tracer
 
 __all__ = [

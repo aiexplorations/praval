@@ -5,10 +5,9 @@ Tests the to_amqp_message() and from_amqp_message() methods that make
 Spore the native AMQP message format, eliminating intermediate conversions.
 """
 
-import pytest
 import json
 from datetime import datetime, timedelta
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from praval.core.reef import Spore, SporeType
 
@@ -25,7 +24,7 @@ class TestSporeToAmqpMessage:
             to_agent="agent2",
             knowledge={"data": "test_value", "count": 42},
             created_at=datetime(2025, 11, 7, 12, 0, 0),
-            priority=7
+            priority=7,
         )
 
         amqp_msg = spore.to_amqp_message()
@@ -46,20 +45,20 @@ class TestSporeToAmqpMessage:
             knowledge={"request": "data"},
             created_at=datetime(2025, 11, 7, 12, 30, 0),
             priority=9,
-            reply_to="original-request-id"
+            reply_to="original-request-id",
         )
 
         amqp_msg = spore.to_amqp_message()
         headers = amqp_msg.headers
 
         # Verify all metadata in headers
-        assert headers['spore_id'] == "spore-xyz"
-        assert headers['spore_type'] == "request"
-        assert headers['from_agent'] == "sender"
-        assert headers['to_agent'] == "receiver"
-        assert headers['priority'] == "9"
-        assert headers['reply_to'] == "original-request-id"
-        assert headers['version'] == "1.0"
+        assert headers["spore_id"] == "spore-xyz"
+        assert headers["spore_type"] == "request"
+        assert headers["from_agent"] == "sender"
+        assert headers["to_agent"] == "receiver"
+        assert headers["priority"] == "9"
+        assert headers["reply_to"] == "original-request-id"
+        assert headers["version"] == "1.0"
 
     def test_to_amqp_knowledge_in_body(self):
         """Test that knowledge is properly serialized in message body."""
@@ -70,13 +69,13 @@ class TestSporeToAmqpMessage:
             from_agent="agent1",
             to_agent="agent2",
             knowledge=knowledge_dict,
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = spore.to_amqp_message()
 
         # Body should be JSON-encoded knowledge
-        body_dict = json.loads(amqp_msg.body.decode('utf-8'))
+        body_dict = json.loads(amqp_msg.body.decode("utf-8"))
         assert body_dict == knowledge_dict
 
     def test_to_amqp_broadcast_spore(self):
@@ -87,14 +86,14 @@ class TestSporeToAmqpMessage:
             from_agent="broadcaster",
             to_agent=None,  # Broadcast
             knowledge={"message": "to all"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = spore.to_amqp_message()
         headers = amqp_msg.headers
 
-        assert headers['spore_type'] == "broadcast"
-        assert headers['to_agent'] == ""  # None serialized as empty string
+        assert headers["spore_type"] == "broadcast"
+        assert headers["to_agent"] == ""  # None serialized as empty string
 
     def test_to_amqp_with_expiration(self):
         """Test TTL conversion from expires_at to AMQP expiration."""
@@ -108,7 +107,7 @@ class TestSporeToAmqpMessage:
             to_agent="agent2",
             knowledge={"data": "value"},
             created_at=now,
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
         amqp_msg = spore.to_amqp_message()
@@ -129,7 +128,7 @@ class TestSporeToAmqpMessage:
             to_agent="agent2",
             knowledge={"data": "value"},
             created_at=now - timedelta(seconds=20),
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
         amqp_msg = spore.to_amqp_message()
@@ -147,7 +146,7 @@ class TestSporeToAmqpMessage:
             to_agent="agent2",
             knowledge={},
             created_at=datetime.now(),
-            priority=10
+            priority=10,
         )
 
         amqp_msg = spore.to_amqp_message()
@@ -162,14 +161,14 @@ class TestSporeToAmqpMessage:
             to_agent="requester",
             knowledge={"answer": "42"},
             created_at=datetime.now(),
-            reply_to="original-request-789"
+            reply_to="original-request-789",
         )
 
         amqp_msg = spore.to_amqp_message()
         headers = amqp_msg.headers
 
-        assert headers['spore_type'] == "response"
-        assert headers['reply_to'] == "original-request-789"
+        assert headers["spore_type"] == "response"
+        assert headers["reply_to"] == "original-request-789"
 
     def test_to_amqp_notification_spore(self):
         """Test notification spore type."""
@@ -179,12 +178,12 @@ class TestSporeToAmqpMessage:
             from_agent="system",
             to_agent="agent1",
             knowledge={"event": "system_updated"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = spore.to_amqp_message()
 
-        assert amqp_msg.headers['spore_type'] == "notification"
+        assert amqp_msg.headers["spore_type"] == "notification"
 
     def test_to_amqp_empty_knowledge(self):
         """Test spore with empty knowledge dict."""
@@ -194,31 +193,24 @@ class TestSporeToAmqpMessage:
             from_agent="agent1",
             to_agent=None,
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = spore.to_amqp_message()
 
         # Should still serialize correctly
-        body_dict = json.loads(amqp_msg.body.decode('utf-8'))
+        body_dict = json.loads(amqp_msg.body.decode("utf-8"))
         assert body_dict == {}
 
     def test_to_amqp_complex_knowledge(self):
         """Test spore with nested complex knowledge structure."""
         complex_knowledge = {
-            "users": [
-                {"id": 1, "name": "Alice"},
-                {"id": 2, "name": "Bob"}
-            ],
+            "users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}],
             "metadata": {
                 "version": "1.0",
                 "timestamp": "2025-11-07T12:00:00",
-                "nested": {
-                    "deep": {
-                        "value": "found"
-                    }
-                }
-            }
+                "nested": {"deep": {"value": "found"}},
+            },
         }
 
         spore = Spore(
@@ -227,11 +219,11 @@ class TestSporeToAmqpMessage:
             from_agent="system",
             to_agent="analyzer",
             knowledge=complex_knowledge,
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = spore.to_amqp_message()
-        body_dict = json.loads(amqp_msg.body.decode('utf-8'))
+        body_dict = json.loads(amqp_msg.body.decode("utf-8"))
 
         assert body_dict == complex_knowledge
 
@@ -249,7 +241,7 @@ class TestSporeFromAmqpMessage:
             to_agent="receiver",
             knowledge={"key": "value"},
             created_at=datetime(2025, 11, 7, 12, 0, 0),
-            priority=5
+            priority=5,
         )
 
         amqp_msg = original.to_amqp_message()
@@ -276,7 +268,7 @@ class TestSporeFromAmqpMessage:
             created_at=now,
             expires_at=expires_at,
             priority=8,
-            reply_to="some-id"
+            reply_to="some-id",
         )
 
         amqp_msg = original.to_amqp_message()
@@ -301,7 +293,7 @@ class TestSporeFromAmqpMessage:
             from_agent="broadcaster",
             to_agent=None,
             knowledge={"message": "broadcast"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = original.to_amqp_message()
@@ -314,19 +306,16 @@ class TestSporeFromAmqpMessage:
         """Test deserialization when some headers are missing."""
         # Mock AMQP message with minimal headers
         mock_msg = Mock()
-        mock_msg.headers = {
-            'spore_id': 'minimal-id',
-            'from_agent': 'minimal-sender'
-        }
-        mock_msg.body = json.dumps({"data": "value"}).encode('utf-8')
-        mock_msg.message_id = 'minimal-id'
+        mock_msg.headers = {"spore_id": "minimal-id", "from_agent": "minimal-sender"}
+        mock_msg.body = json.dumps({"data": "value"}).encode("utf-8")
+        mock_msg.message_id = "minimal-id"
         mock_msg.timestamp = datetime.now()
 
         restored = Spore.from_amqp_message(mock_msg)
 
         # Should use defaults for missing headers
-        assert restored.id == 'minimal-id'
-        assert restored.from_agent == 'minimal-sender'
+        assert restored.id == "minimal-id"
+        assert restored.from_agent == "minimal-sender"
         assert restored.spore_type == SporeType.KNOWLEDGE  # Default
         assert restored.to_agent is None  # Default (empty string -> None)
         assert restored.priority == 5  # Default
@@ -334,30 +323,27 @@ class TestSporeFromAmqpMessage:
     def test_from_amqp_invalid_json_body(self):
         """Test deserialization when body is not valid JSON."""
         mock_msg = Mock()
-        mock_msg.headers = {
-            'spore_id': 'invalid-json-id',
-            'from_agent': 'sender'
-        }
+        mock_msg.headers = {"spore_id": "invalid-json-id", "from_agent": "sender"}
         mock_msg.body = b"Not valid JSON"
-        mock_msg.message_id = 'invalid-json-id'
+        mock_msg.message_id = "invalid-json-id"
         mock_msg.timestamp = datetime.now()
 
         restored = Spore.from_amqp_message(mock_msg)
 
         # Should fallback to raw_content
-        assert 'raw_content' in restored.knowledge
-        assert restored.knowledge['raw_content'] == "Not valid JSON"
+        assert "raw_content" in restored.knowledge
+        assert restored.knowledge["raw_content"] == "Not valid JSON"
 
     def test_from_amqp_invalid_timestamp(self):
         """Test deserialization with invalid timestamp in headers."""
         mock_msg = Mock()
         mock_msg.headers = {
-            'spore_id': 'invalid-ts-id',
-            'from_agent': 'sender',
-            'created_at': 'not-a-valid-datetime'
+            "spore_id": "invalid-ts-id",
+            "from_agent": "sender",
+            "created_at": "not-a-valid-datetime",
         }
-        mock_msg.body = json.dumps({}).encode('utf-8')
-        mock_msg.message_id = 'invalid-ts-id'
+        mock_msg.body = json.dumps({}).encode("utf-8")
+        mock_msg.message_id = "invalid-ts-id"
         mock_msg.timestamp = None
 
         restored = Spore.from_amqp_message(mock_msg)
@@ -377,7 +363,7 @@ class TestSporeFromAmqpMessage:
             to_agent="receiver",
             knowledge={"data": "value"},
             created_at=now,
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
         amqp_msg = original.to_amqp_message()
@@ -396,7 +382,7 @@ class TestSporeFromAmqpMessage:
             to_agent="requester",
             knowledge={"answer": 42},
             created_at=datetime.now(),
-            reply_to="original-request-id"
+            reply_to="original-request-id",
         )
 
         amqp_msg = original.to_amqp_message()
@@ -414,7 +400,7 @@ class TestSporeFromAmqpMessage:
                 from_agent="sender",
                 to_agent="receiver" if spore_type != SporeType.BROADCAST else None,
                 knowledge={"type": spore_type.value},
-                created_at=datetime.now()
+                created_at=datetime.now(),
             )
 
             amqp_msg = original.to_amqp_message()
@@ -426,12 +412,9 @@ class TestSporeFromAmqpMessage:
         """Test that complex nested knowledge is fully preserved."""
         complex_knowledge = {
             "level1": {
-                "level2": {
-                    "level3": [1, 2, 3],
-                    "mixed": {"a": 1, "b": [4, 5, 6]}
-                }
+                "level2": {"level3": [1, 2, 3], "mixed": {"a": 1, "b": [4, 5, 6]}}
             },
-            "array": [{"id": 1}, {"id": 2}]
+            "array": [{"id": 1}, {"id": 2}],
         }
 
         original = Spore(
@@ -440,7 +423,7 @@ class TestSporeFromAmqpMessage:
             from_agent="system",
             to_agent="processor",
             knowledge=complex_knowledge,
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         amqp_msg = original.to_amqp_message()
@@ -463,8 +446,8 @@ class TestSporeAmqpRoundtrip:
                     from_agent="a1",
                     to_agent="a2",
                     knowledge={"x": 1},
-                    created_at=datetime(2025, 11, 7, 10, 0, 0)
-                )
+                    created_at=datetime(2025, 11, 7, 10, 0, 0),
+                ),
             },
             {
                 "name": "broadcast",
@@ -474,8 +457,8 @@ class TestSporeAmqpRoundtrip:
                     from_agent="broadcaster",
                     to_agent=None,
                     knowledge={"msg": "all"},
-                    created_at=datetime(2025, 11, 7, 10, 0, 0)
-                )
+                    created_at=datetime(2025, 11, 7, 10, 0, 0),
+                ),
             },
             {
                 "name": "request_response",
@@ -486,9 +469,9 @@ class TestSporeAmqpRoundtrip:
                     to_agent="responder",
                     knowledge={"q": "answer?"},
                     created_at=datetime(2025, 11, 7, 10, 0, 0),
-                    reply_to="original-123"
-                )
-            }
+                    reply_to="original-123",
+                ),
+            },
         ]
 
         for test_case in test_cases:
@@ -498,11 +481,21 @@ class TestSporeAmqpRoundtrip:
 
             # Check all fields match
             assert restored.id == original.id, f"ID mismatch in {test_case['name']}"
-            assert restored.spore_type == original.spore_type, f"Type mismatch in {test_case['name']}"
-            assert restored.from_agent == original.from_agent, f"From agent mismatch in {test_case['name']}"
-            assert restored.to_agent == original.to_agent, f"To agent mismatch in {test_case['name']}"
-            assert restored.knowledge == original.knowledge, f"Knowledge mismatch in {test_case['name']}"
-            assert restored.priority == original.priority, f"Priority mismatch in {test_case['name']}"
+            assert (
+                restored.spore_type == original.spore_type
+            ), f"Type mismatch in {test_case['name']}"
+            assert (
+                restored.from_agent == original.from_agent
+            ), f"From agent mismatch in {test_case['name']}"
+            assert (
+                restored.to_agent == original.to_agent
+            ), f"To agent mismatch in {test_case['name']}"
+            assert (
+                restored.knowledge == original.knowledge
+            ), f"Knowledge mismatch in {test_case['name']}"
+            assert (
+                restored.priority == original.priority
+            ), f"Priority mismatch in {test_case['name']}"
 
     def test_multiple_roundtrips_stable(self):
         """Test that spore remains stable across multiple roundtrip conversions."""
@@ -512,7 +505,7 @@ class TestSporeAmqpRoundtrip:
             from_agent="sender",
             to_agent="receiver",
             knowledge={"data": "value"},
-            created_at=datetime(2025, 11, 7, 12, 0, 0)
+            created_at=datetime(2025, 11, 7, 12, 0, 0),
         )
 
         # Do multiple roundtrips
@@ -536,7 +529,7 @@ class TestSporeAmqpRoundtrip:
                 to_agent="receiver",
                 knowledge={"priority": priority},
                 created_at=datetime.now(),
-                priority=priority
+                priority=priority,
             )
 
             amqp_msg = original.to_amqp_message()

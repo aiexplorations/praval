@@ -5354,3 +5354,53 @@ The coral reef metaphor isn't just poetic—it's prophetic. Just as coral reefs 
 In simplicity lies the ultimate sophistication. In collaboration lies the future of intelligence.
 
 *"The whole is greater than the sum of its parts"* — but only when the parts are designed to work together beautifully.
+
+---
+
+## Human-in-the-Loop Interventions (v0.7.22)
+
+Praval 0.7.22 introduces an agent-gated HITL flow for tool calls:
+
+- `@agent(..., hitl=False)` (default): no intervention workflow for that agent.
+- `@agent(..., hitl=True)`: tool calls can pause for human decisions.
+
+Tool approval metadata is declared at the `@tool` level:
+
+- `requires_approval`
+- `risk_level`
+- `approval_reason`
+
+### Runtime Flow
+
+1. Agent invokes `chat(...)` and provider emits tool call.
+2. If tool requires approval:
+   - HITL-enabled agent: stores intervention + suspended run and raises `InterventionRequired`.
+   - HITL-disabled agent: raises `HITLConfigurationError`.
+3. Human approves/rejects/edits intervention.
+4. Resume deterministically with `agent.resume_run(run_id)`.
+
+### Python API
+
+```python
+try:
+    agent.chat("Run critical tool")
+except InterventionRequired as interruption:
+    agent.approve_intervention(interruption.intervention_id, reviewer="oncall")
+    final = agent.resume_run(interruption.run_id)
+```
+
+### CLI API
+
+```bash
+praval hitl pending
+praval hitl show <intervention_id>
+praval hitl approve <intervention_id> --reviewer oncall
+praval hitl reject <intervention_id> --reason "unsafe"
+praval hitl resume <run_id>
+```
+
+### Troubleshooting
+
+- `HITLConfigurationError`: tool requires approval but agent is `hitl=False`.
+- `InterventionRequired` remains unresolved: check `praval hitl pending`.
+- Resume fails due missing agent in CLI process: import/initialize the agent module before `praval hitl resume`.

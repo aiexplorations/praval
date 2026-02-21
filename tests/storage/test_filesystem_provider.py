@@ -4,17 +4,17 @@ Tests for FileSystem storage provider.
 These tests use a temporary directory and don't require any external services.
 """
 
-import asyncio
 import json
 import os
-import pytest
 import tempfile
-from io import BytesIO, StringIO
+from io import StringIO
 from pathlib import Path
 
+import pytest
+
+from praval.storage.base_provider import StorageType
+from praval.storage.exceptions import StorageConfigurationError, StorageConnectionError
 from praval.storage.providers.filesystem import FileSystemProvider
-from praval.storage.base_provider import StorageType, StorageResult
-from praval.storage.exceptions import StorageConnectionError, StorageConfigurationError
 
 
 @pytest.fixture
@@ -54,10 +54,9 @@ class TestFileSystemProviderInit:
         new_dir = os.path.join(temp_dir, "new_subdir")
         assert not os.path.exists(new_dir)
 
-        provider = FileSystemProvider("test_fs", {
-            "base_path": new_dir,
-            "create_directories": True
-        })
+        _ = FileSystemProvider(
+            "test_fs", {"base_path": new_dir, "create_directories": True}
+        )
 
         assert os.path.exists(new_dir)
         assert os.path.isdir(new_dir)
@@ -67,10 +66,9 @@ class TestFileSystemProviderInit:
         non_existent = os.path.join(temp_dir, "nonexistent")
 
         with pytest.raises(StorageConfigurationError) as exc_info:
-            FileSystemProvider("test_fs", {
-                "base_path": non_existent,
-                "create_directories": False
-            })
+            FileSystemProvider(
+                "test_fs", {"base_path": non_existent, "create_directories": False}
+            )
 
         assert "does not exist" in str(exc_info.value)
 

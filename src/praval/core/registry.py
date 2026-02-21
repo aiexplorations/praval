@@ -8,7 +8,8 @@ Thread-safe for concurrent agent registration and lookup.
 """
 
 import threading
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from .agent import Agent
 
 
@@ -40,10 +41,7 @@ class PravalRegistry:
             # Also register all tools from this agent
             for tool_name, tool_info in agent.tools.items():
                 full_tool_name = f"{agent.name}.{tool_name}"
-                self._tools[full_tool_name] = {
-                    **tool_info,
-                    "agent": agent.name
-                }
+                self._tools[full_tool_name] = {**tool_info, "agent": agent.name}
 
         return agent
 

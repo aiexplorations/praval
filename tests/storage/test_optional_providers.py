@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -47,12 +46,15 @@ async def test_postgresql_provider_basic_flow(monkeypatch):
     monkeypatch.setattr(pg, "ASYNCPG_AVAILABLE", True)
     monkeypatch.setattr(pg, "asyncpg", FakeAsyncpg)
 
-    provider = pg.PostgreSQLProvider("pg", {
-        "host": "localhost",
-        "database": "db",
-        "user": "user",
-        "password": "pw",
-    })
+    provider = pg.PostgreSQLProvider(
+        "pg",
+        {
+            "host": "localhost",
+            "database": "db",
+            "user": "user",
+            "password": "pw",
+        },
+    )
 
     await provider.connect()
     res = await provider.store("items", {"id": 1, "name": "row"})
@@ -188,7 +190,9 @@ async def test_s3_provider_basic_flow(monkeypatch):
         def head_bucket(self, Bucket=None):
             return None
 
-        def put_object(self, Bucket=None, Key=None, Body=None, Metadata=None, ContentType=None):
+        def put_object(
+            self, Bucket=None, Key=None, Body=None, Metadata=None, ContentType=None
+        ):
             self.objects[Key] = Body
             return {"ETag": "etag"}
 
@@ -203,7 +207,11 @@ async def test_s3_provider_basic_flow(monkeypatch):
             return {"Contents": []}
 
         def head_object(self, Bucket=None, Key=None):
-            return {"ContentLength": 0, "LastModified": datetime.utcnow(), "ETag": "etag"}
+            return {
+                "ContentLength": 0,
+                "LastModified": datetime.utcnow(),
+                "ETag": "etag",
+            }
 
         def generate_presigned_url(self, *args, **kwargs):
             return "http://example.com"
@@ -270,7 +278,15 @@ async def test_qdrant_provider_basic_flow(monkeypatch):
         def scroll(self, collection_name=None, limit=None, offset=None):
             return ([], None)
 
-        def search(self, collection_name=None, query_vector=None, limit=None, with_payload=None, with_vectors=None, query_filter=None):
+        def search(
+            self,
+            collection_name=None,
+            query_vector=None,
+            limit=None,
+            with_payload=None,
+            with_vectors=None,
+            query_filter=None,
+        ):
             return []
 
         def delete(self, collection_name=None, points_selector=None):
@@ -328,7 +344,9 @@ async def test_qdrant_provider_basic_flow(monkeypatch):
     provider = qp.QdrantProvider("q", {"url": "http://localhost:6333"})
     await provider.connect()
 
-    res = await provider.store("items", {"id": "p1", "vector": [0.1, 0.2, 0.3], "payload": {"a": 1}})
+    res = await provider.store(
+        "items", {"id": "p1", "vector": [0.1, 0.2, 0.3], "payload": {"a": 1}}
+    )
     assert res.success
 
     res = await provider.query("items", "search", vector=[0.1, 0.2, 0.3])

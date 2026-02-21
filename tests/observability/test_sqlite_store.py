@@ -2,13 +2,12 @@
 Tests for SQLite trace storage.
 """
 
-import tempfile
 import os
-import pytest
+import tempfile
 from pathlib import Path
 
 from praval.observability.storage.sqlite_store import SQLiteTraceStore
-from praval.observability.tracing.span import Span, SpanKind, SpanStatus
+from praval.observability.tracing.span import Span
 
 
 class TestSQLiteTraceStore:
@@ -23,6 +22,7 @@ class TestSQLiteTraceStore:
     def teardown_method(self):
         """Clean up temporary database."""
         import shutil
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
@@ -32,11 +32,7 @@ class TestSQLiteTraceStore:
 
     def test_store_span(self):
         """Test storing a single span."""
-        span = Span(
-            name="test.operation",
-            trace_id="trace123",
-            span_id="span456"
-        )
+        span = Span(name="test.operation", trace_id="trace123", span_id="span456")
         span.set_attribute("key", "value")
         span.end()
 
@@ -52,7 +48,7 @@ class TestSQLiteTraceStore:
         spans = [
             Span(name="span1", trace_id="trace1", span_id="span1"),
             Span(name="span2", trace_id="trace1", span_id="span2"),
-            Span(name="span3", trace_id="trace2", span_id="span3")
+            Span(name="span3", trace_id="trace2", span_id="span3"),
         ]
 
         for span in spans:
@@ -71,18 +67,14 @@ class TestSQLiteTraceStore:
         trace_id = "trace123"
 
         # Create parent and child spans
-        parent = Span(
-            name="parent",
-            trace_id=trace_id,
-            span_id="parent456"
-        )
+        parent = Span(name="parent", trace_id=trace_id, span_id="parent456")
         parent.end()
 
         child = Span(
             name="child",
             trace_id=trace_id,
             span_id="child789",
-            parent_span_id="parent456"
+            parent_span_id="parent456",
         )
         child.end()
 
@@ -122,7 +114,7 @@ class TestSQLiteTraceStore:
         spans = [
             Span(name="agent.researcher.execute", trace_id="t1", span_id="s1"),
             Span(name="agent.analyzer.execute", trace_id="t2", span_id="s2"),
-            Span(name="llm.chat", trace_id="t3", span_id="s3")
+            Span(name="llm.chat", trace_id="t3", span_id="s3"),
         ]
 
         for span in spans:
@@ -205,7 +197,9 @@ class TestSQLiteTraceStore:
         old_span.end()
 
         # Create recent span
-        recent_span = Span(name="recent", trace_id="recent_trace", span_id="recent_span")
+        recent_span = Span(
+            name="recent", trace_id="recent_trace", span_id="recent_span"
+        )
         recent_span.end()
 
         self.store.store_span(old_span)
@@ -273,8 +267,7 @@ class TestSQLiteTraceStore:
 
         # Create multiple threads storing spans concurrently
         threads = [
-            threading.Thread(target=store_spans, args=(i * 10,))
-            for i in range(5)
+            threading.Thread(target=store_spans, args=(i * 10,)) for i in range(5)
         ]
 
         for t in threads:
@@ -309,11 +302,12 @@ class TestSQLiteTraceStorePathHandling:
         temp_dir = tempfile.mkdtemp()
         nested_path = os.path.join(temp_dir, "nested", "dir", "traces.db")
 
-        store = SQLiteTraceStore(nested_path)
+        _ = SQLiteTraceStore(nested_path)
 
         assert Path(nested_path).parent.exists()
         assert Path(nested_path).exists()
 
         # Cleanup
         import shutil
+
         shutil.rmtree(temp_dir)

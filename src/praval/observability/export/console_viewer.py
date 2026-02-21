@@ -8,8 +8,7 @@ Displays traces in a tree format showing:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -212,11 +211,11 @@ def print_traces(
 
     # Get spans
     if trace_ids:
-        spans = []
+        spans: List[Dict[str, Any]] = []
         for trace_id in trace_ids:
             spans.extend(store.get_trace(trace_id))
     else:
-        spans = store.get_recent_traces(limit=limit)
+        spans = cast(List[Dict[str, Any]], store.get_recent_traces(limit=limit))
 
     if not spans:
         print("No traces found")

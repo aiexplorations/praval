@@ -17,7 +17,10 @@ from praval import tool
     description="Add two numbers together",
     category="arithmetic",
     shared=False,
-    version="1.0.0"
+    version="1.0.0",
+    requires_approval=True,
+    risk_level="high",
+    approval_reason="This tool changes billing data."
 )
 def add_numbers(x: float, y: float) -> float:
     """Add two numbers and return the result."""
@@ -43,6 +46,7 @@ The `@agent` decorator supports tool selection:
 - `tools`: list of tool names or callables to attach
 - `tool_categories`: attach all tools in the listed categories
 - `auto_discover_tools`: when `True` (default), attach tools that are owned by the agent, shared, or already assigned in the registry
+- `hitl`: when `True`, the agent can pause on approval-gated tools (`False` by default)
 
 ```python
 from praval import agent
@@ -51,7 +55,8 @@ from praval import agent
     "calculator",
     tools=["add_numbers"],
     tool_categories=["arithmetic"],
-    auto_discover_tools=True
+    auto_discover_tools=True,
+    hitl=True
 )
 def calculator_agent(spore):
     return {"status": "ready"}
@@ -92,4 +97,25 @@ list_tools(shared_only=True)
 
 ## Execution Notes
 
-Tools are plain Python functions. You can invoke them directly, and the `Agent.chat(...)` flow passes registered tools to supported providers for tool-calling where available.
+Tools are plain Python functions. You can invoke them directly, and the
+`Agent.chat(...)` flow passes registered tools to supported providers for
+tool-calling where available.
+
+### HITL Approval Metadata
+
+Tool metadata now supports human-approval gating:
+
+- `requires_approval` (`bool`): if `True`, tool calls require human decision.
+- `risk_level` (`low|medium|high|critical`): operator-facing risk category.
+- `approval_reason` (`str`): shown in intervention queue/UI for context.
+
+If `requires_approval=True` and the agent is decorated with `hitl=False`,
+Praval raises `HITLConfigurationError` to prevent silent bypass of policy.
+
+### Intervention Workflow
+
+When a gated tool call occurs on `@agent(..., hitl=True)`:
+
+1. `Agent.chat(...)` raises `InterventionRequired`.
+2. Human approves/rejects/edits via Python API or CLI.
+3. Resume with `agent.resume_run(run_id)` (or `praval hitl resume <run_id>`).

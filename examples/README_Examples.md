@@ -259,6 +259,30 @@ The progression shows how:
 - **Coordinated systems** (004-006) enable reliable, scalable operations
 - **Emergent networks** (007-009) achieve true collective intelligence
 
+---
+
+## 🤝 HITL Examples (0.7.22)
+
+### **015: HITL Tool Approval** `015_hitl_tool_approval.py`
+**Core Concept:** Human approval gate on tool calls using `@agent(hitl=True)`.
+
+**What you'll learn:**
+- How `requires_approval=True` tools pause execution
+- How to inspect/approve interventions
+- How to resume the interrupted run deterministically
+
+**Run:** `python examples/015_hitl_tool_approval.py`
+
+### **016: Mixed HITL Agents** `016_hitl_mixed_agents.py`
+**Core Concept:** Selective HITL enablement per agent.
+
+**What you'll learn:**
+- `hitl=False` remains non-HITL (and raises config error if approval is required)
+- `hitl=True` enables intervention workflow for the same tool set
+- How to isolate HITL behavior to specific high-risk agents
+
+**Run:** `python examples/016_hitl_mixed_agents.py`
+
 ### The Coral Reef Metaphor
 
 Like a coral reef ecosystem:

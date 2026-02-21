@@ -12,6 +12,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Introduce `ReefCore` as the internal core implementation.
 - Slim `@agent` decorator into smaller composable decorators.
 
+## [0.7.22] - 2026-02-21
+
+### Added
+- Agent-gated HITL support via `@agent(..., hitl=False|True)` (default `False`).
+- Durable SQLite-backed intervention queue and suspended run state.
+- New HITL package exports: models, runtime, store, and service APIs.
+- CLI commands for intervention operations:
+  - `praval hitl pending`
+  - `praval hitl show <intervention_id>`
+  - `praval hitl approve <intervention_id>`
+  - `praval hitl reject <intervention_id>`
+  - `praval hitl resume <run_id>`
+- Tool metadata fields:
+  - `requires_approval`
+  - `risk_level`
+  - `approval_reason`
+- HITL examples:
+  - `examples/015_hitl_tool_approval.py`
+  - `examples/016_hitl_mixed_agents.py`
+- Release notes: `docs/releases/RELEASE_NOTES_0.7.22.md`
+
+### Changed
+- OpenAI, Anthropic, and Cohere providers now route tool calls through unified HITL runtime when context is supplied.
+- `Agent.chat()` now forwards HITL run context to providers and propagates `InterventionRequired`.
+- `tests/test_all_examples.py` now discovers executable Python examples recursively under `examples/`.
+- Sphinx docs include HITL tutorial and troubleshooting guidance.
+
+### Fixed
+- Prevents silent policy bypass: if a tool requires approval but agent has `hitl=False`, Praval raises `HITLConfigurationError`.
+
+### Migration Notes
+- Handle `InterventionRequired` in callers for HITL-enabled agents.
+- Keep non-HITL agents unchanged by leaving `hitl=False` (default).
+- For approval-gated tools, set `hitl=True` on the owning/executing agent.
+
+### Validation Evidence
+- `make test` passed: `1272 passed, 15 skipped, 28 xfailed, 1 xpassed`.
+- `make test-cov` test execution passed, but coverage gate failed at `82.14%` (target `>=90%`).
+- `make lint` and `make type-check` remain blocked by pre-existing repo-wide lint/mypy backlog.
+- Example sweep (`python tests/test_all_examples.py`) status: `30 passed, 0 failed`.
+- HITL examples pass:
+  - `examples/015_hitl_tool_approval.py`
+  - `examples/016_hitl_mixed_agents.py`
+- Docker example validation script passed:
+  - `scripts/test-docker-examples.sh`
+
 
 ## [0.7.21] - 2026-02-09
 
@@ -779,6 +825,7 @@ Use these keywords in commit messages to trigger automatic version bumps:
 - `style:` - Code style changes
 - `chore:` - Maintenance tasks
 
-[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.7.21...HEAD
+[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.7.22...HEAD
+[0.7.22]: https://github.com/aiexplorations/praval/compare/v0.7.21...v0.7.22
 [0.7.21]: https://github.com/aiexplorations/praval/compare/v0.7.20...v0.7.21
 [0.5.0]: https://github.com/aiexplorations/praval/releases/tag/v0.5.0

@@ -5,11 +5,12 @@ This tests the fix for the issue where re-registering an agent
 (common in Jupyter notebooks) would cause duplicate message handling.
 """
 
-import pytest
 import time
-from praval import agent, start_agents, broadcast
+
+import pytest
+
+from praval import agent, start_agents
 from praval.core.reef import get_reef
-from praval.core.registry import get_registry
 
 
 def test_agent_reregistration_replaces_handler():
@@ -28,9 +29,8 @@ def test_agent_reregistration_replaces_handler():
         return {"version": 1}
 
     # Send a message
-    result = start_agents(
-        first_agent,
-        initial_data={"type": "test_message", "content": "hello"}
+    _ = start_agents(
+        first_agent, initial_data={"type": "test_message", "content": "hello"}
     )
     time.sleep(0.1)  # Allow async handlers to execute
 
@@ -40,7 +40,8 @@ def test_agent_reregistration_replaces_handler():
     # Clear response count
     response_count.clear()
 
-    # Re-define the same agent with THE SAME NAME (simulating re-running a notebook cell)
+    # Re-define the same agent with THE SAME NAME (simulating re-running a notebook
+    # cell)
     @agent("test_agent_unique_1", responds_to=["test_message"])
     def first_agent(spore):
         """Second version of the agent - same name."""
@@ -48,14 +49,17 @@ def test_agent_reregistration_replaces_handler():
         return {"version": 2}
 
     # Send another message
-    result = start_agents(
-        first_agent,
-        initial_data={"type": "test_message", "content": "hello again"}
+    _ = start_agents(
+        first_agent, initial_data={"type": "test_message", "content": "hello again"}
     )
     time.sleep(0.1)  # Allow async handlers to execute
 
     # Should still respond only once (not twice!)
-    assert len(response_count) == 1, f"Expected 1 response after re-registration, got {len(response_count)}. This means the old handler wasn't replaced!"
+    assert len(response_count) == 1, (
+        f"Expected 1 response after re-registration, got "
+        f"{len(response_count)}. This means the old handler wasn't "
+        f"replaced!"
+    )
 
 
 def test_channel_subscribe_replace_default():
@@ -84,7 +88,9 @@ def test_channel_subscribe_replace_default():
     channel.subscribe("agent1", handler2)
 
     # Should still have only one handler
-    assert len(channel.subscribers["agent1"]) == 1, "Handler should have been replaced, not appended"
+    assert (
+        len(channel.subscribers["agent1"]) == 1
+    ), "Handler should have been replaced, not appended"
 
     # Verify it's the second handler by checking the function
     assert channel.subscribers["agent1"][0] == handler2
@@ -113,7 +119,9 @@ def test_channel_subscribe_no_replace():
     channel.subscribe("agent1", handler2, replace=False)
 
     # Should now have two handlers
-    assert len(channel.subscribers["agent1"]) == 2, "Handler should have been appended when replace=False"
+    assert (
+        len(channel.subscribers["agent1"]) == 2
+    ), "Handler should have been appended when replace=False"
 
 
 def test_multiple_agents_independent():
@@ -131,11 +139,7 @@ def test_multiple_agents_independent():
         return {"agent": 2}
 
     # Both agents should respond once
-    start_agents(
-        first_agent,
-        second_agent,
-        initial_data={"type": "test"}
-    )
+    start_agents(first_agent, second_agent, initial_data={"type": "test"})
     time.sleep(0.1)  # Allow async handlers to execute
 
     assert response_counts["agent1"] == 1
@@ -148,15 +152,14 @@ def test_multiple_agents_independent():
         return {"agent": 1, "version": 2}
 
     # Send another message
-    start_agents(
-        first_agent,
-        second_agent,
-        initial_data={"type": "test"}
-    )
+    start_agents(first_agent, second_agent, initial_data={"type": "test"})
     time.sleep(0.1)  # Allow async handlers to execute
 
     # Agent1 should have responded once more (not twice!)
-    assert response_counts["agent1"] == 2, f"Agent1 responded {response_counts['agent1'] - 1} times on second call, expected 1"
+    assert response_counts["agent1"] == 2, (
+        f"Agent1 responded {response_counts['agent1'] - 1} times on second "
+        f"call, expected 1"
+    )
     # Agent2 should also have responded once more
     assert response_counts["agent2"] == 2
 

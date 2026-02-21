@@ -18,4 +18,9 @@ if __name__ == "__main__":
         "description": "Get weather",
         "parameters": {"city": {"type": "str", "required": True}}
     }
-    print(llm.chat("What's the weather in Paris?"))
+    try:
+        print(llm.chat("What's the weather in Paris?"))
+    except Exception as exc:
+        # Keep this example runnable in offline/test environments.
+        print(f"LLM unavailable, tool fallback: {exc}")
+        print(get_weather("Paris"))

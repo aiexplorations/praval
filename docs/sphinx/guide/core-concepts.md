@@ -110,6 +110,16 @@ All agents:
 
 This means any agent can work with any other agent.
 
+### 6. Human-in-the-Loop by Agent Boundary
+
+In v0.7.22, HITL is **agent-gated**, not globally enforced:
+
+- `@agent(..., hitl=False)` (default): no HITL workflow for that agent.
+- `@agent(..., hitl=True)`: agent can pause on approval-gated tools.
+
+This keeps low-risk agents fast and fully autonomous while enforcing
+human review only for high-risk agent roles.
+
 ## Core Components
 
 ### Agents

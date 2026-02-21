@@ -7,14 +7,11 @@ This test suite validates that:
 3. The fix doesn't break existing functionality
 """
 
-import time
 import threading
-import pytest
-from unittest.mock import Mock, patch
-from datetime import datetime
+import time
 
+from praval.core.reef import SporeType, get_reef
 from praval.decorators import agent
-from praval.core.reef import Spore, SporeType, get_reef
 
 
 class TestBroadcastInvocation:
@@ -24,28 +21,32 @@ class TestBroadcastInvocation:
         """Reset reef before each test."""
         # Get fresh reef instance for each test
         from praval.core import reef as reef_module
+
         reef_module._global_reef = reef_module.Reef()
 
     def test_agent_receives_broadcast_from_reef(self):
-        """Test that @agent decorated function receives broadcasts from reef.broadcast()."""
+        """
+        Test that @agent decorated function receives broadcasts from reef.broadcast().
+        """
         # Track invocations
         invocations = []
 
         @agent("broadcast_receiver")
         def receiver_agent(spore):
-            invocations.append({
-                "spore_type": spore.spore_type,
-                "from_agent": spore.from_agent,
-                "knowledge": spore.knowledge,
-                "timestamp": time.time()
-            })
+            invocations.append(
+                {
+                    "spore_type": spore.spore_type,
+                    "from_agent": spore.from_agent,
+                    "knowledge": spore.knowledge,
+                    "timestamp": time.time(),
+                }
+            )
             return {"received": True}
 
         # Broadcast a message
         reef = get_reef()
-        spore_id = reef.broadcast(
-            from_agent="system",
-            knowledge={"message": "test_broadcast", "data": 123}
+        _ = reef.broadcast(
+            from_agent="system", knowledge={"message": "test_broadcast", "data": 123}
         )
 
         # Give async handlers time to execute
@@ -75,8 +76,7 @@ class TestBroadcastInvocation:
         # Broadcast
         reef = get_reef()
         reef.broadcast(
-            from_agent="system",
-            knowledge={"type": "test", "value": "shared"}
+            from_agent="system", knowledge={"type": "test", "value": "shared"}
         )
 
         # Wait for async execution
@@ -98,10 +98,9 @@ class TestBroadcastInvocation:
             return {"broadcasted": True}
 
         # The agent broadcasts to itself via reef
-        reef = get_reef()
+        _ = get_reef()
         broadcaster._praval_agent.broadcast_knowledge(
-            {"self": "message"},
-            channel="main"
+            {"self": "message"}, channel="main"
         )
 
         # Wait for async execution
@@ -123,10 +122,7 @@ class TestBroadcastInvocation:
 
         # Broadcast to default channel
         reef = get_reef()
-        reef.broadcast(
-            from_agent="system",
-            knowledge={"test": "no_duplicates"}
-        )
+        reef.broadcast(from_agent="system", knowledge={"test": "no_duplicates"})
 
         # Wait for async execution
         time.sleep(0.5)
@@ -153,7 +149,7 @@ class TestBroadcastInvocation:
             to_agent=None,
             knowledge={"channel": "specific"},
             spore_type=SporeType.BROADCAST,
-            channel="specific_channel"
+            channel="specific_channel",
         )
 
         # Wait for async execution
@@ -182,8 +178,7 @@ class TestBroadcastInvocation:
         # Broadcast a "query" type message
         reef = get_reef()
         reef.broadcast(
-            from_agent="system",
-            knowledge={"type": "query", "question": "What is 2+2?"}
+            from_agent="system", knowledge={"type": "query", "question": "What is 2+2?"}
         )
 
         time.sleep(0.5)
@@ -198,8 +193,7 @@ class TestBroadcastInvocation:
         other_invocations.clear()
 
         reef.broadcast(
-            from_agent="system",
-            knowledge={"type": "notification", "message": "alert"}
+            from_agent="system", knowledge={"type": "notification", "message": "alert"}
         )
 
         time.sleep(0.5)
@@ -216,6 +210,7 @@ class TestBroadcastWithCustomChannels:
     def setup_method(self):
         """Reset reef before each test."""
         from praval.core import reef as reef_module
+
         reef_module._global_reef = reef_module.Reef()
 
     def test_agent_with_custom_channel_still_receives_default_broadcasts(self):
@@ -224,18 +219,17 @@ class TestBroadcastWithCustomChannels:
 
         @agent("custom_channel_agent", channel="my_custom_channel")
         def agent_func(spore):
-            invocations.append({
-                "channel": spore.knowledge.get("_channel", "unknown"),
-                "data": spore.knowledge
-            })
+            invocations.append(
+                {
+                    "channel": spore.knowledge.get("_channel", "unknown"),
+                    "data": spore.knowledge,
+                }
+            )
             return {"status": "ok"}
 
         # Broadcast to default channel
         reef = get_reef()
-        reef.broadcast(
-            from_agent="system",
-            knowledge={"message": "default_broadcast"}
-        )
+        reef.broadcast(from_agent="system", knowledge={"message": "default_broadcast"})
 
         time.sleep(0.5)
 
@@ -255,10 +249,7 @@ class TestBroadcastWithCustomChannels:
         reef = get_reef()
 
         # Broadcast to default channel
-        reef.broadcast(
-            from_agent="system",
-            knowledge={"source": "default_channel"}
-        )
+        reef.broadcast(from_agent="system", knowledge={"source": "default_channel"})
 
         # Create custom channel and send a spore
         reef.create_channel("custom_ch")
@@ -267,7 +258,7 @@ class TestBroadcastWithCustomChannels:
             to_agent="dual_channel_agent",
             knowledge={"source": "custom_channel"},
             spore_type=SporeType.KNOWLEDGE,
-            channel="custom_ch"
+            channel="custom_ch",
         )
 
         time.sleep(0.5)
@@ -285,6 +276,7 @@ class TestBroadcastConcurrency:
     def setup_method(self):
         """Reset reef before each test."""
         from praval.core import reef as reef_module
+
         reef_module._global_reef = reef_module.Reef()
 
     def test_concurrent_broadcasts_dont_lose_messages(self):
@@ -304,12 +296,11 @@ class TestBroadcastConcurrency:
         def send_broadcast(msg_id):
             reef.broadcast(
                 from_agent="system",
-                knowledge={"id": msg_id, "content": f"message_{msg_id}"}
+                knowledge={"id": msg_id, "content": f"message_{msg_id}"},
             )
 
         threads = [
-            threading.Thread(target=send_broadcast, args=(i,))
-            for i in range(10)
+            threading.Thread(target=send_broadcast, args=(i,)) for i in range(10)
         ]
 
         for t in threads:
@@ -322,7 +313,9 @@ class TestBroadcastConcurrency:
         time.sleep(1)
 
         # All messages should be received
-        assert len(invocations) == 10, f"Expected 10 invocations, got {len(invocations)}"
+        assert (
+            len(invocations) == 10
+        ), f"Expected 10 invocations, got {len(invocations)}"
         assert set(invocations) == set(range(10))
 
     def test_broadcast_and_direct_send_concurrent(self):
@@ -333,11 +326,13 @@ class TestBroadcastConcurrency:
         @agent("mixed_receiver")
         def receiver(spore):
             with lock:
-                invocations.append({
-                    "type": spore.spore_type,
-                    "from": spore.from_agent,
-                    "to": spore.to_agent
-                })
+                invocations.append(
+                    {
+                        "type": spore.spore_type,
+                        "from": spore.from_agent,
+                        "to": spore.to_agent,
+                    }
+                )
             return {"processed": True}
 
         reef = get_reef()
@@ -345,8 +340,7 @@ class TestBroadcastConcurrency:
         def send_broadcast():
             for i in range(5):
                 reef.broadcast(
-                    from_agent="system",
-                    knowledge={"type": "broadcast", "id": f"b{i}"}
+                    from_agent="system", knowledge={"type": "broadcast", "id": f"b{i}"}
                 )
                 time.sleep(0.01)
 
@@ -356,7 +350,7 @@ class TestBroadcastConcurrency:
                     from_agent="direct_sender",
                     to_agent="mixed_receiver",
                     knowledge={"type": "direct", "id": f"d{i}"},
-                    spore_type=SporeType.KNOWLEDGE
+                    spore_type=SporeType.KNOWLEDGE,
                 )
                 time.sleep(0.01)
 
@@ -386,6 +380,7 @@ class TestBroadcastRegressions:
     def setup_method(self):
         """Reset reef before each test."""
         from praval.core import reef as reef_module
+
         reef_module._global_reef = reef_module.Reef()
 
     def test_agent_auto_broadcast_still_works(self):
@@ -405,10 +400,7 @@ class TestBroadcastRegressions:
 
         # Send a message to outer_agent
         reef = get_reef()
-        reef.broadcast(
-            from_agent="system",
-            knowledge={"initial": "message"}
-        )
+        reef.broadcast(from_agent="system", knowledge={"initial": "message"})
 
         time.sleep(1)
 
@@ -424,15 +416,12 @@ class TestBroadcastRegressions:
         def mem_agent(spore):
             invocations.append(spore.knowledge)
             # Should be able to use memory methods
-            if hasattr(mem_agent, 'remember'):
+            if hasattr(mem_agent, "remember"):
                 mem_agent.remember(f"Received: {spore.knowledge}")
             return {"processed": True}
 
         reef = get_reef()
-        reef.broadcast(
-            from_agent="system",
-            knowledge={"memo": "test"}
-        )
+        reef.broadcast(from_agent="system", knowledge={"memo": "test"})
 
         time.sleep(0.5)
 

@@ -5,11 +5,10 @@ Handles propagation of trace context through Spore metadata and thread-local sto
 """
 
 import threading
-from typing import Optional
 from collections.abc import Mapping
+from typing import Optional
 
 from .span import Span
-
 
 # Thread-local storage for current span
 _current_span = threading.local()
@@ -29,7 +28,7 @@ class TraceContext:
         self.span_id = span_id
 
     @classmethod
-    def from_span(cls, span: Span) -> 'TraceContext':
+    def from_span(cls, span: Span) -> "TraceContext":
         """Create trace context from a span.
 
         Args:
@@ -41,7 +40,7 @@ class TraceContext:
         return cls(trace_id=span.trace_id, span_id=span.span_id)
 
     @classmethod
-    def from_spore(cls, spore) -> Optional['TraceContext']:
+    def from_spore(cls, spore) -> Optional["TraceContext"]:
         """Extract trace context from Spore metadata.
 
         Args:
@@ -50,17 +49,14 @@ class TraceContext:
         Returns:
             TraceContext if found in metadata, None otherwise
         """
-        if not hasattr(spore, 'metadata') or not spore.metadata:
+        if not hasattr(spore, "metadata") or not spore.metadata:
             return None
 
         metadata = spore.metadata
         if not isinstance(metadata, Mapping):
             return None
         if "trace_id" in metadata and "span_id" in metadata:
-            return cls(
-                trace_id=metadata["trace_id"],
-                span_id=metadata["span_id"]
-            )
+            return cls(trace_id=metadata["trace_id"], span_id=metadata["span_id"])
 
         return None
 
@@ -70,7 +66,7 @@ class TraceContext:
         Args:
             spore: Spore object to inject context into
         """
-        if not hasattr(spore, 'metadata'):
+        if not hasattr(spore, "metadata"):
             return
 
         if spore.metadata is None or not isinstance(spore.metadata, Mapping):
@@ -80,7 +76,7 @@ class TraceContext:
         spore.metadata["span_id"] = self.span_id
 
     @classmethod
-    def current(cls) -> Optional['TraceContext']:
+    def current(cls) -> Optional["TraceContext"]:
         """Get current trace context from thread-local storage.
 
         Returns:
@@ -98,7 +94,7 @@ def get_current_span() -> Optional[Span]:
     Returns:
         Current Span if available, None otherwise
     """
-    return getattr(_current_span, 'span', None)
+    return getattr(_current_span, "span", None)
 
 
 def set_current_span(span: Optional[Span]) -> None:

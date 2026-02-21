@@ -5,14 +5,13 @@ Stores traces locally for querying and analysis.
 """
 
 import json
+import logging
 import sqlite3
 import threading
-import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from ..tracing.span import Span
-
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,9 @@ class SQLiteTraceStore:
         except (OSError, sqlite3.OperationalError) as e:
             # Defer hard failure until a connection is actually requested.
             self._init_error = e
-            logger.warning(f"Failed to initialize SQLite trace store at {self.db_path}: {e}")
+            logger.warning(
+                f"Failed to initialize SQLite trace store at {self.db_path}: {e}"
+            )
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection.
@@ -99,26 +100,29 @@ class SQLiteTraceStore:
         with self._lock:
             conn = self._get_connection()
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO spans
                     (span_id, trace_id, parent_span_id, name, kind,
                      start_time, end_time, duration_ms,
                      attributes, events, status, status_message)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    span.span_id,
-                    span.trace_id,
-                    span.parent_span_id,
-                    span.name,
-                    span.kind.value,
-                    span.start_time,
-                    span.end_time,
-                    span.duration_ms(),
-                    json.dumps(span.attributes),
-                    json.dumps([e.to_dict() for e in span.events]),
-                    span.status.value,
-                    span.status_message
-                ))
+                """,
+                    (
+                        span.span_id,
+                        span.trace_id,
+                        span.parent_span_id,
+                        span.name,
+                        span.kind.value,
+                        span.start_time,
+                        span.end_time,
+                        span.duration_ms(),
+                        json.dumps(span.attributes),
+                        json.dumps([e.to_dict() for e in span.events]),
+                        span.status.value,
+                        span.status_message,
+                    ),
+                )
                 conn.commit()
             finally:
                 conn.close()
@@ -136,26 +140,29 @@ class SQLiteTraceStore:
             conn = self._get_connection()
             try:
                 for span in spans:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT OR REPLACE INTO spans
                         (span_id, trace_id, parent_span_id, name, kind,
                          start_time, end_time, duration_ms,
                          attributes, events, status, status_message)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        span.span_id,
-                        span.trace_id,
-                        span.parent_span_id,
-                        span.name,
-                        span.kind.value,
-                        span.start_time,
-                        span.end_time,
-                        span.duration_ms(),
-                        json.dumps(span.attributes),
-                        json.dumps([e.to_dict() for e in span.events]),
-                        span.status.value,
-                        span.status_message
-                    ))
+                    """,
+                        (
+                            span.span_id,
+                            span.trace_id,
+                            span.parent_span_id,
+                            span.name,
+                            span.kind.value,
+                            span.start_time,
+                            span.end_time,
+                            span.duration_ms(),
+                            json.dumps(span.attributes),
+                            json.dumps([e.to_dict() for e in span.events]),
+                            span.status.value,
+                            span.status_message,
+                        ),
+                    )
                 conn.commit()
             finally:
                 conn.close()
@@ -171,18 +178,21 @@ class SQLiteTraceStore:
         """
         conn = self._get_connection()
         try:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT * FROM spans
                 WHERE trace_id = ?
                 ORDER BY start_time
-            """, (trace_id,))
+            """,
+                (trace_id,),
+            )
 
             spans = []
             for row in cursor:
                 span_dict = dict(row)
                 # Parse JSON fields
-                span_dict['attributes'] = json.loads(span_dict['attributes'])
-                span_dict['events'] = json.loads(span_dict['events'])
+                span_dict["attributes"] = json.loads(span_dict["attributes"])
+                span_dict["events"] = json.loads(span_dict["events"])
                 spans.append(span_dict)
 
             return spans
@@ -200,14 +210,17 @@ class SQLiteTraceStore:
         """
         conn = self._get_connection()
         try:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT DISTINCT trace_id
                 FROM spans
                 ORDER BY start_time DESC
                 LIMIT ?
-            """, (limit,))
+            """,
+                (limit,),
+            )
 
-            return [row['trace_id'] for row in cursor]
+            return [row["trace_id"] for row in cursor]
         finally:
             conn.close()
 
@@ -216,7 +229,7 @@ class SQLiteTraceStore:
         agent_name: Optional[str] = None,
         status: Optional[str] = None,
         min_duration_ms: Optional[float] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Query spans with filters.
 
@@ -230,7 +243,7 @@ class SQLiteTraceStore:
             List of span dictionaries
         """
         query = "SELECT * FROM spans WHERE 1=1"
-        params = []
+        params: List[Any] = []
 
         if agent_name:
             query += " AND name LIKE ?"
@@ -254,8 +267,8 @@ class SQLiteTraceStore:
             spans = []
             for row in cursor:
                 span_dict = dict(row)
-                span_dict['attributes'] = json.loads(span_dict['attributes'])
-                span_dict['events'] = json.loads(span_dict['events'])
+                span_dict["attributes"] = json.loads(span_dict["attributes"])
+                span_dict["events"] = json.loads(span_dict["events"])
                 spans.append(span_dict)
 
             return spans
@@ -270,14 +283,16 @@ class SQLiteTraceStore:
         """
         conn = self._get_connection()
         try:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT
                     COUNT(DISTINCT trace_id) as trace_count,
                     COUNT(*) as span_count,
                     AVG(duration_ms) as avg_duration_ms,
                     MAX(start_time) as latest_span_time
                 FROM spans
-            """)
+            """
+            )
 
             row = cursor.fetchone()
             return dict(row) if row else {}
@@ -301,10 +316,13 @@ class SQLiteTraceStore:
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     DELETE FROM spans
                     WHERE start_time < ?
-                """, (int(cutoff_ns),))
+                """,
+                    (int(cutoff_ns),),
+                )
 
                 deleted = cursor.rowcount
                 conn.commit()
@@ -327,6 +345,7 @@ def get_trace_store() -> SQLiteTraceStore:
 
     if _global_store is None:
         from ..config import get_config
+
         config = get_config()
         _global_store = SQLiteTraceStore(config.storage_path)
 
