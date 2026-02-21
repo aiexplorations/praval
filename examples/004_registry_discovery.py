@@ -23,8 +23,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from praval import agent, broadcast, start_agents, get_registry, get_reef
 
+LLM_AVAILABLE = any(
+    os.getenv(key)
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "COHERE_API_KEY")
+)
 
-@agent("coordinator")
+
+def maybe_chat(prompt: str, fallback: str) -> str:
+    """Use chat() only when an LLM key is configured; otherwise use fallback."""
+    if not LLM_AVAILABLE:
+        return fallback
+
+    try:
+        from praval import chat
+        return chat(prompt)
+    except Exception:
+        return fallback
+
+
+@agent("coordinator", responds_to=["task_request"], auto_broadcast=False)
 def task_coordinator(spore):
     """
     I coordinate complex tasks by discovering available specialists
@@ -43,28 +60,37 @@ def task_coordinator(spore):
         if agent_info["name"] != "coordinator":  # Don't include self
             print(f"   - {agent_info['name']}")
     
-    # Determine what type of help is needed with fallback
-    try:
-        from praval import chat
-        task_analysis = chat(f"""
+    # Fallback analysis based on task type
+    if "plan" in task.lower() or "design" in task.lower():
+        fallback_analysis = (
+            "This task requires research specialists for background information, "
+            "planning specialists for structure, and quality specialists for review."
+        )
+    elif "create" in task.lower() or "develop" in task.lower():
+        fallback_analysis = (
+            "This task needs creative specialists for ideation, research specialists "
+            "for context, and planning specialists for implementation."
+        )
+    else:
+        fallback_analysis = (
+            "This task would benefit from research specialists, planning specialists, "
+            "and quality review specialists."
+        )
+
+    task_analysis = maybe_chat(
+        f"""
         For the task: "{task}"
-        
+
         What types of specialists would be most helpful? Consider:
         - Research specialists (for gathering information)
         - Planning specialists (for structuring approaches)
         - Creative specialists (for innovative ideas)
         - Quality specialists (for evaluation and refinement)
-        
+
         Return a brief analysis of what specialist capabilities are needed.
-        """)
-    except Exception:
-        # Fallback analysis based on task type
-        if "plan" in task.lower() or "design" in task.lower():
-            task_analysis = "This task requires research specialists for background information, planning specialists for structure, and quality specialists for review."
-        elif "create" in task.lower() or "develop" in task.lower():
-            task_analysis = "This task needs creative specialists for ideation, research specialists for context, and planning specialists for implementation."
-        else:
-            task_analysis = "This task would benefit from research specialists, planning specialists, and quality review specialists."
+        """,
+        fallback_analysis,
+    )
     
     print(f"🎯 Coordinator: Task needs - {task_analysis}")
     
@@ -79,7 +105,7 @@ def task_coordinator(spore):
     return {"task_analysis": task_analysis}
 
 
-@agent("researcher", responds_to=["seeking_specialists"])
+@agent("researcher", responds_to=["seeking_specialists"], auto_broadcast=False)
 def research_specialist(spore):
     """
     I specialize in researching topics and gathering relevant
@@ -92,24 +118,24 @@ def research_specialist(spore):
     if "research" in analysis.lower() or "information" in analysis.lower():
         print(f"📚 Researcher: I can help with research for '{task}'")
         
-        # Research with fallback
-        try:
-            from praval import chat
-            research = chat(f"""
+        # Fallback research
+        fallback_research = f"""Research insights for "{task}":
+        
+        - Background: This type of task typically requires careful planning, stakeholder consideration, and iterative implementation.
+        - Best practices: Start small, gather feedback early, involve key stakeholders, and maintain clear communication.
+        - Resources: Consider existing frameworks, industry standards, and successful case studies in similar domains.
+        - Challenges: Resource constraints, stakeholder alignment, timeline pressures, and maintaining quality standards."""
+
+        research = maybe_chat(
+            f"""
             For the task "{task}", provide key research insights:
             - Important background information
             - Best practices or proven approaches
             - Resources or examples to consider
             - Potential challenges to be aware of
-            """)
-        except Exception:
-            # Fallback research
-            research = f"""Research insights for "{task}":
-            
-            - Background: This type of task typically requires careful planning, stakeholder consideration, and iterative implementation.
-            - Best practices: Start small, gather feedback early, involve key stakeholders, and maintain clear communication.
-            - Resources: Consider existing frameworks, industry standards, and successful case studies in similar domains.
-            - Challenges: Resource constraints, stakeholder alignment, timeline pressures, and maintaining quality standards."""
+            """,
+            fallback_research,
+        )
         
         print(f"📖 Researcher: {research}")
         
@@ -126,7 +152,11 @@ def research_specialist(spore):
         return {"status": "not_applicable"}
 
 
-@agent("planner", responds_to=["seeking_specialists", "research_contribution"])
+@agent(
+    "planner",
+    responds_to=["seeking_specialists", "research_contribution"],
+    auto_broadcast=False,
+)
 def planning_specialist(spore):
     """
     I specialize in creating structured plans and organizing
@@ -144,42 +174,42 @@ def planning_specialist(spore):
     elif message_type == "research_contribution":
         research = spore.knowledge.get("research", "")
         
-        # Planning with fallback
-        try:
-            from praval import chat
-            plan = chat(f"""
+        # Fallback plan
+        fallback_plan = f"""Structured Plan for "{task}":
+        
+        Objectives: Deliver a comprehensive solution that meets stakeholder needs and can be implemented effectively.
+        
+        Phase 1: Discovery and Research
+        - Gather requirements and constraints
+        - Identify stakeholders and resources
+        
+        Phase 2: Design and Planning
+        - Create detailed specifications
+        - Develop implementation timeline
+        
+        Phase 3: Implementation
+        - Execute plan in manageable increments
+        - Monitor progress and adjust as needed
+        
+        Phase 4: Review and Optimization
+        - Evaluate results against objectives
+        - Implement improvements and lessons learned
+        
+        Success Criteria: Clear deliverables, stakeholder satisfaction, and sustainable outcomes."""
+
+        plan = maybe_chat(
+            f"""
             Based on this research for "{task}":
             {research}
-            
+
             Create a structured plan with:
             - Clear objectives
             - 4-6 main steps or phases  
             - Key considerations for each step
             - Success criteria
-            """)
-        except Exception:
-            # Fallback plan
-            plan = f"""Structured Plan for "{task}":
-            
-            Objectives: Deliver a comprehensive solution that meets stakeholder needs and can be implemented effectively.
-            
-            Phase 1: Discovery and Research
-            - Gather requirements and constraints
-            - Identify stakeholders and resources
-            
-            Phase 2: Design and Planning
-            - Create detailed specifications
-            - Develop implementation timeline
-            
-            Phase 3: Implementation
-            - Execute plan in manageable increments
-            - Monitor progress and adjust as needed
-            
-            Phase 4: Review and Optimization
-            - Evaluate results against objectives
-            - Implement improvements and lessons learned
-            
-            Success Criteria: Clear deliverables, stakeholder satisfaction, and sustainable outcomes."""
+            """,
+            fallback_plan,
+        )
         
         print(f"📅 Planner: {plan}")
         
@@ -193,7 +223,7 @@ def planning_specialist(spore):
         return {"plan": plan}
 
 
-@agent("reviewer", responds_to=["plan_created"])
+@agent("reviewer", responds_to=["plan_created"], auto_broadcast=False)
 def quality_reviewer(spore):
     """
     I specialize in reviewing and improving the quality of
@@ -202,31 +232,31 @@ def quality_reviewer(spore):
     task = spore.knowledge.get("task")
     plan = spore.knowledge.get("plan")
     
-    # Review with fallback
-    try:
-        from praval import chat
-        review = chat(f"""
+    # Fallback review
+    fallback_review = f"""Quality Review for "{task}":
+    
+    Strengths: The plan provides a clear phased approach with defined objectives and success criteria. It follows established project management principles.
+    
+    Potential improvements: Consider adding more specific timelines, risk mitigation strategies, and stakeholder communication plans.
+    
+    Suggestions: Include regular checkpoints for progress assessment, define clear roles and responsibilities, and establish feedback mechanisms.
+    
+    Overall assessment: This is a solid foundation that addresses the key aspects of the task. With minor enhancements, it should deliver successful outcomes."""
+
+    review = maybe_chat(
+        f"""
         Review this plan for the task "{task}":
-        
+
         {plan}
-        
+
         As a quality specialist, provide:
         - What's working well in this plan
         - Potential improvements or gaps
         - Suggestions for making it more effective
         - Overall assessment
-        """)
-    except Exception:
-        # Fallback review
-        review = f"""Quality Review for "{task}":
-        
-        Strengths: The plan provides a clear phased approach with defined objectives and success criteria. It follows established project management principles.
-        
-        Potential improvements: Consider adding more specific timelines, risk mitigation strategies, and stakeholder communication plans.
-        
-        Suggestions: Include regular checkpoints for progress assessment, define clear roles and responsibilities, and establish feedback mechanisms.
-        
-        Overall assessment: This is a solid foundation that addresses the key aspects of the task. With minor enhancements, it should deliver successful outcomes."""
+        """,
+        fallback_review,
+    )
     
     print(f"⭐ Reviewer: {review}")
     
@@ -241,7 +271,7 @@ def quality_reviewer(spore):
     return {"review": review}
 
 
-@agent("summarizer", responds_to=["quality_review_complete"])
+@agent("summarizer", responds_to=["quality_review_complete"], auto_broadcast=False)
 def final_summarizer(spore):
     """
     I specialize in synthesizing contributions from multiple
@@ -250,31 +280,31 @@ def final_summarizer(spore):
     task = spore.knowledge.get("task")
     review = spore.knowledge.get("review")
     
-    # Summary with fallback
-    try:
-        from praval import chat
-        summary = chat(f"""
+    # Fallback summary
+    fallback_summary = f"""Collaborative Summary for "{task}":
+    
+    Accomplishments: Through registry-based discovery, multiple specialist agents collaborated to create a comprehensive approach to the task. Each agent contributed their unique expertise when needed.
+    
+    Discovery insights: The registry system enabled dynamic coordination where agents self-selected based on task requirements, demonstrating loose coupling and adaptive collaboration.
+    
+    Specialist contributions: The coordinator orchestrated the process, researchers provided context, planners created structure, and reviewers ensured quality - each adding value at the right moment.
+    
+    Value of coordination: This approach shows how complex tasks can be handled through emergent collaboration rather than rigid orchestration, creating more robust and adaptable solutions."""
+
+    summary = maybe_chat(
+        f"""
         Create a final summary for the task: "{task}"
-        
+
         Based on the collaborative effort and quality review: {review}
-        
+
         Provide:
         - What was accomplished through agent collaboration
         - Key insights from the registry-based discovery process
         - How different specialists contributed their expertise
         - The value of dynamic agent coordination
-        """)
-    except Exception:
-        # Fallback summary
-        summary = f"""Collaborative Summary for "{task}":
-        
-        Accomplishments: Through registry-based discovery, multiple specialist agents collaborated to create a comprehensive approach to the task. Each agent contributed their unique expertise when needed.
-        
-        Discovery insights: The registry system enabled dynamic coordination where agents self-selected based on task requirements, demonstrating loose coupling and adaptive collaboration.
-        
-        Specialist contributions: The coordinator orchestrated the process, researchers provided context, planners created structure, and reviewers ensured quality - each adding value at the right moment.
-        
-        Value of coordination: This approach shows how complex tasks can be handled through emergent collaboration rather than rigid orchestration, creating more robust and adaptable solutions."""
+        """,
+        fallback_summary,
+    )
     
     print(f"🎯 Summarizer: {summary}")
     
@@ -295,7 +325,6 @@ def main():
     tasks = [
         "Design a personal fitness program",
         "Plan a community garden project",
-        "Create a reading curriculum for children"
     ]
     
     for i, task in enumerate(tasks, 1):
@@ -310,7 +339,7 @@ def main():
                 planning_specialist,
                 quality_reviewer,
                 final_summarizer,
-                initial_data={"task": task}
+                initial_data={"type": "task_request", "task": task}
             )
 
             # Wait for agents to complete

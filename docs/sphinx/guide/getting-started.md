@@ -225,6 +225,39 @@ get_reef().shutdown()
 
 **Key insight**: Agents coordinate themselves. You don't orchestrate the workflow - you just declare what each agent responds to.
 
+## Human-in-the-Loop (HITL) Quick Start
+
+Enable HITL per agent:
+
+```python
+from praval import agent, tool, InterventionRequired
+
+@tool(
+    tool_name="critical_update",
+    requires_approval=True,
+    risk_level="critical",
+    approval_reason="Production-impacting update."
+)
+def critical_update(target: str) -> str:
+    return f"Updated {target}"
+
+@agent("ops_agent", tools=["critical_update"], hitl=True)
+def ops_agent(spore):
+    return {"status": "ready"}
+
+try:
+    ops_agent._praval_agent.chat("Run critical_update on prod.")
+except InterventionRequired as interruption:
+    ops_agent.approve_intervention(interruption.intervention_id, reviewer="oncall")
+    print(ops_agent.resume_run(interruption.run_id))
+```
+
+Important behavior:
+
+- `hitl=False` is the default for backward-compatible autonomy.
+- If a tool requires approval but agent HITL is disabled, Praval raises
+  `HITLConfigurationError` instead of silently bypassing policy.
+
 ## Adding Memory
 
 Give your agents persistent memory:

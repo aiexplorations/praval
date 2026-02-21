@@ -6,9 +6,7 @@ Part of rearchitecture issue M2.
 """
 
 import logging
-from unittest.mock import Mock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, Mock, patch
 
 
 class TestAgentClose:
@@ -130,7 +128,9 @@ class TestAgentClose:
             assert agent._closed
             assert agent.memory is None
             # Should have logged warning
-            assert any("Error shutting down memory" in r.message for r in caplog.records)
+            assert any(
+                "Error shutting down memory" in r.message for r in caplog.records
+            )
 
     def test_agent_close_handles_reef_errors(self, caplog):
         """Verify close() handles reef cleanup errors gracefully."""
@@ -140,7 +140,8 @@ class TestAgentClose:
             agent = Agent("test_reef_error", memory_enabled=False)
             agent._subscribed_channels = ["broken_channel"]
 
-            # Mock get_reef at the reef module level (since it's imported inside close())
+            # Mock get_reef at the reef module level (since it's imported inside
+            # close())
             with patch("praval.core.reef.get_reef") as mock_get_reef:
                 mock_get_reef.side_effect = RuntimeError("Reef error")
 

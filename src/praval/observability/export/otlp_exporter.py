@@ -11,9 +11,8 @@ Sends traces to OTLP-compatible collectors like:
 """
 
 import logging
-import json
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +156,11 @@ class OTLPExporter:
         return {
             "traceId": self._hex_to_base64(span.get("trace_id", "")),
             "spanId": self._hex_to_base64(span.get("span_id", "")),
-            "parentSpanId": self._hex_to_base64(span.get("parent_span_id", ""))
-            if span.get("parent_span_id")
-            else "",
+            "parentSpanId": (
+                self._hex_to_base64(span.get("parent_span_id", ""))
+                if span.get("parent_span_id")
+                else ""
+            ),
             "name": span.get("name", "unknown"),
             "kind": kind,
             "startTimeUnixNano": start_time_nano,
@@ -206,7 +207,7 @@ class OTLPExporter:
             try:
                 dt_obj = datetime.fromisoformat(dt)
                 return int(dt_obj.timestamp() * 1e9)
-            except:
+            except ValueError:
                 return 0
         return 0
 
@@ -219,7 +220,7 @@ class OTLPExporter:
 
             bytes_data = bytes.fromhex(hex_str)
             return base64.b64encode(bytes_data).decode("ascii")
-        except:
+        except (ValueError, TypeError):
             return hex_str
 
 
@@ -247,11 +248,11 @@ def export_traces_to_otlp(
 
     # Get spans to export
     if trace_ids:
-        spans = []
+        spans: List[Dict[str, Any]] = []
         for trace_id in trace_ids:
             spans.extend(store.get_trace(trace_id))
     else:
-        spans = store.get_recent_traces(limit=limit)
+        spans = cast(List[Dict[str, Any]], store.get_recent_traces(limit=limit))
 
     if not spans:
         logger.info("No spans to export")

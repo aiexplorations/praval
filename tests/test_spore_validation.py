@@ -109,7 +109,7 @@ class TestSporeValidation:
 
     def test_spore_accepts_payload_at_limit(self):
         """Verify spore accepts payload at exactly the limit."""
-        from praval.core.reef import Spore, SporeType, MAX_SPORE_SIZE_BYTES
+        from praval.core.reef import MAX_SPORE_SIZE_BYTES, Spore, SporeType
 
         # Create payload just under the limit
         # Account for JSON overhead {"data": "..."}
@@ -207,8 +207,9 @@ class TestSporePayloadSize:
 
     def test_get_payload_size_with_data(self):
         """Verify get_payload_size returns correct size."""
-        from praval.core.reef import Spore, SporeType
         import json
+
+        from praval.core.reef import Spore, SporeType
 
         knowledge = {"key": "value", "number": 42}
         expected_size = len(json.dumps(knowledge).encode("utf-8"))
@@ -279,8 +280,9 @@ class TestSporeValidationBackwardCompatibility:
 
     def test_from_json_validates(self):
         """Verify from_json also validates the spore."""
-        from praval.core.reef import Spore, SporeType, SporeValidationError
         import json
+
+        from praval.core.reef import Spore
 
         # Create valid JSON
         valid_json = json.dumps(

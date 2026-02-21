@@ -1,8 +1,7 @@
-import asyncio
 import pytest
 
-from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
 from praval.core.reef import Spore, SporeType
+from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
 
 
 @pytest.mark.asyncio
@@ -82,13 +81,17 @@ async def test_rabbitmq_backend_routing_key_generation():
     )
 
     assert backend._generate_routing_key(spore_direct, "chan") == "agent.b.request"
-    assert backend._generate_routing_key(spore_broadcast, "chan") == "broadcast.broadcast"
+    assert (
+        backend._generate_routing_key(spore_broadcast, "chan") == "broadcast.broadcast"
+    )
 
 
 @pytest.mark.asyncio
 async def test_rabbitmq_backend_subscribe_modes():
     transport = FakeTransport()
-    backend = RabbitMQBackend(transport=transport, channel_queue_map={"chan": "queue_a"})
+    backend = RabbitMQBackend(
+        transport=transport, channel_queue_map={"chan": "queue_a"}
+    )
     await backend.initialize({})
 
     async def handler(spore):

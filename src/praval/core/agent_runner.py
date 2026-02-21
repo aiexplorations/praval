@@ -25,11 +25,10 @@ Usage:
 import asyncio
 import logging
 import signal
-import sys
-from typing import List, Dict, Any, Optional, Callable
 from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, List, Optional
 
-from .reef import get_reef, Reef
+from .reef import Reef, get_reef
 from .reef_backend import RabbitMQBackend
 
 logger = logging.getLogger(__name__)
@@ -72,7 +71,7 @@ class AgentRunner:
         backend_config: Optional[Dict[str, Any]] = None,
         backend: Optional[Any] = None,
         loop: Optional[asyncio.AbstractEventLoop] = None,
-        channel_queue_map: Optional[Dict[str, str]] = None
+        channel_queue_map: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize the agent runner.
@@ -102,7 +101,7 @@ class AgentRunner:
 
         # Validate agents
         for agent in agents:
-            if not hasattr(agent, '_praval_agent'):
+            if not hasattr(agent, "_praval_agent"):
                 raise ValueError(
                     f"Agent {agent.__name__} is not decorated with @agent. "
                     "All agents must be decorated with the @agent decorator."
@@ -116,6 +115,7 @@ class AgentRunner:
         else:
             # Use InMemory backend if no config provided
             from .reef_backend import InMemoryBackend
+
             return InMemoryBackend()
 
     async def initialize(self) -> None:
@@ -141,12 +141,15 @@ class AgentRunner:
         # Initialize the backend (this is the critical step for RabbitMQ)
         try:
             await self.reef.initialize_backend(self.backend_config)
-            logger.info(f"✓ Backend initialized: {self.reef.backend.__class__.__name__}")
+            logger.info(
+                f"✓ Backend initialized: {self.reef.backend.__class__.__name__}"
+            )
         except Exception as e:
             logger.error(f"✗ Failed to initialize backend: {e}")
             raise
 
-        # Create a shared channel for inter-agent communication (mirrors start_agents behavior)
+        # Create a shared channel for inter-agent communication (mirrors start_agents
+        # behavior)
         shared_channel = "distributed_agents"
         self.reef.create_channel(shared_channel)
 
@@ -169,11 +172,15 @@ class AgentRunner:
                 handler = underlying_agent.on_spore_received
                 # Subscribe to agent's own channel
                 await self.backend.subscribe(agent_channel, handler)
-                logger.debug(f"Subscribed '{agent_name}' to backend channel '{agent_channel}'")
+                logger.debug(
+                    f"Subscribed '{agent_name}' to backend channel '{agent_channel}'"
+                )
 
                 # Subscribe to shared channel
                 await self.backend.subscribe(shared_channel, handler)
-                logger.debug(f"Subscribed '{agent_name}' to backend channel '{shared_channel}'")
+                logger.debug(
+                    f"Subscribed '{agent_name}' to backend channel '{shared_channel}'"
+                )
 
                 # Subscribe to default broadcast channel
                 await self.backend.subscribe(self.reef.default_channel, handler)
@@ -262,7 +269,7 @@ class AgentRunner:
         logger.info("Shutting down agent system...")
 
         try:
-            if self.reef and hasattr(self.reef, 'close_backend'):
+            if self.reef and hasattr(self.reef, "close_backend"):
                 await self.reef.close_backend()
                 logger.info("✓ Backend closed")
 
@@ -300,19 +307,19 @@ class AgentRunner:
         """Get current runner statistics."""
         if not self.reef:
             return {
-                'status': 'not_initialized',
-                'agents': len(self.agents),
-                'running': self._running
+                "status": "not_initialized",
+                "agents": len(self.agents),
+                "running": self._running,
             }
 
         reef_stats = self.reef.get_network_stats()
         return {
-            'status': 'running' if self._running else 'stopped',
-            'agents': len(self.agents),
-            'running': self._running,
-            'backend': reef_stats.get('backend'),
-            'channels': reef_stats.get('total_channels'),
-            'backend_stats': reef_stats.get('backend_stats')
+            "status": "running" if self._running else "stopped",
+            "agents": len(self.agents),
+            "running": self._running,
+            "backend": reef_stats.get("backend"),
+            "channels": reef_stats.get("total_channels"),
+            "backend_stats": reef_stats.get("backend_stats"),
         }
 
 
@@ -320,7 +327,7 @@ def run_agents(
     *agents: Callable,
     backend_config: Optional[Dict[str, Any]] = None,
     backend: Optional[Any] = None,
-    channel_queue_map: Optional[Dict[str, str]] = None
+    channel_queue_map: Optional[Dict[str, str]] = None,
 ) -> None:
     """
     Convenience function to run distributed agents.
@@ -332,7 +339,8 @@ def run_agents(
         *agents: Agent functions decorated with @agent
         backend_config: RabbitMQ configuration (required for distributed mode)
         backend: Optional pre-created backend instance
-        channel_queue_map: Optional mapping of Praval channels to pre-configured RabbitMQ queues.
+        channel_queue_map: Optional mapping of Praval channels to pre-configured
+        RabbitMQ queues.
             Use when agents should consume from existing queue bindings.
 
     Example (Topic-based routing):
@@ -363,6 +371,6 @@ def run_agents(
         agents=list(agents),
         backend_config=backend_config,
         backend=backend,
-        channel_queue_map=channel_queue_map
+        channel_queue_map=channel_queue_map,
     )
     runner.run()

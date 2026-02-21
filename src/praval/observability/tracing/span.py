@@ -40,7 +40,7 @@ class SpanEvent:
         return {
             "name": self.name,
             "timestamp": self.timestamp,
-            "attributes": self.attributes
+            "attributes": self.attributes,
         }
 
 
@@ -93,9 +93,7 @@ class Span:
             attributes: Event attributes (optional)
         """
         event = SpanEvent(
-            name=name,
-            timestamp=time.time_ns(),
-            attributes=attributes or {}
+            name=name, timestamp=time.time_ns(), attributes=attributes or {}
         )
         self.events.append(event)
 
@@ -105,11 +103,14 @@ class Span:
         Args:
             exception: Exception to record
         """
-        self.add_event("exception", {
-            "exception.type": type(exception).__name__,
-            "exception.message": str(exception),
-            "exception.stacktrace": traceback.format_exc()
-        })
+        self.add_event(
+            "exception",
+            {
+                "exception.type": type(exception).__name__,
+                "exception.message": str(exception),
+                "exception.stacktrace": traceback.format_exc(),
+            },
+        )
 
     def set_status(self, status: str, message: str = "") -> None:
         """Set span status.
@@ -193,7 +194,7 @@ class Span:
             "attributes": self.attributes,
             "events": [e.to_dict() for e in self.events],
             "status": self.status.value,
-            "status_message": self.status_message
+            "status_message": self.status_message,
         }
 
     def to_otlp(self) -> Dict[str, Any]:
@@ -221,14 +222,11 @@ class Span:
                     "attributes": [
                         {"key": k, "value": {"stringValue": str(v)}}
                         for k, v in e.attributes.items()
-                    ]
+                    ],
                 }
                 for e in self.events
             ],
-            "status": {
-                "code": self.status.value,
-                "message": self.status_message
-            }
+            "status": {"code": self.status.value, "message": self.status_message},
         }
 
 

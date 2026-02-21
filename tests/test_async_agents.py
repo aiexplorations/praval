@@ -4,14 +4,17 @@ Test async agent execution with concurrent LLM calls.
 This demonstrates the performance improvement from threading.
 """
 
+import logging
 import os
 import time
-import logging
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(threadName)s] %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - [%(threadName)s] %(message)s"
+)
 
 
 class TestAsyncAgentExecution:
@@ -22,11 +25,11 @@ class TestAsyncAgentExecution:
         # Set fake API key for provider detection
         os.environ["OPENAI_API_KEY"] = "test_key_for_testing"
 
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_sync_agent_execution(self, mock_openai_class):
         """Test synchronous agent execution with mocked LLM."""
         from praval import agent, chat
-        from praval.core.reef import get_reef, SporeType
+        from praval.core.reef import SporeType, get_reef
 
         # Setup mock
         mock_client = MagicMock()
@@ -49,11 +52,9 @@ class TestAsyncAgentExecution:
             response = chat(f"Generate words for '{concept}'")
             elapsed = time.time() - start_time
 
-            results.append({
-                "task_id": task_id,
-                "response": response,
-                "elapsed": elapsed
-            })
+            results.append(
+                {"task_id": task_id, "response": response, "elapsed": elapsed}
+            )
             return {"type": "sync_complete", "task_id": task_id}
 
         # Send task via reef (not broadcast() which requires agent context)
@@ -61,8 +62,12 @@ class TestAsyncAgentExecution:
         reef.send(
             from_agent="test_client",
             to_agent="test_sync_processor",
-            knowledge={"task_id": "sync_1", "concept": "machine learning", "type": "sync_task"},
-            spore_type=SporeType.REQUEST
+            knowledge={
+                "task_id": "sync_1",
+                "concept": "machine learning",
+                "type": "sync_task",
+            },
+            spore_type=SporeType.REQUEST,
         )
 
         # Allow time for processing
@@ -72,13 +77,13 @@ class TestAsyncAgentExecution:
         assert len(results) >= 0  # May or may not process depending on timing
         mock_client.chat.completions.create.assert_called()
 
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_concurrent_agent_execution(self, mock_openai_class):
         """Test concurrent agent execution pattern."""
-        from praval import agent
-        from praval.core.reef import get_reef, SporeType
-        from concurrent.futures import ThreadPoolExecutor
         import threading
+
+        from praval import agent
+        from praval.core.reef import SporeType, get_reef
 
         # Setup mock
         mock_client = MagicMock()
@@ -110,7 +115,7 @@ class TestAsyncAgentExecution:
                 from_agent="test_client",
                 to_agent="test_concurrent_processor",
                 knowledge={"task_id": f"concurrent_{i}", "type": "concurrent_task"},
-                spore_type=SporeType.REQUEST
+                spore_type=SporeType.REQUEST,
             )
 
         # Allow processing time
@@ -120,11 +125,14 @@ class TestAsyncAgentExecution:
         assert True
 
     @pytest.mark.asyncio
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     async def test_async_chat_function(self, mock_openai_class):
-        """Test provider async call directly (achat requires agent context and async agent support)."""
-        from praval.providers.openai import OpenAIProvider
+        """
+        Test provider async call directly.
+        achat requires agent context and async agent support.
+        """
         from praval.core.agent import AgentConfig
+        from praval.providers.openai import OpenAIProvider
 
         # Setup mock
         mock_client = MagicMock()
@@ -153,11 +161,11 @@ class TestAgentBroadcastPattern:
         """Reset global state before each test."""
         os.environ["OPENAI_API_KEY"] = "test_key_for_testing"
 
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_broadcast_via_reef(self, mock_openai_class):
         """Test broadcasting via reef (correct pattern)."""
         from praval import agent
-        from praval.core.reef import get_reef, SporeType
+        from praval.core.reef import get_reef
 
         # Setup mock
         mock_client = MagicMock()
@@ -184,7 +192,7 @@ class TestAgentBroadcastPattern:
         reef = get_reef()
         reef.broadcast(
             from_agent="test_broadcaster",
-            knowledge={"type": "notification", "message": "Hello all agents"}
+            knowledge={"type": "notification", "message": "Hello all agents"},
         )
 
         # Allow processing
@@ -201,11 +209,11 @@ class TestAgentWithinAgentBroadcast:
         """Reset global state before each test."""
         os.environ["OPENAI_API_KEY"] = "test_key_for_testing"
 
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_broadcast_within_agent_context(self, mock_openai_class):
         """Test that broadcast() works when called from within an agent."""
         from praval import agent, broadcast
-        from praval.core.reef import get_reef, SporeType
+        from praval.core.reef import SporeType, get_reef
 
         # Setup mock
         mock_client = MagicMock()
@@ -237,7 +245,7 @@ class TestAgentWithinAgentBroadcast:
             from_agent="test_client",
             to_agent="coordinator",
             knowledge={"type": "start_workflow"},
-            spore_type=SporeType.REQUEST
+            spore_type=SporeType.REQUEST,
         )
 
         # Allow processing

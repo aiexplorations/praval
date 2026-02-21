@@ -9,14 +9,15 @@ Verifies that both backends implement the ReefBackend interface correctly
 and that agents work unchanged regardless of backend choice.
 """
 
-import pytest
 import asyncio
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock
+
+import pytest
 import pytest_asyncio
 
-from praval.core.reef_backend import ReefBackend, InMemoryBackend, RabbitMQBackend
 from praval.core.reef import Spore, SporeType
+from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend, ReefBackend
 
 
 class TestInMemoryBackend:
@@ -51,12 +52,12 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={"data": "test"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         # Should not raise
         await backend.send(spore, "test_channel")
-        assert backend.stats['spores_sent'] == 1
+        assert backend.stats["spores_sent"] == 1
 
     @pytest.mark.asyncio
     async def test_subscribe_and_receive(self, backend):
@@ -79,7 +80,7 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={"msg": "hello"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "agent.receiver")
@@ -91,7 +92,7 @@ class TestInMemoryBackend:
         # Note: The actual delivery happens through ReefChannel._deliver_spore
         # which may or may not call our handler depending on subscription timing
         # This test mainly verifies no errors occur
-        assert backend.stats['spores_sent'] == 1
+        assert backend.stats["spores_sent"] == 1
 
     @pytest.mark.asyncio
     async def test_multiple_subscribers(self, backend):
@@ -116,7 +117,7 @@ class TestInMemoryBackend:
             from_agent="broadcaster",
             to_agent=None,
             knowledge={"msg": "broadcast"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "channel1")
@@ -144,7 +145,7 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent=None,
             knowledge={"data": "test"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "temp_channel")
@@ -158,8 +159,8 @@ class TestInMemoryBackend:
     async def test_statistics_tracking(self, backend):
         """Test that backend tracks statistics."""
         initial_stats = backend.get_stats()
-        assert initial_stats['spores_sent'] == 0
-        assert initial_stats['spores_received'] == 0
+        assert initial_stats["spores_sent"] == 0
+        assert initial_stats["spores_received"] == 0
 
         spore = Spore(
             id="stat-spore",
@@ -167,13 +168,13 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={"test": "data"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "channel")
 
         updated_stats = backend.get_stats()
-        assert updated_stats['spores_sent'] == 1
+        assert updated_stats["spores_sent"] == 1
 
     @pytest.mark.asyncio
     async def test_backend_not_connected_error(self):
@@ -186,7 +187,7 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         with pytest.raises(RuntimeError):
@@ -204,7 +205,7 @@ class TestInMemoryBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         with pytest.raises(RuntimeError):
@@ -231,10 +232,7 @@ class TestRabbitMQBackend:
         backend = RabbitMQBackend(transport=mock_transport)
         assert not backend.connected
 
-        config = {
-            'url': 'amqp://localhost:5672/',
-            'exchange_name': 'test.exchange'
-        }
+        config = {"url": "amqp://localhost:5672/", "exchange_name": "test.exchange"}
 
         await backend.initialize(config)
         assert backend.connected
@@ -262,7 +260,7 @@ class TestRabbitMQBackend:
             from_agent="agent1",
             to_agent="agent2",
             knowledge={"data": "value"},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "agent_channel")
@@ -273,7 +271,7 @@ class TestRabbitMQBackend:
         call_args = mock_transport.publish.call_args
         # First positional arg is routing_key (string)
         # Second positional arg should be the spore object
-        assert hasattr(call_args[0][1], 'to_amqp_message')
+        assert hasattr(call_args[0][1], "to_amqp_message")
 
     @pytest.mark.asyncio
     async def test_generate_routing_key(self, mock_transport):
@@ -287,7 +285,7 @@ class TestRabbitMQBackend:
             from_agent="requester",
             to_agent="responder",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         key1 = backend._generate_routing_key(spore1, "any_channel")
@@ -300,7 +298,7 @@ class TestRabbitMQBackend:
             from_agent="broadcaster",
             to_agent=None,
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         key2 = backend._generate_routing_key(spore2, "any_channel")
@@ -335,7 +333,7 @@ class TestRabbitMQBackend:
             from_agent="sender",
             to_agent="agent1",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         assert backend._spore_matches_channel(spore1, "agent.agent1")
@@ -348,7 +346,7 @@ class TestRabbitMQBackend:
             from_agent="broadcaster",
             to_agent=None,
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         assert backend._spore_matches_channel(spore2, "broadcast")
@@ -394,7 +392,7 @@ class TestRabbitMQBackend:
         await backend.initialize()
 
         initial = backend.get_stats()
-        assert initial['spores_sent'] == 0
+        assert initial["spores_sent"] == 0
 
         spore = Spore(
             id="stat-test",
@@ -402,13 +400,13 @@ class TestRabbitMQBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         await backend.send(spore, "channel")
 
         updated = backend.get_stats()
-        assert updated['spores_sent'] == 1
+        assert updated["spores_sent"] == 1
 
     @pytest.mark.asyncio
     async def test_error_handling(self, mock_transport):
@@ -431,7 +429,7 @@ class TestRabbitMQBackend:
             from_agent="sender",
             to_agent="receiver",
             knowledge={},
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         with pytest.raises(RuntimeError):
@@ -452,12 +450,12 @@ class TestBackendAbstraction:
         assert isinstance(backend, ReefBackend)
 
         # Check all required methods exist
-        assert hasattr(backend, 'initialize')
-        assert hasattr(backend, 'shutdown')
-        assert hasattr(backend, 'send')
-        assert hasattr(backend, 'subscribe')
-        assert hasattr(backend, 'unsubscribe')
-        assert hasattr(backend, 'get_stats')
+        assert hasattr(backend, "initialize")
+        assert hasattr(backend, "shutdown")
+        assert hasattr(backend, "send")
+        assert hasattr(backend, "subscribe")
+        assert hasattr(backend, "unsubscribe")
+        assert hasattr(backend, "get_stats")
 
     def test_rabbitmq_implements_interface(self):
         """Test that RabbitMQBackend implements ReefBackend interface."""
@@ -465,12 +463,12 @@ class TestBackendAbstraction:
         assert isinstance(backend, ReefBackend)
 
         # Check all required methods exist
-        assert hasattr(backend, 'initialize')
-        assert hasattr(backend, 'shutdown')
-        assert hasattr(backend, 'send')
-        assert hasattr(backend, 'subscribe')
-        assert hasattr(backend, 'unsubscribe')
-        assert hasattr(backend, 'get_stats')
+        assert hasattr(backend, "initialize")
+        assert hasattr(backend, "shutdown")
+        assert hasattr(backend, "send")
+        assert hasattr(backend, "subscribe")
+        assert hasattr(backend, "unsubscribe")
+        assert hasattr(backend, "get_stats")
 
 
 class TestBackendIntegration:
@@ -489,7 +487,7 @@ class TestBackendIntegration:
             from_agent="agent1",
             to_agent="agent2",
             knowledge={"data": "test"},
-            spore_type=SporeType.KNOWLEDGE
+            spore_type=SporeType.KNOWLEDGE,
         )
 
         assert reef_id is not None

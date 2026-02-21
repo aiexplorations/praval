@@ -6,12 +6,8 @@ Part of rearchitecture Phase 1.
 """
 
 import logging
-import threading
 import time
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
-
-import pytest
+from unittest.mock import Mock, patch
 
 
 class TestReefChannelShutdown:
@@ -205,7 +201,7 @@ class TestCleanupLoopLogging:
         # Patch sleep to make test fast
         with patch("praval.core.reef.time.sleep"):
             # Simulate one cleanup iteration
-            original_shutdown = reef._shutdown
+            _ = reef._shutdown
 
             def run_one_iteration():
                 # Set shutdown after one iteration
@@ -247,8 +243,9 @@ class TestCleanupLoopLogging:
 
     def test_cleanup_loop_logs_debug_for_expired_spores(self, caplog):
         """Verify cleanup logs debug when spores are cleaned up."""
-        from praval.core.reef import ReefChannel
         import logging
+
+        from praval.core.reef import ReefChannel
 
         channel = ReefChannel("debug_test")
 
@@ -291,8 +288,9 @@ class TestShutdownBackwardCompatibility:
 
     def test_channel_shutdown_default_timeout(self):
         """Verify channel shutdown has sensible default timeout."""
-        from praval.core.reef import ReefChannel
         import inspect
+
+        from praval.core.reef import ReefChannel
 
         sig = inspect.signature(ReefChannel.shutdown)
         timeout_param = sig.parameters.get("timeout")
@@ -302,8 +300,9 @@ class TestShutdownBackwardCompatibility:
 
     def test_reef_shutdown_default_timeout(self):
         """Verify reef shutdown has sensible default timeout."""
-        from praval.core.reef import Reef
         import inspect
+
+        from praval.core.reef import Reef
 
         sig = inspect.signature(Reef.shutdown)
         timeout_param = sig.parameters.get("timeout")

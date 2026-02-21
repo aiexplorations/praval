@@ -14,11 +14,10 @@ Design:
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable, Any
-from datetime import datetime
-from collections import defaultdict, deque
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional
 
-from .reef import Spore, SporeType, ReefChannel
+from .reef import ReefChannel, Spore, SporeType
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,9 @@ class ReefBackend(ABC):
     def __init__(self):
         self.connected = False
         self.stats = {
-            'spores_sent': 0,
-            'spores_received': 0,
-            'errors': 0,
+            "spores_sent": 0,
+            "spores_received": 0,
+            "errors": 0,
         }
 
     @abstractmethod
@@ -157,16 +156,33 @@ class InMemoryBackend(ReefBackend):
             # Deliver asynchronously (outside lock to prevent deadlock)
             futures = channel_obj._deliver_spore(spore)
 
+            # For non-targeted, non-broadcast spores sent directly to a channel,
+            # deliver to all channel subscribers.
+            if (
+                not futures
+                and spore.to_agent is None
+                and spore.spore_type != SporeType.BROADCAST
+            ):
+                for _, handlers in channel_obj._subscriptions.iter_broadcast():
+                    for handler in handlers:
+                        future = channel_obj._execute_handler_async(handler, spore)
+                        if future:
+                            futures.append(future)
+
             # Wait for handlers to complete
             if futures:
-                await asyncio.gather(*[asyncio.create_task(
-                    asyncio.to_thread(f.result)
-                ) for f in futures], return_exceptions=True)
+                await asyncio.gather(
+                    *[
+                        asyncio.create_task(asyncio.to_thread(f.result))
+                        for f in futures
+                    ],
+                    return_exceptions=True,
+                )
 
-            self.stats['spores_sent'] += 1
+            self.stats["spores_sent"] += 1
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"InMemoryBackend send error: {e}")
             raise RuntimeError(f"Failed to send spore: {e}")
 
@@ -189,7 +205,11 @@ class InMemoryBackend(ReefBackend):
 
             # Register handler
             # Extract agent name from channel (format: "agent.{agent_name}" or generic)
-            agent_name = channel.replace("agent.", "") if channel.startswith("agent.") else "subscriber"
+            agent_name = (
+                channel.replace("agent.", "")
+                if channel.startswith("agent.")
+                else "subscriber"
+            )
 
             # Subscribe to the channel
             channel_obj.subscribe(agent_name, handler, replace=False)
@@ -197,7 +217,7 @@ class InMemoryBackend(ReefBackend):
             logger.debug(f"InMemoryBackend subscribed to channel: {channel}")
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"InMemoryBackend subscribe error: {e}")
             raise RuntimeError(f"Failed to subscribe: {e}")
 
@@ -206,10 +226,16 @@ class InMemoryBackend(ReefBackend):
         try:
             async with self._lock:
                 if channel in self.channels:
-                    agent_name = channel.replace("agent.", "") if channel.startswith("agent.") else "subscriber"
+                    agent_name = (
+                        channel.replace("agent.", "")
+                        if channel.startswith("agent.")
+                        else "subscriber"
+                    )
                     self.channels[channel].unsubscribe(agent_name)
 
-                    logger.debug(f"InMemoryBackend unsubscribed from channel: {channel}")
+                    logger.debug(
+                        f"InMemoryBackend unsubscribed from channel: {channel}"
+                    )
 
         except Exception as e:
             logger.error(f"InMemoryBackend unsubscribe error: {e}")
@@ -243,11 +269,17 @@ class RabbitMQBackend(ReefBackend):
        - Example: {"data_received": "agent.data_analyzer"}
     """
 
-    def __init__(self, transport=None, channel_queue_map: Optional[Dict[str, str]] = None):
+    def __init__(
+        self, transport=None, channel_queue_map: Optional[Dict[str, str]] = None
+    ):
         super().__init__()
         self.transport = transport
-        self.subscriptions: Dict[str, List[str]] = {}  # channel -> [routing_keys/queue_names]
-        self.channel_queue_map = channel_queue_map or {}  # channel -> pre-configured queue name mapping
+        self.subscriptions: Dict[str, List[str]] = (
+            {}
+        )  # channel -> [routing_keys/queue_names]
+        self.channel_queue_map = (
+            channel_queue_map or {}
+        )  # channel -> pre-configured queue name mapping
         self.queue_consumers: Dict[str, Any] = {}  # queue_name -> consumer task
 
     async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
@@ -276,7 +308,10 @@ class RabbitMQBackend(ReefBackend):
         if not self.transport:
             try:
                 from .transport import TransportFactory, TransportProtocol
-                self.transport = TransportFactory.create_transport(TransportProtocol.AMQP)
+
+                self.transport = TransportFactory.create_transport(
+                    TransportProtocol.AMQP
+                )
             except Exception as e:
                 raise RuntimeError(f"Failed to create AMQP transport: {e}")
 
@@ -286,7 +321,7 @@ class RabbitMQBackend(ReefBackend):
             logger.info("RabbitMQBackend initialized")
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             raise RuntimeError(f"Failed to initialize RabbitMQ backend: {e}")
 
     async def shutdown(self) -> None:
@@ -316,10 +351,10 @@ class RabbitMQBackend(ReefBackend):
             # Use native Spore AMQP serialization
             await self.transport.publish(routing_key, spore)
 
-            self.stats['spores_sent'] += 1
+            self.stats["spores_sent"] += 1
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"RabbitMQBackend send error: {e}")
             raise RuntimeError(f"Failed to send spore via RabbitMQ: {e}")
 
@@ -354,7 +389,10 @@ class RabbitMQBackend(ReefBackend):
                 # Mode 2: Direct queue consumption
                 queue_name = self.channel_queue_map[channel]
                 logger.debug(
-                    f"RabbitMQBackend: Using queue-based consumption for channel '{channel}' → queue '{queue_name}'"
+                    (
+                        f"RabbitMQBackend: Using queue-based consumption for channel "
+                        f"'{channel}' → queue '{queue_name}'"
+                    )
                 )
 
                 # Subscribe to the pre-configured queue
@@ -366,13 +404,19 @@ class RabbitMQBackend(ReefBackend):
                 self.subscriptions[channel].append(queue_name)
 
                 logger.debug(
-                    f"RabbitMQBackend subscribed to queue: {queue_name} (for channel: {channel})"
+                    (
+                        f"RabbitMQBackend subscribed to queue: {queue_name} (for "
+                        f"channel: {channel})"
+                    )
                 )
             else:
                 # Mode 1: Topic-based subscription (default)
                 topic = self._generate_topic(channel)
                 logger.debug(
-                    f"RabbitMQBackend: Using topic-based subscription for channel '{channel}' → topic '{topic}'"
+                    (
+                        f"RabbitMQBackend: Using topic-based subscription for "
+                        f"channel '{channel}' → topic '{topic}'"
+                    )
                 )
 
                 # Subscribe to topic
@@ -383,10 +427,12 @@ class RabbitMQBackend(ReefBackend):
                     self.subscriptions[channel] = []
                 self.subscriptions[channel].append(topic)
 
-                logger.debug(f"RabbitMQBackend subscribed to channel: {channel} (topic: {topic})")
+                logger.debug(
+                    f"RabbitMQBackend subscribed to channel: {channel} (topic: {topic})"
+                )
 
         except Exception as e:
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             logger.error(f"RabbitMQBackend subscribe error: {e}")
             raise RuntimeError(f"Failed to subscribe to RabbitMQ: {e}")
 

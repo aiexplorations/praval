@@ -443,7 +443,16 @@ def main():
         for category, count in categories.items():
             print(f"     - {category}: {count}")
         print()
-        
+
+        # Non-interactive environments (example runners/CI) should not block on input.
+        if not sys.stdin.isatty():
+            print("Non-interactive mode detected. Running quick tool smoke checks...")
+            print(f"  add(25, 17) = {add(25, 17)}")
+            print(f"  square_root(144) = {square_root(144)}")
+            print(f"  celsius_to_fahrenheit(100) = {celsius_to_fahrenheit(100)}")
+            print("Quick checks complete.")
+            return
+
         run_calculator_cli()
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")

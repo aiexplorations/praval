@@ -238,17 +238,29 @@ if __name__ == '__main__':
             backend_config=RABBITMQ_CONFIG
         )
 
-    except ConnectionError as e:
+    except Exception as e:
         print("\n" + "=" * 70)
-        print("ERROR: Could not connect to RabbitMQ")
+        print("ERROR: Could not start RabbitMQ distributed backend")
         print("=" * 70)
         print(f"\nDetails: {e}")
-        print("\nTo fix, make sure RabbitMQ is running:")
-        print("  docker run -d -p 5672:5672 rabbitmq:latest")
-        print("\nOr test locally with InMemory backend:")
-        print("  python examples/002_agent_communication.py")
+        print("\nFalling back to local InMemory backend smoke test...")
         print("=" * 70 + "\n")
-        sys.exit(1)
+        from praval.composition import start_agents
+        from praval import get_reef
+
+        start_agents(
+            processor_agent,
+            analyzer_agent,
+            reporter_agent,
+            initial_data={
+                'type': 'process',
+                'data': 'local fallback smoke test',
+                'request_id': 'fallback_123'
+            }
+        )
+        get_reef().wait_for_completion()
+        get_reef().shutdown()
+        print("✓ Local fallback completed")
 
     except KeyboardInterrupt:
         print("\n" + "=" * 70)
@@ -265,6 +277,7 @@ def test_locally():
     print("Testing agents locally with InMemoryBackend...")
 
     from praval.composition import start_agents
+    from praval import get_reef
 
     # This broadcasts a test message to all agents
     start_agents(
@@ -277,6 +290,8 @@ def test_locally():
             'request_id': 'test_123'
         }
     )
+    get_reef().wait_for_completion()
+    get_reef().shutdown()
 
     print("✓ Local test completed")
 

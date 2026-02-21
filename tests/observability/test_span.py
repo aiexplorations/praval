@@ -3,14 +3,14 @@ Tests for Span implementation.
 """
 
 import time
+
 import pytest
 
 from praval.observability.tracing.span import (
+    NoOpSpan,
     Span,
     SpanKind,
     SpanStatus,
-    SpanEvent,
-    NoOpSpan
 )
 
 
@@ -19,11 +19,7 @@ class TestSpan:
 
     def test_span_creation(self):
         """Test creating a span."""
-        span = Span(
-            name="test.operation",
-            trace_id="abc123",
-            span_id="def456"
-        )
+        span = Span(name="test.operation", trace_id="abc123", span_id="def456")
 
         assert span.name == "test.operation"
         assert span.trace_id == "abc123"
@@ -39,7 +35,7 @@ class TestSpan:
             name="child.operation",
             trace_id="abc123",
             span_id="child456",
-            parent_span_id="parent789"
+            parent_span_id="parent789",
         )
 
         assert span.parent_span_id == "parent789"
@@ -141,10 +137,7 @@ class TestSpan:
     def test_span_to_dict(self):
         """Test converting span to dictionary."""
         span = Span(
-            name="test",
-            trace_id="abc123",
-            span_id="def456",
-            kind=SpanKind.CLIENT
+            name="test", trace_id="abc123", span_id="def456", kind=SpanKind.CLIENT
         )
         span.set_attribute("key", "value")
         span.end()
@@ -160,11 +153,7 @@ class TestSpan:
 
     def test_span_to_otlp(self):
         """Test converting span to OTLP format."""
-        span = Span(
-            name="test",
-            trace_id="abc123",
-            span_id="def456"
-        )
+        span = Span(name="test", trace_id="abc123", span_id="def456")
         span.set_attribute("key", "value")
         span.end()
 

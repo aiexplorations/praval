@@ -2,13 +2,11 @@
 Tests for trace context propagation.
 """
 
-import pytest
-
 from praval.observability.tracing.context import (
     TraceContext,
+    clear_current_span,
     get_current_span,
     set_current_span,
-    clear_current_span
 )
 from praval.observability.tracing.span import Span
 
@@ -32,11 +30,7 @@ class TestTraceContext:
 
     def test_from_span(self):
         """Test creating context from span."""
-        span = Span(
-            name="test",
-            trace_id="trace123",
-            span_id="span456"
-        )
+        span = Span(name="test", trace_id="trace123", span_id="span456")
 
         context = TraceContext.from_span(span)
 
@@ -45,10 +39,7 @@ class TestTraceContext:
 
     def test_from_spore_with_context(self):
         """Test extracting context from spore with metadata."""
-        spore = MockSpore(metadata={
-            "trace_id": "trace123",
-            "span_id": "span456"
-        })
+        spore = MockSpore(metadata={"trace_id": "trace123", "span_id": "span456"})
 
         context = TraceContext.from_spore(spore)
 
@@ -185,11 +176,7 @@ class TestEndToEndContextPropagation:
     def test_parent_child_propagation(self):
         """Test propagating context from parent to child via spore."""
         # Create parent span
-        parent_span = Span(
-            name="parent",
-            trace_id="trace123",
-            span_id="parent456"
-        )
+        parent_span = Span(name="parent", trace_id="trace123", span_id="parent456")
 
         # Get context from parent
         parent_context = TraceContext.from_span(parent_span)
@@ -206,7 +193,7 @@ class TestEndToEndContextPropagation:
             name="child",
             trace_id=extracted_context.trace_id,
             span_id="child789",
-            parent_span_id=extracted_context.span_id
+            parent_span_id=extracted_context.span_id,
         )
 
         # Verify parent-child relationship
@@ -229,7 +216,7 @@ class TestEndToEndContextPropagation:
             name="agent2",
             trace_id=context2.trace_id,
             span_id="span2",
-            parent_span_id=context2.span_id
+            parent_span_id=context2.span_id,
         )
 
         # Agent 2 sends to Agent 3
@@ -243,7 +230,7 @@ class TestEndToEndContextPropagation:
             name="agent3",
             trace_id=context3.trace_id,
             span_id="span3",
-            parent_span_id=context3.span_id
+            parent_span_id=context3.span_id,
         )
 
         # Verify the chain

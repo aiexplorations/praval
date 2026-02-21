@@ -5,38 +5,37 @@ These tests verify that the StorageRegistry manages providers correctly,
 handles permissions, tracks usage statistics, and provides proper access control.
 """
 
+import threading
+
 import pytest
 import pytest_asyncio
-import asyncio
-import threading
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from praval.storage.storage_registry import (
-    StorageRegistry,
-    get_storage_registry,
-    register_storage_provider,
-    get_storage_provider,
-    list_storage_providers,
-)
 from praval.storage.base_provider import (
     BaseStorageProvider,
-    StorageType,
+    StorageMetadata,
     StorageQuery,
     StorageResult,
-    StorageMetadata,
+    StorageType,
 )
 from praval.storage.exceptions import (
     StorageNotFoundError,
     StoragePermissionError,
-    StorageConfigurationError,
+)
+from praval.storage.storage_registry import (
+    StorageRegistry,
+    get_storage_provider,
+    get_storage_registry,
+    list_storage_providers,
+    register_storage_provider,
 )
 
 
 class MockStorageProvider(BaseStorageProvider):
     """Mock provider for testing registry functionality."""
 
-    def __init__(self, name: str, storage_type: StorageType = StorageType.KEY_VALUE, **kwargs):
+    def __init__(
+        self, name: str, storage_type: StorageType = StorageType.KEY_VALUE, **kwargs
+    ):
         self._storage_type = storage_type
         self._data = {}
         config = kwargs.get("config", {})
@@ -159,7 +158,9 @@ class TestRegisterProvider:
         assert mock_provider.is_connected  # auto_connect is True
 
     @pytest.mark.asyncio
-    async def test_register_provider_duplicate_returns_false(self, registry, mock_provider):
+    async def test_register_provider_duplicate_returns_false(
+        self, registry, mock_provider
+    ):
         """Returns False for duplicate without replace_existing."""
         await registry.register_provider(mock_provider)
 
@@ -183,8 +184,7 @@ class TestRegisterProvider:
     async def test_register_provider_with_permissions(self, registry, mock_provider):
         """Sets agent permissions during registration."""
         await registry.register_provider(
-            mock_provider,
-            permissions=["agent1", "agent2"]
+            mock_provider, permissions=["agent1", "agent2"]
         )
 
         assert "agent1" in registry._permissions["test_provider"]
@@ -227,7 +227,9 @@ class TestRegisterProvider:
         assert "invalid_provider" not in registry._providers
 
     @pytest.mark.asyncio
-    async def test_register_provider_initializes_usage_stats(self, registry, mock_provider):
+    async def test_register_provider_initializes_usage_stats(
+        self, registry, mock_provider
+    ):
         """Initializes usage statistics on registration."""
         await registry.register_provider(mock_provider)
 
@@ -247,7 +249,9 @@ class TestRegisterProvider:
         assert "kv_provider" in registry._types[StorageType.KEY_VALUE]
 
     @pytest.mark.asyncio
-    async def test_register_provider_performs_health_check(self, registry, mock_provider):
+    async def test_register_provider_performs_health_check(
+        self, registry, mock_provider
+    ):
         """Performs initial health check on registration."""
         await registry.register_provider(mock_provider)
 
@@ -453,7 +457,9 @@ class TestListProviders:
     @pytest.mark.asyncio
     async def test_list_providers_by_type(self, registry_with_providers):
         """Filters providers by storage type."""
-        result = registry_with_providers.list_providers(storage_type=StorageType.KEY_VALUE)
+        result = registry_with_providers.list_providers(
+            storage_type=StorageType.KEY_VALUE
+        )
 
         assert result == ["kv_provider"]
 
@@ -464,14 +470,16 @@ class TestListProviders:
         result = registry_with_providers.list_providers(agent_name="agent1")
 
         # Only vector_provider has explicit permissions for agent1
-        # Others have no permissions set, so they're excluded with require_explicit_permissions
+        # Others have no permissions set, so they're excluded with
+        # require_explicit_permissions
         assert "vector_provider" in result
 
     @pytest.mark.asyncio
     async def test_list_providers_connected_only(self, registry_with_providers):
         """Filters to only connected providers."""
         # Manually disconnect db_provider to test filtering
-        # Note: health_check() connects all providers, so we disconnect after registration
+        # Note: health_check() connects all providers, so we disconnect after
+        # registration
         db_provider = registry_with_providers._providers["db_provider"]
         await db_provider.disconnect()
 
@@ -513,9 +521,15 @@ class TestGetProvidersByType:
         """Registry with providers of same type."""
         registry = StorageRegistry()
 
-        await registry.register_provider(MockStorageProvider("kv1", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("kv2", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("db1", StorageType.RELATIONAL))
+        await registry.register_provider(
+            MockStorageProvider("kv1", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("kv2", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("db1", StorageType.RELATIONAL)
+        )
 
         return registry
 
@@ -555,8 +569,12 @@ class TestGetStorageTypes:
     async def test_get_storage_types_returns_available(self):
         """Returns list of available storage types."""
         registry = StorageRegistry()
-        await registry.register_provider(MockStorageProvider("kv", StorageType.KEY_VALUE))
-        await registry.register_provider(MockStorageProvider("db", StorageType.RELATIONAL))
+        await registry.register_provider(
+            MockStorageProvider("kv", StorageType.KEY_VALUE)
+        )
+        await registry.register_provider(
+            MockStorageProvider("db", StorageType.RELATIONAL)
+        )
 
         result = registry.get_storage_types()
 
@@ -590,13 +608,16 @@ class TestExecuteQuery:
         return registry
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in execute_query: passes 'data' both as positional and keyword argument")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in execute_query: passes 'data' both as positional and"
+            " keyword argument"
+        )
+    )
     async def test_execute_query_store(self, registry_with_provider):
         """Executes store operation."""
         query = StorageQuery(
-            operation="store",
-            resource="test_key",
-            parameters={"data": {"value": 123}}
+            operation="store", resource="test_key", parameters={"data": {"value": 123}}
         )
 
         result = await registry_with_provider.execute_query("test_provider", query)
@@ -604,32 +625,42 @@ class TestExecuteQuery:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in execute_query: passes 'data' both as positional and keyword argument")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in execute_query: passes 'data' both as positional and"
+            " keyword argument"
+        )
+    )
     async def test_execute_query_retrieve(self, registry_with_provider):
         """Executes retrieve operation."""
         # First store
         store_query = StorageQuery(
-            operation="store",
-            resource="test_key",
-            parameters={"data": "test_value"}
+            operation="store", resource="test_key", parameters={"data": "test_value"}
         )
         await registry_with_provider.execute_query("test_provider", store_query)
 
         # Then retrieve
         retrieve_query = StorageQuery(operation="retrieve", resource="test_key")
-        result = await registry_with_provider.execute_query("test_provider", retrieve_query)
+        result = await registry_with_provider.execute_query(
+            "test_provider", retrieve_query
+        )
 
         assert result.success is True
         assert result.data == "test_value"
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in execute_query: passes 'query' both as positional and keyword argument")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in execute_query: passes 'query' both as positional an"
+            "d keyword argument"
+        )
+    )
     async def test_execute_query_query_operation(self, registry_with_provider):
         """Executes query operation."""
         query = StorageQuery(
             operation="query",
             resource="collection",
-            parameters={"query": {"filter": "value"}}
+            parameters={"query": {"filter": "value"}},
         )
 
         result = await registry_with_provider.execute_query("test_provider", query)
@@ -637,20 +668,25 @@ class TestExecuteQuery:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in execute_query: passes 'data' both as positional and keyword argument")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in execute_query: passes 'data' both as positional and"
+            " keyword argument"
+        )
+    )
     async def test_execute_query_delete(self, registry_with_provider):
         """Executes delete operation."""
         # First store
         store_query = StorageQuery(
-            operation="store",
-            resource="test_key",
-            parameters={"data": "test_value"}
+            operation="store", resource="test_key", parameters={"data": "test_value"}
         )
         await registry_with_provider.execute_query("test_provider", store_query)
 
         # Then delete
         delete_query = StorageQuery(operation="delete", resource="test_key")
-        result = await registry_with_provider.execute_query("test_provider", delete_query)
+        result = await registry_with_provider.execute_query(
+            "test_provider", delete_query
+        )
 
         assert result.success is True
 
@@ -658,9 +694,7 @@ class TestExecuteQuery:
     async def test_execute_query_custom_operation(self, registry_with_provider):
         """Executes custom operation via safe_execute."""
         query = StorageQuery(
-            operation="custom_op",
-            resource="resource",
-            parameters={"param": "value"}
+            operation="custom_op", resource="resource", parameters={"param": "value"}
         )
 
         result = await registry_with_provider.execute_query("test_provider", query)
@@ -669,13 +703,16 @@ class TestExecuteQuery:
         assert isinstance(result, StorageResult)
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Bug in execute_query: passes 'data' both as positional and keyword argument")
+    @pytest.mark.xfail(
+        reason=(
+            "Bug in execute_query: passes 'data' both as positional and"
+            " keyword argument"
+        )
+    )
     async def test_execute_query_updates_stats_success(self, registry_with_provider):
         """Updates usage statistics on successful operation."""
         query = StorageQuery(
-            operation="store",
-            resource="test_key",
-            parameters={"data": "test"}
+            operation="store", resource="test_key", parameters={"data": "test"}
         )
 
         await registry_with_provider.execute_query("test_provider", query)
@@ -688,13 +725,10 @@ class TestExecuteQuery:
     @pytest.mark.asyncio
     async def test_execute_query_updates_stats_failure(self, registry_with_provider):
         """Updates usage statistics on failed operation."""
-        query = StorageQuery(
-            operation="retrieve",
-            resource="nonexistent_key"
-        )
+        query = StorageQuery(operation="retrieve", resource="nonexistent_key")
 
         # This will fail because the key doesn't exist
-        result = await registry_with_provider.execute_query("test_provider", query)
+        _ = await registry_with_provider.execute_query("test_provider", query)
 
         stats = registry_with_provider._usage_stats["test_provider"]
         # The retrieve fails but doesn't raise exception
@@ -749,7 +783,10 @@ class TestHealthCheckAll:
         initial_checks = registry._usage_stats["test_provider"]["health_checks"]
         await registry.health_check_all()
 
-        assert registry._usage_stats["test_provider"]["health_checks"] == initial_checks + 1
+        assert (
+            registry._usage_stats["test_provider"]["health_checks"]
+            == initial_checks + 1
+        )
 
 
 # ============================================================================
@@ -887,7 +924,9 @@ class TestRemovePermission:
     async def test_remove_permission_success(self):
         """Removes permission."""
         registry = StorageRegistry()
-        await registry.register_provider(MockStorageProvider("test_provider"), permissions=["agent1"])
+        await registry.register_provider(
+            MockStorageProvider("test_provider"), permissions=["agent1"]
+        )
 
         registry.remove_permission("test_provider", "agent1")
 
@@ -1038,6 +1077,7 @@ class TestModuleFunctions:
         """Returns same instance on multiple calls."""
         # Clear the global registry for clean test
         import praval.storage.storage_registry as sr
+
         original = sr._global_storage_registry
         sr._global_storage_registry = None
 
@@ -1053,6 +1093,7 @@ class TestModuleFunctions:
     async def test_register_storage_provider_global(self):
         """register_storage_provider uses global registry."""
         import praval.storage.storage_registry as sr
+
         original = sr._global_storage_registry
         sr._global_storage_registry = None
 
@@ -1069,6 +1110,7 @@ class TestModuleFunctions:
     async def test_get_storage_provider_global(self):
         """get_storage_provider uses global registry."""
         import praval.storage.storage_registry as sr
+
         original = sr._global_storage_registry
         sr._global_storage_registry = None
 
@@ -1086,6 +1128,7 @@ class TestModuleFunctions:
     async def test_list_storage_providers_global(self):
         """list_storage_providers uses global registry."""
         import praval.storage.storage_registry as sr
+
         original = sr._global_storage_registry
         sr._global_storage_registry = None
 

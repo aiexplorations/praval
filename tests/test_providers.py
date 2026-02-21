@@ -5,48 +5,50 @@ Tests the provider factory and individual provider implementations
 to ensure consistent behavior across different LLM APIs.
 """
 
-import pytest
 import os
-from unittest.mock import Mock, patch, MagicMock
-from praval.providers.factory import ProviderFactory
-from praval.providers.openai import OpenAIProvider
+from unittest.mock import Mock, patch
+
+import pytest
+
+from praval.core.agent import AgentConfig
+from praval.core.exceptions import ProviderError
 from praval.providers.anthropic import AnthropicProvider
 from praval.providers.cohere import CohereProvider
-from praval.core.exceptions import ProviderError
-from praval.core.agent import AgentConfig
+from praval.providers.factory import ProviderFactory
+from praval.providers.openai import OpenAIProvider
 
 
 class TestProviderFactory:
     """Test the provider factory functionality."""
-    
+
     def test_create_openai_provider(self):
         """Test creating OpenAI provider through factory."""
         config = AgentConfig(provider="openai")
-        
-        with patch('praval.providers.openai.OpenAIProvider') as mock_provider:
-            provider = ProviderFactory.create_provider("openai", config)
+
+        with patch("praval.providers.openai.OpenAIProvider") as mock_provider:
+            _ = ProviderFactory.create_provider("openai", config)
             mock_provider.assert_called_once_with(config)
-    
+
     def test_create_anthropic_provider(self):
         """Test creating Anthropic provider through factory."""
         config = AgentConfig(provider="anthropic")
-        
-        with patch('praval.providers.anthropic.AnthropicProvider') as mock_provider:
-            provider = ProviderFactory.create_provider("anthropic", config)
+
+        with patch("praval.providers.anthropic.AnthropicProvider") as mock_provider:
+            _ = ProviderFactory.create_provider("anthropic", config)
             mock_provider.assert_called_once_with(config)
-    
+
     def test_create_cohere_provider(self):
         """Test creating Cohere provider through factory."""
         config = AgentConfig(provider="cohere")
-        
-        with patch('praval.providers.cohere.CohereProvider') as mock_provider:
-            provider = ProviderFactory.create_provider("cohere", config)
+
+        with patch("praval.providers.cohere.CohereProvider") as mock_provider:
+            _ = ProviderFactory.create_provider("cohere", config)
             mock_provider.assert_called_once_with(config)
-    
+
     def test_invalid_provider_raises_error(self):
         """Test that invalid provider name raises ProviderError."""
         config = AgentConfig()
-        
+
         with pytest.raises(ProviderError, match="Unsupported provider"):
             ProviderFactory.create_provider("invalid_provider", config)
 
@@ -55,7 +57,7 @@ class TestOpenAIProvider:
     """Test OpenAI provider implementation."""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_provider_initialization(self, mock_openai_class):
         """Test OpenAI provider initializes correctly."""
         mock_client = Mock()
@@ -75,11 +77,13 @@ class TestOpenAIProvider:
             del os.environ["OPENAI_API_KEY"]
 
         config = AgentConfig()
-        with pytest.raises(ProviderError, match="OPENAI_API_KEY environment variable not set"):
+        with pytest.raises(
+            ProviderError, match="OPENAI_API_KEY environment variable not set"
+        ):
             OpenAIProvider(config)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_client_initialization_error(self, mock_openai_class):
         """Test OpenAI client initialization error is wrapped properly."""
         mock_openai_class.side_effect = Exception("Connection failed")
@@ -89,7 +93,7 @@ class TestOpenAIProvider:
             OpenAIProvider(config)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_generate_simple_message(self, mock_openai_class):
         """Test OpenAI provider generates response for simple message."""
         mock_client = Mock()
@@ -110,7 +114,7 @@ class TestOpenAIProvider:
         mock_client.chat.completions.create.assert_called_once()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_generate_empty_choices(self, mock_openai_class):
         """Test OpenAI provider handles empty choices gracefully."""
         mock_client = Mock()
@@ -128,7 +132,7 @@ class TestOpenAIProvider:
         assert response == ""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_generate_none_content(self, mock_openai_class):
         """Test OpenAI provider handles None content gracefully."""
         mock_client = Mock()
@@ -148,7 +152,7 @@ class TestOpenAIProvider:
         assert response == ""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_generate_with_tools(self, mock_openai_class):
         """Test OpenAI provider handles tool calls correctly."""
         mock_client = Mock()
@@ -169,7 +173,7 @@ class TestOpenAIProvider:
         assert response == "I'll calculate that for you."
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_openai_handles_api_errors(self, mock_openai_class):
         """Test OpenAI provider handles API errors gracefully."""
         mock_client = Mock()
@@ -188,7 +192,7 @@ class TestOpenAIToolFormatting:
     """Test OpenAI tool formatting methods."""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_format_tools_basic(self, mock_openai_class):
         """Test basic tool formatting for OpenAI."""
         mock_openai_class.return_value = Mock()
@@ -208,7 +212,7 @@ class TestOpenAIToolFormatting:
         assert formatted[0]["function"]["parameters"]["type"] == "object"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_format_tools_with_parameters(self, mock_openai_class):
         """Test tool formatting with parameters."""
         mock_openai_class.return_value = Mock()
@@ -218,14 +222,16 @@ class TestOpenAIToolFormatting:
         def calculator(x, y):
             return x + y
 
-        tools = [{
-            "function": calculator,
-            "description": "Add two numbers",
-            "parameters": {
-                "x": {"type": "int", "required": True},
-                "y": {"type": "int", "required": True}
+        tools = [
+            {
+                "function": calculator,
+                "description": "Add two numbers",
+                "parameters": {
+                    "x": {"type": "int", "required": True},
+                    "y": {"type": "int", "required": True},
+                },
             }
-        }]
+        ]
         formatted = provider._format_tools_for_openai(tools)
 
         assert len(formatted) == 1
@@ -238,7 +244,7 @@ class TestOpenAIToolFormatting:
         assert "y" in params["required"]
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_format_tools_with_optional_parameters(self, mock_openai_class):
         """Test tool formatting with optional parameters."""
         mock_openai_class.return_value = Mock()
@@ -248,14 +254,16 @@ class TestOpenAIToolFormatting:
         def search(query, limit):
             pass
 
-        tools = [{
-            "function": search,
-            "description": "Search for items",
-            "parameters": {
-                "query": {"type": "str", "required": True},
-                "limit": {"type": "int", "required": False}
+        tools = [
+            {
+                "function": search,
+                "description": "Search for items",
+                "parameters": {
+                    "query": {"type": "str", "required": True},
+                    "limit": {"type": "int", "required": False},
+                },
             }
-        }]
+        ]
         formatted = provider._format_tools_for_openai(tools)
 
         params = formatted[0]["function"]["parameters"]
@@ -263,7 +271,7 @@ class TestOpenAIToolFormatting:
         assert "limit" not in params["required"]
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_format_tools_skips_invalid_tools(self, mock_openai_class):
         """Test that tools without function or description are skipped."""
         mock_openai_class.return_value = Mock()
@@ -285,7 +293,7 @@ class TestOpenAIToolFormatting:
         assert formatted[0]["function"]["name"] == "valid_tool"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_format_tools_empty_list(self, mock_openai_class):
         """Test formatting empty tool list."""
         mock_openai_class.return_value = Mock()
@@ -300,7 +308,7 @@ class TestOpenAITypeConversion:
     """Test Python type to JSON schema conversion."""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_str(self, mock_openai_class):
         """Test string type conversion."""
         mock_openai_class.return_value = Mock()
@@ -310,7 +318,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("str") == "string"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_int(self, mock_openai_class):
         """Test integer type conversion."""
         mock_openai_class.return_value = Mock()
@@ -320,7 +328,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("int") == "integer"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_float(self, mock_openai_class):
         """Test float type conversion."""
         mock_openai_class.return_value = Mock()
@@ -330,7 +338,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("float") == "number"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_bool(self, mock_openai_class):
         """Test boolean type conversion."""
         mock_openai_class.return_value = Mock()
@@ -340,7 +348,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("bool") == "boolean"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_list(self, mock_openai_class):
         """Test list type conversion."""
         mock_openai_class.return_value = Mock()
@@ -351,7 +359,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("List") == "array"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_dict(self, mock_openai_class):
         """Test dict type conversion."""
         mock_openai_class.return_value = Mock()
@@ -362,7 +370,7 @@ class TestOpenAITypeConversion:
         assert provider._python_type_to_json_schema("Dict") == "object"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_python_type_to_json_schema_unknown(self, mock_openai_class):
         """Test unknown type defaults to string."""
         mock_openai_class.return_value = Mock()
@@ -377,7 +385,7 @@ class TestOpenAIToolCallHandling:
     """Test OpenAI tool call handling."""
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_executes_function(self, mock_openai_class):
         """Test that tool calls execute the correct function."""
         mock_client = Mock()
@@ -412,7 +420,7 @@ class TestOpenAIToolCallHandling:
         mock_client.chat.completions.create.assert_called()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_unknown_function(self, mock_openai_class):
         """Test handling of unknown function in tool calls."""
         mock_client = Mock()
@@ -421,7 +429,9 @@ class TestOpenAIToolCallHandling:
         # Mock the follow-up response
         mock_followup_response = Mock()
         mock_followup_response.choices = [Mock()]
-        mock_followup_response.choices[0].message.content = "I couldn't find that function."
+        mock_followup_response.choices[0].message.content = (
+            "I couldn't find that function."
+        )
         mock_client.chat.completions.create.return_value = mock_followup_response
 
         config = AgentConfig()
@@ -432,7 +442,7 @@ class TestOpenAIToolCallHandling:
         mock_tool_call.type = "function"
         mock_tool_call.id = "call_456"
         mock_tool_call.function.name = "unknown_function"
-        mock_tool_call.function.arguments = '{}'
+        mock_tool_call.function.arguments = "{}"
 
         def known_function():
             return "known"
@@ -440,13 +450,13 @@ class TestOpenAIToolCallHandling:
         tools = [{"function": known_function, "description": "A known function"}]
         messages = [{"role": "user", "content": "Do something"}]
 
-        result = provider._handle_tool_calls([mock_tool_call], tools, messages)
+        _ = provider._handle_tool_calls([mock_tool_call], tools, messages)
 
         # Should have called the API with unknown function error message
         mock_client.chat.completions.create.assert_called()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_function_execution_error(self, mock_openai_class):
         """Test handling of function execution errors in tool calls."""
         mock_client = Mock()
@@ -466,7 +476,7 @@ class TestOpenAIToolCallHandling:
         mock_tool_call.type = "function"
         mock_tool_call.id = "call_789"
         mock_tool_call.function.name = "failing_function"
-        mock_tool_call.function.arguments = '{}'
+        mock_tool_call.function.arguments = "{}"
 
         def failing_function():
             raise ValueError("Function failed!")
@@ -474,13 +484,13 @@ class TestOpenAIToolCallHandling:
         tools = [{"function": failing_function, "description": "A failing function"}]
         messages = [{"role": "user", "content": "Run the function"}]
 
-        result = provider._handle_tool_calls([mock_tool_call], tools, messages)
+        _ = provider._handle_tool_calls([mock_tool_call], tools, messages)
 
         # Should handle the error gracefully
         mock_client.chat.completions.create.assert_called()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_follow_up_error_fallback(self, mock_openai_class):
         """Test fallback when follow-up API call fails."""
         mock_client = Mock()
@@ -497,7 +507,7 @@ class TestOpenAIToolCallHandling:
         mock_tool_call.type = "function"
         mock_tool_call.id = "call_abc"
         mock_tool_call.function.name = "simple_function"
-        mock_tool_call.function.arguments = '{}'
+        mock_tool_call.function.arguments = "{}"
 
         def simple_function():
             return "result_value"
@@ -511,7 +521,7 @@ class TestOpenAIToolCallHandling:
         assert "result_value" in result
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_multiple_calls(self, mock_openai_class):
         """Test handling of multiple tool calls."""
         mock_client = Mock()
@@ -531,13 +541,13 @@ class TestOpenAIToolCallHandling:
         mock_tool_call1.type = "function"
         mock_tool_call1.id = "call_1"
         mock_tool_call1.function.name = "func_a"
-        mock_tool_call1.function.arguments = '{}'
+        mock_tool_call1.function.arguments = "{}"
 
         mock_tool_call2 = Mock()
         mock_tool_call2.type = "function"
         mock_tool_call2.id = "call_2"
         mock_tool_call2.function.name = "func_b"
-        mock_tool_call2.function.arguments = '{}'
+        mock_tool_call2.function.arguments = "{}"
 
         def func_a():
             return "A"
@@ -547,7 +557,7 @@ class TestOpenAIToolCallHandling:
 
         tools = [
             {"function": func_a, "description": "Function A"},
-            {"function": func_b, "description": "Function B"}
+            {"function": func_b, "description": "Function B"},
         ]
         messages = [{"role": "user", "content": "Run both"}]
 
@@ -558,7 +568,7 @@ class TestOpenAIToolCallHandling:
         assert result == "Both functions executed."
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_handle_tool_calls_empty_follow_up_response(self, mock_openai_class):
         """Test handling of empty follow-up response."""
         mock_client = Mock()
@@ -576,7 +586,7 @@ class TestOpenAIToolCallHandling:
         mock_tool_call.type = "function"
         mock_tool_call.id = "call_empty"
         mock_tool_call.function.name = "test_func"
-        mock_tool_call.function.arguments = '{}'
+        mock_tool_call.function.arguments = "{}"
 
         def test_func():
             return "test"
@@ -589,7 +599,7 @@ class TestOpenAIToolCallHandling:
         assert result == "No response generated after tool execution"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
-    @patch('openai.OpenAI')
+    @patch("openai.OpenAI")
     def test_generate_with_actual_tool_calls(self, mock_openai_class):
         """Test generate method when API returns tool calls."""
         mock_client = Mock()
@@ -634,7 +644,7 @@ class TestAnthropicProvider:
     """Test Anthropic provider implementation."""
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_provider_initialization(self, mock_anthropic_class):
         """Test Anthropic provider initializes correctly."""
         mock_client = Mock()
@@ -647,7 +657,7 @@ class TestAnthropicProvider:
         assert provider.client == mock_client
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_generate_simple_message(self, mock_anthropic_class):
         """Test Anthropic provider generates response for simple message."""
         mock_client = Mock()
@@ -668,7 +678,7 @@ class TestAnthropicProvider:
         mock_client.messages.create.assert_called_once()
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_handles_system_messages(self, mock_anthropic_class):
         """Test Anthropic provider handles system messages correctly."""
         mock_client = Mock()
@@ -684,7 +694,7 @@ class TestAnthropicProvider:
 
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What are you?"}
+            {"role": "user", "content": "What are you?"},
         ]
         response = provider.generate(messages)
 
@@ -695,7 +705,7 @@ class TestAnthropicProvider:
         assert "system" in call_args.kwargs
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_handles_api_errors(self, mock_anthropic_class):
         """Test Anthropic provider handles API errors gracefully."""
         mock_client = Mock()
@@ -710,7 +720,7 @@ class TestAnthropicProvider:
             provider.generate(messages)
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_generate_with_tools(self, mock_anthropic_class):
         """Test Anthropic provider passes tools to the API."""
         mock_client = Mock()
@@ -728,7 +738,16 @@ class TestAnthropicProvider:
             return x + y
 
         messages = [{"role": "user", "content": "Add 1 and 2"}]
-        tools = [{"function": add, "description": "Add numbers", "parameters": {"x": {"type": "int", "required": True}, "y": {"type": "int", "required": True}}}]
+        tools = [
+            {
+                "function": add,
+                "description": "Add numbers",
+                "parameters": {
+                    "x": {"type": "int", "required": True},
+                    "y": {"type": "int", "required": True},
+                },
+            }
+        ]
 
         result = provider.generate(messages, tools)
         assert result == "Done"
@@ -737,9 +756,11 @@ class TestAnthropicProvider:
         assert "tools" in call_args.kwargs
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
-    @patch('anthropic.Anthropic')
+    @patch("anthropic.Anthropic")
     def test_anthropic_handles_tool_calls(self, mock_anthropic_class):
-        """Test Anthropic provider executes tool calls and returns follow-up response."""
+        """
+        Test Anthropic provider executes tool calls and returns a follow-up response.
+        """
         mock_client = Mock()
         mock_anthropic_class.return_value = mock_client
 
@@ -769,7 +790,16 @@ class TestAnthropicProvider:
             return x + y
 
         messages = [{"role": "user", "content": "Add"}]
-        tools = [{"function": add, "description": "Add numbers", "parameters": {"x": {"type": "int", "required": True}, "y": {"type": "int", "required": True}}}]
+        tools = [
+            {
+                "function": add,
+                "description": "Add numbers",
+                "parameters": {
+                    "x": {"type": "int", "required": True},
+                    "y": {"type": "int", "required": True},
+                },
+            }
+        ]
 
         result = provider.generate(messages, tools)
         assert result == "Result is 7"
@@ -780,7 +810,7 @@ class TestCohereProvider:
     """Test Cohere provider implementation."""
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_provider_initialization(self, mock_cohere_class):
         """Test Cohere provider initializes correctly."""
         mock_client = Mock()
@@ -793,7 +823,7 @@ class TestCohereProvider:
         assert provider.client == mock_client
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_generate_with_tools(self, mock_cohere_class):
         """Test Cohere provider passes tools to the API."""
         mock_client = Mock()
@@ -809,7 +839,13 @@ class TestCohereProvider:
             return text
 
         messages = [{"role": "user", "content": "Hi"}]
-        tools = [{"function": echo, "description": "Echo text", "parameters": {"text": {"type": "str", "required": True}}}]
+        tools = [
+            {
+                "function": echo,
+                "description": "Echo text",
+                "parameters": {"text": {"type": "str", "required": True}},
+            }
+        ]
 
         result = provider.generate(messages, tools)
         assert result == "OK"
@@ -818,7 +854,7 @@ class TestCohereProvider:
         assert "tools" in call_args.kwargs
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_handles_tool_calls(self, mock_cohere_class):
         """Test Cohere provider executes tool calls and returns follow-up response."""
         mock_client = Mock()
@@ -841,14 +877,20 @@ class TestCohereProvider:
             return text
 
         messages = [{"role": "user", "content": "Echo"}]
-        tools = [{"function": echo, "description": "Echo text", "parameters": {"text": {"type": "str", "required": True}}}]
+        tools = [
+            {
+                "function": echo,
+                "description": "Echo text",
+                "parameters": {"text": {"type": "str", "required": True}},
+            }
+        ]
 
         result = provider.generate(messages, tools)
         assert result == "hello"
         assert mock_client.chat.call_count == 2
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_generate_simple_message(self, mock_cohere_class):
         """Test Cohere provider generates response for simple message."""
         mock_client = Mock()
@@ -867,7 +909,7 @@ class TestCohereProvider:
         mock_client.chat.assert_called_once()
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_handles_conversation_history(self, mock_cohere_class):
         """Test Cohere provider handles conversation history correctly."""
         mock_client = Mock()
@@ -882,7 +924,7 @@ class TestCohereProvider:
         messages = [
             {"role": "user", "content": "My name is Alice"},
             {"role": "assistant", "content": "Nice to meet you, Alice!"},
-            {"role": "user", "content": "What's my name?"}
+            {"role": "user", "content": "What's my name?"},
         ]
         response = provider.generate(messages)
 
@@ -893,7 +935,7 @@ class TestCohereProvider:
         assert "chat_history" in call_args.kwargs
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
-    @patch('cohere.Client')
+    @patch("cohere.Client")
     def test_cohere_handles_api_errors(self, mock_cohere_class):
         """Test Cohere provider handles API errors gracefully."""
         mock_client = Mock()
@@ -916,7 +958,7 @@ class TestProviderConfiguration:
         """Test that temperature configuration is applied to providers."""
         config = AgentConfig(temperature=0.9)
 
-        with patch('openai.OpenAI') as mock_openai:
+        with patch("openai.OpenAI"):
             provider = OpenAIProvider(config)
             assert provider.config.temperature == 0.9
 
@@ -925,7 +967,7 @@ class TestProviderConfiguration:
         """Test that max_tokens configuration is applied to providers."""
         config = AgentConfig(max_tokens=2000)
 
-        with patch('anthropic.Anthropic') as mock_anthropic:
+        with patch("anthropic.Anthropic"):
             provider = AnthropicProvider(config)
             assert provider.config.max_tokens == 2000
 
@@ -934,6 +976,6 @@ class TestProviderConfiguration:
         """Test that system message configuration is handled correctly."""
         config = AgentConfig(system_message="You are a coding assistant.")
 
-        with patch('cohere.Client') as mock_cohere:
+        with patch("cohere.Client"):
             provider = CohereProvider(config)
             assert provider.config.system_message == "You are a coding assistant."

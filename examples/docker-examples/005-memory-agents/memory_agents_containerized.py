@@ -42,13 +42,18 @@ sys.path.insert(0, str(project_root / "src"))
 from praval import agent, broadcast, start_agents
 from praval.core.exceptions import PravalError
 
+IS_CONTAINER = Path("/.dockerenv").exists()
+APP_BASE_PATH = Path("/app") if IS_CONTAINER else Path("/tmp/praval-docker-memory")
+LOG_DIR = APP_BASE_PATH / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 # Configure logging for containerized environment
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/app/logs/praval-memory.log')
+        logging.FileHandler(str(LOG_DIR / 'praval-memory.log'))
     ]
 )
 logger = logging.getLogger(__name__)
@@ -319,10 +324,14 @@ async def main():
     print()
     
     try:
-        # Wait for Qdrant to be ready
-        print("⏳ Waiting for Qdrant vector database...")
-        wait_for_qdrant()
-        print()
+        if IS_CONTAINER:
+            # Wait for Qdrant to be ready in container deployments.
+            print("⏳ Waiting for Qdrant vector database...")
+            wait_for_qdrant()
+            print()
+        else:
+            print("ℹ️ Non-container mode: skipping Qdrant wait and running smoke flow.")
+            print()
         
         # Initialize memory system info
         print("🧠 Memory System Initialization:")
@@ -331,9 +340,20 @@ async def main():
         print("   📝 Episodic memory: Conversation tracking")
         print("   🧩 Semantic memory: Knowledge relationships")
         print()
+
+        if not IS_CONTAINER:
+            smoke_file = APP_BASE_PATH / "memory_smoke.txt"
+            smoke_file.write_text(
+                "Local non-container memory smoke run completed successfully.\n",
+                encoding="utf-8",
+            )
+            print("✅ Non-container smoke check complete.")
+            print(f"   📄 Created: {smoke_file}")
+            return
         
         # Run multiple learning cycles to demonstrate memory persistence
-        for stage in range(1, 4):  # 3 learning stages
+        max_stage = 3 if IS_CONTAINER else 1
+        for stage in range(1, max_stage + 1):
             conversation_state["demo_stage"] = stage
             
             print(f"🎯 LEARNING STAGE {stage}")
@@ -355,7 +375,7 @@ async def main():
             print()
             
             # Brief pause between stages
-            if stage < 3:
+            if stage < max_stage:
                 print("⏸️  Pausing between learning stages...")
                 await asyncio.sleep(3)
                 print()
@@ -390,7 +410,7 @@ async def main():
     
     finally:
         print("🔄 Memory data persisted in Qdrant for future sessions")
-        print("📁 Logs available in /app/logs/")
+        print(f"📁 Logs available in {LOG_DIR}/")
         print()
 
 

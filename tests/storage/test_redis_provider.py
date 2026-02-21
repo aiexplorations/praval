@@ -6,15 +6,13 @@ Skip these tests if Docker is not available: pytest -m "not integration"
 """
 
 import pytest
-import pytest_asyncio
+
+from praval.storage.base_provider import StorageType
+from praval.storage.exceptions import StorageConnectionError
+from praval.storage.providers.redis_provider import RedisProvider
 
 # Skip all tests if redis is not available
 pytest.importorskip("redis", reason="redis required for Redis tests")
-
-from praval.storage.providers.redis_provider import RedisProvider
-from praval.storage.base_provider import StorageType, StorageResult
-from praval.storage.exceptions import StorageConnectionError
-
 
 # ============================================================================
 # Initialization & Configuration Tests
@@ -115,10 +113,7 @@ class TestRedisStore:
     @pytest.mark.asyncio
     async def test_store_dict(self, redis_provider):
         """Stores dict with JSON serialization."""
-        result = await redis_provider.store(
-            "test_key",
-            {"name": "Test", "value": 123}
-        )
+        result = await redis_provider.store("test_key", {"name": "Test", "value": 123})
 
         assert result.success is True
         assert result.data.get("stored") is True
@@ -126,10 +121,7 @@ class TestRedisStore:
     @pytest.mark.asyncio
     async def test_store_list(self, redis_provider):
         """Stores list with JSON serialization."""
-        result = await redis_provider.store(
-            "test_list_key",
-            [1, 2, 3, "test"]
-        )
+        result = await redis_provider.store("test_list_key", [1, 2, 3, "test"])
 
         assert result.success is True
 
@@ -143,11 +135,7 @@ class TestRedisStore:
     @pytest.mark.asyncio
     async def test_store_with_expiry_seconds(self, redis_provider):
         """Stores with expiration in seconds."""
-        result = await redis_provider.store(
-            "expiring_key",
-            "expiring data",
-            ex=3600
-        )
+        result = await redis_provider.store("expiring_key", "expiring data", ex=3600)
 
         assert result.success is True
         assert result.metadata.get("ttl") is not None
@@ -292,9 +280,7 @@ class TestRedisQueryKeys:
         await redis_provider.store("exists_multi_2", "2")
 
         result = await redis_provider.query(
-            "",
-            "exists",
-            keys=["exists_multi_1", "exists_multi_2"]
+            "", "exists", keys=["exists_multi_1", "exists_multi_2"]
         )
 
         assert result.success is True
@@ -313,7 +299,9 @@ class TestRedisQueryHashes:
     async def test_query_hgetall(self, redis_provider):
         """Gets all hash fields."""
         # Set up hash directly
-        await redis_provider.redis_client.hset("test_hash", mapping={"f1": "v1", "f2": "v2"})
+        await redis_provider.redis_client.hset(
+            "test_hash", mapping={"f1": "v1", "f2": "v2"}
+        )
 
         result = await redis_provider.query("test_hash", "hgetall")
 
@@ -344,7 +332,9 @@ class TestRedisQueryHashes:
     @pytest.mark.asyncio
     async def test_query_hkeys(self, redis_provider):
         """Lists hash field names."""
-        await redis_provider.redis_client.hset("hkeys_hash", mapping={"a": "1", "b": "2"})
+        await redis_provider.redis_client.hset(
+            "hkeys_hash", mapping={"a": "1", "b": "2"}
+        )
 
         result = await redis_provider.query("hkeys_hash", "hkeys")
 
@@ -355,7 +345,9 @@ class TestRedisQueryHashes:
     @pytest.mark.asyncio
     async def test_query_hvals(self, redis_provider):
         """Lists hash values."""
-        await redis_provider.redis_client.hset("hvals_hash", mapping={"x": "10", "y": "20"})
+        await redis_provider.redis_client.hset(
+            "hvals_hash", mapping={"x": "10", "y": "20"}
+        )
 
         result = await redis_provider.query("hvals_hash", "hvals")
 
@@ -395,7 +387,9 @@ class TestRedisQueryLists:
     @pytest.mark.asyncio
     async def test_query_lindex(self, redis_provider):
         """Gets element by index."""
-        await redis_provider.redis_client.rpush("index_list", "first", "second", "third")
+        await redis_provider.redis_client.rpush(
+            "index_list", "first", "second", "third"
+        )
 
         result = await redis_provider.query("index_list", "lindex", index=1)
 
@@ -456,8 +450,7 @@ class TestRedisQueryStructured:
         await redis_provider.store("mget_2", "value2")
 
         result = await redis_provider.query(
-            "",
-            {"operation": "mget", "keys": ["mget_1", "mget_2"]}
+            "", {"operation": "mget", "keys": ["mget_1", "mget_2"]}
         )
 
         assert result.success is True
@@ -507,8 +500,7 @@ class TestRedisDelete:
     async def test_delete_pattern_no_matches(self, redis_provider):
         """Returns 0 for pattern with no matches."""
         result = await redis_provider.delete(
-            "nonexistent_pattern_*",
-            pattern_delete=True
+            "nonexistent_pattern_*", pattern_delete=True
         )
 
         assert result.success is True

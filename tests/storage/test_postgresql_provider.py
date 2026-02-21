@@ -6,16 +6,13 @@ Skip these tests if Docker is not available: pytest -m "not integration"
 """
 
 import pytest
-import pytest_asyncio
-import json
+
+from praval.storage.base_provider import StorageType
+from praval.storage.exceptions import StorageConnectionError
+from praval.storage.providers.postgresql import PostgreSQLProvider
 
 # Skip all tests in this file if asyncpg is not available
 pytest.importorskip("asyncpg", reason="asyncpg required for PostgreSQL tests")
-
-from praval.storage.providers.postgresql import PostgreSQLProvider
-from praval.storage.base_provider import StorageType, StorageResult
-from praval.storage.exceptions import StorageConnectionError
-
 
 # ============================================================================
 # Initialization & Configuration Tests
@@ -112,8 +109,7 @@ class TestPostgreSQLStore:
     async def test_store_single_dict(self, postgres_provider):
         """Inserts single record from dict."""
         result = await postgres_provider.store(
-            "test_table",
-            {"name": "Test Record", "data": {"key": "value"}}
+            "test_table", {"name": "Test Record", "data": {"key": "value"}}
         )
 
         assert result.success is True
@@ -123,9 +119,7 @@ class TestPostgreSQLStore:
     async def test_store_with_returning(self, postgres_provider):
         """Inserts with RETURNING clause."""
         result = await postgres_provider.store(
-            "test_table",
-            {"name": "Test Record"},
-            returning="id, name"
+            "test_table", {"name": "Test Record"}, returning="id, name"
         )
 
         assert result.success is True
@@ -135,9 +129,7 @@ class TestPostgreSQLStore:
     @pytest.mark.asyncio
     async def test_store_bulk_list(self, postgres_provider):
         """Bulk inserts multiple records."""
-        records = [
-            {"name": f"Record {i}"} for i in range(5)
-        ]
+        records = [{"name": f"Record {i}"} for i in range(5)]
 
         result = await postgres_provider.store("test_table", records)
 
@@ -158,7 +150,9 @@ class TestPostgreSQLStore:
         result = await postgres_provider.store("test_table", "invalid string")
 
         assert result.success is False
-        assert "unsupported" in result.error.lower() or "data type" in result.error.lower()
+        assert (
+            "unsupported" in result.error.lower() or "data type" in result.error.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_store_auto_connect(self, postgres_config):
@@ -186,11 +180,14 @@ class TestPostgreSQLRetrieve:
     async def test_retrieve_all(self, postgres_provider):
         """Retrieves all records from table."""
         # Insert test data
-        await postgres_provider.store("test_table", [
-            {"name": "Record 1"},
-            {"name": "Record 2"},
-            {"name": "Record 3"},
-        ])
+        await postgres_provider.store(
+            "test_table",
+            [
+                {"name": "Record 1"},
+                {"name": "Record 2"},
+                {"name": "Record 3"},
+            ],
+        )
 
         result = await postgres_provider.retrieve("test_table")
 
@@ -203,8 +200,7 @@ class TestPostgreSQLRetrieve:
         await postgres_provider.store("test_table", {"name": "Specific Record"})
 
         result = await postgres_provider.retrieve(
-            "test_table",
-            where={"name": "Specific Record"}
+            "test_table", where={"name": "Specific Record"}
         )
 
         assert result.success is True
@@ -214,16 +210,16 @@ class TestPostgreSQLRetrieve:
     @pytest.mark.asyncio
     async def test_retrieve_with_order(self, postgres_provider):
         """Retrieves with ORDER BY."""
-        await postgres_provider.store("test_table", [
-            {"name": "Zebra"},
-            {"name": "Apple"},
-            {"name": "Mango"},
-        ])
-
-        result = await postgres_provider.retrieve(
+        await postgres_provider.store(
             "test_table",
-            order_by="name ASC"
+            [
+                {"name": "Zebra"},
+                {"name": "Apple"},
+                {"name": "Mango"},
+            ],
         )
+
+        result = await postgres_provider.retrieve("test_table", order_by="name ASC")
 
         assert result.success is True
         # First record should be alphabetically first
@@ -233,15 +229,11 @@ class TestPostgreSQLRetrieve:
     @pytest.mark.asyncio
     async def test_retrieve_with_limit_offset(self, postgres_provider):
         """Retrieves with pagination."""
-        await postgres_provider.store("test_table", [
-            {"name": f"Record {i}"} for i in range(10)
-        ])
-
-        result = await postgres_provider.retrieve(
-            "test_table",
-            limit=3,
-            offset=2
+        await postgres_provider.store(
+            "test_table", [{"name": f"Record {i}"} for i in range(10)]
         )
+
+        result = await postgres_provider.retrieve("test_table", limit=3, offset=2)
 
         assert result.success is True
         assert len(result.data) <= 3
@@ -250,8 +242,7 @@ class TestPostgreSQLRetrieve:
     async def test_retrieve_empty_result(self, postgres_provider):
         """Returns empty list when no matches."""
         result = await postgres_provider.retrieve(
-            "test_table",
-            where={"name": "NonExistentRecord_" + str(id(self))}
+            "test_table", where={"name": "NonExistentRecord_" + str(id(self))}
         )
 
         assert result.success is True
@@ -274,7 +265,7 @@ class TestPostgreSQLQuery:
         result = await postgres_provider.query(
             "test_table",
             "SELECT name FROM test_table WHERE name = $1",
-            params=["Query Test"]
+            params=["Query Test"],
         )
 
         assert result.success is True
@@ -286,7 +277,7 @@ class TestPostgreSQLQuery:
         result = await postgres_provider.query(
             "test_table",
             "INSERT INTO test_table (name) VALUES ($1)",
-            params=["Raw Insert"]
+            params=["Raw Insert"],
         )
 
         assert result.success is True
@@ -299,10 +290,7 @@ class TestPostgreSQLQuery:
 
         result = await postgres_provider.query(
             "test_table",
-            {
-                "operation": "select",
-                "where": {"name": "Structured Query Test"}
-            }
+            {"operation": "select", "where": {"name": "Structured Query Test"}},
         )
 
         assert result.success is True
@@ -317,8 +305,8 @@ class TestPostgreSQLQuery:
             {
                 "operation": "select",
                 "fields": ["name"],
-                "where": {"name": "Fields Test"}
-            }
+                "where": {"name": "Fields Test"},
+            },
         )
 
         assert result.success is True
@@ -341,8 +329,7 @@ class TestPostgreSQLDelete:
         await postgres_provider.store("test_table", {"name": "Delete Me"})
 
         result = await postgres_provider.delete(
-            "test_table",
-            where={"name": "Delete Me"}
+            "test_table", where={"name": "Delete Me"}
         )
 
         assert result.success is True
@@ -360,15 +347,17 @@ class TestPostgreSQLDelete:
     async def test_delete_returns_count(self, postgres_provider):
         """Returns count of deleted records."""
         # Insert 3 records
-        await postgres_provider.store("test_table", [
-            {"name": "DeleteBatch"},
-            {"name": "DeleteBatch"},
-            {"name": "DeleteBatch"},
-        ])
+        await postgres_provider.store(
+            "test_table",
+            [
+                {"name": "DeleteBatch"},
+                {"name": "DeleteBatch"},
+                {"name": "DeleteBatch"},
+            ],
+        )
 
         result = await postgres_provider.delete(
-            "test_table",
-            where={"name": "DeleteBatch"}
+            "test_table", where={"name": "DeleteBatch"}
         )
 
         assert result.success is True
@@ -438,7 +427,9 @@ class TestWhereClauseBuilder:
         """Builds IN condition."""
         provider = PostgreSQLProvider("test", postgres_config)
 
-        clause, params = provider._build_where_clause({"status": {"$in": ["active", "pending"]}})
+        clause, params = provider._build_where_clause(
+            {"status": {"$in": ["active", "pending"]}}
+        )
 
         assert "status IN" in clause
         assert "active" in params
@@ -448,10 +439,9 @@ class TestWhereClauseBuilder:
         """Builds multiple conditions with AND."""
         provider = PostgreSQLProvider("test", postgres_config)
 
-        clause, params = provider._build_where_clause({
-            "name": "Test",
-            "age": {"$gt": 18}
-        })
+        clause, params = provider._build_where_clause(
+            {"name": "Test", "age": {"$gt": 18}}
+        )
 
         assert "AND" in clause
         assert "name = $1" in clause

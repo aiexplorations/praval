@@ -3,17 +3,18 @@ Tests for Tracer implementation.
 """
 
 import os
+
 import pytest
 
+from praval.observability.config import reset_config
+from praval.observability.tracing.context import TraceContext
+from praval.observability.tracing.span import NoOpSpan, Span, SpanKind
 from praval.observability.tracing.tracer import (
     Tracer,
-    get_tracer,
+    generate_span_id,
     generate_trace_id,
-    generate_span_id
+    get_tracer,
 )
-from praval.observability.tracing.span import Span, SpanKind, NoOpSpan
-from praval.observability.tracing.context import TraceContext
-from praval.observability.config import reset_config
 
 
 class TestTracer:
@@ -73,10 +74,7 @@ class TestTracer:
     def test_start_span_with_attributes(self):
         """Test starting span with initial attributes."""
         tracer = Tracer()
-        span = tracer.start_span(
-            "test",
-            attributes={"key1": "value1", "key2": 42}
-        )
+        span = tracer.start_span("test", attributes={"key1": "value1", "key2": 42})
 
         assert span.attributes["key1"] == "value1"
         assert span.attributes["key2"] == 42
@@ -139,7 +137,7 @@ class TestTracer:
         tracer = Tracer()
 
         with pytest.raises(ValueError):
-            with tracer.start_as_current_span("test") as span:
+            with tracer.start_as_current_span("test"):
                 raise ValueError("Test error")
 
         # Span should be ended and cleared

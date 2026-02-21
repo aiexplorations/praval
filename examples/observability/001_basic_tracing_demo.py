@@ -132,7 +132,10 @@ def show_storage_stats():
 
     print(f"Total traces: {stats.get('trace_count', 0)}")
     print(f"Total spans: {stats.get('span_count', 0)}")
-    print(f"Average duration: {stats.get('avg_duration_ms', 0):.2f}ms")
+    avg_duration = stats.get('avg_duration_ms')
+    if avg_duration is None:
+        avg_duration = 0.0
+    print(f"Average duration: {avg_duration:.2f}ms")
 
 
 def demonstrate_parent_child():

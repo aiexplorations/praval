@@ -5,31 +5,94 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.21 adds reef performance options (shared pool, handler batching),
-reef authorization hooks, agent history caps, and stability fixes across observability and storage,
-plus improved tests for transports, reef backends, and optional providers.
+Version 0.7.22 adds agent-gated HITL interventions (approve/edit/reject with
+durable SQLite state), provider parity for tool-call interruptions and resume,
+and CLI support for operator intervention workflows.
 
 """
 
-from .core.agent import Agent
-from .core.registry import register_agent, get_registry
-from .core.reef import get_reef, Spore, SporeType
-from .decorators import chat, achat, broadcast, get_agent_info
+from typing import Any
+
 from .composition import (
-    agent_pipeline, conditional_agent, throttled_agent, 
-    AgentSession, start_agents
+    AgentSession,
+    agent_pipeline,
+    conditional_agent,
+    start_agents,
+    throttled_agent,
 )
+from .core.agent import Agent
+from .core.exceptions import HITLConfigurationError, InterventionRequired
+from .core.reef import Spore, SporeType, get_reef
+from .core.registry import get_registry, register_agent
 
 # Enhanced agent decorator with memory support (v0.7.0+)
-from .decorators import agent, chat, achat, broadcast, get_agent_info
+from .decorators import achat, agent, broadcast, chat, get_agent_info
+from .hitl import (
+    HITLService,
+    HITLStore,
+    InterventionDecision,
+    InterventionPolicy,
+    InterventionRequest,
+    InterventionStatus,
+    SuspendedRunState,
+    get_hitl_store,
+)
+
+tool: Any = None
+get_tool_info: Any = None
+is_tool: Any = None
+discover_tools: Any = None
+list_tools: Any = None
+register_tool_with_agent: Any = None
+unregister_tool_from_agent: Any = None
+ToolCollection: Any = None
+ToolRegistry: Any = None
+Tool: Any = None
+ToolMetadata: Any = None
+get_tool_registry: Any = None
+reset_tool_registry: Any = None
+
+MemoryManager: Any = None
+MemoryType: Any = None
+MemoryEntry: Any = None
+MemoryQuery: Any = None
+
+BaseStorageProvider: Any = None
+StorageRegistry: Any = None
+DataManager: Any = None
+storage_enabled: Any = None
+requires_storage: Any = None
+get_storage_registry: Any = None
+get_data_manager: Any = None
+PostgreSQLProvider: Any = None
+RedisProvider: Any = None
+S3Provider: Any = None
+FileSystemProvider: Any = None
+QdrantProvider: Any = None
+DataReference: Any = None
+StorageResult: Any = None
+StorageType: Any = None
 
 # Tool system imports (v0.7.2+)
 try:
-    from .tools import (
-        tool, get_tool_info, is_tool, discover_tools, list_tools,
-        register_tool_with_agent, unregister_tool_from_agent, ToolCollection
+    from .core.tool_registry import (
+        Tool,
+        ToolMetadata,
+        ToolRegistry,
+        get_tool_registry,
+        reset_tool_registry,
     )
-    from .core.tool_registry import ToolRegistry, Tool, ToolMetadata, get_tool_registry, reset_tool_registry
+    from .tools import (
+        ToolCollection,
+        discover_tools,
+        get_tool_info,
+        is_tool,
+        list_tools,
+        register_tool_with_agent,
+        tool,
+        unregister_tool_from_agent,
+    )
+
     TOOLS_AVAILABLE = True
 except ImportError:
     TOOLS_AVAILABLE = False
@@ -49,7 +112,8 @@ except ImportError:
 
 # Memory system imports (optional - graceful fallback if dependencies missing)
 try:
-    from .memory import MemoryManager, MemoryType, MemoryEntry, MemoryQuery
+    from .memory import MemoryEntry, MemoryManager, MemoryQuery, MemoryType
+
     MEMORY_AVAILABLE = True
 except ImportError:
     MEMORY_AVAILABLE = False
@@ -61,13 +125,23 @@ except ImportError:
 # Storage system imports (optional - graceful fallback if dependencies missing)
 try:
     from .storage import (
-        BaseStorageProvider, StorageRegistry, DataManager,
-        storage_enabled, requires_storage,
-        get_storage_registry, get_data_manager,
-        PostgreSQLProvider, RedisProvider, S3Provider, 
-        FileSystemProvider, QdrantProvider,
-        DataReference, StorageResult, StorageType
+        BaseStorageProvider,
+        DataManager,
+        DataReference,
+        FileSystemProvider,
+        PostgreSQLProvider,
+        QdrantProvider,
+        RedisProvider,
+        S3Provider,
+        StorageRegistry,
+        StorageResult,
+        StorageType,
+        get_data_manager,
+        get_storage_registry,
+        requires_storage,
+        storage_enabled,
     )
+
     STORAGE_AVAILABLE = True
 except ImportError:
     STORAGE_AVAILABLE = False
@@ -87,33 +161,74 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.21"
+__version__ = "0.7.22"
 __all__ = [
     # Core classes
-    "Agent", "register_agent", "get_registry", "get_reef", "Spore", "SporeType",
-    
+    "Agent",
+    "register_agent",
+    "get_registry",
+    "get_reef",
+    "Spore",
+    "SporeType",
     # Enhanced decorator (now with memory support)
     "agent",
-    
     # Communication and composition
-    "chat", "achat", "broadcast", "get_agent_info",
-    "agent_pipeline", "conditional_agent", "throttled_agent",
-    "AgentSession", "start_agents",
-    
+    "chat",
+    "achat",
+    "broadcast",
+    "get_agent_info",
+    "agent_pipeline",
+    "conditional_agent",
+    "throttled_agent",
+    "AgentSession",
+    "start_agents",
+    # HITL
+    "InterventionDecision",
+    "InterventionPolicy",
+    "InterventionRequest",
+    "InterventionStatus",
+    "SuspendedRunState",
+    "HITLService",
+    "HITLStore",
+    "get_hitl_store",
+    "InterventionRequired",
+    "HITLConfigurationError",
     # Tool system (if available)
-    "tool", "get_tool_info", "is_tool", "discover_tools", "list_tools",
-    "register_tool_with_agent", "unregister_tool_from_agent", "ToolCollection",
-    "ToolRegistry", "Tool", "ToolMetadata", "get_tool_registry", "reset_tool_registry",
+    "tool",
+    "get_tool_info",
+    "is_tool",
+    "discover_tools",
+    "list_tools",
+    "register_tool_with_agent",
+    "unregister_tool_from_agent",
+    "ToolCollection",
+    "ToolRegistry",
+    "Tool",
+    "ToolMetadata",
+    "get_tool_registry",
+    "reset_tool_registry",
     "TOOLS_AVAILABLE",
-    
     # Memory system (if available)
-    "MemoryManager", "MemoryType", "MemoryEntry", "MemoryQuery", "MEMORY_AVAILABLE",
-    
+    "MemoryManager",
+    "MemoryType",
+    "MemoryEntry",
+    "MemoryQuery",
+    "MEMORY_AVAILABLE",
     # Storage system (if available)
-    "BaseStorageProvider", "StorageRegistry", "DataManager",
-    "storage_enabled", "requires_storage",
-    "get_storage_registry", "get_data_manager",
-    "PostgreSQLProvider", "RedisProvider", "S3Provider", 
-    "FileSystemProvider", "QdrantProvider",
-    "DataReference", "StorageResult", "StorageType", "STORAGE_AVAILABLE"
+    "BaseStorageProvider",
+    "StorageRegistry",
+    "DataManager",
+    "storage_enabled",
+    "requires_storage",
+    "get_storage_registry",
+    "get_data_manager",
+    "PostgreSQLProvider",
+    "RedisProvider",
+    "S3Provider",
+    "FileSystemProvider",
+    "QdrantProvider",
+    "DataReference",
+    "StorageResult",
+    "StorageType",
+    "STORAGE_AVAILABLE",
 ]

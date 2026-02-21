@@ -11,9 +11,9 @@ Usage:
 """
 
 import os
+
 import pytest
 import pytest_asyncio
-from typing import Generator, Any
 
 # Integration test marker - applied to all tests using container fixtures
 INTEGRATION_MARKER = pytest.mark.integration
@@ -23,7 +23,7 @@ def pytest_configure(config):
     """Register custom markers."""
     config.addinivalue_line(
         "markers",
-        "integration: mark test as integration test requiring Docker containers"
+        "integration: mark test as integration test requiring Docker containers",
     )
 
 
@@ -50,22 +50,25 @@ def postgres_container():
         # Tests will use asyncpg through the provider
         try:
             import psycopg2
+
             conn = psycopg2.connect(
                 host=postgres.get_container_host_ip(),
                 port=postgres.get_exposed_port(5432),
                 database=postgres.dbname,
                 user=postgres.username,
-                password=postgres.password
+                password=postgres.password,
             )
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS test_table (
                     id SERIAL PRIMARY KEY,
                     name VARCHAR(255),
                     data JSONB,
                     created_at TIMESTAMP DEFAULT NOW()
                 )
-            """)
+            """
+            )
             conn.commit()
             cursor.close()
             conn.close()
@@ -97,7 +100,7 @@ async def postgres_provider(postgres_config):
     Cleanup happens automatically after each test.
     """
     try:
-        import asyncpg
+        __import__("asyncpg")
     except ImportError:
         pytest.skip("asyncpg not installed")
 
@@ -114,7 +117,9 @@ async def postgres_provider(postgres_config):
     # Cleanup: truncate test tables
     if provider.is_connected:
         try:
-            await provider.query("test_table", "TRUNCATE TABLE test_table RESTART IDENTITY")
+            await provider.query(
+                "test_table", "TRUNCATE TABLE test_table RESTART IDENTITY"
+            )
         except Exception:
             pass
         await provider.disconnect()
@@ -261,8 +266,8 @@ def s3_mock(aws_credentials):
     This doesn't require Docker - moto mocks the AWS S3 API entirely.
     """
     try:
-        from moto import mock_aws
         import boto3
+        from moto import mock_aws
     except ImportError:
         pytest.skip("moto[s3] not installed")
 
@@ -328,10 +333,18 @@ def pytest_collection_modifyitems(config, items):
     - Only integration: pytest tests/storage/ -m integration
     """
     container_fixtures = {
-        "postgres_container", "postgres_config", "postgres_provider",
-        "redis_container", "redis_config", "redis_provider",
-        "qdrant_container", "qdrant_config", "qdrant_provider",
-        "s3_mock", "s3_config", "s3_provider",
+        "postgres_container",
+        "postgres_config",
+        "postgres_provider",
+        "redis_container",
+        "redis_config",
+        "redis_provider",
+        "qdrant_container",
+        "qdrant_config",
+        "qdrant_provider",
+        "s3_mock",
+        "s3_config",
+        "s3_provider",
     }
 
     for item in items:
@@ -350,6 +363,7 @@ def pytest_collection_modifyitems(config, items):
 def sample_vector() -> list:
     """Generate a sample vector for testing vector operations."""
     import random
+
     return [random.random() for _ in range(128)]
 
 

@@ -8,12 +8,12 @@ have proper messages, and maintain the expected inheritance hierarchy.
 import pytest
 
 from praval.storage.exceptions import (
+    StorageConfigurationError,
+    StorageConnectionError,
     StorageError,
     StorageNotFoundError,
-    StorageConnectionError,
     StoragePermissionError,
     StorageTimeoutError,
-    StorageConfigurationError,
 )
 
 
@@ -26,7 +26,7 @@ class TestStorageError:
             message="Test error",
             provider="test_provider",
             storage_type="RELATIONAL",
-            details={"key": "value"}
+            details={"key": "value"},
         )
 
         assert str(error) == "Test error"
@@ -62,10 +62,7 @@ class TestStorageNotFoundError:
 
     def test_storage_not_found_error_with_provider(self):
         """Resource not found with provider context."""
-        error = StorageNotFoundError(
-            resource="my_table",
-            provider="postgres_main"
-        )
+        error = StorageNotFoundError(resource="my_table", provider="postgres_main")
 
         assert "my_table" in str(error)
         assert "postgres_main" in str(error)
@@ -75,7 +72,7 @@ class TestStorageNotFoundError:
         """Shows available resources in message."""
         error = StorageNotFoundError(
             resource="missing_table",
-            available_resources=["users", "orders", "products"]
+            available_resources=["users", "orders", "products"],
         )
 
         assert "missing_table" in str(error)
@@ -102,8 +99,7 @@ class TestStorageConnectionError:
     def test_storage_connection_error_with_details(self):
         """Connection failure includes details."""
         error = StorageConnectionError(
-            provider="postgres_db",
-            connection_details="Connection refused on port 5432"
+            provider="postgres_db", connection_details="Connection refused on port 5432"
         )
 
         assert "postgres_db" in str(error)
@@ -121,10 +117,7 @@ class TestStoragePermissionError:
 
     def test_storage_permission_error(self):
         """Permission denied message."""
-        error = StoragePermissionError(
-            operation="write",
-            resource="protected_table"
-        )
+        error = StoragePermissionError(operation="write", resource="protected_table")
 
         assert "write" in str(error)
         assert "protected_table" in str(error)
@@ -135,9 +128,7 @@ class TestStoragePermissionError:
     def test_storage_permission_error_with_provider(self):
         """Permission error with provider context."""
         error = StoragePermissionError(
-            operation="delete",
-            resource="audit_logs",
-            provider="secure_storage"
+            operation="delete", resource="audit_logs", provider="secure_storage"
         )
 
         assert "delete" in str(error)
@@ -151,10 +142,7 @@ class TestStorageTimeoutError:
 
     def test_storage_timeout_error(self):
         """Timeout message."""
-        error = StorageTimeoutError(
-            operation="query",
-            timeout=30.0
-        )
+        error = StorageTimeoutError(operation="query", timeout=30.0)
 
         assert "query" in str(error)
         assert "30" in str(error)
@@ -165,9 +153,7 @@ class TestStorageTimeoutError:
     def test_storage_timeout_error_with_provider(self):
         """Timeout error with provider context."""
         error = StorageTimeoutError(
-            operation="bulk_insert",
-            timeout=60.0,
-            provider="slow_database"
+            operation="bulk_insert", timeout=60.0, provider="slow_database"
         )
 
         assert "bulk_insert" in str(error)
@@ -183,7 +169,7 @@ class TestStorageConfigurationError:
         """Config issue message."""
         error = StorageConfigurationError(
             provider="s3_bucket",
-            config_issue="Missing required 'bucket_name' parameter"
+            config_issue="Missing required 'bucket_name' parameter",
         )
 
         assert "s3_bucket" in str(error)

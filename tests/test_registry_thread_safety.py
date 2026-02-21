@@ -7,9 +7,7 @@ Part of rearchitecture issue M4.
 
 import threading
 import time
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 
 class TestRegistryThreadSafety:
@@ -248,8 +246,8 @@ class TestGlobalRegistryThreadSafety:
     def test_global_registry_concurrent_access(self):
         """Verify global registry functions are thread-safe."""
         from praval.core.registry import (
-            register_agent,
             get_registry,
+            register_agent,
             reset_registry,
         )
 

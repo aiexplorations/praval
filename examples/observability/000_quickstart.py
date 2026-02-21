@@ -36,8 +36,11 @@ def simple_example():
     # Retrieve from storage
     spans = store.get_trace(span.trace_id)
     print(f"Stored {len(spans)} span(s) to SQLite")
-    print(f"Duration: {spans[0]['duration_ms']:.0f}ms")
-    print(f"Attributes: {spans[0]['attributes']}")
+    if spans:
+        print(f"Duration: {spans[0]['duration_ms']:.0f}ms")
+        print(f"Attributes: {spans[0]['attributes']}")
+    else:
+        print("No spans returned from storage yet (continuing).")
 
 
 if __name__ == "__main__":

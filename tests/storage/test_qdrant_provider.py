@@ -5,17 +5,16 @@ These tests require Docker to run Qdrant via testcontainers.
 Skip these tests if Docker is not available: pytest -m "not integration"
 """
 
-import pytest
-import pytest_asyncio
 import uuid
+
+import pytest
+
+from praval.storage.base_provider import StorageType
+from praval.storage.exceptions import StorageConnectionError
+from praval.storage.providers.qdrant_provider import QdrantProvider
 
 # Skip all tests if qdrant-client is not available
 pytest.importorskip("qdrant_client", reason="qdrant-client required for Qdrant tests")
-
-from praval.storage.providers.qdrant_provider import QdrantProvider
-from praval.storage.base_provider import StorageType, StorageResult
-from praval.storage.exceptions import StorageConnectionError
-
 
 # ============================================================================
 # Initialization & Configuration Tests
@@ -140,8 +139,8 @@ class TestQdrantStore:
             {
                 "id": point_id,
                 "vector": sample_vector,
-                "payload": {"text": "Test document", "category": "test"}
-            }
+                "payload": {"text": "Test document", "category": "test"},
+            },
         )
 
         assert result.success is True
@@ -152,10 +151,7 @@ class TestQdrantStore:
         """Generates UUID if no id provided."""
         result = await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {
-                "vector": sample_vector,
-                "payload": {"text": "Auto ID test"}
-            }
+            {"vector": sample_vector, "payload": {"text": "Auto ID test"}},
         )
 
         assert result.success is True
@@ -165,18 +161,11 @@ class TestQdrantStore:
     async def test_store_multiple_points(self, qdrant_provider, sample_vector):
         """Stores multiple points from list."""
         points = [
-            {
-                "id": str(uuid.uuid4()),
-                "vector": sample_vector,
-                "payload": {"index": i}
-            }
+            {"id": str(uuid.uuid4()), "vector": sample_vector, "payload": {"index": i}}
             for i in range(3)
         ]
 
-        result = await qdrant_provider.store(
-            qdrant_provider.default_collection,
-            points
-        )
+        result = await qdrant_provider.store(qdrant_provider.default_collection, points)
 
         assert result.success is True
         assert result.data["points_stored"] == 3
@@ -187,7 +176,7 @@ class TestQdrantStore:
         result = await qdrant_provider.store(
             qdrant_provider.default_collection,
             sample_vector,
-            payload={"type": "raw_vector"}
+            payload={"type": "raw_vector"},
         )
 
         assert result.success is True
@@ -204,9 +193,9 @@ class TestQdrantStore:
                     "title": "Document Title",
                     "tags": ["tag1", "tag2"],
                     "score": 0.95,
-                    "nested": {"key": "value"}
-                }
-            }
+                    "nested": {"key": "value"},
+                },
+            },
         )
 
         assert result.success is True
@@ -216,7 +205,7 @@ class TestQdrantStore:
         """Raises error for dict without vector."""
         result = await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": "test", "payload": {"data": "test"}}
+            {"id": "test", "payload": {"data": "test"}},
         )
 
         assert result.success is False
@@ -226,8 +215,7 @@ class TestQdrantStore:
     async def test_store_invalid_format_error(self, qdrant_provider):
         """Raises error for invalid data format."""
         result = await qdrant_provider.store(
-            qdrant_provider.default_collection,
-            "invalid string data"
+            qdrant_provider.default_collection, "invalid string data"
         )
 
         assert result.success is False
@@ -238,10 +226,7 @@ class TestQdrantStore:
         """Returns DataReference for single point."""
         result = await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {
-                "id": "ref_test_point",
-                "vector": sample_vector
-            }
+            {"id": "ref_test_point", "vector": sample_vector},
         )
 
         assert result.success is True
@@ -264,7 +249,7 @@ class TestQdrantRetrieve:
         point_id = "retrieve_test_point"
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": point_id, "vector": sample_vector, "payload": {"test": "data"}}
+            {"id": point_id, "vector": sample_vector, "payload": {"test": "data"}},
         )
 
         result = await qdrant_provider.retrieve(
@@ -282,12 +267,11 @@ class TestQdrantRetrieve:
         for pid in point_ids:
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": pid, "vector": sample_vector, "payload": {"pid": pid}}
+                {"id": pid, "vector": sample_vector, "payload": {"pid": pid}},
             )
 
         result = await qdrant_provider.retrieve(
-            qdrant_provider.default_collection,
-            point_ids=point_ids
+            qdrant_provider.default_collection, point_ids=point_ids
         )
 
         assert result.success is True
@@ -300,12 +284,11 @@ class TestQdrantRetrieve:
         point_id = "vector_retrieve_test"
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": point_id, "vector": sample_vector}
+            {"id": point_id, "vector": sample_vector},
         )
 
         result = await qdrant_provider.retrieve(
-            f"{qdrant_provider.default_collection}:{point_id}",
-            with_vectors=True
+            f"{qdrant_provider.default_collection}:{point_id}", with_vectors=True
         )
 
         assert result.success is True
@@ -318,12 +301,11 @@ class TestQdrantRetrieve:
         point_id = "no_vector_retrieve_test"
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": point_id, "vector": sample_vector}
+            {"id": point_id, "vector": sample_vector},
         )
 
         result = await qdrant_provider.retrieve(
-            f"{qdrant_provider.default_collection}:{point_id}",
-            with_vectors=False
+            f"{qdrant_provider.default_collection}:{point_id}", with_vectors=False
         )
 
         assert result.success is True
@@ -332,9 +314,7 @@ class TestQdrantRetrieve:
     @pytest.mark.asyncio
     async def test_retrieve_missing_ids_error(self, qdrant_provider):
         """Raises error without point IDs."""
-        result = await qdrant_provider.retrieve(
-            qdrant_provider.default_collection
-        )
+        result = await qdrant_provider.retrieve(qdrant_provider.default_collection)
 
         assert result.success is False
         assert "id" in result.error.lower()
@@ -355,13 +335,11 @@ class TestQdrantQuerySearch:
         for i in range(5):
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": f"search_{i}", "vector": sample_vector, "payload": {"index": i}}
+                {"id": f"search_{i}", "vector": sample_vector, "payload": {"index": i}},
             )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "search",
-            vector=sample_vector
+            qdrant_provider.default_collection, "search", vector=sample_vector
         )
 
         assert result.success is True
@@ -374,14 +352,11 @@ class TestQdrantQuerySearch:
         for i in range(10):
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": f"limit_{i}", "vector": sample_vector}
+                {"id": f"limit_{i}", "vector": sample_vector},
             )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "search",
-            vector=sample_vector,
-            limit=3
+            qdrant_provider.default_collection, "search", vector=sample_vector, limit=3
         )
 
         assert result.success is True
@@ -392,13 +367,11 @@ class TestQdrantQuerySearch:
         """Search results include similarity scores."""
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": "score_test", "vector": sample_vector}
+            {"id": "score_test", "vector": sample_vector},
         )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "search",
-            vector=sample_vector
+            qdrant_provider.default_collection, "search", vector=sample_vector
         )
 
         assert result.success is True
@@ -409,8 +382,7 @@ class TestQdrantQuerySearch:
     async def test_query_search_missing_vector_error(self, qdrant_provider):
         """Raises error without search vector."""
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "search"
+            qdrant_provider.default_collection, "search"
         )
 
         assert result.success is False
@@ -421,12 +393,11 @@ class TestQdrantQuerySearch:
         """Searches with vector list as query."""
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": "direct_vector_test", "vector": sample_vector}
+            {"id": "direct_vector_test", "vector": sample_vector},
         )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            sample_vector  # Direct vector as query
+            qdrant_provider.default_collection, sample_vector  # Direct vector as query
         )
 
         assert result.success is True
@@ -448,12 +419,11 @@ class TestQdrantQueryOther:
         for i in range(5):
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": f"count_{i}_{uuid.uuid4()}", "vector": sample_vector}
+                {"id": f"count_{i}_{uuid.uuid4()}", "vector": sample_vector},
             )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "count"
+            qdrant_provider.default_collection, "count"
         )
 
         assert result.success is True
@@ -466,13 +436,11 @@ class TestQdrantQueryOther:
         for i in range(5):
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": f"scroll_{i}_{uuid.uuid4()}", "vector": sample_vector}
+                {"id": f"scroll_{i}_{uuid.uuid4()}", "vector": sample_vector},
             )
 
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "scroll",
-            limit=3
+            qdrant_provider.default_collection, "scroll", limit=3
         )
 
         assert result.success is True
@@ -485,14 +453,12 @@ class TestQdrantQueryOther:
         for i in range(5):
             await qdrant_provider.store(
                 qdrant_provider.default_collection,
-                {"id": f"scroll_offset_{i}_{uuid.uuid4()}", "vector": sample_vector}
+                {"id": f"scroll_offset_{i}_{uuid.uuid4()}", "vector": sample_vector},
             )
 
         # First scroll
         result1 = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "scroll",
-            limit=2
+            qdrant_provider.default_collection, "scroll", limit=2
         )
 
         assert result1.success is True
@@ -502,8 +468,7 @@ class TestQdrantQueryOther:
     async def test_query_unsupported(self, qdrant_provider):
         """Raises error for unknown query type."""
         result = await qdrant_provider.query(
-            qdrant_provider.default_collection,
-            "unknown_operation"
+            qdrant_provider.default_collection, "unknown_operation"
         )
 
         assert result.success is False
@@ -524,7 +489,7 @@ class TestQdrantDelete:
         point_id = f"delete_test_{uuid.uuid4()}"
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": point_id, "vector": sample_vector}
+            {"id": point_id, "vector": sample_vector},
         )
 
         result = await qdrant_provider.delete(
@@ -540,13 +505,11 @@ class TestQdrantDelete:
         point_ids = [f"delete_multi_{i}_{uuid.uuid4()}" for i in range(3)]
         for pid in point_ids:
             await qdrant_provider.store(
-                qdrant_provider.default_collection,
-                {"id": pid, "vector": sample_vector}
+                qdrant_provider.default_collection, {"id": pid, "vector": sample_vector}
             )
 
         result = await qdrant_provider.delete(
-            qdrant_provider.default_collection,
-            point_ids=point_ids
+            qdrant_provider.default_collection, point_ids=point_ids
         )
 
         assert result.success is True
@@ -555,9 +518,7 @@ class TestQdrantDelete:
     @pytest.mark.asyncio
     async def test_delete_missing_params_error(self, qdrant_provider):
         """Raises error without ids or filter."""
-        result = await qdrant_provider.delete(
-            qdrant_provider.default_collection
-        )
+        result = await qdrant_provider.delete(qdrant_provider.default_collection)
 
         assert result.success is False
         assert "point_ids" in result.error.lower() or "filter" in result.error.lower()
@@ -594,12 +555,14 @@ class TestQdrantListResources:
             assert collection["name"].startswith("test_")
 
     @pytest.mark.asyncio
-    async def test_list_resources_returns_metadata(self, qdrant_provider, sample_vector):
+    async def test_list_resources_returns_metadata(
+        self, qdrant_provider, sample_vector
+    ):
         """Collection info includes metadata."""
         # Ensure there's at least one point in the collection
         await qdrant_provider.store(
             qdrant_provider.default_collection,
-            {"id": f"meta_test_{uuid.uuid4()}", "vector": sample_vector}
+            {"id": f"meta_test_{uuid.uuid4()}", "vector": sample_vector},
         )
 
         result = await qdrant_provider.list_resources()
@@ -608,7 +571,7 @@ class TestQdrantListResources:
         # Find the default collection
         default_coll = next(
             (c for c in result.data if c["name"] == qdrant_provider.default_collection),
-            None
+            None,
         )
         assert default_coll is not None
         assert "points_count" in default_coll

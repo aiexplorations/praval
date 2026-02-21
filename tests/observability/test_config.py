@@ -3,7 +3,6 @@ Tests for observability configuration.
 """
 
 import os
-import pytest
 
 from praval.observability.config import ObservabilityConfig, get_config, reset_config
 
@@ -15,8 +14,13 @@ class TestObservabilityConfig:
         """Reset config before each test."""
         reset_config()
         # Clear environment variables
-        for key in ["PRAVAL_OBSERVABILITY", "PRAVAL_OTLP_ENDPOINT",
-                    "PRAVAL_SAMPLE_RATE", "PRAVAL_TRACES_PATH", "ENVIRONMENT"]:
+        for key in [
+            "PRAVAL_OBSERVABILITY",
+            "PRAVAL_OTLP_ENDPOINT",
+            "PRAVAL_SAMPLE_RATE",
+            "PRAVAL_TRACES_PATH",
+            "ENVIRONMENT",
+        ]:
             if key in os.environ:
                 del os.environ[key]
 

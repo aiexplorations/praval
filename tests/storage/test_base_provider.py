@@ -7,18 +7,18 @@ BaseStorageProvider abstract class.
 """
 
 import asyncio
-import pytest
 from datetime import datetime, timedelta
 from typing import Any, Dict, Union
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from praval.storage.base_provider import (
-    StorageType,
+    BaseStorageProvider,
     DataReference,
+    StorageMetadata,
     StorageQuery,
     StorageResult,
-    StorageMetadata,
-    BaseStorageProvider,
+    StorageType,
     create_storage_provider,
 )
 
@@ -29,8 +29,16 @@ class TestStorageType:
     def test_storage_type_values(self):
         """Verify all 10 storage types exist."""
         expected_types = [
-            "RELATIONAL", "DOCUMENT", "KEY_VALUE", "OBJECT", "VECTOR",
-            "SEARCH", "GRAPH", "FILE_SYSTEM", "CACHE", "QUEUE"
+            "RELATIONAL",
+            "DOCUMENT",
+            "KEY_VALUE",
+            "OBJECT",
+            "VECTOR",
+            "SEARCH",
+            "GRAPH",
+            "FILE_SYSTEM",
+            "CACHE",
+            "QUEUE",
         ]
 
         actual_types = [t.name for t in StorageType]
@@ -68,7 +76,7 @@ class TestDataReference:
             storage_type=StorageType.RELATIONAL,
             resource_id="users/123",
             metadata={"table": "users"},
-            expires_at=datetime(2025, 12, 31)
+            expires_at=datetime(2025, 12, 31),
         )
 
         assert ref.provider == "postgres_main"
@@ -82,13 +90,15 @@ class TestDataReference:
         ref = DataReference(
             provider="s3_bucket",
             storage_type=StorageType.OBJECT,
-            resource_id="images/photo.jpg"
+            resource_id="images/photo.jpg",
         )
 
         uri = ref.to_uri()
         assert uri == "s3_bucket://object/images/photo.jpg"
 
-    @pytest.mark.xfail(reason="Bug in from_uri: uses path instead of netloc for storage_type")
+    @pytest.mark.xfail(
+        reason="Bug in from_uri: uses path instead of netloc for storage_type"
+    )
     def test_data_reference_from_uri(self):
         """Parse URI back to DataReference."""
         uri = "redis_cache://key_value/session/abc123"
@@ -98,13 +108,15 @@ class TestDataReference:
         assert ref.storage_type == StorageType.KEY_VALUE
         assert ref.resource_id == "session/abc123"
 
-    @pytest.mark.xfail(reason="Bug in from_uri: uses path instead of netloc for storage_type")
+    @pytest.mark.xfail(
+        reason="Bug in from_uri: uses path instead of netloc for storage_type"
+    )
     def test_data_reference_roundtrip(self):
         """to_uri() -> from_uri() preserves data."""
         original = DataReference(
             provider="qdrant_vector",
             storage_type=StorageType.VECTOR,
-            resource_id="embeddings/doc123"
+            resource_id="embeddings/doc123",
         )
 
         uri = original.to_uri()
@@ -117,9 +129,7 @@ class TestDataReference:
     def test_data_reference_is_expired_no_expiry(self):
         """Returns False when no expires_at."""
         ref = DataReference(
-            provider="test",
-            storage_type=StorageType.KEY_VALUE,
-            resource_id="key1"
+            provider="test", storage_type=StorageType.KEY_VALUE, resource_id="key1"
         )
 
         assert ref.is_expired() is False
@@ -130,7 +140,7 @@ class TestDataReference:
             provider="test",
             storage_type=StorageType.KEY_VALUE,
             resource_id="key1",
-            expires_at=datetime.now() + timedelta(hours=1)
+            expires_at=datetime.now() + timedelta(hours=1),
         )
 
         assert ref.is_expired() is False
@@ -141,7 +151,7 @@ class TestDataReference:
             provider="test",
             storage_type=StorageType.KEY_VALUE,
             resource_id="key1",
-            expires_at=datetime.now() - timedelta(hours=1)
+            expires_at=datetime.now() - timedelta(hours=1),
         )
 
         assert ref.is_expired() is True
@@ -149,9 +159,7 @@ class TestDataReference:
     def test_data_reference_default_metadata(self):
         """Empty dict by default."""
         ref = DataReference(
-            provider="test",
-            storage_type=StorageType.KEY_VALUE,
-            resource_id="key1"
+            provider="test", storage_type=StorageType.KEY_VALUE, resource_id="key1"
         )
 
         assert ref.metadata == {}
@@ -160,9 +168,7 @@ class TestDataReference:
         """Auto-set to now."""
         before = datetime.now()
         ref = DataReference(
-            provider="test",
-            storage_type=StorageType.KEY_VALUE,
-            resource_id="key1"
+            provider="test", storage_type=StorageType.KEY_VALUE, resource_id="key1"
         )
         after = datetime.now()
 
@@ -174,20 +180,14 @@ class TestStorageQuery:
 
     def test_storage_query_creation(self):
         """Basic instantiation."""
-        query = StorageQuery(
-            operation="get",
-            resource="users"
-        )
+        query = StorageQuery(operation="get", resource="users")
 
         assert query.operation == "get"
         assert query.resource == "users"
 
     def test_storage_query_default_values(self):
         """Verify defaults (empty dicts, None limits)."""
-        query = StorageQuery(
-            operation="query",
-            resource="table"
-        )
+        query = StorageQuery(operation="query", resource="table")
 
         assert query.parameters == {}
         assert query.filters == {}
@@ -200,19 +200,14 @@ class TestStorageQuery:
         query = StorageQuery(
             operation="query",
             resource="users",
-            filters={"status": "active", "role": "admin"}
+            filters={"status": "active", "role": "admin"},
         )
 
         assert query.filters == {"status": "active", "role": "admin"}
 
     def test_storage_query_with_pagination(self):
         """limit/offset parameters."""
-        query = StorageQuery(
-            operation="query",
-            resource="users",
-            limit=10,
-            offset=20
-        )
+        query = StorageQuery(operation="query", resource="users", limit=10, offset=20)
 
         assert query.limit == 10
         assert query.offset == 20
@@ -223,10 +218,7 @@ class TestStorageResult:
 
     def test_storage_result_success(self):
         """Successful result with data."""
-        result = StorageResult(
-            success=True,
-            data={"id": 1, "name": "Test"}
-        )
+        result = StorageResult(success=True, data={"id": 1, "name": "Test"})
 
         assert result.success is True
         assert result.data == {"id": 1, "name": "Test"}
@@ -234,10 +226,7 @@ class TestStorageResult:
 
     def test_storage_result_failure(self):
         """Failed result with error message."""
-        result = StorageResult(
-            success=False,
-            error="Connection refused"
-        )
+        result = StorageResult(success=False, error="Connection refused")
 
         assert result.success is False
         assert result.error == "Connection refused"
@@ -246,26 +235,16 @@ class TestStorageResult:
     def test_storage_result_with_reference(self):
         """Result includes DataReference."""
         ref = DataReference(
-            provider="test",
-            storage_type=StorageType.KEY_VALUE,
-            resource_id="key1"
+            provider="test", storage_type=StorageType.KEY_VALUE, resource_id="key1"
         )
-        result = StorageResult(
-            success=True,
-            data="stored",
-            data_reference=ref
-        )
+        result = StorageResult(success=True, data="stored", data_reference=ref)
 
         assert result.data_reference == ref
         assert result.data_reference.provider == "test"
 
     def test_storage_result_execution_time(self):
         """Timing information."""
-        result = StorageResult(
-            success=True,
-            data="result",
-            execution_time=0.123
-        )
+        result = StorageResult(success=True, data="result", execution_time=0.123)
 
         assert result.execution_time == 0.123
 
@@ -286,7 +265,7 @@ class TestStorageMetadata:
         metadata = StorageMetadata(
             name="postgres_main",
             description="Primary PostgreSQL database",
-            storage_type=StorageType.RELATIONAL
+            storage_type=StorageType.RELATIONAL,
         )
 
         assert metadata.name == "postgres_main"
@@ -304,7 +283,7 @@ class TestStorageMetadata:
             supports_schemas=True,
             supports_indexing=True,
             supports_search=False,
-            supports_streaming=False
+            supports_streaming=False,
         )
 
         assert metadata.supports_async is True
@@ -317,9 +296,7 @@ class TestStorageMetadata:
     def test_storage_metadata_defaults(self):
         """Default values for optional fields."""
         metadata = StorageMetadata(
-            name="test",
-            description="Test",
-            storage_type=StorageType.KEY_VALUE
+            name="test", description="Test", storage_type=StorageType.KEY_VALUE
         )
 
         assert metadata.version == "1.0.0"
@@ -346,7 +323,7 @@ class MockStorageProvider(BaseStorageProvider):
             description="Mock storage provider for testing",
             storage_type=StorageType.KEY_VALUE,
             required_config=["host"],
-            optional_config=["port", "timeout"]
+            optional_config=["port", "timeout"],
         )
 
     def _initialize(self):
@@ -367,8 +344,8 @@ class MockStorageProvider(BaseStorageProvider):
             data_reference=DataReference(
                 provider=self.name,
                 storage_type=StorageType.KEY_VALUE,
-                resource_id=resource
-            )
+                resource_id=resource,
+            ),
         )
 
     async def retrieve(self, resource: str, **kwargs) -> StorageResult:
@@ -376,7 +353,9 @@ class MockStorageProvider(BaseStorageProvider):
             return StorageResult(success=True, data=self.data_store[resource])
         return StorageResult(success=False, error=f"Key '{resource}' not found")
 
-    async def query(self, resource: str, query: Union[str, Dict], **kwargs) -> StorageResult:
+    async def query(
+        self, resource: str, query: Union[str, Dict], **kwargs
+    ) -> StorageResult:
         return StorageResult(success=True, data=list(self.data_store.keys()))
 
     async def delete(self, resource: str, **kwargs) -> StorageResult:
@@ -530,6 +509,7 @@ class TestBaseStorageProvider:
     @pytest.mark.asyncio
     async def test_base_provider_health_check_unhealthy(self):
         """Returns error on failure."""
+
         # Create a provider that fails to connect
         class FailConnectProvider(MockStorageProvider):
             async def connect(self) -> bool:
@@ -559,7 +539,7 @@ class TestBaseStorageProvider:
         provider = MockStorageProvider("test", {"host": "localhost"})
 
         # Default implementation
-        result = await provider.list_resources()
+        _ = await provider.list_resources()
 
         # MockStorageProvider doesn't override, so it returns keys
         # But the base class default returns not implemented
@@ -574,7 +554,7 @@ class TestCreateStorageProvider:
         provider = create_storage_provider(
             provider_class=MockStorageProvider,
             name="factory_test",
-            config={"host": "localhost"}
+            config={"host": "localhost"},
         )
 
         assert isinstance(provider, MockStorageProvider)
