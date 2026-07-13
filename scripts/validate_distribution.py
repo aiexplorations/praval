@@ -174,6 +174,17 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         errors.append("sdist must contain Python examples")
     if not any(name.endswith("/examples/manifest.toml") for name in sdist_names):
         errors.append("sdist must contain the demo certification manifest")
+    notebook_names = [
+        name
+        for name in sdist_names
+        if "/examples/notebooks/" in name and name.endswith(".ipynb")
+    ]
+    if len(notebook_names) < 17:
+        errors.append("sdist must contain the complete visual notebook catalog")
+    if not any(
+        name.endswith("/examples/notebooks/manifest.toml") for name in sdist_names
+    ):
+        errors.append("sdist must contain the notebook execution manifest")
     required_fixture_suffixes = (
         "/examples/certification/assets/image_input.png.base64",
         "/examples/certification/assets/knowledge_input.pdf.base64",

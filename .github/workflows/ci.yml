@@ -81,6 +81,11 @@ jobs:
         run: >-
           flake8 src/ tests/ scripts/ examples/certification/
           --max-line-length=88 --extend-ignore=E203,W503
+      - name: Validate visual notebook catalog
+        run: >-
+          python scripts/run_notebooks.py
+          --manifest examples/notebooks/manifest.toml
+          --validate-only
       - name: Build warning-free documentation
         run: sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
       - name: Upload coverage evidence
@@ -233,12 +238,22 @@ jobs:
           --mode offline
           --report-dir "$RUNNER_TEMP/demo-results/offline"
           --commit-sha "${{ github.sha }}"
+      - name: Run exact-wheel offline visual notebooks
+        run: >-
+          python scripts/run_notebooks.py
+          --manifest examples/notebooks/manifest.toml
+          --wheel dist
+          --mode offline
+          --report-dir "$RUNNER_TEMP/notebook-results/offline"
+          --commit-sha "${{ github.sha }}"
       - name: Upload offline demo evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: demo-offline-${{ github.sha }}
-          path: ${{ runner.temp }}/demo-results/offline/
+          path: |
+            ${{ runner.temp }}/demo-results/offline/
+            ${{ runner.temp }}/notebook-results/offline/
           if-no-files-found: error
           retention-days: 30
 
@@ -378,6 +393,14 @@ jobs:
           --mode services
           --report-dir "$RUNNER_TEMP/demo-results/services"
           --commit-sha "${{ github.sha }}"
+      - name: Run exact-wheel service visual notebooks
+        run: >-
+          python scripts/run_notebooks.py
+          --manifest examples/notebooks/manifest.toml
+          --wheel dist
+          --mode services
+          --report-dir "$RUNNER_TEMP/notebook-results/services"
+          --commit-sha "${{ github.sha }}"
       - name: Show service logs on failure
         if: failure()
         run: |
@@ -388,6 +411,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: demo-services-${{ github.sha }}
-          path: ${{ runner.temp }}/demo-results/services/
+          path: |
+            ${{ runner.temp }}/demo-results/services/
+            ${{ runner.temp }}/notebook-results/services/
           if-no-files-found: error
           retention-days: 30

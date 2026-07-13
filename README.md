@@ -25,6 +25,7 @@ pip install praval
 pip install praval[memory]
 pip install praval[storage]
 pip install praval[mcp]  # Python 3.10+
+pip install praval[notebooks]
 pip install praval[all]
 ```
 
@@ -87,6 +88,21 @@ Sphinx is the canonical documentation surface:
 Provider model catalogs change quickly. Praval ships conservative registry
 profiles for current known families, and production code should pass explicit
 models that have been verified against provider documentation for the release.
+
+## Visual notebook course
+
+The [Jupyter course](examples/notebooks/README.md) renders agent stages, Reef
+routes, Spore payloads, feedback loops, parallel fan-out/fan-in, runtime events,
+HITL decisions, MCP calls, and real voice round trips as they execute. Start with
+`examples/notebooks/course/00_architecture.ipynb`. Seven course notebooks are
+keyless; service and paid-provider notebooks declare their prerequisites.
+
+```bash
+source venv/bin/activate
+python -m pip install -e ".[notebooks]"
+cd examples/notebooks
+jupyter lab
+```
 
 Build docs locally:
 

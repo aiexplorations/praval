@@ -37,6 +37,14 @@ are separate from direct connections owned by `praval.mcp.MCPClient`.
 ## Quality and Build Changes
 
 - Every prior expected-failure cause is fixed; strict xfail handling is on.
+- A 13-part visual Jupyter course now shows agent stages, Reef routing, Spore
+  payloads, feedback loops, fan-out/fan-in, tools, memory, ModelRuntime, HITL,
+  MCP, and real voice/multimodal flows. Four longer historical notebooks are
+  retained as catalogued case studies.
+- Exact-wheel notebook certification runs seven keyless notebooks in normal
+  CI, RabbitMQ/OTLP and official-SDK MCP notebooks in service CI, and live
+  provider, Qdrant, HITL, STT, and TTS notebooks only through the protected
+  manual live workflow.
 - Complete-package statement coverage must reach 90%, with focused floors for
   Reef, transport, instrumentation, exporters, remote storage, and MCP.
 - Mypy, Black, isort, flake8, Sphinx warnings, package metadata, distribution
@@ -46,6 +54,8 @@ are separate from direct connections owned by `praval.mcp.MCPClient`.
   clean environment.
 - Builds use a commit-derived `SOURCE_DATE_EPOCH` and must reproduce byte for
   byte.
+- OTLP/JSON export now preserves trace and span IDs as the hex strings required
+  by the protocol, verified against a real OpenTelemetry collector.
 - The tag workflow retrieves the successful artifact for the tagged main
   commit. It does not rebuild, and it pauses at the protected `pypi`
   environment before trusted publishing.
@@ -82,14 +92,14 @@ descriptors require `allow_experimental_tools=True` plus provider-specific
 
 ## Candidate Validation Evidence
 
-- Canonical coverage run: `1647 passed, 91 skipped`, with zero failures, XFAIL,
+- Current full local suite: `1682 passed, 91 skipped`, with zero failures, XFAIL,
   or XPASS.
 - Complete-package statement coverage: `92.90%`; every focused floor passed.
 - Mypy passed across 72 source modules after replacing the broad provider
   exemption with explicit legacy-module exemptions.
 - The wheel and normalized sdist reproduced byte for byte across consecutive
   isolated builds. Clean minimal and MCP-extra wheel installations passed.
-- The local candidate wheel is about 219 KB and the sdist is about 2.1 MB,
+- The local candidate wheel is about 220 KB and the sdist is about 2.2 MB,
   below the 3 MiB release cap. Exact release hashes remain commit-derived CI
   evidence and are intentionally not recorded before that artifact exists.
 

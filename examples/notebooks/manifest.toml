@@ -1,0 +1,222 @@
+schema_version = 1
+
+[[notebook]]
+id = "course-00-architecture"
+path = "course/00_architecture.ipynb"
+title = "Understanding Praval Architecture"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=M30U-6w_WGc"
+
+[[notebook]]
+id = "course-01-hello-world"
+path = "course/01_hello_world.ipynb"
+title = "Hello World Agent"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=X25zLFSmXt8"
+
+[[notebook]]
+id = "course-02-research-pipeline"
+path = "course/02_research_pipeline.ipynb"
+title = "Research Pipeline"
+track = "course"
+mode = "live"
+certify = true
+extras = []
+providers = ["openai"]
+services = []
+timeout = 240
+video_url = "https://www.youtube.com/watch?v=u7gib_vrMMQ"
+
+[[notebook]]
+id = "course-03-feedback-loop"
+path = "course/03_feedback_loop.ipynb"
+title = "Feedback Loop Pattern"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=uNXC_XDeVlc"
+
+[[notebook]]
+id = "course-04-parallel-agents"
+path = "course/04_parallel_agents.ipynb"
+title = "Parallel Agents: Fan-Out and Fan-In"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=VNZ_lhljPBc"
+
+[[notebook]]
+id = "course-05-tool-use"
+path = "course/05_tool_use.ipynb"
+title = "Tool Use"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=40-DUQ4Cf2Q"
+
+[[notebook]]
+id = "course-06-agent-memory"
+path = "course/06_agent_memory.ipynb"
+title = "Agent Memory"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=sH3NkfoTZ1c"
+
+[[notebook]]
+id = "course-07-qdrant-memory"
+path = "course/07_qdrant_integration.ipynb"
+title = "Qdrant Vector Memory"
+track = "course"
+mode = "live"
+certify = true
+extras = ["memory", "storage"]
+providers = ["openai"]
+services = ["qdrant"]
+timeout = 300
+video_url = "https://www.youtube.com/watch?v=ZhEEFfIpuJg"
+
+[[notebook]]
+id = "course-08-production"
+path = "course/08_production_features.ipynb"
+title = "Production Reef, Security, and Observability"
+track = "course"
+mode = "services"
+certify = true
+extras = ["secure", "observability"]
+providers = []
+services = ["rabbitmq", "otlp"]
+timeout = 180
+video_url = "https://www.youtube.com/watch?v=wPXbCCjNBHw"
+
+[[notebook]]
+id = "course-09-model-runtime"
+path = "course/09_model_runtime.ipynb"
+title = "ModelRuntime and Provider-Neutral Execution"
+track = "course"
+mode = "offline"
+certify = true
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = ""
+
+[[notebook]]
+id = "course-10-hitl"
+path = "course/10_human_in_the_loop.ipynb"
+title = "Human in the Loop"
+track = "course"
+mode = "live"
+certify = true
+extras = []
+providers = ["openai"]
+services = []
+timeout = 240
+video_url = ""
+
+[[notebook]]
+id = "course-11-mcp"
+path = "course/11_mcp_tools.ipynb"
+title = "MCP Tools"
+track = "course"
+mode = "services"
+certify = true
+extras = ["mcp"]
+providers = []
+services = ["mcp-stdio", "mcp-streamable-http"]
+timeout = 180
+video_url = ""
+
+[[notebook]]
+id = "course-12-voice-multimodal"
+path = "course/12_voice_and_multimodal.ipynb"
+title = "Voice and Multimodal Agents"
+track = "course"
+mode = "live"
+certify = true
+extras = []
+providers = ["openai"]
+services = ["openai-stt", "openai-tts"]
+timeout = 360
+video_url = ""
+
+[[notebook]]
+id = "case-study-building-agents"
+path = "case_studies/building_agents_tutorial.ipynb"
+title = "Building Agents Tutorial"
+track = "case-study"
+mode = "reference"
+certify = false
+extras = []
+providers = []
+services = []
+timeout = 0
+video_url = ""
+
+[[notebook]]
+id = "case-study-conversational-memory"
+path = "case_studies/conversational_memory_agent.ipynb"
+title = "Conversational Memory Agent"
+track = "case-study"
+mode = "reference"
+certify = false
+extras = ["memory"]
+providers = []
+services = []
+timeout = 0
+video_url = ""
+
+[[notebook]]
+id = "case-study-student-analytics"
+path = "case_studies/student_analytics.ipynb"
+title = "Student Analytics"
+track = "case-study"
+mode = "reference"
+certify = false
+extras = []
+providers = []
+services = []
+timeout = 0
+video_url = ""
+
+[[notebook]]
+id = "case-study-student-analytics-ai"
+path = "case_studies/student_analytics_ai.ipynb"
+title = "Student Analytics with AI"
+track = "case-study"
+mode = "reference"
+certify = false
+extras = []
+providers = ["openai"]
+services = []
+timeout = 0
+video_url = ""

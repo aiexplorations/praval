@@ -36,6 +36,7 @@ jobs:
       PRAVAL_OPENAI_TRANSCRIPTION_MODEL: ${{ vars.PRAVAL_OPENAI_TRANSCRIPTION_MODEL }}
       PRAVAL_OPENAI_TTS_MODEL: ${{ vars.PRAVAL_OPENAI_TTS_MODEL }}
       PRAVAL_OPENAI_TTS_VOICE: ${{ vars.PRAVAL_OPENAI_TTS_VOICE }}
+      QDRANT_URL: http://127.0.0.1:6333
     steps:
       - name: Require trusted main workflow source
         shell: bash
@@ -132,6 +133,22 @@ jobs:
           if missing:
               raise SystemExit("Missing live-demo environment configuration: " + ", ".join(missing))
           PY
+      - name: Start real Qdrant for the vector-memory notebook
+        shell: bash
+        run: |
+          docker run -d --name praval-live-qdrant \
+            -p 6333:6333 \
+            qdrant/qdrant:v1.12.4
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:6333/readyz >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              docker logs praval-live-qdrant || true
+              exit 1
+            fi
+            sleep 1
+          done
       - name: Run exact-wheel live certification
         run: >-
           python scripts/run_demos.py
@@ -140,11 +157,21 @@ jobs:
           --mode live
           --report-dir "$RUNNER_TEMP/live-demo-results"
           --commit-sha "${{ github.sha }}"
+      - name: Run exact-wheel live visual notebooks
+        run: >-
+          python scripts/run_notebooks.py
+          --manifest examples/notebooks/manifest.toml
+          --wheel dist
+          --mode live
+          --report-dir "$RUNNER_TEMP/live-notebook-results"
+          --commit-sha "${{ github.sha }}"
       - name: Upload exact live certification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: live-demo-certification-${{ github.sha }}
-          path: ${{ runner.temp }}/live-demo-results/
+          path: |
+            ${{ runner.temp }}/live-demo-results/
+            ${{ runner.temp }}/live-notebook-results/
           if-no-files-found: error
           retention-days: 90

@@ -92,6 +92,15 @@ observability = [
     "requests>=2.31.0",
 ]
 
+# Interactive visual course and exact-wheel notebook execution
+notebooks = [
+    "jupyterlab>=4.4,<5",
+    "nbclient==0.10.2",
+    "nbformat==5.10.4",
+    "ipykernel>=6.29,<7; python_version < '3.10'",
+    "ipykernel>=7.1,<8; python_version >= '3.10'",
+]
+
 # Documentation generation
 docs = [
     "sphinx>=7.0.0",
