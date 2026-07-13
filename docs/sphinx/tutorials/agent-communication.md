@@ -13,4 +13,4 @@ This tutorial will cover:
 
 For now, see:
 - [Core Concepts - Communication Patterns](../guide/core-concepts.md#communication-patterns)
-- [Example: Agent Communication](../../examples/002_agent_communication.py)
+- `examples/002_agent_communication.py`

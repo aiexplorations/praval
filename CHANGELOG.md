@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-12
+
+### Added
+- Provider-neutral `ModelRuntime` contracts for sync, async, streaming,
+  structured output, reasoning, multimodal messages, usage, and tool events.
+- Runtime-owned client/function tool loops for OpenAI, Anthropic, Cohere, and
+  Gemini, including provider-neutral HITL suspend/resume state.
+- Native Gemini adapter with function calling, streaming, structured output,
+  and image/file/audio/video inputs.
+- Request-based OpenAI transcription and speech APIs through
+  `Agent.transcribe()` and `Agent.speak()`.
+- Provider-neutral `EmbeddingRuntime` for SentenceTransformers, OpenAI,
+  OpenAI-compatible servers, and Gemini.
+- JSON-safe Spore V2 fields for `content_parts`, `knowledge_references`, and
+  `data_references`, while preserving the legacy knowledge-only wire body.
+- First-class OpenAI-compatible presets for Ollama, vLLM, LM Studio, and
+  llama.cpp.
+- Explicit `PravalApp` lifecycle ownership and expanded runtime examples.
+- Tools-only MCP clients for local stdio and remote Streamable HTTP servers,
+  including discovery, async execution, default HITL approval, tracing,
+  bounded results, secret redaction, and lifecycle cleanup.
+- Python 3.13 support while retaining Python 3.9 through 3.12 for the core
+  framework. The official MCP SDK requires Python 3.10 or newer.
+
+### Changed
+- OpenAI model profiles use the Responses API by default where declared.
+- Chat and embedding configuration are independent; Chroma and Qdrant both use
+  the configured embedding runtime.
+- Default OpenAI embedding model is `text-embedding-3-small`; default Cohere
+  chat model is `command-a-03-2025`.
+- Provider-hosted tools, provider-hosted MCP descriptors, and computer-use
+  descriptors are experimental explicit pass-through options rather than
+  stable capability claims. Direct MCP clients are a separate capability.
+- Release gates now enforce at least 90% complete-package statement coverage,
+  focused module floors, strict typing/format/lint/docs checks, package
+  integrity, and reproducible distributions.
+- The PDF extra now uses maintained `pypdf` instead of deprecated `PyPDF2`.
+
+### Fixed
+- GPT-5/o-series Chat Completions parameters and empty-response retry behavior.
+- Gemini `functionCall`/`functionResponse` round trips.
+- Embedding model/dimension mismatch detection with re-index guidance.
+- SQLite HITL connection leaks and deprecated naive UTC timestamps.
+- OpenAI-compatible initialization secret redaction.
+- `DataReference` URI parsing and round trips, including provider names with
+  underscores and `praval://` compatibility references.
+- Short-term memory cleanup workers now stop immediately during shutdown and
+  no longer retain abandoned agent memory instances.
+- `StorageRegistry.execute_query()` no longer forwards duplicate positional
+  query or data values as keywords.
+- Observability finalizes spans before one-time storage, handles sync and async
+  wrappers consistently, and initializes and resets idempotently.
+- Async Spore handlers are formally supported, and tests wait for Reef
+  completion instead of sleeping or mocking private callbacks.
+- Every prior expected-failure cause is fixed; strict xfail mode now rejects
+  both XFAIL and XPASS results.
+
+### Deferred
+- Realtime WebRTC/WebSocket voice sessions and raw binary Spore attachments
+  remain 0.9 work.
+- MCP resources/prompts, server hosting, OAuth negotiation, rich binary/image
+  results, automatic reconnect, and optional sync bridging remain 0.9 work.
+
 ### Planned (API/Architecture)
 - Split Reef into core transport layer vs API facade (backward compatible facade).
 - Introduce `ReefCore` as the internal core implementation.

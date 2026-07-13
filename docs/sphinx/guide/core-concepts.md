@@ -112,7 +112,7 @@ This means any agent can work with any other agent.
 
 ### 6. Human-in-the-Loop by Agent Boundary
 
-In v0.7.22, HITL is **agent-gated**, not globally enforced:
+In v0.8.0, HITL is **agent-gated**, not globally enforced:
 
 - `@agent(..., hitl=False)` (default): no HITL workflow for that agent.
 - `@agent(..., hitl=True)`: agent can pause on approval-gated tools.
@@ -378,7 +378,7 @@ def expert(spore):
     return {"answer": chat(f"Based on: {relevant}\nAnswer: {query}")}
 ```
 
-See [Memory System Guide](memory-system.md) for details.
+See {doc}`memory-system` for details.
 
 ## Tool System
 
@@ -415,7 +415,7 @@ def assistant(spore):
     return {"answer": result}
 ```
 
-See [Tool System Guide](tool-system.md) for details.
+See {doc}`tool-system` for details.
 
 ## Storage System
 
@@ -459,9 +459,12 @@ Praval supports multiple LLM providers with automatic selection.
 
 ### Supported Providers
 
-- **OpenAI**: GPT-4, GPT-3.5-turbo, etc.
-- **Anthropic**: Claude models
-- **Cohere**: Command and Generate models
+- **OpenAI**: current GPT families through OpenAI endpoints.
+- **Anthropic**: current Claude families through the Messages API.
+- **Cohere**: Command models.
+- **Gemini**: Gemini models through the Gemini API.
+- **OpenAI-compatible local servers**: Ollama, vLLM, LM Studio,
+  llama.cpp, and generic compatible HTTP servers.
 
 ### Provider Selection
 
@@ -475,7 +478,7 @@ result = chat("Hello, world!")
 ```python
 from praval.providers import get_provider
 
-provider = get_provider("openai", model="gpt-4-turbo")
+provider = get_provider("openai", model="gpt-5.4-mini")
 result = provider.generate("Hello, world!")
 ```
 
@@ -484,14 +487,14 @@ result = provider.generate("Hello, world!")
 **Via environment:**
 ```bash
 export PRAVAL_DEFAULT_PROVIDER=anthropic
-export PRAVAL_DEFAULT_MODEL=claude-3-opus-20240229
+export PRAVAL_DEFAULT_MODEL=claude-sonnet-5
 ```
 
 **Programmatic** (set environment before import):
 ```python
 import os
 os.environ["PRAVAL_DEFAULT_PROVIDER"] = "openai"
-os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-4-turbo"
+os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-5.4-mini"
 
 from praval import agent, chat, start_agents
 ```

@@ -605,6 +605,6 @@ data = {
 
 ## See Also
 
-- [Memory System Guide](memory-system.md) - Agent memory capabilities
+- {doc}`memory-system` - Agent memory capabilities
 - [API Reference](../api/index.rst) - Detailed API documentation
 - [Examples](../examples/index.rst) - Storage usage examples

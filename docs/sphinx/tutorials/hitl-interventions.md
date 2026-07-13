@@ -74,6 +74,6 @@ Praval raises `HITLConfigurationError`. This prevents accidental policy bypass.
 
 ## See Also
 - [Tool Integration Tutorial](./tool-integration.md)
-- [Tool System Guide](../guide/tool-system.md)
+- {doc}`../guide/tool-system`
 - `examples/015_hitl_tool_approval.py`
 - `examples/016_hitl_mixed_agents.py`

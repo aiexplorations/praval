@@ -13,5 +13,5 @@ This tutorial will cover:
 - Monitoring and debugging
 
 For now, see:
-- [Example: Specialist Collaboration](../../examples/003_specialist_collaboration.py)
-- [Example: Self-Organizing Networks](../../examples/008_self_organizing_networks.py)
+- `examples/003_specialist_collaboration.py`
+- `examples/008_self_organizing_networks.py`

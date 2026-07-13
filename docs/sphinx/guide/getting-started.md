@@ -66,6 +66,11 @@ Praval requires **Python 3.9 or higher**. We support:
 - Python 3.10
 - Python 3.11
 - Python 3.12
+- Python 3.13
+
+Praval's optional MCP client uses the official MCP Python SDK and requires
+Python 3.10 or newer. The core framework and other extras retain Python 3.9
+support.
 
 ### API Keys
 
@@ -395,7 +400,7 @@ If agents aren't receiving messages:
 ```bash
 # LLM Provider Selection
 export PRAVAL_DEFAULT_PROVIDER=openai
-export PRAVAL_DEFAULT_MODEL=gpt-4-turbo
+export PRAVAL_DEFAULT_MODEL=gpt-5.4-mini
 
 # Memory Configuration
 export QDRANT_URL=http://localhost:6333
@@ -411,7 +416,7 @@ Praval uses environment variables for configuration. To select a specific provid
 ```python
 import os
 os.environ["PRAVAL_DEFAULT_PROVIDER"] = "openai"
-os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-4-turbo"
+os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-5.4-mini"
 
 from praval import agent, chat, start_agents
 # ... your agent code

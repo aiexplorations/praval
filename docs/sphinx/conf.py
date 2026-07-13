@@ -26,7 +26,7 @@ sys.path.insert(0, str(project_root))
 try:
     from praval import __version__
 except ImportError:
-    __version__ = "0.7.9"
+    __version__ = "0.8.0"
 
 # -- Project information -----------------------------------------------------
 project = "Praval"
@@ -60,6 +60,7 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns.append("README.md")
 
 # The suffix(es) of source filenames.
 source_suffix = {
@@ -81,7 +82,6 @@ html_theme_options = {
     "includehidden": True,
     "titles_only": False,
     "logo_only": False,
-    "display_version": True,
     "prev_next_buttons_location": "bottom",
     "style_external_links": True,
 }
@@ -146,8 +146,6 @@ autosummary_imported_members = False
 # -- intersphinx configuration
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "pydantic": ("https://docs.pydantic.dev/latest/", None),
-    "openai": ("https://platform.openai.com/docs/api-reference", None),
 }
 
 # -- myst_parser configuration (Markdown support)
@@ -167,6 +165,10 @@ copybutton_remove_prompts = True
 
 # -- todo extension configuration
 todo_include_todos = True
+
+# Autosummary pages and the module index can both describe the same public
+# objects. Keep the generated API pages and suppress duplicate-object noise.
+suppress_warnings = ["autodoc.duplicate_object"]
 
 # -- Code highlighting
 pygments_style = "sphinx"

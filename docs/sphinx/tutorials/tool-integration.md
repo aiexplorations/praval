@@ -64,7 +64,7 @@ print(llm.chat("What's the weather in Paris?"))
 ```
 
 ## See Also
-- [Tool System Guide](../guide/tool-system.md)
+- {doc}`../guide/tool-system`
 - `examples/012_tools_basic.py`
 - `examples/013_tools_shared.py`
 - `examples/014_tools_categories.py`

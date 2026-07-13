@@ -317,7 +317,7 @@ python my_first_agent.py
 ```
 
 **Expected output**:
-```
+```text
 Researching: quantum computing...
 Research complete for: quantum computing
 Creating summary for: quantum computing...

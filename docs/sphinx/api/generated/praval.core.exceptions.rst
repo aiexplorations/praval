@@ -9,6 +9,7 @@
    .. autosummary::
    
       ConfigurationError
+      EmbeddingConfigurationError
       HITLConfigurationError
       InterventionRequired
       PravalError

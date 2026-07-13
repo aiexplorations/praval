@@ -12,5 +12,5 @@ This tutorial will cover:
 - Memory types (short-term, long-term, episodic, semantic)
 
 For now, see:
-- [Memory System Guide](../guide/memory-system.md)
-- [Example: Memory-Enabled Agents](../../examples/005_memory_enabled_agents.py)
+- {doc}`../guide/memory-system`
+- `examples/005_memory_enabled_agents.py`
