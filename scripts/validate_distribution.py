@@ -172,6 +172,21 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         errors.append("sdist must contain the test suite")
     if not any("/examples/" in name and name.endswith(".py") for name in sdist_names):
         errors.append("sdist must contain Python examples")
+    if not any(name.endswith("/examples/manifest.toml") for name in sdist_names):
+        errors.append("sdist must contain the demo certification manifest")
+    required_fixture_suffixes = (
+        "/examples/certification/assets/image_input.png.base64",
+        "/examples/certification/assets/knowledge_input.pdf.base64",
+        "/examples/certification/assets/voice_phrase.txt",
+        "/examples/certification/assets/voice_input.wav.gz.base64",
+        "/examples/certification/assets/video_input.mp4.base64",
+        "/examples/certification/assets/PROVENANCE.md",
+    )
+    if not all(
+        any(name.endswith(suffix) for name in sdist_names)
+        for suffix in required_fixture_suffixes
+    ):
+        errors.append("sdist must contain certification fixture provenance")
     if not any("/docs/sphinx/" in name for name in sdist_names):
         errors.append("sdist must contain Sphinx documentation sources")
     return errors

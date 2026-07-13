@@ -1,0 +1,1 @@
+Praval validates speech transcription and synthesis.

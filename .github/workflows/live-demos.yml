@@ -1,0 +1,150 @@
+name: Protected live demo certification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: live-demo-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Certify exact wheel with real APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: live-demo
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_COMPATIBLE_BASE_URL: ${{ secrets.OPENAI_COMPATIBLE_BASE_URL }}
+      OPENAI_COMPATIBLE_API_KEY: ${{ secrets.OPENAI_COMPATIBLE_API_KEY }}
+      PRAVAL_OPENAI_MODEL: ${{ vars.PRAVAL_OPENAI_MODEL }}
+      PRAVAL_ANTHROPIC_MODEL: ${{ vars.PRAVAL_ANTHROPIC_MODEL }}
+      PRAVAL_COHERE_MODEL: ${{ vars.PRAVAL_COHERE_MODEL }}
+      PRAVAL_GEMINI_MODEL: ${{ vars.PRAVAL_GEMINI_MODEL }}
+      PRAVAL_OPENAI_COMPATIBLE_MODEL: ${{ vars.PRAVAL_OPENAI_COMPATIBLE_MODEL }}
+      PRAVAL_OPENAI_EMBEDDING_MODEL: ${{ vars.PRAVAL_OPENAI_EMBEDDING_MODEL }}
+      PRAVAL_GEMINI_EMBEDDING_MODEL: ${{ vars.PRAVAL_GEMINI_EMBEDDING_MODEL }}
+      PRAVAL_OPENAI_COMPATIBLE_EMBEDDINGS: ${{ vars.PRAVAL_OPENAI_COMPATIBLE_EMBEDDINGS }}
+      PRAVAL_OPENAI_COMPATIBLE_EMBEDDING_MODEL: ${{ vars.PRAVAL_OPENAI_COMPATIBLE_EMBEDDING_MODEL }}
+      PRAVAL_OPENAI_TRANSCRIPTION_MODEL: ${{ vars.PRAVAL_OPENAI_TRANSCRIPTION_MODEL }}
+      PRAVAL_OPENAI_TTS_MODEL: ${{ vars.PRAVAL_OPENAI_TTS_MODEL }}
+      PRAVAL_OPENAI_TTS_VOICE: ${{ vars.PRAVAL_OPENAI_TTS_VOICE }}
+    steps:
+      - name: Require trusted main workflow source
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ||
+            "$GITHUB_REF" != "refs/heads/main" ||
+            "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "Live certification may only run via workflow_dispatch from main." >&2
+            exit 1
+          fi
+      - name: Mask live credentials and endpoints
+        shell: bash
+        run: |
+          for value in \
+            "$OPENAI_API_KEY" \
+            "$ANTHROPIC_API_KEY" \
+            "$COHERE_API_KEY" \
+            "$GEMINI_API_KEY" \
+            "$OPENAI_COMPATIBLE_BASE_URL" \
+            "$OPENAI_COMPATIBLE_API_KEY"; do
+            if [[ -n "$value" ]]; then
+              echo "::add-mask::$value"
+            fi
+          done
+      - name: Check out exact main commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Find successful main CI run for this commit
+        id: ci-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_id="$(gh run list \
+            --workflow ci.yml \
+            --commit "$GITHUB_SHA" \
+            --status success \
+            --json databaseId,event,headBranch \
+            --jq '[.[] | select(.event == "push" and .headBranch == "main")][0].databaseId')"
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "No successful main CI run exists for $GITHUB_SHA" >&2
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download exact successful CI artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci-run.outputs.run-id }}
+      - name: Verify downloaded provenance and configuration
+        shell: bash
+        run: |
+          (cd dist && shasum -a 256 -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          if manifest["commit"] != os.environ["GITHUB_SHA"]:
+              raise SystemExit("CI artifact commit does not match live commit")
+          required = [
+              "OPENAI_API_KEY",
+              "ANTHROPIC_API_KEY",
+              "COHERE_API_KEY",
+              "GEMINI_API_KEY",
+              "OPENAI_COMPATIBLE_BASE_URL",
+              "OPENAI_COMPATIBLE_API_KEY",
+              "PRAVAL_OPENAI_MODEL",
+              "PRAVAL_ANTHROPIC_MODEL",
+              "PRAVAL_COHERE_MODEL",
+              "PRAVAL_GEMINI_MODEL",
+              "PRAVAL_OPENAI_COMPATIBLE_MODEL",
+              "PRAVAL_OPENAI_EMBEDDING_MODEL",
+              "PRAVAL_GEMINI_EMBEDDING_MODEL",
+              "PRAVAL_OPENAI_TRANSCRIPTION_MODEL",
+              "PRAVAL_OPENAI_TTS_MODEL",
+              "PRAVAL_OPENAI_TTS_VOICE",
+          ]
+          missing = [name for name in required if not os.environ.get(name)]
+          if os.environ.get("PRAVAL_OPENAI_COMPATIBLE_EMBEDDINGS", "").lower() in {
+              "1", "true", "yes"
+          } and not os.environ.get("PRAVAL_OPENAI_COMPATIBLE_EMBEDDING_MODEL"):
+              missing.append("PRAVAL_OPENAI_COMPATIBLE_EMBEDDING_MODEL")
+          if missing:
+              raise SystemExit("Missing live-demo environment configuration: " + ", ".join(missing))
+          PY
+      - name: Run exact-wheel live certification
+        run: >-
+          python scripts/run_demos.py
+          --manifest examples/manifest.toml
+          --wheel dist
+          --mode live
+          --report-dir "$RUNNER_TEMP/live-demo-results"
+          --commit-sha "${{ github.sha }}"
+      - name: Upload exact live certification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: live-demo-certification-${{ github.sha }}
+          path: ${{ runner.temp }}/live-demo-results/
+          if-no-files-found: error
+          retention-days: 90

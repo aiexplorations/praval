@@ -12,7 +12,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - exercised by minimal wheel installs
+    np = None
 
 try:
     from qdrant_client import QdrantClient
@@ -430,7 +433,13 @@ class LongTermMemory:
             return self.embedding_runtime.embed_text(text)
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
-            return np.random.random(self.vector_size).tolist()
+            if np is not None:
+                return np.random.random(self.vector_size).tolist()
+            # Keep the optional Qdrant fallback importable without pulling the
+            # heavyweight scientific stack into Praval's core dependencies.
+            import random
+
+            return [random.random() for _ in range(self.vector_size)]
 
     def _point_to_memory_entry(self, point) -> MemoryEntry:
         """Convert Qdrant point to MemoryEntry"""

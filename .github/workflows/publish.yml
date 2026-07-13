@@ -9,16 +9,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Reuse tested artifact and publish
+  verify:
+    name: Verify exact CI and live-certified artifact
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/praval
     permissions:
       actions: read
-      contents: write
-      id-token: write
+      contents: read
     steps:
       - name: Check out tagged source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -41,47 +37,101 @@ jobs:
             exit 1
           fi
           echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
-      - name: Download exact tested artifact
+      - name: Find successful protected live certification
+        id: live-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_id="$(gh run list \
+            --workflow live-demos.yml \
+            --commit "$GITHUB_SHA" \
+            --status success \
+            --json databaseId,event,headBranch \
+            --jq '[.[] | select(.event == "workflow_dispatch" and .headBranch == "main")][0].databaseId')"
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "No successful protected live certification exists for $GITHUB_SHA" >&2
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download exact tested distributions
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
           path: release
           github-token: ${{ github.token }}
           run-id: ${{ steps.ci-run.outputs.run-id }}
-      - name: Verify artifact checksums
-        working-directory: release
-        run: shasum -a 256 -c SHA256SUMS
-      - name: Verify tag, versions, and provenance
+      - name: Download exact live certification
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: live-demo-certification-${{ github.sha }}
+          path: certification
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.live-run.outputs.run-id }}
+      - name: Verify tag, distributions, provenance, and live certificate
         shell: bash
         run: |
+          (cd release && shasum -a 256 -c SHA256SUMS)
           python scripts/validate_distribution.py release --tag "$GITHUB_REF_NAME"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          manifest = json.loads(Path("release/build-manifest.json").read_text())
-          if manifest["commit"] != os.environ["GITHUB_SHA"]:
-              raise SystemExit("artifact commit does not match tagged commit")
-          PY
-          mkdir -p dist
-          cp release/*.whl release/*.tar.gz dist/
+          python scripts/verify_demo_certification.py \
+            release/build-manifest.json \
+            certification/certification-live.json \
+            --commit "$GITHUB_SHA" \
+            --version "${GITHUB_REF_NAME#v}"
           notes="docs/releases/RELEASE_NOTES_${GITHUB_REF_NAME#v}.md"
           if [[ ! -f "$notes" ]]; then
             echo "Release notes not found: $notes" >&2
             exit 1
           fi
-          echo "RELEASE_NOTES_PATH=$notes" >> "$GITHUB_ENV"
+          mkdir -p verified/dist verified/evidence
+          cp release/*.whl release/*.tar.gz verified/dist/
+          cp release/SHA256SUMS release/build-manifest.json verified/evidence/
+          cp "$notes" verified/evidence/RELEASE_NOTES.md
+          cp -R certification/. verified/evidence/live-demo/
+      - name: Upload protected publication bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verified-release-${{ github.sha }}
+          path: verified/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish previously verified artifact
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/praval
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Download protected publication bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: verified-release-${{ github.sha }}
+          path: verified
+      - name: Recheck exact distribution hashes after approval
+        run: (cd verified/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
       - name: Publish exact distributions through PyPI trusted publishing
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
         with:
-          packages-dir: dist/
-      - name: Attach the same artifacts to the GitHub release
+          packages-dir: verified/dist/
+      - name: Attach distributions and certification to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          release/*
+          verified/dist/*
+          verified/evidence/SHA256SUMS
+          verified/evidence/build-manifest.json
+          verified/evidence/live-demo/*
           --verify-tag
           --title "Praval $GITHUB_REF_NAME"
-          --notes-file "$RELEASE_NOTES_PATH"
+          --notes-file verified/evidence/RELEASE_NOTES.md

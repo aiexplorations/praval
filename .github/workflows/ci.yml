@@ -75,10 +75,12 @@ jobs:
         run: mypy src/praval/
       - name: Check formatting and imports
         run: |
-          black --check src/ tests/ scripts/
-          isort --check-only src/ tests/ scripts/ --profile black
+          black --check src/ tests/ scripts/ examples/certification/
+          isort --check-only src/ tests/ scripts/ examples/certification/ --profile black
       - name: Run lint
-        run: flake8 src/ tests/ scripts/ --max-line-length=88 --extend-ignore=E203,W503
+        run: >-
+          flake8 src/ tests/ scripts/ examples/certification/
+          --max-line-length=88 --extend-ignore=E203,W503
       - name: Build warning-free documentation
         run: sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
       - name: Upload coverage evidence
@@ -191,3 +193,201 @@ jobs:
       - name: MCP installation
         if: matrix.extra == 'mcp'
         run: python scripts/smoke_install.py dist --extra mcp
+
+  demo-offline:
+    name: Exact-wheel offline demos
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Download exact commit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: dist
+      - name: Verify exact artifact provenance
+        shell: bash
+        run: |
+          (cd dist && shasum -a 256 -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          if manifest.get("commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("CI artifact commit does not match this workflow commit")
+          PY
+      - name: Validate manifest and run exact-wheel offline demos
+        run: >-
+          python scripts/run_demos.py
+          --manifest examples/manifest.toml
+          --wheel dist
+          --mode offline
+          --report-dir "$RUNNER_TEMP/demo-results/offline"
+          --commit-sha "${{ github.sha }}"
+      - name: Upload offline demo evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: demo-offline-${{ github.sha }}
+          path: ${{ runner.temp }}/demo-results/offline/
+          if-no-files-found: error
+          retention-days: 30
+
+  demo-services:
+    name: Exact-wheel service demos
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_DB: praval
+          POSTGRES_USER: praval
+          POSTGRES_PASSWORD: praval-certification
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U praval -d praval"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3.13.7-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+      qdrant:
+        image: qdrant/qdrant:v1.12.4
+        ports:
+          - 6333:6333
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: praval
+      POSTGRES_USER: praval
+      POSTGRES_PASSWORD: praval-certification
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_ACCESS_KEY: pravalminio
+      MINIO_SECRET_KEY: pravalminio-certification
+      AWS_EC2_METADATA_DISABLED: "true"
+      QDRANT_URL: http://127.0.0.1:6333
+      RABBITMQ_URL: amqp://guest:guest@127.0.0.1:5672/
+      OTLP_HTTP_ENDPOINT: http://127.0.0.1:4318/v1/traces
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Download exact commit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: dist
+      - name: Verify exact artifact provenance
+        shell: bash
+        run: |
+          (cd dist && shasum -a 256 -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          if manifest.get("commit") != os.environ["GITHUB_SHA"]:
+              raise SystemExit("CI artifact commit does not match this workflow commit")
+          PY
+      - name: Start pinned MinIO and OTLP collector services
+        shell: bash
+        run: |
+          docker run -d --name praval-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" \
+            -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            minio/minio:RELEASE.2024-11-07T00-52-20Z \
+            server /data
+          docker run -d --name praval-otel \
+            -p 4318:4318 \
+            -v "$GITHUB_WORKSPACE/.github/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+            otel/opentelemetry-collector-contrib:0.113.0
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "MinIO did not become healthy" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:6333/readyz >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "Qdrant did not become healthy" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          for attempt in {1..30}; do
+            status="$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' \
+              http://127.0.0.1:4318/ 2>/dev/null || true)"
+            if [[ "$status" != "000" ]]; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "OTLP collector did not become healthy" >&2
+              docker logs praval-otel || true
+              exit 1
+            fi
+            sleep 1
+          done
+      - name: Run exact-wheel service demos
+        run: >-
+          python scripts/run_demos.py
+          --manifest examples/manifest.toml
+          --wheel dist
+          --mode services
+          --report-dir "$RUNNER_TEMP/demo-results/services"
+          --commit-sha "${{ github.sha }}"
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          docker logs praval-minio || true
+          docker logs praval-otel || true
+      - name: Upload service demo evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: demo-services-${{ github.sha }}
+          path: ${{ runner.temp }}/demo-results/services/
+          if-no-files-found: error
+          retention-days: 30

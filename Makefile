@@ -97,8 +97,9 @@ coverage-check:
 # Releases are produced and published by protected GitHub workflows.
 release:
 	@echo "Direct local publication is disabled."
-	@echo "Run 'make build', validate the exact CI artifact in Praval Research,"
-	@echo "then use the protected tag and trusted-publishing workflows."
+	@echo "Run 'make build', merge the candidate to main, then manually certify"
+	@echo "that exact CI wheel in the protected live-demo GitHub environment."
+	@echo "Tagging and trusted publishing reuse that exact certified artifact."
 	@exit 1
 
 # Documentation targets

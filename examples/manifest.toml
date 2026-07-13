@@ -1,0 +1,433 @@
+schema_version = 1
+
+[coverage]
+stable_features = [
+  "agent.identity",
+  "agent.lifecycle",
+  "app.ownership",
+  "runtime.sync",
+  "runtime.async",
+  "runtime.streaming",
+  "runtime.structured",
+  "runtime.reasoning",
+  "runtime.multimodal",
+  "provider.openai",
+  "provider.anthropic",
+  "provider.cohere",
+  "provider.gemini",
+  "provider.openai-compatible",
+  "tools",
+  "hitl",
+  "reef.delivery",
+  "reef.request-reply",
+  "spore.v2",
+  "memory.embeddings",
+  "knowledge.pdf",
+  "storage.filesystem",
+  "storage.postgresql",
+  "storage.redis",
+  "storage.s3",
+  "storage.qdrant",
+  "observability.sqlite",
+  "observability.console",
+  "observability.otlp",
+  "transport.rabbitmq",
+  "mcp.stdio",
+  "mcp.streamable-http",
+  "voice.stt",
+  "voice.tts",
+  "packaging.exact-wheel",
+]
+
+# Tutorial sources are compiled from the exact checkout while focused certificates
+# below execute each stable behavior against the already-built wheel.
+
+[[demo]]
+id = "tutorial-001-agent-identity"
+path = "001_single_agent_identity.py"
+features = ["agent.identity"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-002-agent-communication"
+path = "002_agent_communication.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-003-specialist-collaboration"
+path = "003_specialist_collaboration.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-004-registry-discovery"
+path = "004_registry_discovery.py"
+features = ["agent.registry"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-005-memory-enabled-agents"
+path = "005_memory_enabled_agents.py"
+features = ["memory.embeddings"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-006-resilient-agents"
+path = "006_resilient_agents.py"
+features = ["runtime.retries"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-007-adaptive-agent-systems"
+path = "007_adaptive_agent_systems.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-008-self-organizing-networks"
+path = "008_self_organizing_networks.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-009-emergent-intelligence"
+path = "009_emergent_collective_intelligence.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-010-unified-storage"
+path = "010_unified_storage_demo.py"
+features = ["storage.filesystem"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-011-secure-spore"
+path = "011_secure_spore_demo.py"
+features = ["spore.security"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-012-tools-basic"
+path = "012_tools_basic.py"
+features = ["tools"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-013-tools-shared"
+path = "013_tools_shared.py"
+features = ["tools"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-014-tools-categories"
+path = "014_tools_categories.py"
+features = ["tools"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-015-hitl-approval"
+path = "015_hitl_tool_approval.py"
+features = ["hitl"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-016-hitl-mixed-agents"
+path = "016_hitl_mixed_agents.py"
+features = ["hitl"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-blog-multi-agent"
+path = "blog_multi_agent_demo.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-blog-tools-observability"
+path = "blog_tools_and_observability_demo.py"
+features = ["tools", "observability.sqlite"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-calculator"
+path = "calculator.py"
+features = ["tools"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-configurable-embeddings"
+path = "configurable_embeddings.py"
+features = ["memory.embeddings"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-distributed-bootstrap"
+path = "distributed_agents_bootstrap.py"
+features = ["transport.rabbitmq"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-distributed-rabbitmq"
+path = "distributed_agents_with_rabbitmq.py"
+features = ["transport.rabbitmq"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-docker-memory"
+path = "docker-examples/005-memory-agents/memory_agents_containerized.py"
+features = ["memory.embeddings"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-docker-storage"
+path = "docker-examples/010-unified-storage/unified_storage_containerized.py"
+features = ["storage.postgresql", "storage.redis", "storage.s3", "storage.qdrant"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-gemini-file"
+path = "gemini_multimodal_file.py"
+features = ["provider.gemini", "runtime.multimodal"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-gemini-tools"
+path = "gemini_tool_runtime.py"
+features = ["provider.gemini", "tools"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-openai-compatible"
+path = "local_llm_openai_compatible.py"
+features = ["provider.openai-compatible"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-fake-runtime"
+path = "model_runtime_fake_provider.py"
+features = ["runtime.sync", "runtime.streaming"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-multimodal-runtime"
+path = "multimodal_input_runtime.py"
+features = ["runtime.multimodal"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-observability-quickstart"
+path = "observability/000_quickstart.py"
+features = ["observability.sqlite"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-observability-tracing"
+path = "observability/001_basic_tracing_demo.py"
+features = ["observability.sqlite"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-observability-configuration"
+path = "observability/002_configuration_demo.py"
+features = ["observability.sqlite"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-observability-context"
+path = "observability/003_context_propagation_demo.py"
+features = ["observability.sqlite"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-request-voice"
+path = "request_based_voice_agent.py"
+features = ["voice.stt", "voice.tts"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-simple-multi-agent"
+path = "simple_multi_agent.py"
+features = ["reef.delivery"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-streaming-events"
+path = "streaming_events.py"
+features = ["runtime.streaming"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-structured-output"
+path = "structured_output_runtime.py"
+features = ["runtime.structured"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-student-analytics"
+path = "student_analytics.py"
+features = ["agent.identity"]
+modes = ["offline"]
+
+[[demo]]
+id = "tutorial-website-sidebar"
+path = "website_sidebar_example.py"
+features = ["provider.openai", "provider.anthropic", "provider.cohere"]
+modes = ["offline"]
+
+[[demo]]
+id = "certification-support"
+path = "certification/support.py"
+features = ["packaging.exact-wheel"]
+modes = ["offline"]
+
+[[demo]]
+id = "certification-offline-framework"
+path = "certification/offline_framework.py"
+features = [
+  "agent.identity",
+  "agent.lifecycle",
+  "app.ownership",
+  "runtime.sync",
+  "runtime.async",
+  "runtime.streaming",
+  "runtime.structured",
+  "tools",
+  "reef.delivery",
+  "reef.request-reply",
+  "spore.v2",
+  "memory.embeddings",
+  "knowledge.pdf",
+  "storage.filesystem",
+  "observability.sqlite",
+  "observability.console",
+  "packaging.exact-wheel",
+]
+modes = ["offline"]
+execution = "run"
+extras = ["pdf"]
+timeout_seconds = 120
+expected_artifacts = ["offline-framework.json", "offline-traces.sqlite3"]
+
+[[demo]]
+id = "certification-mcp-server"
+path = "certification/mcp_server.py"
+features = ["mcp.stdio", "mcp.streamable-http"]
+modes = ["offline"]
+
+[[demo]]
+id = "certification-mcp-transports"
+path = "certification/mcp_transports.py"
+features = ["mcp.stdio", "mcp.streamable-http"]
+modes = ["offline", "live"]
+execution = "run"
+extras = ["mcp"]
+timeout_seconds = 90
+expected_artifacts = ["mcp-transports.json", "mcp-hitl.sqlite3"]
+
+[[demo]]
+id = "certification-services"
+path = "certification/services.py"
+features = [
+  "storage.filesystem",
+  "storage.postgresql",
+  "storage.redis",
+  "storage.s3",
+  "storage.qdrant",
+  "observability.otlp",
+  "transport.rabbitmq",
+]
+modes = ["services"]
+execution = "run"
+extras = ["storage", "secure", "observability"]
+services = ["postgresql", "redis", "minio", "qdrant", "rabbitmq", "otlp"]
+timeout_seconds = 180
+expected_artifacts = ["services.json"]
+required_secrets = [
+  "POSTGRES_HOST",
+  "POSTGRES_PORT",
+  "POSTGRES_DB",
+  "POSTGRES_USER",
+  "POSTGRES_PASSWORD",
+  "REDIS_HOST",
+  "REDIS_PORT",
+  "MINIO_ENDPOINT",
+  "MINIO_ACCESS_KEY",
+  "MINIO_SECRET_KEY",
+  "QDRANT_URL",
+  "RABBITMQ_URL",
+  "OTLP_HTTP_ENDPOINT",
+]
+
+[[demo]]
+id = "certification-live-provider-matrix"
+path = "certification/live_provider_matrix.py"
+features = [
+  "runtime.sync",
+  "runtime.async",
+  "runtime.streaming",
+  "runtime.structured",
+  "runtime.reasoning",
+  "runtime.multimodal",
+  "provider.openai",
+  "provider.anthropic",
+  "provider.cohere",
+  "provider.gemini",
+  "provider.openai-compatible",
+  "tools",
+  "memory.embeddings",
+  "packaging.exact-wheel",
+]
+modes = ["live"]
+execution = "run"
+providers = ["openai", "anthropic", "cohere", "gemini", "openai-compatible"]
+timeout_seconds = 900
+expected_artifacts = ["live-provider-matrix.json", "provider-matrix-red.png"]
+required_secrets = [
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "COHERE_API_KEY",
+  "GEMINI_API_KEY",
+  "OPENAI_COMPATIBLE_BASE_URL",
+  "OPENAI_COMPATIBLE_API_KEY",
+  "PRAVAL_OPENAI_MODEL",
+  "PRAVAL_ANTHROPIC_MODEL",
+  "PRAVAL_COHERE_MODEL",
+  "PRAVAL_GEMINI_MODEL",
+  "PRAVAL_OPENAI_COMPATIBLE_MODEL",
+  "PRAVAL_OPENAI_EMBEDDING_MODEL",
+  "PRAVAL_GEMINI_EMBEDDING_MODEL",
+]
+
+[[demo]]
+id = "certification-live-hitl"
+path = "certification/live_hitl.py"
+features = ["hitl", "tools"]
+modes = ["live"]
+execution = "run"
+providers = ["openai"]
+timeout_seconds = 900
+expected_artifacts = ["live-hitl.json", "live-hitl.sqlite3"]
+required_secrets = ["OPENAI_API_KEY", "PRAVAL_OPENAI_MODEL"]
+
+[[demo]]
+id = "certification-live-voice"
+path = "certification/live_voice_roundtrip.py"
+features = ["voice.stt", "voice.tts"]
+modes = ["live"]
+execution = "run"
+providers = ["openai"]
+timeout_seconds = 420
+expected_artifacts = [
+  "live-voice-roundtrip.json",
+  "voice-input.wav",
+  "voice-reply.wav",
+]
+required_secrets = [
+  "OPENAI_API_KEY",
+  "PRAVAL_OPENAI_MODEL",
+  "PRAVAL_OPENAI_TRANSCRIPTION_MODEL",
+  "PRAVAL_OPENAI_TTS_MODEL",
+  "PRAVAL_OPENAI_TTS_VOICE",
+]

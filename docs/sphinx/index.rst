@@ -71,6 +71,7 @@ What To Read
    guide/multimodal
    guide/tool-system
    guide/mcp
+   guide/demo-certification
    guide/hitl-troubleshooting
    guide/reef-protocol
    guide/memory-system
