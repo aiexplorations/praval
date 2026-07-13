@@ -12,7 +12,7 @@ Sends traces to OTLP-compatible collectors like:
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class OTLPExporter:
 
         # Map status
         status_map = {"ok": 1, "error": 2}
-        status_code = status_map.get(span.get("status", "ok"), 1)
+        status_code = status_map.get(str(span.get("status", "ok")).lower(), 1)
 
         return {
             "traceId": self._hex_to_base64(span.get("trace_id", "")),
@@ -252,7 +252,9 @@ def export_traces_to_otlp(
         for trace_id in trace_ids:
             spans.extend(store.get_trace(trace_id))
     else:
-        spans = cast(List[Dict[str, Any]], store.get_recent_traces(limit=limit))
+        spans = []
+        for trace_id in store.get_recent_traces(limit=limit):
+            spans.extend(store.get_trace(trace_id))
 
     if not spans:
         logger.info("No spans to export")

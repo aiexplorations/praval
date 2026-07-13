@@ -8,7 +8,7 @@ Displays traces in a tree format showing:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class ConsoleViewer:
         name = span.get("name", "unknown")
         kind = span.get("kind", "INTERNAL")
         duration = span.get("duration_ms", 0)
-        status = span.get("status", "ok")
+        status = str(span.get("status", "ok")).lower()
 
         # Color based on status
         if status == "error":
@@ -164,7 +164,7 @@ class ConsoleViewer:
         trace_ids = set(s.get("trace_id") for s in spans if s.get("trace_id"))
         total_traces = len(trace_ids)
 
-        error_spans = [s for s in spans if s.get("status") == "error"]
+        error_spans = [s for s in spans if str(s.get("status", "")).lower() == "error"]
         error_count = len(error_spans)
 
         durations = [s.get("duration_ms", 0) for s in spans if s.get("duration_ms")]
@@ -215,7 +215,9 @@ def print_traces(
         for trace_id in trace_ids:
             spans.extend(store.get_trace(trace_id))
     else:
-        spans = cast(List[Dict[str, Any]], store.get_recent_traces(limit=limit))
+        spans = []
+        for trace_id in store.get_recent_traces(limit=limit):
+            spans.extend(store.get_trace(trace_id))
 
     if not spans:
         print("No traces found")

@@ -96,9 +96,6 @@ class TestDataReference:
         uri = ref.to_uri()
         assert uri == "s3_bucket://object/images/photo.jpg"
 
-    @pytest.mark.xfail(
-        reason="Bug in from_uri: uses path instead of netloc for storage_type"
-    )
     def test_data_reference_from_uri(self):
         """Parse URI back to DataReference."""
         uri = "redis_cache://key_value/session/abc123"
@@ -108,9 +105,6 @@ class TestDataReference:
         assert ref.storage_type == StorageType.KEY_VALUE
         assert ref.resource_id == "session/abc123"
 
-    @pytest.mark.xfail(
-        reason="Bug in from_uri: uses path instead of netloc for storage_type"
-    )
     def test_data_reference_roundtrip(self):
         """to_uri() -> from_uri() preserves data."""
         original = DataReference(

@@ -425,7 +425,8 @@ class S3Provider(BaseStorageProvider):
                             metadata={"operation": "object_exists"},
                         )
                     except ClientError as e:
-                        if e.response["Error"]["Code"] == "NoSuchKey":
+                        error_code = str(e.response["Error"].get("Code", ""))
+                        if error_code in {"NoSuchKey", "404", "NotFound"}:
                             return StorageResult(
                                 success=True,
                                 data={"exists": False},

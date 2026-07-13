@@ -5,6 +5,9 @@ These tests require Docker to run Redis via testcontainers.
 Skip these tests if Docker is not available: pytest -m "not integration"
 """
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 
 from praval.storage.base_provider import StorageType
@@ -100,6 +103,21 @@ class TestRedisConnection:
 
         assert provider.is_connected is False
         assert provider.redis_client is None
+
+    @pytest.mark.asyncio
+    async def test_disconnect_supports_redis_four_close_api(self):
+        """Falls back to close() for older redis-py releases."""
+        provider = object.__new__(RedisProvider)
+        close = AsyncMock()
+        provider.redis_client = SimpleNamespace(close=close)
+        provider.is_connected = True
+        provider.name = "legacy_redis"
+
+        await provider.disconnect()
+
+        close.assert_awaited_once()
+        assert provider.redis_client is None
+        assert provider.is_connected is False
 
 
 # ============================================================================

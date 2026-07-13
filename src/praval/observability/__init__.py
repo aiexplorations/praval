@@ -69,7 +69,7 @@ __all__ = [
     "show_recent_traces",
 ]
 
-__version__ = "0.8.0-dev"
+__version__ = "0.8.0"
 
 # Auto-initialize instrumentation on import
 initialize_instrumentation()

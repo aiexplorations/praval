@@ -5,7 +5,6 @@ Simplified tests that work with actual Praval APIs.
 """
 
 import os
-import time
 
 import pytest
 
@@ -15,13 +14,19 @@ os.environ["PRAVAL_SAMPLE_RATE"] = "1.0"
 
 
 @pytest.fixture(autouse=True)
-def initialize_observability():
+def initialize_observability(monkeypatch, tmp_path):
     """Initialize observability instrumentation for each test in this module.
 
     This is needed because the main conftest.py resets instrumentation between
     tests for isolation. The observability tests need instrumentation active.
     """
     from praval.observability import initialize_instrumentation
+    from praval.observability.config import reset_config
+    from praval.observability.storage.sqlite_store import reset_trace_store
+
+    monkeypatch.setenv("PRAVAL_TRACES_PATH", str(tmp_path / "traces.db"))
+    reset_config()
+    reset_trace_store()
 
     initialize_instrumentation()
     yield
@@ -54,9 +59,6 @@ class TestBasicInstrumentation:
 class TestReefInstrumentation:
     """Test automatic instrumentation of Reef communication."""
 
-    @pytest.mark.xfail(
-        reason="Spans not captured due to test isolation - instrumentation timing issue"
-    )
     def test_reef_send_creates_span(self):
         """Verify that reef.send creates trace spans."""
         from praval.core.reef import get_reef
@@ -72,8 +74,6 @@ class TestReefInstrumentation:
             from_agent="sender", to_agent="receiver", knowledge={"message": "test"}
         )
 
-        time.sleep(0.3)
-
         # Check for send span
         send_spans = store.find_spans(agent_name="reef.send")
         assert len(send_spans) > 0
@@ -82,9 +82,6 @@ class TestReefInstrumentation:
         assert "reef.send" in span["name"]
         assert span["kind"] == "PRODUCER"
 
-    @pytest.mark.xfail(
-        reason="Spans not captured due to test isolation - instrumentation timing issue"
-    )
     def test_reef_broadcast_creates_span(self):
         """Verify that reef.broadcast creates trace spans."""
         from praval.core.reef import get_reef
@@ -98,8 +95,6 @@ class TestReefInstrumentation:
         # Broadcast a message
         reef.broadcast(from_agent="broadcaster", knowledge={"announcement": "test"})
 
-        time.sleep(0.3)
-
         # Check for broadcast span
         broadcast_spans = store.find_spans(agent_name="reef.broadcast")
         assert len(broadcast_spans) > 0
@@ -112,9 +107,6 @@ class TestReefInstrumentation:
 class TestManualSpanCreation:
     """Test manual span creation still works."""
 
-    @pytest.mark.xfail(
-        reason="Spans not captured due to test isolation - instrumentation timing issue"
-    )
     def test_manual_span_creation(self):
         """Verify manual span creation with tracer."""
         from praval.observability import SpanKind, get_trace_store, get_tracer
@@ -131,11 +123,9 @@ class TestManualSpanCreation:
             span.set_attribute("test_attr", "value")
             span.add_event("test_event")
 
-        time.sleep(0.2)
-
         # Verify it was stored
         spans = store.find_spans(agent_name="manual.test")
-        assert len(spans) > 0
+        assert len(spans) == 1
 
         span_dict = spans[0]
         assert "manual.test_operation" in span_dict["name"]
@@ -146,9 +136,6 @@ class TestManualSpanCreation:
 class TestErrorRecording:
     """Test error recording in spans."""
 
-    @pytest.mark.xfail(
-        reason="Spans not captured due to test isolation - instrumentation timing issue"
-    )
     def test_exception_recorded_in_span(self):
         """Verify exceptions are recorded in spans."""
         from praval.observability import SpanKind, get_trace_store, get_tracer
@@ -167,23 +154,18 @@ class TestErrorRecording:
         except ValueError:
             pass
 
-        time.sleep(0.2)
-
         # Verify error was recorded
         error_spans = store.find_spans(status="error")
         assert len(error_spans) > 0
 
         span = error_spans[0]
-        assert span["status"] == "error"
+        assert span["status"] == "ERROR"
         assert len(span["events"]) > 0
 
 
 class TestTraceContextPropagation:
     """Test trace context propagation."""
 
-    @pytest.mark.xfail(
-        reason="Spans not captured due to test isolation - instrumentation timing issue"
-    )
     def test_parent_child_spans(self):
         """Verify parent-child span relationships."""
         from praval.observability import SpanKind, get_trace_store, get_tracer
@@ -208,8 +190,6 @@ class TestTraceContextPropagation:
                 assert child_span.trace_id == parent_trace_id
                 # Child's parent should be parent span
                 assert child_span.parent_span_id == parent_span_id
-
-        time.sleep(0.2)
 
         # Verify both spans stored
         spans = store.find_spans(limit=10)

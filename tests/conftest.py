@@ -9,7 +9,7 @@ import pytest
 
 
 def _reset_agent_context():
-    """Reset the thread-local agent context used by decorators."""
+    """Reset the context-local agent context used by decorators."""
     try:
         from praval.decorators import _agent_context
 
@@ -61,7 +61,7 @@ def reset_global_state():
     - The global Reef (communication channels)
     - The global Registry (agent registrations)
     - The global ToolRegistry (tool registrations)
-    - The agent context (thread-local from decorators)
+    - The agent context (context-local from decorators)
     - Observability state (config, tracer, trace store)
     """
     # Reset before test

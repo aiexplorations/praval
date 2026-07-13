@@ -121,7 +121,11 @@ class RedisProvider(BaseStorageProvider):
     async def disconnect(self):
         """Close Redis connection."""
         if self.redis_client:
-            await self.redis_client.close()
+            async_close = getattr(self.redis_client, "aclose", None)
+            if callable(async_close):
+                await async_close()
+            else:
+                await self.redis_client.close()
             self.redis_client = None
             self.is_connected = False
             logger.info(f"Disconnected from Redis: {self.name}")

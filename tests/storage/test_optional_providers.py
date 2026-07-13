@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from fnmatch import fnmatch
 from types import SimpleNamespace
 
 import pytest
@@ -12,16 +13,25 @@ async def test_postgresql_provider_basic_flow(monkeypatch):
         pass
 
     class FakeConn:
+        def __init__(self):
+            self.queries = []
+
         async def fetchrow(self, query, *values):
+            self.queries.append((query, values))
             return FakeRecord({"id": 1})
 
         async def execute(self, query, *values):
+            self.queries.append((query, values))
             return "DELETE 1"
 
         async def fetch(self, query, *params):
+            self.queries.append((query, params))
+            if "information_schema.tables" in query:
+                return [FakeRecord({"table_name": "items"})]
             return [FakeRecord({"id": 1, "name": "row"})]
 
         async def executemany(self, query, values_list):
+            self.queries.append((query, values_list))
             return None
 
     class FakeAcquire:
@@ -59,15 +69,57 @@ async def test_postgresql_provider_basic_flow(monkeypatch):
     await provider.connect()
     res = await provider.store("items", {"id": 1, "name": "row"})
     assert res.success
+    assert (await provider.store("items", {"id": 2}, returning="id")).data == {"id": 1}
+    assert (await provider.store("items", [])).data == {"inserted": 0}
+    assert (await provider.store("items", [{"id": 1}, {"id": 2}])).data == {
+        "inserted": 2
+    }
+    assert (await provider.store("items", "invalid")).success is False
 
-    res = await provider.retrieve("items")
+    res = await provider.retrieve(
+        "items",
+        where={"age": {"$gte": 18}, "status": {"$in": ["active", "new"]}},
+        order_by="id DESC",
+        limit=10,
+        offset=1,
+    )
     assert res.success
 
     res = await provider.query("items", "SELECT * FROM items")
     assert res.success
+    assert (await provider.query("items", "UPDATE items SET id = 2")).success
+    assert (
+        await provider.query(
+            "items",
+            {
+                "operation": "select",
+                "fields": ["id", "name"],
+                "where": {"age": {"$gt": 10}},
+                "order_by": "id",
+                "limit": 2,
+            },
+        )
+    ).success
+    assert (await provider.query("items", {"operation": "update"})).success is False
+    assert (await provider.query("items", 42)).success is False
 
     res = await provider.delete("items", where={"id": 1})
     assert res.success
+    assert (await provider.delete("items")).success is False
+    resources = await provider.list_resources(prefix="it")
+    assert resources.data == ["items"]
+
+    clause, params = provider._build_where_clause(
+        {
+            "a": {"$lt": 2},
+            "b": {"$lte": 3},
+            "c": {"$ne": 4},
+            "d": 5,
+        }
+    )
+    assert "$1" in clause and params == [2, 3, 4, 5]
+    with pytest.raises(ValueError, match="Unsupported operator"):
+        provider._build_where_clause({"a": {"$bad": 1}})
 
     await provider.disconnect()
 
@@ -79,6 +131,7 @@ async def test_redis_provider_basic_flow(monkeypatch):
     class FakeRedis:
         def __init__(self, **kwargs):
             self.store = {}
+            self.set_result = True
 
         async def ping(self):
             return True
@@ -88,7 +141,7 @@ async def test_redis_provider_basic_flow(monkeypatch):
 
         async def set(self, key, value, ex=None, px=None, nx=False, xx=False):
             self.store[key] = value
-            return True
+            return self.set_result
 
         async def ttl(self, key):
             return 10
@@ -97,7 +150,7 @@ async def test_redis_provider_basic_flow(monkeypatch):
             return self.store.get(key)
 
         async def keys(self, pattern):
-            return [k for k in self.store.keys()]
+            return [key for key in self.store if fnmatch(key, pattern)]
 
         async def scan(self, cursor=0, match=None, count=10):
             return 0, list(self.store.keys())
@@ -157,24 +210,53 @@ async def test_redis_provider_basic_flow(monkeypatch):
 
     res = await provider.store("k1", {"a": 1})
     assert res.success
+    assert (await provider.store("scalar", 7, ex=10)).success
+    provider.redis_client.set_result = False
+    assert (await provider.store("blocked", "value", nx=True)).success is False
+    provider.redis_client.set_result = True
 
     res = await provider.retrieve("k1")
     assert res.success
+    assert (await provider.retrieve("missing")).success is False
+    provider.redis_client.store["invalid-json"] = "{invalid"
+    invalid_json = await provider.retrieve("invalid-json")
+    assert invalid_json.success and invalid_json.data == "{invalid"
+    assert (await provider.retrieve("scalar", decode_json=False)).data == "7"
 
     res = await provider.query("k*", "keys")
     assert res.success
+    assert (await provider.query("k*", "scan", count=2)).success
+    assert (await provider.query("k1", "exists", keys=["k1", "missing"])).success
+    assert (
+        await provider.query("", {"operation": "mget", "keys": ["k1", "scalar"]})
+    ).success
 
     res = await provider.query("k1", "hgetall")
     assert res.success
+    assert (await provider.query("k1", "hget", field="a")).success
+    assert (await provider.query("k1", "hkeys")).success
+    assert (await provider.query("k1", "hvals")).success
+    assert (await provider.query("k1", "hget")).success is False
 
     res = await provider.query("k1", "lrange")
     assert res.success
+    assert (await provider.query("k1", "llen")).success
+    assert (await provider.query("k1", "lindex", index=0)).success
 
     res = await provider.query("k1", "smembers")
     assert res.success
+    assert (await provider.query("k1", "scard")).success
+    assert (await provider.query("k1", "sismember", member="x")).success
+    assert (await provider.query("k1", "sismember")).success is False
+    assert (await provider.query("k1", "unsupported")).success is False
+    assert (await provider.query("k1", {"operation": "unsupported"})).success is False
+    assert (await provider.query("k1", 42)).success is False
 
     res = await provider.delete("k1")
     assert res.success
+    assert (await provider.delete("missing*", pattern_delete=True)).data == {
+        "deleted": 0
+    }
 
     await provider.disconnect()
 
@@ -209,7 +291,7 @@ async def test_s3_provider_basic_flow(monkeypatch):
         def head_object(self, Bucket=None, Key=None):
             return {
                 "ContentLength": 0,
-                "LastModified": datetime.utcnow(),
+                "LastModified": datetime.now(timezone.utc),
                 "ETag": "etag",
             }
 
@@ -256,27 +338,39 @@ async def test_qdrant_provider_basic_flow(monkeypatch):
 
     class FakeQdrant:
         def __init__(self, **kwargs):
-            self.collections = []
+            self.collections = set()
             self.points = {}
 
         def get_collections(self):
-            return {"collections": []}
+            return SimpleNamespace(
+                collections=[
+                    SimpleNamespace(name=name, points_count=len(self.points))
+                    for name in sorted(self.collections)
+                ]
+            )
 
         def get_collection(self, name):
-            raise Exception("not found")
+            if name not in self.collections:
+                raise Exception("not found")
+            return SimpleNamespace(
+                points_count=len(self.points), segments_count=1, status="green"
+            )
 
         def create_collection(self, collection_name=None, vectors_config=None):
-            return None
+            self.collections.add(collection_name)
 
         def upsert(self, collection_name=None, points=None):
             for p in points:
                 self.points[p.id] = p
+            return SimpleNamespace(operation_id="operation-1")
 
-        def retrieve(self, collection_name=None, ids=None):
-            return []
+        def retrieve(self, collection_name=None, ids=None, **kwargs):
+            return [
+                self.points[point_id] for point_id in ids if point_id in self.points
+            ]
 
-        def scroll(self, collection_name=None, limit=None, offset=None):
-            return ([], None)
+        def scroll(self, collection_name=None, limit=None, offset=None, **kwargs):
+            return (list(self.points.values())[:limit], "next")
 
         def search(
             self,
@@ -287,13 +381,18 @@ async def test_qdrant_provider_basic_flow(monkeypatch):
             with_vectors=None,
             query_filter=None,
         ):
-            return []
+            results = list(self.points.values())[:limit]
+            for point in results:
+                point.score = 0.9
+            return results
 
         def delete(self, collection_name=None, points_selector=None):
+            for point_id in getattr(points_selector, "points", []):
+                self.points.pop(point_id, None)
             return None
 
-        def count(self, collection_name=None):
-            return SimpleNamespace(count=0)
+        def count(self, collection_name=None, **kwargs):
+            return SimpleNamespace(count=len(self.points))
 
         def close(self):
             return None
@@ -348,11 +447,45 @@ async def test_qdrant_provider_basic_flow(monkeypatch):
         "items", {"id": "p1", "vector": [0.1, 0.2, 0.3], "payload": {"a": 1}}
     )
     assert res.success
+    assert res.data["operation_id"] == "operation-1"
+    assert (
+        await provider.store(
+            "items",
+            [
+                {"id": "p2", "vector": [0.2, 0.3, 0.4]},
+                {"id": "p3", "vector": [0.3, 0.4, 0.5]},
+            ],
+        )
+    ).success
+    assert (
+        await provider.store("items", [0.4, 0.5, 0.6], id="p4", payload={"kind": "raw"})
+    ).success
+    assert (await provider.store("items", {})).success is False
+    assert (await provider.store("items", [])).success is False
+
+    retrieved = await provider.retrieve("items:p1")
+    assert retrieved.success and retrieved.data["id"] == "p1"
+    assert (await provider.retrieve("items")).success is False
 
     res = await provider.query("items", "search", vector=[0.1, 0.2, 0.3])
     assert res.success
+    assert res.data[0]["score"] == 0.9
+    assert (await provider.query("items", "count")).data["count"] == 4
+    assert (await provider.query("items", "scroll", limit=2)).success
+    assert (await provider.query("items", [0.1, 0.2, 0.3])).success
+    assert (await provider.query("items", "search")).success is False
+    assert (await provider.query("items", "unsupported")).success is False
+    assert (await provider.query("items", {"bad": True})).success is False
 
     res = await provider.delete("items", ids=["p1"])
     assert res.success
+    assert (await provider.delete("items", filter=FakeModels.Filter())).success
+    assert (await provider.delete("items")).success is False
+
+    resources = await provider.list_resources(prefix="it")
+    assert resources.success and resources.data[0]["name"] == "items"
+
+    assert provider._to_qdrant_point_id("items", 1) == 1
+    assert provider._from_qdrant_point("id", {}) == "id"
 
     await provider.disconnect()

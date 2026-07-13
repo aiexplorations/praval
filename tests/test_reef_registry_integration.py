@@ -5,7 +5,6 @@ These tests verify that the reef communication system integrates
 seamlessly with agent and tool discovery through the registry.
 """
 
-from contextlib import ExitStack
 from typing import Dict, List
 from unittest.mock import patch
 
@@ -46,12 +45,6 @@ class TestReefRegistryIntegration:
         assert hasattr(retrieved_researcher, "send_knowledge")
         assert hasattr(retrieved_analyzer, "broadcast_knowledge")
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
-        )
-    )
     def test_agent_discovery_for_reef_communication(self):
         """Test discovering agents through registry for reef communication."""
         # Create specialized agents
@@ -77,16 +70,7 @@ class TestReefRegistryIntegration:
         assert "weather_service" in service_agents
         assert "news_service" in service_agents
 
-        # Client can communicate with discovered services
-        received_responses = []
-
-        def response_handler(spore: Spore) -> None:
-            if spore.spore_type == SporeType.RESPONSE:
-                received_responses.append(spore.knowledge)
-
-        client_agent.subscribe_to_channel("main")
-
-        # Mock weather service to respond
+        # Weather service responds through its public spore handler.
         def weather_responder(spore: Spore) -> None:
             if (
                 spore.spore_type == SporeType.REQUEST
@@ -99,34 +83,17 @@ class TestReefRegistryIntegration:
                     reply_to_spore_id=spore.id,
                 )
 
+        weather_agent.set_spore_handler(weather_responder)
         weather_agent.subscribe_to_channel("main")
-
-        with (
-            patch.object(
-                client_agent, "on_spore_received", side_effect=response_handler
-            ),
-            patch.object(
-                weather_agent, "on_spore_received", side_effect=weather_responder
-            ),
-        ):
-
-            # Client requests weather from discovered service
-            client_agent.request_knowledge(
-                from_agent="weather_service",
-                request={"service": "weather", "location": "san_francisco"},
-                timeout=5,
-            )
-
-            # Should receive response
-            assert len(received_responses) == 1
-            assert received_responses[0]["temperature"] == 25
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
+        response = client_agent.request_knowledge(
+            from_agent="weather_service",
+            request={"service": "weather", "location": "san_francisco"},
+            timeout=5,
         )
-    )
+
+        assert response is not None
+        assert response["temperature"] == 25
+
     def test_tool_discovery_with_reef_communication(self):
         """Test discovering and using agent tools through reef communication."""
         # Create agent with useful tools
@@ -163,15 +130,8 @@ class TestReefRegistryIntegration:
         # Client can request tool execution via reef
         client_agent = Agent("client")
         register_agent(client_agent)
-        client_agent.subscribe_to_channel("main")
 
-        received_results = []
-
-        def result_handler(spore: Spore) -> None:
-            if spore.spore_type == SporeType.RESPONSE:
-                received_results.append(spore.knowledge)
-
-        # Mock math agent to execute tools on request
+        # Math agent executes discovered tools through its public spore handler.
         def tool_executor(spore: Spore) -> None:
             if spore.spore_type == SporeType.REQUEST:
                 tool_name = spore.knowledge.get("tool")
@@ -186,31 +146,18 @@ class TestReefRegistryIntegration:
                         reply_to_spore_id=spore.id,
                     )
 
+        math_agent.set_spore_handler(tool_executor)
         math_agent.subscribe_to_channel("main")
-
-        with (
-            patch.object(client_agent, "on_spore_received", side_effect=result_handler),
-            patch.object(math_agent, "on_spore_received", side_effect=tool_executor),
-        ):
-
-            # Request tool execution
-            client_agent.request_knowledge(
-                from_agent="math_service",
-                request={"tool": "fibonacci", "params": {"n": 8}},
-                timeout=5,
-            )
-
-            # Should receive tool result
-            assert len(received_results) == 1
-            assert received_results[0]["tool"] == "fibonacci"
-            assert received_results[0]["result"] == 21  # fibonacci(8)
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
+        response = client_agent.request_knowledge(
+            from_agent="math_service",
+            request={"tool": "fibonacci", "params": {"n": 8}},
+            timeout=5,
         )
-    )
+
+        assert response is not None
+        assert response["tool"] == "fibonacci"
+        assert response["result"] == 21
+
     def test_broadcast_to_registered_agents(self):
         """Test broadcasting to all registered agents."""
         # Create multiple agents with different specializations
@@ -220,7 +167,6 @@ class TestReefRegistryIntegration:
         for agent_type in agent_types:
             agent = Agent(f"{agent_type}_agent")
             register_agent(agent)
-            agent.subscribe_to_channel("main")
             agents[agent_type] = agent
 
         # Track broadcasts received by each agent
@@ -233,44 +179,29 @@ class TestReefRegistryIntegration:
 
             return handler
 
-        # Set up broadcast handlers for all agents using ExitStack
-        with ExitStack() as stack:
-            for agent_type in agent_types:
-                stack.enter_context(
-                    patch.object(
-                        agents[agent_type],
-                        "on_spore_received",
-                        side_effect=create_broadcast_handler(agent_type),
-                    )
-                )
+        for agent_type in agent_types:
+            agent = agents[agent_type]
+            agent.set_spore_handler(create_broadcast_handler(agent_type))
+            agent.subscribe_to_channel("main")
 
-            # Create broadcaster agent
-            broadcaster = Agent("system_broadcaster")
-            register_agent(broadcaster)
-
-            # Broadcast system-wide announcement
-            broadcaster.broadcast_knowledge(
-                {
-                    "announcement": "system_maintenance_scheduled",
-                    "time": "2024-01-15T02:00:00Z",
-                    "duration": "2_hours",
-                    "affected_services": ["all"],
-                }
-            )
-
-            # All registered agents should receive broadcast
-            for agent_type in agent_types:
-                assert len(broadcasts_received[agent_type]) == 1
-                broadcast = broadcasts_received[agent_type][0]
-                assert broadcast["announcement"] == "system_maintenance_scheduled"
-                assert broadcast["duration"] == "2_hours"
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
+        broadcaster = Agent("system_broadcaster")
+        register_agent(broadcaster)
+        broadcaster.broadcast_knowledge(
+            {
+                "announcement": "system_maintenance_scheduled",
+                "time": "2024-01-15T02:00:00Z",
+                "duration": "2_hours",
+                "affected_services": ["all"],
+            }
         )
-    )
+        assert get_reef().wait_for_completion(timeout=2)
+
+        for agent_type in agent_types:
+            assert len(broadcasts_received[agent_type]) == 1
+            broadcast = broadcasts_received[agent_type][0]
+            assert broadcast["announcement"] == "system_maintenance_scheduled"
+            assert broadcast["duration"] == "2_hours"
+
     def test_registry_based_agent_lookup_for_messaging(self):
         """Test using registry to look up agents for direct messaging."""
         # Create agents in different domains
@@ -285,7 +216,6 @@ class TestReefRegistryIntegration:
         for name, description in agents_config.items():
             agent = Agent(name, system_message=description)
             register_agent(agent)
-            agent.subscribe_to_channel("main")
             created_agents[name] = agent
 
         # Create coordinator that uses registry to find specialists
@@ -311,46 +241,33 @@ class TestReefRegistryIntegration:
 
             return handler
 
-        # Apply patches using ExitStack
-        with ExitStack() as stack:
-            for specialist in specialists:
-                agent = created_agents[specialist]
-                stack.enter_context(
-                    patch.object(
-                        agent,
-                        "on_spore_received",
-                        side_effect=create_message_handler(specialist),
-                    )
-                )
+        for specialist in specialists:
+            agent = created_agents[specialist]
+            agent.set_spore_handler(create_message_handler(specialist))
+            agent.subscribe_to_channel("main")
 
-            # Send specific tasks to specialists
-            coordinator.send_knowledge(
-                to_agent="nlp_specialist",
-                knowledge={
-                    "task": "sentiment_analysis",
-                    "dataset": "customer_reviews",
-                    "deadline": "2024-01-20",
-                },
-            )
+        coordinator.send_knowledge(
+            to_agent="nlp_specialist",
+            knowledge={
+                "task": "sentiment_analysis",
+                "dataset": "customer_reviews",
+                "deadline": "2024-01-20",
+            },
+        )
+        coordinator.send_knowledge(
+            to_agent="cv_specialist",
+            knowledge={
+                "task": "object_detection",
+                "dataset": "security_cameras",
+                "deadline": "2024-01-25",
+            },
+        )
+        assert get_reef().wait_for_completion(timeout=2)
 
-            coordinator.send_knowledge(
-                to_agent="cv_specialist",
-                knowledge={
-                    "task": "object_detection",
-                    "dataset": "security_cameras",
-                    "deadline": "2024-01-25",
-                },
-            )
-
-            # Verify targeted delivery
-            assert len(messages_received["nlp_specialist"]) == 1
-            assert len(messages_received["cv_specialist"]) == 1
-
-            nlp_task = messages_received["nlp_specialist"][0]
-            cv_task = messages_received["cv_specialist"][0]
-
-            assert nlp_task["task"] == "sentiment_analysis"
-            assert cv_task["task"] == "object_detection"
+        assert len(messages_received["nlp_specialist"]) == 1
+        assert len(messages_received["cv_specialist"]) == 1
+        assert messages_received["nlp_specialist"][0]["task"] == "sentiment_analysis"
+        assert messages_received["cv_specialist"][0]["task"] == "object_detection"
 
     def test_registry_statistics_with_reef_activity(self):
         """Test that registry can provide statistics including reef activity."""
@@ -395,12 +312,6 @@ class TestReefRegistryIntegration:
         )  # 2 direct + 1 broadcast + 1 request
         assert main_channel_stats["active_spores"] == 4
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
-        )
-    )
     def test_dynamic_agent_registration_with_reef(self):
         """Test dynamically registering agents and using reef immediately."""
         # Start with empty registry
@@ -416,7 +327,6 @@ class TestReefRegistryIntegration:
             return f"processed_{data}"
 
         register_agent(dynamic_agent)
-        dynamic_agent.subscribe_to_channel("main")
 
         # Verify registration
         assert len(registry.list_agents()) == initial_agent_count + 1
@@ -426,15 +336,8 @@ class TestReefRegistryIntegration:
         # Use newly registered agent immediately via reef
         client = Agent("dynamic_client")
         register_agent(client)
-        client.subscribe_to_channel("main")
 
-        responses_received = []
-
-        def response_collector(spore: Spore) -> None:
-            if spore.spore_type == SporeType.RESPONSE:
-                responses_received.append(spore.knowledge)
-
-        # Mock dynamic service to respond to requests
+        # Dynamic service responds through its public handler.
         def service_handler(spore: Spore) -> None:
             if (
                 spore.spore_type == SporeType.REQUEST
@@ -450,23 +353,16 @@ class TestReefRegistryIntegration:
                     reply_to_spore_id=spore.id,
                 )
 
-        with (
-            patch.object(client, "on_spore_received", side_effect=response_collector),
-            patch.object(
-                dynamic_agent, "on_spore_received", side_effect=service_handler
-            ),
-        ):
+        dynamic_agent.set_spore_handler(service_handler)
+        dynamic_agent.subscribe_to_channel("main")
+        response = client.request_knowledge(
+            from_agent="dynamic_service",
+            request={"service": "process", "input": "test_data"},
+            timeout=5,
+        )
 
-            # Client uses newly registered service
-            client.request_knowledge(
-                from_agent="dynamic_service",
-                request={"service": "process", "input": "test_data"},
-                timeout=5,
-            )
-
-            # Should get response from dynamic service
-            assert len(responses_received) == 1
-            assert responses_received[0]["result"] == "processed_test_data"
+        assert response is not None
+        assert response["result"] == "processed_test_data"
 
 
 class TestReefRegistryErrorHandling:
@@ -491,12 +387,6 @@ class TestReefRegistryErrorHandling:
         assert len(main_channel.spores) == 1
         assert main_channel.spores[0].to_agent == "nonexistent_agent"
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: mocks on_spore_received but reef uses c"
-            "allback subscriptions"
-        )
-    )
     def test_registry_corruption_resilience(self):
         """Test that reef works even if registry has issues."""
         # Create agents normally
@@ -505,8 +395,6 @@ class TestReefRegistryErrorHandling:
 
         register_agent(agent1)
         register_agent(agent2)
-
-        agent2.subscribe_to_channel("main")
 
         # Mock registry failure
         with patch("praval.core.registry.get_registry") as mock_registry:
@@ -518,17 +406,18 @@ class TestReefRegistryErrorHandling:
             def message_handler(spore: Spore) -> None:
                 received_messages.append(spore.knowledge)
 
-            with patch.object(agent2, "on_spore_received", side_effect=message_handler):
-                # Direct reef communication bypasses registry
-                reef = get_reef()
-                reef.send(
-                    from_agent="agent1",
-                    to_agent="agent2",
-                    knowledge={"message": "registry_independent"},
-                )
+            agent2.set_spore_handler(message_handler)
+            agent2.subscribe_to_channel("main")
+            reef = get_reef()
+            reef.send(
+                from_agent="agent1",
+                to_agent="agent2",
+                knowledge={"message": "registry_independent"},
+            )
+            assert reef.wait_for_completion(timeout=2)
 
-                assert len(received_messages) == 1
-                assert received_messages[0]["message"] == "registry_independent"
+            assert len(received_messages) == 1
+            assert received_messages[0]["message"] == "registry_independent"
 
 
 # Fixtures for registry + reef integration tests

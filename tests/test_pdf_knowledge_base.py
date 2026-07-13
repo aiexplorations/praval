@@ -76,7 +76,7 @@ class TestPDFKnowledgeBase:
         assert pdf_file.suffix.lower() == ".pdf"
 
     @pytest.mark.unit
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_extract_pdf_text_success(self, mock_pdf_reader):
         """Test successful PDF text extraction"""
         # Mock PDF reader and pages
@@ -103,13 +103,13 @@ class TestPDFKnowledgeBase:
         assert "page 2" in result
         assert len(result) > 50  # Should have substantial content
 
-        # Verify PyPDF2 was called correctly
+        # Verify pypdf was called correctly
         mock_pdf_reader.assert_called_once()
         mock_page1.extract_text.assert_called_once()
         mock_page2.extract_text.assert_called_once()
 
     @pytest.mark.unit
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_extract_pdf_text_empty_pages(self, mock_pdf_reader):
         """Test PDF with empty/unreadable pages"""
         mock_page1 = Mock()
@@ -130,18 +130,18 @@ class TestPDFKnowledgeBase:
         assert result == ""
 
     @pytest.mark.unit
-    def test_extract_pdf_text_pypdf2_not_installed(self):
-        """Test error handling when PyPDF2 is not installed"""
+    def test_extract_pdf_text_pypdf_not_installed(self):
+        """Test error handling when pypdf is not installed"""
         pdf_path = self.create_mock_pdf(["content"])
 
         with patch(
-            "builtins.__import__", side_effect=ImportError("No module named 'PyPDF2'")
+            "builtins.__import__", side_effect=ImportError("No module named 'pypdf'")
         ):
-            with pytest.raises(ImportError, match="PyPDF2 is required"):
+            with pytest.raises(ImportError, match="pypdf is required"):
                 self.store._extract_pdf_text(pdf_path)
 
     @pytest.mark.unit
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_extract_pdf_text_corrupted_file(self, mock_pdf_reader):
         """Test handling of corrupted PDF files"""
         mock_pdf_reader.side_effect = Exception("PDF file is corrupted")
@@ -155,7 +155,7 @@ class TestPDFKnowledgeBase:
         assert result == ""
 
     @pytest.mark.unit
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_extract_pdf_text_page_extraction_error(self, mock_pdf_reader):
         """Test handling of page-level extraction errors"""
         mock_page1 = Mock()
@@ -226,7 +226,7 @@ class TestPDFKnowledgeBase:
         assert "---" in cleaned
 
     @pytest.mark.integration
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_index_knowledge_files_with_pdf(self, mock_pdf_reader):
         """Test indexing knowledge base with PDF files"""
         # Create mixed content: text and PDF files
@@ -281,7 +281,7 @@ class TestPDFKnowledgeBase:
         assert pdf_entry.importance == 0.8
 
     @pytest.mark.integration
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_index_knowledge_files_pdf_too_short(self, mock_pdf_reader):
         """Test that PDFs with insufficient content are skipped"""
         # Mock PDF with very short content
@@ -304,7 +304,7 @@ class TestPDFKnowledgeBase:
         assert len(indexed_entries) == 0
 
     @pytest.mark.integration
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_index_knowledge_files_mixed_success_failure(self, mock_pdf_reader):
         """Test indexing with some successful and some failed files"""
         # Create a good text file
@@ -381,7 +381,7 @@ class TestPDFKnowledgeBase:
         assert pdf_path.suffix.lower() in supported_extensions
 
     @pytest.mark.performance
-    @patch("PyPDF2.PdfReader")
+    @patch("pypdf.PdfReader")
     def test_large_pdf_handling(self, mock_pdf_reader):
         """Test handling of large PDF files"""
         # Mock a PDF with many pages

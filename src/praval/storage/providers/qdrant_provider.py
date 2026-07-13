@@ -154,11 +154,9 @@ class QdrantProvider(BaseStorageProvider):
 
         Args:
             resource: Collection name (optional, uses default if not specified)
-            data: Data to store - can be:
-                - Single point: {"id": "...", "vector": [...], "payload": {...}}
-                - Multiple points: [{"id": "...", "vector": [...], "payload":
-                  {...}}, ...]
-                - Just vector: [0.1, 0.2, ...] (will generate ID)
+            data: Data to store. Accepts a single point dictionary, a list of
+                point dictionaries, or a vector list. Point dictionaries may
+                include ``id``, ``vector``, and ``payload`` keys.
             **kwargs: Additional parameters
 
         Returns:
@@ -177,11 +175,13 @@ class QdrantProvider(BaseStorageProvider):
                 # Single point
                 if "vector" in data:
                     point_id = data.get("id", str(uuid.uuid4()))
+                    payload = dict(data.get("payload", {}) or {})
+                    payload["_praval_point_id"] = str(point_id)
                     points.append(
                         PointStruct(
-                            id=point_id,
+                            id=self._to_qdrant_point_id(collection_name, point_id),
                             vector=data["vector"],
-                            payload=data.get("payload", {}),
+                            payload=payload,
                         )
                     )
                 else:
@@ -195,20 +195,27 @@ class QdrantProvider(BaseStorageProvider):
                             raise ValueError("Each point must contain 'vector' field")
 
                         point_id = item.get("id", str(uuid.uuid4()))
+                        payload = dict(item.get("payload", {}) or {})
+                        payload["_praval_point_id"] = str(point_id)
                         points.append(
                             PointStruct(
-                                id=point_id,
+                                id=self._to_qdrant_point_id(collection_name, point_id),
                                 vector=item["vector"],
-                                payload=item.get("payload", {}),
+                                payload=payload,
                             )
                         )
 
                 elif len(data) > 0 and isinstance(data[0], (int, float)):
                     # Single vector array
                     point_id = kwargs.get("id", str(uuid.uuid4()))
-                    payload = kwargs.get("payload", {})
+                    payload = dict(kwargs.get("payload", {}) or {})
+                    payload["_praval_point_id"] = str(point_id)
                     points.append(
-                        PointStruct(id=point_id, vector=data, payload=payload)
+                        PointStruct(
+                            id=self._to_qdrant_point_id(collection_name, point_id),
+                            vector=data,
+                            payload=payload,
+                        )
                     )
 
                 else:
@@ -221,6 +228,13 @@ class QdrantProvider(BaseStorageProvider):
             operation_info = self.qdrant_client.upsert(
                 collection_name=collection_name, points=points
             )
+            resource_id = collection_name
+            if len(points) == 1:
+                original_point_id = self._from_qdrant_point(
+                    points[0].id,
+                    points[0].payload,
+                )
+                resource_id = f"{collection_name}:{original_point_id}"
 
             return StorageResult(
                 success=True,
@@ -241,11 +255,7 @@ class QdrantProvider(BaseStorageProvider):
                 data_reference=DataReference(
                     provider=self.name,
                     storage_type=StorageType.VECTOR,
-                    resource_id=(
-                        f"{collection_name}:{points[0].id}"
-                        if len(points) == 1
-                        else collection_name
-                    ),
+                    resource_id=resource_id,
                     metadata={
                         "collection": collection_name,
                         "point_count": len(points),
@@ -288,7 +298,10 @@ class QdrantProvider(BaseStorageProvider):
             # Retrieve points
             points = self.qdrant_client.retrieve(
                 collection_name=collection_name,
-                ids=point_ids,
+                ids=[
+                    self._to_qdrant_point_id(collection_name, point_id)
+                    for point_id in point_ids
+                ],
                 with_vectors=kwargs.get("with_vectors", True),
                 with_payload=kwargs.get("with_payload", True),
             )
@@ -296,7 +309,7 @@ class QdrantProvider(BaseStorageProvider):
             # Format results
             results = []
             for point in points:
-                result = {"id": point.id, "payload": point.payload or {}}
+                result = self._point_to_result(point)
                 if point.vector is not None:
                     result["vector"] = point.vector
                 results.append(result)
@@ -362,15 +375,12 @@ class QdrantProvider(BaseStorageProvider):
                     if query_filter:
                         search_params["query_filter"] = query_filter
 
-                    search_results = self.qdrant_client.search(**search_params)
+                    search_results = self._search_points(**search_params)
 
                     results = []
                     for result in search_results:
-                        item = {
-                            "id": result.id,
-                            "score": result.score,
-                            "payload": result.payload or {},
-                        }
+                        item = self._point_to_result(result)
+                        item["score"] = result.score
                         if result.vector is not None:
                             item["vector"] = result.vector
                         results.append(item)
@@ -439,7 +449,7 @@ class QdrantProvider(BaseStorageProvider):
                 isinstance(x, (int, float)) for x in query
             ):
                 # Direct vector search
-                search_results = self.qdrant_client.search(
+                search_results = self._search_points(
                     collection_name=collection_name,
                     query_vector=query,
                     limit=kwargs.get("limit", 10),
@@ -449,11 +459,8 @@ class QdrantProvider(BaseStorageProvider):
 
                 results = []
                 for result in search_results:
-                    item = {
-                        "id": result.id,
-                        "score": result.score,
-                        "payload": result.payload or {},
-                    }
+                    item = self._point_to_result(result)
+                    item["score"] = result.score
                     if result.vector is not None:
                         item["vector"] = result.vector
                     results.append(item)
@@ -504,7 +511,12 @@ class QdrantProvider(BaseStorageProvider):
                 # Delete specific points
                 _ = self.qdrant_client.delete(
                     collection_name=collection_name,
-                    points_selector=models.PointIdsList(points=point_ids),
+                    points_selector=models.PointIdsList(
+                        points=[
+                            self._to_qdrant_point_id(collection_name, point_id)
+                            for point_id in point_ids
+                        ]
+                    ),
                 )
 
                 return StorageResult(
@@ -555,12 +567,27 @@ class QdrantProvider(BaseStorageProvider):
             collections = []
             for collection in collections_response.collections:
                 if not prefix or collection.name.startswith(prefix):
+                    collection_info = self.qdrant_client.get_collection(collection.name)
                     collections.append(
                         {
                             "name": collection.name,
-                            "points_count": collection.points_count,
-                            "segments_count": collection.segments_count,
-                            "status": collection.status,
+                            "points_count": getattr(
+                                collection_info,
+                                "points_count",
+                                getattr(collection, "points_count", 0),
+                            ),
+                            "segments_count": getattr(
+                                collection_info,
+                                "segments_count",
+                                getattr(collection, "segments_count", 0),
+                            ),
+                            "status": self._normalize_status(
+                                getattr(
+                                    collection_info,
+                                    "status",
+                                    getattr(collection, "status", "unknown"),
+                                )
+                            ),
                         }
                     )
 
@@ -575,3 +602,53 @@ class QdrantProvider(BaseStorageProvider):
             return StorageResult(
                 success=False, error=f"List resources failed: {str(e)}"
             )
+
+    def _to_qdrant_point_id(self, collection_name: str, point_id: Any) -> Any:
+        """Convert Praval's public point IDs to Qdrant-compatible IDs."""
+        if isinstance(point_id, int):
+            return point_id
+        if isinstance(point_id, uuid.UUID):
+            return str(point_id)
+
+        point_id_str = str(point_id)
+        try:
+            return str(uuid.UUID(point_id_str))
+        except ValueError:
+            return str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"praval:{self.name}:{collection_name}:{point_id_str}",
+                )
+            )
+
+    def _from_qdrant_point(
+        self, point_id: Any, payload: Optional[Dict[str, Any]]
+    ) -> str:
+        if payload and "_praval_point_id" in payload:
+            return str(payload["_praval_point_id"])
+        return str(point_id)
+
+    def _point_to_result(self, point: Any) -> Dict[str, Any]:
+        payload = dict(point.payload or {})
+        original_id = self._from_qdrant_point(point.id, payload)
+        payload.pop("_praval_point_id", None)
+        return {"id": original_id, "payload": payload}
+
+    def _search_points(self, **search_params: Any) -> Any:
+        """Run vector search across old and new qdrant-client APIs."""
+        if hasattr(self.qdrant_client, "search"):
+            return self.qdrant_client.search(**search_params)
+
+        response = self.qdrant_client.query_points(
+            collection_name=search_params["collection_name"],
+            query=search_params["query_vector"],
+            query_filter=search_params.get("query_filter"),
+            limit=search_params.get("limit", 10),
+            with_vectors=search_params.get("with_vectors", False),
+            with_payload=search_params.get("with_payload", True),
+            score_threshold=search_params.get("score_threshold"),
+        )
+        return getattr(response, "points", response)
+
+    def _normalize_status(self, status: Any) -> str:
+        return str(getattr(status, "value", status))

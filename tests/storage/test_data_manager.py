@@ -462,12 +462,6 @@ class TestDataReference:
         assert result.data == "stored_data"
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in DataReference.from_uri: uses path instead of netloc"
-            " for storage_type"
-        )
-    )
     async def test_resolve_data_reference_uri(self, manager_with_provider):
         """Resolves URI string to data."""
         await manager_with_provider.store("test_provider", "test_key", "stored_data")
