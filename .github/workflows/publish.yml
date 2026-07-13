@@ -1,0 +1,87 @@
+name: Publish trusted release
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Reuse tested artifact and publish
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/praval
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Find successful main CI run for tagged commit
+        id: ci-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_id="$(gh run list \
+            --workflow ci.yml \
+            --commit "$GITHUB_SHA" \
+            --status success \
+            --json databaseId,event,headBranch \
+            --jq '[.[] | select(.event == "push" and .headBranch == "main")][0].databaseId')"
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "No successful main CI run exists for $GITHUB_SHA" >&2
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download exact tested artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: release
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci-run.outputs.run-id }}
+      - name: Verify artifact checksums
+        working-directory: release
+        run: shasum -a 256 -c SHA256SUMS
+      - name: Verify tag, versions, and provenance
+        shell: bash
+        run: |
+          python scripts/validate_distribution.py release --tag "$GITHUB_REF_NAME"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("release/build-manifest.json").read_text())
+          if manifest["commit"] != os.environ["GITHUB_SHA"]:
+              raise SystemExit("artifact commit does not match tagged commit")
+          PY
+          mkdir -p dist
+          cp release/*.whl release/*.tar.gz dist/
+          notes="docs/releases/RELEASE_NOTES_${GITHUB_REF_NAME#v}.md"
+          if [[ ! -f "$notes" ]]; then
+            echo "Release notes not found: $notes" >&2
+            exit 1
+          fi
+          echo "RELEASE_NOTES_PATH=$notes" >> "$GITHUB_ENV"
+      - name: Publish exact distributions through PyPI trusted publishing
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/
+      - name: Attach the same artifacts to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          release/*
+          --verify-tag
+          --title "Praval $GITHUB_REF_NAME"
+          --notes-file "$RELEASE_NOTES_PATH"

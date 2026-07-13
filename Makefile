@@ -1,6 +1,6 @@
 # Praval Development Makefile
 
-.PHONY: help setup test test-cov build clean format lint type-check dev-install release docs-html docs-clean docs-serve docs-check pdf pdf-lualatex pdf-xelatex pdf-tectonic pdf-compare pdf-clean
+.PHONY: help setup test test-cov build package-check reproducible-build clean format lint type-check dev-install release docs-html docs-clean docs-serve docs-check pdf pdf-lualatex pdf-xelatex pdf-tectonic pdf-compare pdf-clean
 
 # Default target
 help:
@@ -34,6 +34,8 @@ help:
 	@echo ""
 	@echo "📦 Build & Release:"
 	@echo "  build        - Build package (requires 90% test coverage)"
+	@echo "  package-check - Validate existing wheel and sdist"
+	@echo "  reproducible-build - Build twice and compare artifacts"
 	@echo "  release      - Interactive release wizard (patch/minor/major)"
 	@echo "  clean        - Clean build artifacts"
 
@@ -51,11 +53,19 @@ test:
 	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py -v
 
 test-cov:
-	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-report=term-missing --cov-report=html
+	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-report=term-missing --cov-report=html --cov-report=json:coverage.json --cov-fail-under=90
+	./venv/bin/python scripts/check_coverage_floors.py coverage.json
 
 build:
-	@echo "🚀 Building Praval with coverage enforcement..."
+	@echo "🚀 Building Praval with complete-package coverage enforcement..."
 	./scripts/build.sh
+
+package-check:
+	./venv/bin/twine check dist/*
+	./venv/bin/python scripts/validate_distribution.py dist
+
+reproducible-build:
+	./scripts/check_reproducible_build.sh
 
 format:
 	./venv/bin/black src/ tests/
@@ -80,42 +90,16 @@ clean:
 # Coverage enforcement target
 coverage-check:
 	@echo "Checking test coverage..."
-	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-fail-under=90
+	./venv/bin/pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --cov=src/praval --cov-report=json:coverage.json --cov-fail-under=90
+	./venv/bin/python scripts/check_coverage_floors.py coverage.json
 	@echo "✅ Coverage requirement met!"
 
-# Release target - interactive version bump and release
+# Releases are produced and published by protected GitHub workflows.
 release:
-	@echo "🚀 Praval Release Wizard"
-	@echo ""
-	@echo "Select version bump type:"
-	@echo "  1) patch (0.7.7 → 0.7.8) - Bug fixes"
-	@echo "  2) minor (0.7.7 → 0.8.0) - New features"
-	@echo "  3) major (0.7.7 → 1.0.0) - Breaking changes"
-	@echo ""
-	@read -p "Enter choice (1/2/3): " choice; \
-	case $$choice in \
-		1) bump_type="patch";; \
-		2) bump_type="minor";; \
-		3) bump_type="major";; \
-		*) echo "❌ Invalid choice"; exit 1;; \
-	esac; \
-	echo ""; \
-	echo "📝 Bumping $$bump_type version..."; \
-	./venv/bin/bump2version $$bump_type; \
-	echo ""; \
-	echo "✏️  Please update CHANGELOG.md with release notes"; \
-	read -p "Press Enter when done..."; \
-	echo ""; \
-	echo "🔨 Building packages..."; \
-	$(MAKE) clean; \
-	./venv/bin/python -m build; \
-	./venv/bin/twine check dist/*; \
-	echo ""; \
-	echo "📤 Ready to publish!"; \
-	echo "Run: git push --follow-tags"; \
-	echo "Then: twine upload dist/*"; \
-	echo ""; \
-	echo "📚 See RELEASE.md for detailed process"
+	@echo "Direct local publication is disabled."
+	@echo "Run 'make build', validate the exact CI artifact in Praval Research,"
+	@echo "then use the protected tag and trusted-publishing workflows."
+	@exit 1
 
 # Documentation targets
 docs-html:

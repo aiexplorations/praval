@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python ${{ matrix.python }} tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          if [[ "${{ matrix.python }}" == "3.9" ]]; then
+            python -m pip install -e ".[dev]"
+          else
+            python -m pip install -e ".[dev,mcp]"
+          fi
+      - name: Run tests
+        run: >-
+          pytest tests/
+          --ignore=tests/test_arxiv_downloader.py
+          --ignore=tests/test_message_filtering.py
+          --ignore=tests/test_venturelens_demo.py
+          -q
+
+  quality:
+    name: Quality and complete coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install quality dependencies
+        run: python -m pip install -e ".[dev,docs,mcp]"
+      - name: Run complete coverage
+        run: >-
+          pytest tests/
+          --ignore=tests/test_arxiv_downloader.py
+          --ignore=tests/test_message_filtering.py
+          --ignore=tests/test_venturelens_demo.py
+          --cov=src/praval
+          --cov-report=term-missing
+          --cov-report=html
+          --cov-report=json:coverage.json
+          --cov-fail-under=90
+      - name: Enforce focused coverage floors
+        run: python scripts/check_coverage_floors.py coverage.json
+      - name: Run typing
+        run: mypy src/praval/
+      - name: Check formatting and imports
+        run: |
+          black --check src/ tests/ scripts/
+          isort --check-only src/ tests/ scripts/ --profile black
+      - name: Run lint
+        run: flake8 src/ tests/ scripts/ --max-line-length=88 --extend-ignore=E203,W503
+      - name: Build warning-free documentation
+        run: sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-${{ github.sha }}
+          path: |
+            coverage.json
+            htmlcov/
+          if-no-files-found: warn
+          retention-days: 14
+
+  mcp-contracts:
+    name: MCP stdio and Streamable HTTP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install MCP test dependencies
+        run: python -m pip install -e ".[dev,mcp]"
+      - name: Run MCP contract suite
+        run: pytest tests/mcp/ -v
+
+  package:
+    name: Package and reproducibility
+    needs: [tests, quality, mcp-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install build twine
+      - name: Verify reproducible distributions
+        run: ./scripts/check_reproducible_build.sh
+      - name: Build exact commit artifact
+        shell: bash
+        run: |
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          python -m build
+          python scripts/normalize_sdist.py dist/praval-*.tar.gz
+          twine check dist/*
+          python scripts/validate_distribution.py dist
+          python scripts/write_build_manifest.py dist
+      - name: Upload exact commit artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: praval-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  wheel-smoke:
+    name: ${{ matrix.os }} wheel smoke
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Download exact commit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: dist
+      - name: Install and exercise wheel in a clean environment
+        run: python scripts/smoke_install.py dist
+
+  install-smoke:
+    name: Install smoke (${{ matrix.extra }})
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extra: [minimal, mcp]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Download exact commit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: dist
+      - name: Minimal installation
+        if: matrix.extra == 'minimal'
+        run: python scripts/smoke_install.py dist
+      - name: MCP installation
+        if: matrix.extra == 'mcp'
+        run: python scripts/smoke_install.py dist --extra mcp
