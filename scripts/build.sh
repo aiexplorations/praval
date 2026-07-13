@@ -6,6 +6,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Keep the documented local build reproducible without requiring callers to
+# duplicate the CI setup. An explicit epoch still wins for controlled rebuilds.
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git show -s --format=%ct HEAD)}"
+
 if [[ ! -d venv ]]; then
     echo "Virtual environment not found. Run 'make setup' first." >&2
     exit 1
