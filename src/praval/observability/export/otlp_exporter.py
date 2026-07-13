@@ -154,10 +154,10 @@ class OTLPExporter:
         status_code = status_map.get(str(span.get("status", "ok")).lower(), 1)
 
         return {
-            "traceId": self._hex_to_base64(span.get("trace_id", "")),
-            "spanId": self._hex_to_base64(span.get("span_id", "")),
+            "traceId": self._format_otlp_id(span.get("trace_id", "")),
+            "spanId": self._format_otlp_id(span.get("span_id", "")),
             "parentSpanId": (
-                self._hex_to_base64(span.get("parent_span_id", ""))
+                self._format_otlp_id(span.get("parent_span_id", ""))
                 if span.get("parent_span_id")
                 else ""
             ),
@@ -211,15 +211,12 @@ class OTLPExporter:
                 return 0
         return 0
 
-    def _hex_to_base64(self, hex_str: str) -> str:
-        """Convert hex string to base64 for OTLP."""
+    def _format_otlp_id(self, hex_str: str) -> str:
+        """Return an OTLP/JSON trace or span ID as a lowercase hex string."""
         if not hex_str:
             return ""
         try:
-            import base64
-
-            bytes_data = bytes.fromhex(hex_str)
-            return base64.b64encode(bytes_data).decode("ascii")
+            return bytes.fromhex(hex_str).hex()
         except (ValueError, TypeError):
             return hex_str
 

@@ -241,8 +241,9 @@ def test_otlp_conversion_covers_types_timestamps_events_and_invalid_hex():
     assert exporter._datetime_to_unix_nano(now.isoformat()) > 0
     assert exporter._datetime_to_unix_nano("invalid") == 0
     assert exporter._datetime_to_unix_nano(None) == 0
-    assert exporter._hex_to_base64("") == ""
-    assert exporter._hex_to_base64("not-hex") == "not-hex"
+    assert exporter._format_otlp_id("") == ""
+    assert exporter._format_otlp_id("ABCD") == "abcd"
+    assert exporter._format_otlp_id("not-hex") == "not-hex"
 
     converted = exporter._span_to_otlp(
         {
@@ -257,6 +258,9 @@ def test_otlp_conversion_covers_types_timestamps_events_and_invalid_hex():
             "events": [{"name": "retry", "timestamp": 1, "attributes": {"count": 1}}],
         }
     )
+    assert converted["traceId"] == "00" * 16
+    assert converted["spanId"] == "01" * 8
+    assert converted["parentSpanId"] == "02" * 8
     assert converted["kind"] == 3
     assert converted["status"]["code"] == 2
     assert converted["events"][0]["name"] == "retry"
