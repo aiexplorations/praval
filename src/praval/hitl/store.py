@@ -6,10 +6,12 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
-from datetime import datetime, timedelta
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from .models import (
     InterventionDecision,
@@ -30,10 +32,14 @@ class HITLStore:
         self._lock = threading.RLock()
         self._initialize_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def _initialize_db(self) -> None:
         path = Path(self.db_path)
@@ -97,7 +103,7 @@ class HITLStore:
 
     @staticmethod
     def _now_ts() -> int:
-        return int(datetime.utcnow().timestamp())
+        return int(time.time())
 
     def create_intervention(
         self,
@@ -118,9 +124,7 @@ class HITLStore:
         intervention_id = str(uuid.uuid4())
         requested_at = self._now_ts()
         expires_at = (
-            int((datetime.utcnow() + timedelta(seconds=expires_in_seconds)).timestamp())
-            if expires_in_seconds > 0
-            else None
+            requested_at + expires_in_seconds if expires_in_seconds > 0 else None
         )
 
         with self._lock, self._connect() as conn:
@@ -400,14 +404,14 @@ class HITLStore:
             ),
             risk_level=row["risk_level"] or "low",
             approval_reason=row["approval_reason"] or "",
-            requested_at=datetime.utcfromtimestamp(int(row["requested_at"])),
+            requested_at=datetime.fromtimestamp(int(row["requested_at"]), timezone.utc),
             decided_at=(
-                datetime.utcfromtimestamp(int(row["decided_at"]))
+                datetime.fromtimestamp(int(row["decided_at"]), timezone.utc)
                 if row["decided_at"] is not None
                 else None
             ),
             expires_at=(
-                datetime.utcfromtimestamp(int(row["expires_at"]))
+                datetime.fromtimestamp(int(row["expires_at"]), timezone.utc)
                 if row["expires_at"] is not None
                 else None
             ),
@@ -422,8 +426,8 @@ class HITLStore:
             provider_name=row["provider_name"],
             status=row["status"],
             state=json.loads(row["state_json"] or "{}"),
-            created_at=datetime.utcfromtimestamp(int(row["created_at"])),
-            updated_at=datetime.utcfromtimestamp(int(row["updated_at"])),
+            created_at=datetime.fromtimestamp(int(row["created_at"]), timezone.utc),
+            updated_at=datetime.fromtimestamp(int(row["updated_at"]), timezone.utc),
         )
 
 

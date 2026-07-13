@@ -87,7 +87,15 @@ def add_numbers(x: int, y: int) -> int:
     return x + y
 
 
-@agent("hitl_demo_agent", tools=["add_numbers"], hitl=True, auto_broadcast=False)
+@agent(
+    "hitl_demo_agent",
+    provider="openai",
+    model="gpt-5-mini",
+    config={"provider_options": {"endpoint": "chat_completions"}},
+    tools=["add_numbers"],
+    hitl=True,
+    auto_broadcast=False,
+)
 def hitl_demo_agent(spore):
     return {"status": "ready", "spore": spore.id}
 

@@ -7,6 +7,7 @@ conversations with support for multiple providers, tools, and state persistence.
 
 import asyncio
 import inspect
+import json
 import logging
 import os
 import threading
@@ -14,7 +15,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from ..model_runtime import ModelRuntime
+from ..models import AudioResponse, SpeechRequest, ToolSpec, TranscriptionRequest
 from ..providers.factory import ProviderFactory
+from ..providers.registry import get_provider_registry
 from .exceptions import (
     HITLConfigurationError,
     InterventionRequired,
@@ -42,16 +46,44 @@ class AgentConfig:
     """Configuration for Agent behavior and LLM parameters."""
 
     provider: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key_env: Optional[str] = None
     temperature: float = 0.7
     max_tokens: int = 1000
+    max_output_tokens: Optional[int] = None
     system_message: Optional[str] = None
+    timeout: Optional[float] = None
+    retries: int = 2
+    stream: bool = False
+    response_schema: Optional[Dict[str, Any]] = None
+    reasoning: Optional[Dict[str, Any]] = None
+    store: bool = False
+    cache: Optional[Dict[str, Any]] = None
+    strict_tools: bool = False
+    provider_options: Optional[Dict[str, Any]] = None
+    stream_options: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         """Validate configuration parameters."""
+        if self.model and ":" in self.model and not self.provider:
+            provider, model = self.model.split(":", 1)
+            self.provider = provider
+            self.model = model
         if not (0 <= self.temperature <= 2):
             raise ValueError("temperature must be between 0 and 2")
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
+        if self.max_output_tokens is None:
+            self.max_output_tokens = self.max_tokens
+        if self.max_output_tokens <= 0:
+            raise ValueError("max_output_tokens must be positive")
+        if self.retries < 0:
+            raise ValueError("retries must be non-negative")
+        if self.provider_options is None:
+            self.provider_options = {}
+        if self.stream_options is None:
+            self.stream_options = {}
 
 
 class Agent:
@@ -82,6 +114,7 @@ class Agent:
         self,
         name: str,
         provider: Optional[str] = None,
+        model: Optional[str] = None,
         persist_state: bool = False,
         system_message: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
@@ -118,7 +151,7 @@ class Agent:
         self.memory_enabled = memory_enabled
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
-        self.conversation_history: List[Dict[str, str]] = []
+        self.conversation_history: List[Dict[str, Any]] = []
         self.max_history = max_history
         self._hitl_enabled = hitl_enabled
         self._hitl_db_path = hitl_db_path
@@ -129,17 +162,27 @@ class Agent:
         self._subscribed_channels: List[str] = []
 
         # Setup configuration
-        config_dict = config or {}
+        config_dict = dict(config or {})
         if system_message:
             config_dict["system_message"] = system_message
         if provider:
             config_dict["provider"] = provider
+        if model:
+            config_dict["model"] = model
 
         self.config = AgentConfig(**config_dict)
 
         # Setup provider
         self.provider_name = self._detect_provider()
+        if not self.config.provider:
+            self.config.provider = self.provider_name
+        self._resolve_default_model()
         self.provider = ProviderFactory.create_provider(self.provider_name, self.config)
+        self.runtime = ModelRuntime(
+            provider=self.provider,
+            provider_name=self.provider_name,
+            config=self.config,
+        )
 
         # Setup memory system
         if self.memory_enabled:
@@ -185,6 +228,18 @@ class Agent:
         if self.config.provider:
             return self.config.provider
 
+        if os.getenv("PRAVAL_DEFAULT_MODEL") and not self.config.model:
+            self.config.model = str(os.getenv("PRAVAL_DEFAULT_MODEL"))
+
+        if self.config.model and ":" in self.config.model:
+            provider, model = self.config.model.split(":", 1)
+            self.config.provider = provider
+            self.config.model = model
+            return provider
+
+        if os.getenv("PRAVAL_DEFAULT_PROVIDER"):
+            return str(os.getenv("PRAVAL_DEFAULT_PROVIDER"))
+
         # Check environment variables for API keys
         if os.getenv("OPENAI_API_KEY"):
             return "openai"
@@ -195,9 +250,22 @@ class Agent:
         else:
             raise ProviderError(
                 "No LLM provider credentials found. Set OPENAI_API_KEY, "
-                "ANTHROPIC_API_KEY, or COHERE_API_KEY environment variable, "
+                "ANTHROPIC_API_KEY, COHERE_API_KEY, or PRAVAL_DEFAULT_PROVIDER "
+                "environment variable, "
                 "or specify provider explicitly."
             )
+
+    def _resolve_default_model(self) -> None:
+        """Apply environment or registry model defaults."""
+        if not self.config.model and os.getenv("PRAVAL_DEFAULT_MODEL"):
+            self.config.model = str(os.getenv("PRAVAL_DEFAULT_MODEL"))
+        if not self.config.model:
+            try:
+                self.config.model = get_provider_registry().default_model_for(
+                    self.provider_name
+                )
+            except Exception:
+                self.config.model = None
 
     def _build_hitl_context(self, run_id: str) -> Dict[str, Any]:
         """Build provider-facing HITL context for a run."""
@@ -240,8 +308,8 @@ class Agent:
         run_id = str(uuid.uuid4())
 
         try:
-            # Generate response using provider
-            response = self.provider.generate(
+            # Generate response using the provider-neutral runtime.
+            response = self.runtime.generate_text(
                 messages=self.conversation_history,
                 tools=list(self.tools.values()) if self.tools else None,
                 hitl_context=self._build_hitl_context(run_id),
@@ -263,6 +331,207 @@ class Agent:
             raise
         except Exception as e:
             raise PravalError(f"Failed to generate response: {str(e)}") from e
+
+    def generate(self, message: Any, **kwargs: Any) -> Any:
+        """
+        Generate a provider-neutral model response.
+
+        This is the richer counterpart to chat(); chat() remains the
+        compatibility API that returns only text.
+        """
+        if not message:
+            raise ValueError("Message cannot be empty")
+
+        self.conversation_history.append({"role": "user", "content": message})
+        self._trim_history()
+        run_id = str(uuid.uuid4())
+
+        try:
+            response = self.runtime.invoke(
+                messages=self.conversation_history,
+                tools=list(self.tools.values()) if self.tools else None,
+                hitl_context=self._build_hitl_context(run_id),
+                response_schema=kwargs.get("response_schema"),
+                reasoning=kwargs.get("reasoning"),
+                provider_options=kwargs.get("provider_options"),
+                timeout=kwargs.get("timeout"),
+                metadata=kwargs.get("metadata"),
+                stream_options=kwargs.get("stream_options"),
+                stream=bool(kwargs.get("stream", False)),
+            )
+            self.conversation_history.append(
+                {"role": "assistant", "content": response.content}
+            )
+            self._trim_history()
+            if self.persist_state:
+                self._save_state()
+            return response
+        except (InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as e:
+            raise PravalError(f"Failed to generate response: {str(e)}") from e
+
+    def transcribe(
+        self,
+        audio: Any,
+        *,
+        model: Optional[str] = None,
+        filename: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        language: Optional[str] = None,
+        prompt: Optional[str] = None,
+        response_format: str = "json",
+        temperature: Optional[float] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Transcribe request-based audio without changing chat history."""
+        transcribe = getattr(self.provider, "transcribe", None)
+        if not callable(transcribe):
+            raise ProviderError(
+                f"Provider '{self.provider_name}' does not support audio transcription"
+            )
+        response = transcribe(
+            TranscriptionRequest(
+                audio=audio,
+                provider=self.provider_name,
+                model=model,
+                filename=filename,
+                mime_type=mime_type,
+                language=language,
+                prompt=prompt,
+                response_format=response_format,
+                temperature=temperature,
+                provider_options=provider_options or {},
+                timeout=timeout,
+                metadata=metadata or {},
+            )
+        )
+        if isinstance(response, AudioResponse):
+            if response.text:
+                return response.text
+            raise ProviderError(
+                f"Provider '{self.provider_name}' returned no transcription text"
+            )
+        if isinstance(response, str) and response:
+            return response
+        raise ProviderError(
+            f"Provider '{self.provider_name}' returned an invalid "
+            "transcription response"
+        )
+
+    def speak(
+        self,
+        text: str,
+        *,
+        model: Optional[str] = None,
+        voice: str = "alloy",
+        response_format: str = "mp3",
+        speed: float = 1.0,
+        instructions: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bytes:
+        """Synthesize request-based speech without changing chat history."""
+        if not text or not text.strip():
+            raise ValueError("Speech text cannot be empty")
+        speak = getattr(self.provider, "speak", None)
+        if not callable(speak):
+            raise ProviderError(
+                f"Provider '{self.provider_name}' does not support speech generation"
+            )
+        response = speak(
+            SpeechRequest(
+                input=text,
+                provider=self.provider_name,
+                model=model,
+                voice=voice,
+                response_format=response_format,
+                speed=speed,
+                instructions=instructions,
+                provider_options=provider_options or {},
+                timeout=timeout,
+                metadata=metadata or {},
+            )
+        )
+        if isinstance(response, AudioResponse):
+            if response.data:
+                return response.data
+            raise ProviderError(
+                f"Provider '{self.provider_name}' returned no synthesized audio"
+            )
+        if isinstance(response, bytes) and response:
+            return response
+        raise ProviderError(
+            f"Provider '{self.provider_name}' returned an invalid speech response"
+        )
+
+    async def agenerate(self, message: Any, **kwargs: Any) -> Any:
+        """Async wrapper for generate()."""
+        if not message:
+            raise ValueError("Message cannot be empty")
+
+        self.conversation_history.append({"role": "user", "content": message})
+        self._trim_history()
+        run_id = str(uuid.uuid4())
+
+        response = await self.runtime.ainvoke(
+            messages=self.conversation_history,
+            tools=list(self.tools.values()) if self.tools else None,
+            hitl_context=self._build_hitl_context(run_id),
+            response_schema=kwargs.get("response_schema"),
+            reasoning=kwargs.get("reasoning"),
+            provider_options=kwargs.get("provider_options"),
+            timeout=kwargs.get("timeout"),
+            metadata=kwargs.get("metadata"),
+            stream_options=kwargs.get("stream_options"),
+        )
+        self.conversation_history.append(
+            {"role": "assistant", "content": response.content}
+        )
+        self._trim_history()
+        if self.persist_state:
+            self._save_state()
+        return response
+
+    def stream(self, message: Any, **kwargs: Any) -> Any:
+        """Stream provider-neutral model events."""
+        if not message:
+            raise ValueError("Message cannot be empty")
+        self.conversation_history.append({"role": "user", "content": message})
+        self._trim_history()
+        return self.runtime.stream(
+            messages=self.conversation_history,
+            tools=list(self.tools.values()) if self.tools else None,
+            hitl_context=self._build_hitl_context(str(uuid.uuid4())),
+            response_schema=kwargs.get("response_schema"),
+            reasoning=kwargs.get("reasoning"),
+            provider_options=kwargs.get("provider_options"),
+            timeout=kwargs.get("timeout"),
+            metadata=kwargs.get("metadata"),
+            stream_options=kwargs.get("stream_options"),
+        )
+
+    async def astream(self, message: Any, **kwargs: Any) -> Any:
+        """Asynchronously stream provider-neutral model events."""
+        if not message:
+            raise ValueError("Message cannot be empty")
+        self.conversation_history.append({"role": "user", "content": message})
+        self._trim_history()
+        async for event in self.runtime.astream(
+            messages=self.conversation_history,
+            tools=list(self.tools.values()) if self.tools else None,
+            hitl_context=self._build_hitl_context(str(uuid.uuid4())),
+            response_schema=kwargs.get("response_schema"),
+            reasoning=kwargs.get("reasoning"),
+            provider_options=kwargs.get("provider_options"),
+            timeout=kwargs.get("timeout"),
+            metadata=kwargs.get("metadata"),
+            stream_options=kwargs.get("stream_options"),
+        ):
+            yield event
 
     def configure_hitl(
         self,
@@ -355,6 +624,72 @@ class Agent:
         Returns:
             Final model response for the resumed run
         """
+        service, suspended, hitl_context = self._prepare_resume_run(run_id)
+
+        try:
+            if suspended.state.get("schema") == "model_runtime_tool_v1":
+                resumed = self.runtime.resume_tool_flow(
+                    suspended_state=suspended.state,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=hitl_context,
+                )
+                response = resumed.content
+            else:
+                if not hasattr(self.provider, "resume_tool_flow"):
+                    raise PravalError(
+                        f"Provider '{self.provider_name}' does not support HITL resume"
+                    )
+                response = self.provider.resume_tool_flow(
+                    suspended_state=suspended.state,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=hitl_context,
+                )
+        except InterventionRequired:
+            raise
+
+        return self._complete_resume_run(run_id, str(response), service)
+
+    async def aresume_run(self, run_id: str) -> str:
+        """Asynchronously resume a suspended run containing async-only tools."""
+        service, suspended, hitl_context = self._prepare_resume_run(run_id)
+
+        if suspended.state.get("schema") == "model_runtime_tool_v1":
+            resumed = await self.runtime.resume_tool_flow_async(
+                suspended_state=suspended.state,
+                tools=list(self.tools.values()) if self.tools else None,
+                hitl_context=hitl_context,
+            )
+            response = resumed.content
+        else:
+            resume = getattr(self.provider, "aresume_tool_flow", None)
+            if callable(resume):
+                response = resume(
+                    suspended_state=suspended.state,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=hitl_context,
+                )
+                if inspect.isawaitable(response):
+                    response = await response
+            else:
+                resume = getattr(self.provider, "resume_tool_flow", None)
+                if not callable(resume):
+                    raise PravalError(
+                        f"Provider '{self.provider_name}' does not support HITL resume"
+                    )
+                loop = asyncio.get_running_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: resume(
+                        suspended_state=suspended.state,
+                        tools=list(self.tools.values()) if self.tools else None,
+                        hitl_context=hitl_context,
+                    ),
+                )
+
+        return self._complete_resume_run(run_id, str(response), service)
+
+    def _prepare_resume_run(self, run_id: str) -> Any:
+        """Validate a suspended run and build its decided HITL context."""
         service = self._get_hitl_service()
         suspended = service.get_suspended_run(run_id)
         if suspended is None:
@@ -383,23 +718,14 @@ class Agent:
                 f"Intervention '{intervention_id}' is still pending approval"
             )
 
-        if not hasattr(self.provider, "resume_tool_flow"):
-            raise PravalError(
-                f"Provider '{self.provider_name}' does not support HITL resume"
-            )
+        hitl_context = {
+            **self._build_hitl_context(run_id),
+            "resume_intervention": intervention.to_dict(),
+        }
+        return service, suspended, hitl_context
 
-        try:
-            response = self.provider.resume_tool_flow(
-                suspended_state=suspended.state,
-                tools=list(self.tools.values()) if self.tools else None,
-                hitl_context={
-                    **self._build_hitl_context(run_id),
-                    "resume_intervention": intervention.to_dict(),
-                },
-            )
-        except InterventionRequired:
-            raise
-
+    def _complete_resume_run(self, run_id: str, response: str, service: Any) -> str:
+        """Record a resumed response and mark its suspended run complete."""
         self.conversation_history.append(
             {
                 "role": "assistant",
@@ -496,6 +822,98 @@ class Agent:
             logger.debug("Unexpected tool registry error for '%s': %s", tool_name, e)
 
         return func
+
+    def add_tool_spec(
+        self,
+        spec: ToolSpec,
+        handler: Callable[..., Any],
+        *,
+        async_only: bool = False,
+    ) -> None:
+        """Register an externally described JSON-schema tool on this agent.
+
+        Args:
+            spec: Provider-neutral tool declaration.
+            handler: Callable invoked with the model-supplied keyword arguments.
+            async_only: Whether the tool may only run through async Agent APIs.
+
+        Raises:
+            TypeError: If ``spec`` or ``handler`` has the wrong type.
+            ValueError: If the name or schema is invalid or already registered.
+        """
+        if not isinstance(spec, ToolSpec):
+            raise TypeError("spec must be a ToolSpec")
+        if not callable(handler):
+            raise TypeError("handler must be callable")
+        if not spec.name or not spec.name.strip():
+            raise ValueError("ToolSpec name cannot be empty")
+        if spec.name in self.tools:
+            raise ValueError(f"Tool '{spec.name}' is already registered")
+        self._validate_tool_schema(spec.parameters)
+        if async_only and not inspect.iscoroutinefunction(handler):
+            raise ValueError("async_only tools require an async handler")
+
+        if async_only:
+
+            async def registered_handler(**kwargs: Any) -> Any:
+                return await handler(**kwargs)
+
+        else:
+
+            def registered_handler(**kwargs: Any) -> Any:
+                return handler(**kwargs)
+
+        registered_handler.__name__ = spec.name
+        registered_handler.__doc__ = spec.description
+        self.tools[spec.name] = {
+            "name": spec.name,
+            "function": registered_handler,
+            "description": spec.description,
+            "parameters": dict(spec.parameters),
+            "strict": spec.strict,
+            "requires_approval": spec.requires_approval,
+            "risk_level": spec.risk_level,
+            "approval_reason": spec.approval_reason,
+            "metadata": dict(spec.metadata),
+            "async_only": async_only,
+        }
+
+        try:
+            metadata = ToolMetadata(
+                tool_name=spec.name,
+                owned_by=self.name,
+                description=spec.description,
+                category=str(spec.metadata.get("category", "external")),
+                shared=False,
+                requires_approval=spec.requires_approval,
+                risk_level=spec.risk_level,
+                approval_reason=spec.approval_reason,
+            )
+            get_tool_registry().register_tool(Tool(registered_handler, metadata))
+        except ToolError as e:
+            logger.debug(
+                "External tool registry registration failed for '%s': %s",
+                spec.name,
+                e,
+            )
+
+    @staticmethod
+    def _validate_tool_schema(schema: Dict[str, Any]) -> None:
+        """Validate the JSON Schema subset accepted for tool arguments."""
+        if not isinstance(schema, dict) or schema.get("type") != "object":
+            raise ValueError("Tool parameters must be a JSON Schema object")
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        if not isinstance(properties, dict):
+            raise ValueError("Tool JSON Schema properties must be an object")
+        if not isinstance(required, list) or not all(
+            isinstance(name, str) for name in required
+        ):
+            raise ValueError("Tool JSON Schema required must be a list of names")
+        try:
+            json.dumps(schema)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Tool JSON Schema must be JSON serializable") from exc
 
     def _extract_parameters(self, signature: inspect.Signature) -> Dict[str, Any]:
         """Extract parameter information from function signature."""
@@ -767,6 +1185,13 @@ class Agent:
             except Exception as e:
                 logger.warning(f"Error shutting down memory for {self.name}: {e}")
             self.memory = None
+
+        provider_close = getattr(self.provider, "close", None)
+        if callable(provider_close):
+            try:
+                provider_close()
+            except Exception as e:
+                logger.warning(f"Error closing provider for {self.name}: {e}")
 
         # Clear conversation history
         self.conversation_history.clear()

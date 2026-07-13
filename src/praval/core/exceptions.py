@@ -24,6 +24,12 @@ class ConfigurationError(PravalError):
     pass
 
 
+class EmbeddingConfigurationError(ConfigurationError):
+    """Raised when persistent vectors do not match embedding configuration."""
+
+    pass
+
+
 class ToolError(PravalError):
     """Raised when there are issues with tool registration or execution."""
 

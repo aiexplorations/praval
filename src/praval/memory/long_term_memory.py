@@ -29,14 +29,8 @@ except ImportError:
     VectorParams = None
     PointStruct = None
 
-try:
-    import openai
-
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    openai = None
-
+from ..core.exceptions import EmbeddingConfigurationError
+from ..embeddings import EmbeddingRuntime
 from .memory_types import MemoryEntry, MemoryQuery, MemorySearchResult, MemoryType
 
 logger = logging.getLogger(__name__)
@@ -58,8 +52,13 @@ class LongTermMemory:
         self,
         qdrant_url: str = "http://localhost:6333",
         collection_name: str = "praval_memories",
-        vector_size: int = 1536,  # OpenAI embedding size
+        vector_size: int = 1536,
         distance_metric: str = "cosine",
+        embedding_provider: str = "openai",
+        embedding_model: str = "text-embedding-3-small",
+        embedding_dimensions: Optional[int] = None,
+        embedding_provider_options: Optional[Dict[str, Any]] = None,
+        embedding_runtime: Optional[EmbeddingRuntime] = None,
     ):
         """
         Initialize long-term memory
@@ -69,6 +68,11 @@ class LongTermMemory:
             collection_name: Name of the collection to use
             vector_size: Size of embedding vectors
             distance_metric: Distance metric for similarity search
+            embedding_provider: Provider used to generate embeddings
+            embedding_model: Embedding model identifier
+            embedding_dimensions: Expected embedding vector size
+            embedding_provider_options: Provider-specific embedding options
+            embedding_runtime: Preconfigured embedding runtime
         """
         if not QDRANT_AVAILABLE:
             raise ImportError(
@@ -80,7 +84,19 @@ class LongTermMemory:
 
         self.qdrant_url = qdrant_url
         self.collection_name = collection_name
-        self.vector_size = vector_size
+        self.embedding_provider = embedding_provider
+        self.embedding_model = embedding_model
+        self.embedding_dimensions = embedding_dimensions or vector_size
+        self.embedding_provider_options = dict(embedding_provider_options or {})
+        self.embedding_runtime = embedding_runtime
+        if self.embedding_runtime is None:
+            self.embedding_runtime = EmbeddingRuntime(
+                provider=embedding_provider,
+                model=embedding_model,
+                dimensions=self.embedding_dimensions,
+                provider_options=self.embedding_provider_options,
+            )
+        self.vector_size = self.embedding_dimensions
         self.distance_metric = distance_metric
 
         # Initialize Qdrant client
@@ -117,11 +133,65 @@ class LongTermMemory:
                 )
                 logger.info(f"Created Qdrant collection: {self.collection_name}")
             else:
+                self._validate_existing_collection_dimensions()
+                self._validate_existing_collection_embedding_identity()
                 logger.info(f"Using existing Qdrant collection: {self.collection_name}")
 
         except Exception as e:
             logger.error(f"Failed to initialize Qdrant collection: {e}")
             raise
+
+    def _validate_existing_collection_dimensions(self) -> None:
+        """Reject a Qdrant collection whose vectors have another dimension."""
+        collection_info = self.client.get_collection(self.collection_name)
+        vectors = getattr(
+            getattr(getattr(collection_info, "config", None), "params", None),
+            "vectors",
+            None,
+        )
+        stored_size = getattr(vectors, "size", None)
+        if isinstance(stored_size, int) and stored_size != self.vector_size:
+            raise EmbeddingConfigurationError(
+                f"Qdrant collection '{self.collection_name}' has vector size "
+                f"{stored_size}, but the configured embedding uses {self.vector_size}. "
+                "Use a new collection name or re-index the existing collection before "
+                "changing embedding dimensions."
+            )
+
+    def _validate_existing_collection_embedding_identity(self) -> None:
+        """Compare configured embeddings with identity stored on Praval points."""
+        result = self.client.scroll(
+            collection_name=self.collection_name,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+        if not isinstance(result, tuple) or not result:
+            return
+        points = result[0]
+        if not isinstance(points, list) or not points:
+            return
+        payload = getattr(points[0], "payload", None)
+        if not isinstance(payload, dict):
+            return
+        expected = {
+            "_praval_embedding_provider": self.embedding_provider,
+            "_praval_embedding_model": self.embedding_model,
+            "_praval_embedding_dimensions": self.vector_size,
+        }
+        mismatches = []
+        for key, configured in expected.items():
+            stored = payload.get(key)
+            if stored is not None and str(stored) != str(configured):
+                mismatches.append(f"{key}={stored!r} (configured {configured!r})")
+        if mismatches:
+            details = ", ".join(mismatches)
+            raise EmbeddingConfigurationError(
+                f"Qdrant collection '{self.collection_name}' uses a different "
+                f"embedding configuration: {details}. Use a new collection name or "
+                "re-index the existing collection before changing embedding provider, "
+                "model, or dimensions."
+            )
 
     def store(self, memory: MemoryEntry) -> str:
         """
@@ -151,6 +221,9 @@ class LongTermMemory:
                     "accessed_at": memory.accessed_at.isoformat(),
                     "access_count": memory.access_count,
                     "importance": memory.importance,
+                    "_praval_embedding_provider": self.embedding_provider,
+                    "_praval_embedding_model": self.embedding_model,
+                    "_praval_embedding_dimensions": self.vector_size,
                 },
             )
 
@@ -352,21 +425,11 @@ class LongTermMemory:
             return {}
 
     def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text using OpenAI"""
-        if not OPENAI_AVAILABLE:
-            # Fallback to random embedding (for testing)
-            logger.warning("OpenAI not available, using random embedding")
-            return np.random.random(self.vector_size).tolist()
-
+        """Generate embedding for text using the configured embedding provider."""
         try:
-            response = openai.embeddings.create(
-                model="text-embedding-ada-002", input=text
-            )
-            return response.data[0].embedding
-
+            return self.embedding_runtime.embed_text(text)
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
-            # Fallback to random embedding
             return np.random.random(self.vector_size).tolist()
 
     def _point_to_memory_entry(self, point) -> MemoryEntry:

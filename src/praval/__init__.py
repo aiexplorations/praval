@@ -5,14 +5,16 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.22 adds agent-gated HITL interventions (approve/edit/reject with
-durable SQLite state), provider parity for tool-call interruptions and resume,
-and CLI support for operator intervention workflows.
+Version 0.8.0 adds the provider-neutral model runtime, structured model
+contracts, local OpenAI-compatible providers, Gemini support, normalized
+streaming events, multimodal request validation, and runtime-owned capability
+checks while preserving legacy agent APIs.
 
 """
 
 from typing import Any
 
+from .app import PravalApp, get_default_app, reset_default_app
 from .composition import (
     AgentSession,
     agent_pipeline,
@@ -21,12 +23,17 @@ from .composition import (
     throttled_agent,
 )
 from .core.agent import Agent
-from .core.exceptions import HITLConfigurationError, InterventionRequired
+from .core.exceptions import (
+    EmbeddingConfigurationError,
+    HITLConfigurationError,
+    InterventionRequired,
+)
 from .core.reef import Spore, SporeType, get_reef
 from .core.registry import get_registry, register_agent
 
 # Enhanced agent decorator with memory support (v0.7.0+)
 from .decorators import achat, agent, broadcast, chat, get_agent_info
+from .embeddings import EmbeddingRuntime
 from .hitl import (
     HITLService,
     HITLStore,
@@ -37,6 +44,29 @@ from .hitl import (
     SuspendedRunState,
     get_hitl_store,
 )
+from .model_runtime import ModelRuntime
+from .models import (
+    AudioResponse,
+    ContentPart,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    ModelEvent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ProviderAdapter,
+    ProviderCapabilities,
+    ProviderProfile,
+    ReasoningConfig,
+    SpeechRequest,
+    StructuredOutputConfig,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
+    TranscriptionRequest,
+    Usage,
+)
+from .providers.registry import get_provider_registry, reset_provider_registry
 
 tool: Any = None
 get_tool_info: Any = None
@@ -161,7 +191,7 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.22"
+__version__ = "0.8.0"
 __all__ = [
     # Core classes
     "Agent",
@@ -193,6 +223,34 @@ __all__ = [
     "get_hitl_store",
     "InterventionRequired",
     "HITLConfigurationError",
+    "EmbeddingConfigurationError",
+    # Model runtime contracts
+    "AudioResponse",
+    "ContentPart",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "ModelEvent",
+    "ModelMessage",
+    "ModelRequest",
+    "ModelResponse",
+    "ProviderAdapter",
+    "ProviderCapabilities",
+    "ProviderProfile",
+    "ReasoningConfig",
+    "SpeechRequest",
+    "StructuredOutputConfig",
+    "ToolCall",
+    "ToolResult",
+    "ToolSpec",
+    "TranscriptionRequest",
+    "Usage",
+    "ModelRuntime",
+    "EmbeddingRuntime",
+    "get_provider_registry",
+    "reset_provider_registry",
+    "PravalApp",
+    "get_default_app",
+    "reset_default_app",
     # Tool system (if available)
     "tool",
     "get_tool_info",

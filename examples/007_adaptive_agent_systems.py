@@ -18,10 +18,16 @@ Key Concepts:
 Run: python examples/007_adaptive_agent_systems.py
 """
 
-from praval import agent, chat, broadcast, start_agents, get_reef
+import os
 import random
 from collections import defaultdict
+
+if __name__ == "__main__" and os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+    print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
+    raise SystemExit(0)
+
 from dotenv import load_dotenv
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 # Load environment variables from .env file
 load_dotenv()
@@ -305,6 +311,9 @@ def emergent_behavior_observer(spore):
 
 def main():
     """Demonstrate adaptive agent system behavior."""
+    if os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+        print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
+        return
     print("=" * 60)
     print("Example 007: Adaptive Agent Systems")
     print("=" * 60)

@@ -16,6 +16,16 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
+from ..model_runtime import execute_legacy_tool_call
+from ..models import (
+    ModelEvent,
+    ModelRequest,
+    ModelResponse,
+    ProviderCapabilities,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
+)
 
 
 def _redact_secrets(message: str) -> str:
@@ -36,13 +46,17 @@ def _redact_secrets(message: str) -> str:
 class CohereProvider:
     """Cohere provider for LLM interactions."""
 
+    provider_name = "cohere"
+    capabilities = ProviderCapabilities(tools=True)
+
     def __init__(self, config):
         self.config = config
 
         try:
-            api_key = os.getenv("COHERE_API_KEY")
+            api_key_env = getattr(config, "api_key_env", None) or "COHERE_API_KEY"
+            api_key = os.getenv(api_key_env)
             if not api_key:
-                raise ProviderError("COHERE_API_KEY environment variable not set")
+                raise ProviderError(f"{api_key_env} environment variable not set")
 
             self.client = cohere.Client(api_key)
         except Exception as e:
@@ -63,8 +77,10 @@ class CohereProvider:
             call_params = {
                 "message": current_message,
                 "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens,
+                "max_tokens": self._max_output_tokens(),
             }
+            if self._model_name():
+                call_params["model"] = self._model_name()
 
             if chat_history:
                 call_params["chat_history"] = chat_history
@@ -96,6 +112,118 @@ class CohereProvider:
             raise
         except Exception as e:
             raise ProviderError(f"Cohere API error: {_redact_secrets(str(e))}") from e
+
+    def invoke(
+        self,
+        request: ModelRequest,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ModelResponse:
+        """Invoke Cohere through the provider-neutral adapter surface."""
+        call_params = self._request_chat_params(request, tools=tools)
+        response = self.client.chat(**call_params)
+        return self._chat_model_response(response)
+
+    def _chat_model_response(self, response: Any) -> ModelResponse:
+        raw_tool_calls = getattr(response, "tool_calls", None) or []
+        if not isinstance(raw_tool_calls, (list, tuple)):
+            raw_tool_calls = []
+        serialized = self._serialize_tool_calls(list(raw_tool_calls))
+        tool_calls = [
+            ToolCall(
+                id=str(call.get("id") or f"cohere-call-{index}"),
+                name=str(call.get("name") or ""),
+                arguments=(
+                    call.get("args") if isinstance(call.get("args"), dict) else {}
+                ),
+                raw=call,
+            )
+            for index, call in enumerate(serialized)
+        ]
+        finish_reason = getattr(response, "finish_reason", None)
+        if not isinstance(finish_reason, str):
+            finish_reason = None
+        return ModelResponse(
+            content=str(getattr(response, "text", "") or ""),
+            provider=self.provider_name,
+            model=self._model_name(),
+            tool_calls=tool_calls,
+            raw=response,
+            finish_reason=finish_reason,
+            metadata={"cohere_tool_calls": serialized},
+        )
+
+    def continue_with_tool_results(
+        self,
+        request: ModelRequest,
+        response: ModelResponse,
+        tool_results: List[ToolResult],
+    ) -> ModelResponse:
+        """Submit runtime-executed tool results to Cohere."""
+        serialized = response.metadata.get("cohere_tool_calls")
+        if not isinstance(serialized, list):
+            raise ProviderError("Cohere tool continuation state is missing")
+        call_params = self._request_chat_params(request)
+        call_params["tool_results"] = [
+            {"name": result.name, "result": result.content} for result in tool_results
+        ]
+        continued = self.client.chat(**call_params)
+        return self._chat_model_response(continued)
+
+    def _request_chat_params(
+        self,
+        request: ModelRequest,
+        *,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        messages = [
+            message.model_dump(exclude_none=True) for message in request.messages
+        ]
+        current_message, chat_history = self._prepare_chat_format(messages)
+        call_params: Dict[str, Any] = {
+            "message": current_message,
+            "temperature": request.temperature,
+            "max_tokens": request.max_output_tokens or self._max_output_tokens(),
+            "model": request.model or self._model_name(),
+        }
+        if chat_history:
+            call_params["chat_history"] = chat_history
+        system_message = self._extract_system_message(messages)
+        if system_message:
+            call_params["preamble"] = system_message
+        if tools:
+            formatted = self._format_tools_for_cohere(tools)
+            if formatted:
+                call_params["tools"] = formatted
+        elif request.tools:
+            call_params["tools"] = self._format_tool_specs_for_cohere(request.tools)
+        if request.timeout is not None:
+            call_params["timeout"] = request.timeout
+        for key, value in request.provider_options.items():
+            if key != "capabilities":
+                call_params.setdefault(key, value)
+        return call_params
+
+    def stream(self, request: ModelRequest):
+        """Streaming adapter placeholder with non-streaming fallback."""
+        response = self.invoke(request)
+        if response.content:
+            yield ModelEvent(type="delta", delta=response.content)
+        yield ModelEvent(type="final", response=response, usage=response.usage)
+
+    def close(self) -> None:
+        """Close the underlying SDK client when supported."""
+        close = getattr(self.client, "close", None)
+        if callable(close):
+            close()
+
+    def _model_name(self) -> str:
+        return str(getattr(self.config, "model", None) or "command-a-03-2025")
+
+    def _max_output_tokens(self) -> int:
+        return int(
+            getattr(self.config, "max_output_tokens", None)
+            or getattr(self.config, "max_tokens", 1000)
+        )
 
     def _prepare_chat_format(
         self, messages: List[Dict[str, str]]
@@ -163,6 +291,18 @@ class CohereProvider:
             formatted_tools.append(tool_def)
         return formatted_tools
 
+    def _format_tool_specs_for_cohere(
+        self, tool_specs: List[ToolSpec]
+    ) -> List[Dict[str, Any]]:
+        return [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters,
+            }
+            for spec in tool_specs
+        ]
+
     def _python_type_to_json_schema(self, python_type: str) -> str:
         type_mapping = {
             "str": "string",
@@ -199,12 +339,14 @@ class CohereProvider:
         serialized: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
             if isinstance(tool_call, dict):
+                call_id = tool_call.get("id")
                 name = tool_call.get("name")
                 args = tool_call.get("args") or {}
             else:
+                call_id = getattr(tool_call, "id", None)
                 name = getattr(tool_call, "name", None)
                 args = getattr(tool_call, "args", None) or {}
-            serialized.append({"name": name, "args": args})
+            serialized.append({"id": call_id, "name": name, "args": args})
         return serialized
 
     def _execute_tool_calls(
@@ -218,29 +360,15 @@ class CohereProvider:
         existing_tool_results: Optional[List[Dict[str, Any]]] = None,
         resume_intervention: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        runtime = self._build_runtime(hitl_context)
         tool_results = list(existing_tool_results or [])
-        tool_map = {
-            tool["function"].__name__: tool
-            for tool in available_tools or []
-            if "function" in tool
-        }
 
         for idx in range(start_index, len(serialized_tool_calls)):
             tool_call = serialized_tool_calls[idx]
             name = tool_call.get("name")
             args = tool_call.get("args") or {}
 
-            if (
-                idx == start_index
-                and resume_intervention is not None
-                and runtime is not None
-            ):
-                result_content = runtime.execute_with_decision(
-                    intervention=resume_intervention,
-                    available_tools=available_tools or [],
-                )
-            elif runtime is not None:
+            continuation_state = None
+            if not (idx == start_index and resume_intervention is not None):
                 continuation_state = {
                     "schema": "cohere_tool_v1",
                     "original_messages": original_messages,
@@ -248,22 +376,19 @@ class CohereProvider:
                     "current_index": idx,
                     "tool_results": list(tool_results),
                 }
-                result_content = runtime.execute_or_interrupt(
-                    tool_call_id=f"{name}:{idx}",
-                    function_name=str(name),
-                    raw_args=args,
-                    available_tools=available_tools or [],
-                    continuation_state=continuation_state,
-                )
-            else:
-                tool_def = tool_map.get(name)
-                if tool_def is None:
-                    result_content = f"Unknown function: {name}"
-                else:
-                    try:
-                        result_content = str(tool_def["function"](**args))
-                    except Exception as e:
-                        result_content = f"Error: {str(e)}"
+            result_content = execute_legacy_tool_call(
+                hitl_context=hitl_context,
+                tool_call_id=f"{name}:{idx}",
+                function_name=str(name),
+                raw_args=args,
+                available_tools=available_tools or [],
+                continuation_state=continuation_state,
+                resume_intervention=(
+                    resume_intervention
+                    if idx == start_index and resume_intervention is not None
+                    else None
+                ),
+            )
 
             tool_results.append({"name": name, "result": result_content})
 
@@ -280,8 +405,10 @@ class CohereProvider:
             call_params = {
                 "message": current_message,
                 "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens,
+                "max_tokens": self._max_output_tokens(),
             }
+            if self._model_name():
+                call_params["model"] = self._model_name()
             if chat_history:
                 call_params["chat_history"] = chat_history
 

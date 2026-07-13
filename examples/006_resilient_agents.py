@@ -19,6 +19,11 @@ Run: python examples/006_resilient_agents.py
 
 import sys
 import os
+
+if __name__ == "__main__" and os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+    print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this agent example.")
+    raise SystemExit(0)
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from praval import agent, broadcast, start_agents, get_reef

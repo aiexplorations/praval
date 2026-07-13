@@ -6,8 +6,10 @@ all edge cases correctly. Tests are strict and verify both functionality
 and error conditions, including thread safety.
 """
 
+import gc
 import threading
 import time
+import weakref
 from collections import deque
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -83,6 +85,39 @@ class TestShortTermMemoryInitialization:
         assert memory._cleanup_thread.is_alive()
 
         memory.shutdown()
+
+    def test_shutdown_interrupts_sleeping_cleanup_worker(self):
+        """Shutdown should not wait for the cleanup interval to elapse."""
+        memory = ShortTermMemory(cleanup_interval=60)
+        cleanup_thread = memory._cleanup_thread
+
+        started_at = time.monotonic()
+        memory.shutdown()
+        elapsed = time.monotonic() - started_at
+
+        assert elapsed < 0.25
+        assert cleanup_thread is not None
+        assert not cleanup_thread.is_alive()
+
+    def test_cleanup_worker_does_not_retain_unreferenced_memory(self):
+        """Dropping memory should stop its worker without an explicit shutdown."""
+        memory = ShortTermMemory(cleanup_interval=60)
+        cleanup_thread = memory._cleanup_thread
+        memory_ref = weakref.ref(memory)
+
+        del memory
+        gc.collect()
+        if cleanup_thread is not None:
+            cleanup_thread.join(timeout=0.25)
+
+        try:
+            assert memory_ref() is None
+            assert cleanup_thread is not None
+            assert not cleanup_thread.is_alive()
+        finally:
+            retained_memory = memory_ref()
+            if retained_memory is not None:
+                retained_memory.shutdown()
 
 
 class TestShortTermMemoryStorage:

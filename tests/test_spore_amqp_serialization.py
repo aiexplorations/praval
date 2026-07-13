@@ -497,6 +497,34 @@ class TestSporeAmqpRoundtrip:
                 restored.priority == original.priority
             ), f"Priority mismatch in {test_case['name']}"
 
+    def test_roundtrip_preserves_multimodal_parts_and_data_references(self):
+        original = Spore(
+            id="multimodal-amqp",
+            spore_type=SporeType.REQUEST,
+            from_agent="voice-agent",
+            to_agent="reviewer",
+            knowledge={"instruction": "summarize"},
+            created_at=datetime(2025, 11, 7, 12, 0, 0),
+            content_parts=[
+                {
+                    "type": "audio_base64",
+                    "data": "cmVjb3JkaW5n",
+                    "mime_type": "audio/mpeg",
+                }
+            ],
+            data_references=["s3://bucket/source.mp3"],
+        )
+
+        message = original.to_amqp_message()
+        body = json.loads(message.body.decode("utf-8"))
+        restored = Spore.from_amqp_message(message)
+
+        assert body["_praval_spore_envelope"] == "2.0"
+        assert body["content_parts"][0]["data"] == "cmVjb3JkaW5n"
+        assert restored.knowledge == original.knowledge
+        assert restored.content_parts == original.content_parts
+        assert restored.data_references == original.data_references
+
     def test_multiple_roundtrips_stable(self):
         """Test that spore remains stable across multiple roundtrip conversions."""
         original = Spore(

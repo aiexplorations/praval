@@ -6,12 +6,30 @@ This script discovers executable .py files under examples/ (excluding
 non-Python assets) and runs each with a timeout to prevent hangs.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-# Add the src directory to Python path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES_DIR = PROJECT_ROOT / "examples"
+PROVIDER_KEY_NAMES = (
+    "ANTHROPIC_API_KEY",
+    "COHERE_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+)
+
+
+def example_environment():
+    """Return a deterministic offline environment unless live runs are opted in."""
+    env = os.environ.copy()
+    if env.get("PRAVAL_RUN_LIVE_EXAMPLES") != "1":
+        for key in PROVIDER_KEY_NAMES:
+            env.pop(key, None)
+        env["PRAVAL_EXAMPLE_SMOKE"] = "1"
+    return env
 
 
 def run_with_timeout(cmd, timeout=30):
@@ -22,7 +40,8 @@ def run_with_timeout(cmd, timeout=30):
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd="/Users/rajesh/Github/praval",
+            cwd=PROJECT_ROOT,
+            env=example_environment(),
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
@@ -41,6 +60,9 @@ def run_single_example(example_file):
     returncode, stdout, stderr = run_with_timeout(cmd, timeout=45)
 
     if returncode == 0:
+        if stdout.lstrip().startswith("SKIP:"):
+            print(f"⏭️  {example_file} - SKIPPED (live provider opt-in required)")
+            return None
         print(f"✅ {example_file} - PASSED")
         if stdout.strip():
             print(f"   📄 Output preview: {stdout.strip()[:200]}...")
@@ -59,10 +81,10 @@ def run_single_example(example_file):
 
 def main():
     """Test all examples in the examples directory."""
-    print("🚀 Testing all Praval v0.7.22 examples...")
+    print("🚀 Testing all Praval v0.8.0 examples...")
     print("=" * 60)
 
-    examples_dir = Path("/Users/rajesh/Github/praval/examples")
+    examples_dir = EXAMPLES_DIR
 
     # Discover all executable python examples recursively.
     # Skip __pycache__ and hidden paths.
@@ -91,17 +113,22 @@ def main():
     results = {}
     passed = 0
     failed = 0
+    skipped = 0
+    interrupted = False
 
     for example_file in example_files:
         try:
             success = run_single_example(example_file)
             results[example_file] = success
-            if success:
+            if success is None:
+                skipped += 1
+            elif success:
                 passed += 1
             else:
                 failed += 1
         except KeyboardInterrupt:
             print("\n⚠️ Testing interrupted by user")
+            interrupted = True
             break
         except Exception as e:
             print(f"❌ Unexpected error testing {example_file}: {e}")
@@ -114,6 +141,7 @@ def main():
     print("=" * 60)
 
     print(f"✅ Passed: {passed}")
+    print(f"⏭️  Skipped: {skipped}")
     print(f"❌ Failed: {failed}")
     print(
         f"📈 Success Rate: {(passed/(passed+failed)*100):.1f}%"
@@ -123,14 +151,20 @@ def main():
 
     print("\n📋 Detailed Results:")
     for example, success in results.items():
-        status = "✅ PASS" if success else "❌ FAIL"
+        if success is None:
+            status = "⏭️  SKIP"
+        else:
+            status = "✅ PASS" if success else "❌ FAIL"
         print(f"  {status} {example}")
 
+    if interrupted:
+        print("\n⚠️ Example testing was interrupted before completion.")
+        return False
     if failed > 0:
         print(f"\n⚠️ {failed} examples need attention!")
         return False
     else:
-        print("\n🎉 All examples are working correctly!")
+        print("\n🎉 All runnable examples passed; live examples were reported clearly.")
         return True
 
 

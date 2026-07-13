@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from praval.core.exceptions import EmbeddingConfigurationError
 from praval.memory.long_term_memory import LongTermMemory
 from praval.memory.memory_types import (
     MemoryEntry,
@@ -113,6 +114,51 @@ class TestLongTermMemoryInitialization:
 
         # Should not create collection since it exists
         mock_client.create_collection.assert_not_called()
+
+    @patch("praval.memory.long_term_memory.QdrantClient")
+    def test_existing_collection_rejects_vector_dimension_change(
+        self, mock_qdrant_client
+    ):
+        mock_client = Mock()
+        mock_qdrant_client.return_value = mock_client
+        mock_collection = Mock()
+        mock_collection.name = "praval_memories"
+        mock_collections = Mock()
+        mock_collections.collections = [mock_collection]
+        mock_client.get_collections.return_value = mock_collections
+        collection_info = Mock()
+        collection_info.config.params.vectors.size = 384
+        mock_client.get_collection.return_value = collection_info
+
+        with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
+            with pytest.raises(EmbeddingConfigurationError, match="re-index"):
+                LongTermMemory(vector_size=768)
+
+    @patch("praval.memory.long_term_memory.QdrantClient")
+    def test_existing_collection_rejects_embedding_model_change(
+        self, mock_qdrant_client
+    ):
+        mock_client = Mock()
+        mock_qdrant_client.return_value = mock_client
+        mock_collection = Mock()
+        mock_collection.name = "praval_memories"
+        mock_collections = Mock()
+        mock_collections.collections = [mock_collection]
+        mock_client.get_collections.return_value = mock_collections
+        collection_info = Mock()
+        collection_info.config.params.vectors.size = 1536
+        mock_client.get_collection.return_value = collection_info
+        stored_point = Mock()
+        stored_point.payload = {
+            "_praval_embedding_provider": "openai",
+            "_praval_embedding_model": "old-embedding-model",
+            "_praval_embedding_dimensions": 1536,
+        }
+        mock_client.scroll.return_value = ([stored_point], None)
+
+        with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
+            with pytest.raises(EmbeddingConfigurationError, match="re-index"):
+                LongTermMemory(embedding_model="new-embedding-model")
 
     @patch("praval.memory.long_term_memory.QdrantClient")
     def test_long_term_memory_collection_creation_failure(self, mock_qdrant_client):
@@ -643,10 +689,12 @@ class TestLongTermMemoryEmbeddings:
         """Set up test environment."""
         self.mock_client = Mock()
 
+    @patch("praval.memory.long_term_memory.EmbeddingRuntime")
     @patch("praval.memory.long_term_memory.QdrantClient")
-    @patch("praval.memory.long_term_memory.openai")
-    def test_generate_embedding_with_openai(self, mock_openai, mock_qdrant_client):
-        """Test embedding generation with OpenAI."""
+    def test_generate_embedding_uses_neutral_runtime(
+        self, mock_qdrant_client, runtime_class
+    ):
+        """All embedding providers are routed through EmbeddingRuntime."""
         mock_qdrant_client.return_value = self.mock_client
 
         # Mock collection exists
@@ -656,30 +704,27 @@ class TestLongTermMemoryEmbeddings:
         mock_collections.collections = [mock_collection]
         self.mock_client.get_collections.return_value = mock_collections
 
-        # Mock OpenAI response
-        mock_embedding_response = Mock()
-        mock_embedding_data = Mock()
-        mock_embedding_data.embedding = [0.1, 0.2, 0.3] * 512
-        mock_embedding_response.data = [mock_embedding_data]
-        mock_openai.embeddings.create.return_value = mock_embedding_response
+        runtime = Mock()
+        runtime.embed_text.return_value = [0.1, 0.2, 0.3] * 512
+        runtime_class.return_value = runtime
 
         with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
-            with patch("praval.memory.long_term_memory.OPENAI_AVAILABLE", True):
-                memory = LongTermMemory()
+            memory = LongTermMemory()
 
         result = memory._generate_embedding("test text")
 
         assert result == [0.1, 0.2, 0.3] * 512
-        mock_openai.embeddings.create.assert_called_once_with(
-            model="text-embedding-ada-002", input="test text"
+        runtime_class.assert_called_once_with(
+            provider="openai",
+            model="text-embedding-3-small",
+            dimensions=1536,
+            provider_options={},
         )
+        runtime.embed_text.assert_called_once_with("test text")
 
     @patch("praval.memory.long_term_memory.QdrantClient")
-    @patch("praval.memory.long_term_memory.openai")
-    def test_generate_embedding_openai_failure_fallback(
-        self, mock_openai, mock_qdrant_client
-    ):
-        """Test fallback when OpenAI embedding fails."""
+    def test_generate_embedding_runtime_failure_fallback(self, mock_qdrant_client):
+        """Embedding runtime failures retain the compatibility fallback."""
         mock_qdrant_client.return_value = self.mock_client
 
         # Mock collection exists
@@ -689,48 +734,18 @@ class TestLongTermMemoryEmbeddings:
         mock_collections.collections = [mock_collection]
         self.mock_client.get_collections.return_value = mock_collections
 
-        # Mock OpenAI failure
-        mock_openai.embeddings.create.side_effect = Exception("API error")
+        runtime = Mock()
+        runtime.embed_text.side_effect = Exception("API error")
 
         with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
-            with patch("praval.memory.long_term_memory.OPENAI_AVAILABLE", True):
-                with patch("praval.memory.long_term_memory.np") as mock_np:
-                    mock_np.random.random.return_value.tolist.return_value = [
-                        0.5
-                    ] * 1536
+            with patch("praval.memory.long_term_memory.np") as mock_np:
+                mock_np.random.random.return_value.tolist.return_value = [0.5] * 1536
 
-                    memory = LongTermMemory()
-                    result = memory._generate_embedding("test text")
+                memory = LongTermMemory(embedding_runtime=runtime)
+                result = memory._generate_embedding("test text")
 
-                    # Should fall back to random embedding
-                    assert len(result) == 1536
-                    mock_np.random.random.assert_called_once_with(1536)
-
-    @patch("praval.memory.long_term_memory.QdrantClient")
-    def test_generate_embedding_openai_unavailable(self, mock_qdrant_client):
-        """Test embedding generation when OpenAI is not available."""
-        mock_qdrant_client.return_value = self.mock_client
-
-        # Mock collection exists
-        mock_collection = Mock()
-        mock_collection.name = "praval_memories"
-        mock_collections = Mock()
-        mock_collections.collections = [mock_collection]
-        self.mock_client.get_collections.return_value = mock_collections
-
-        with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
-            with patch("praval.memory.long_term_memory.OPENAI_AVAILABLE", False):
-                with patch("praval.memory.long_term_memory.np") as mock_np:
-                    mock_np.random.random.return_value.tolist.return_value = [
-                        0.5
-                    ] * 1536
-
-                    memory = LongTermMemory()
-                    result = memory._generate_embedding("test text")
-
-                    # Should use random embedding
-                    assert len(result) == 1536
-                    mock_np.random.random.assert_called_once_with(1536)
+                assert len(result) == 1536
+                mock_np.random.random.assert_called_once_with(1536)
 
 
 class TestLongTermMemoryUtilityMethods:
@@ -871,11 +886,16 @@ class TestLongTermMemoryUtilityMethods:
         mock_collections.collections = [mock_collection]
         self.mock_client.get_collections.return_value = mock_collections
 
-        # Mock get_collection failure
-        self.mock_client.get_collection.side_effect = Exception("Stats failed")
+        collection_info = Mock()
+        collection_info.config.params.vectors.size = 1536
+        self.mock_client.get_collection.return_value = collection_info
+        self.mock_client.scroll.return_value = ([], None)
 
         with patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", True):
             memory = LongTermMemory()
+
+        # Startup validation succeeded; fail only the later statistics lookup.
+        self.mock_client.get_collection.side_effect = Exception("Stats failed")
 
         stats = memory.get_stats()
 
