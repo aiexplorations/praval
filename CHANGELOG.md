@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bounded results, secret redaction, and lifecycle cleanup.
 - Python 3.13 support while retaining Python 3.9 through 3.12 for the core
   framework. The official MCP SDK requires Python 3.10 or newer.
+- Four substantial agent-team showcase capstones: a deterministic Research
+  Intelligence Desk, Customer Support Resolution Center, Software Release
+  Readiness Team, and protected-live OpenAI Marketing Studio. Their committed
+  evidence fixtures, correlated Spore trails, tools, state, recovery paths,
+  final artifacts, provenance, and exact-wheel certification are maintained as
+  release assets.
 
 ### Changed
 - OpenAI model profiles use the Responses API by default where declared.

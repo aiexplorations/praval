@@ -43,6 +43,12 @@ are separate from direct connections owned by `praval.mcp.MCPClient`.
   sections preserve depth for experienced readers. Four architecture-focused
   capstones are maintained and certified rather than retained as reference-only
   historical material.
+- The capstones now cover common agent-heavy domains in depth: Research
+  Intelligence, Customer Support Resolution, Software Release Readiness, and an
+  AI Marketing Studio. The first three execute deterministically in normal CI;
+  Marketing Studio is a protected-live OpenAI workflow with real screenshot
+  analysis, structured responses, approval-protected claims, persisted HITL
+  interruption/resume, campaign memory, and a bounded learning pass.
 - Manifest v2 records prerequisites, estimated time, and learning level for all
   17 notebooks. Exact-wheel certification runs ten offline notebooks in normal
   CI, RabbitMQ/OTLP and official-SDK MCP notebooks in service CI, and five live

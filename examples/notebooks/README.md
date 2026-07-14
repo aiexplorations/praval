@@ -32,11 +32,17 @@ optional internals, recap, and cleanup.
 
 ## Learning paths
 
-- **New to Praval:** run `00` through `06` in order, then choose a case study.
+- **New to Praval:** run `00` through `06` in order, then choose a capstone.
 - **Building model-backed agents:** run `00`, `01`, `05`, `09`, and `10`.
 - **Distributed and external tools:** run `00`, `02`, `04`, `08`, and `11`.
-- **Memory and retrieval:** run `00`, `01`, `06`, and `07`, then the conversational
-  memory case study.
+- **Evidence-heavy research:** run `02` through `06`, then the Research
+  Intelligence Desk.
+- **Customer operations:** run `02`, `04`, `05`, and `06`, then the Customer
+  Support Resolution Center.
+- **Software delivery:** run `02`, `04`, `05`, and `08`, then the Software
+  Release Readiness Team.
+- **Go-to-market systems:** run `02`, `03`, `05`, `06`, `09`, `10`, and `12`,
+  then the protected-live AI Marketing Studio.
 - **Voice and multimodal:** run `00`, `01`, `09`, and `12`.
 
 ## Course
@@ -80,10 +86,17 @@ Python. All four are maintained and release-certified.
 
 | Case study | Prerequisites | Mode | Time |
 |---|---|---|---:|
-| [Building an agent team](case_studies/building_agents_tutorial.ipynb) | 01, 02, 04, 05, 06 | Offline | 45 min |
-| [Conversational memory assistant](case_studies/conversational_memory_agent.ipynb) | 06 | Offline | 35 min |
-| [Student analytics pipeline](case_studies/student_analytics.ipynb) | 02, 04, 05 | Offline | 45 min |
-| [AI-powered student analytics](case_studies/student_analytics_ai.ipynb) | 09, 10, deterministic analytics case | Protected live OpenAI | 45 min |
+| [Research Intelligence Desk](case_studies/research_intelligence_desk.ipynb) | 02, 03, 04, 05, 06 | Offline | 60 min |
+| [Customer Support Resolution Center](case_studies/customer_support_resolution_center.ipynb) | 02, 04, 05, 06 | Offline | 60 min |
+| [Software Release Readiness Team](case_studies/software_release_readiness.ipynb) | 02, 04, 05, 08 | Offline + local traces | 60 min |
+| [AI Marketing Studio](case_studies/marketing_studio.ipynb) | 02, 03, 05, 06, 09, 10, 12 | Protected live OpenAI | 75 min |
+
+The offline capstones use committed evidence packets and real registered tools.
+Research forces an evidence revision, Support rejects stale guidance, and Release
+Readiness runs an actual failing test and security rule before a bounded repair.
+Marketing Studio uses real multimodal OpenAI input, structured responses, a
+model-generated approval-protected tool call, SQLite-backed HITL resume, and a
+bounded campaign-learning pass.
 
 Normal CI executes ten offline notebooks and two service notebooks against the exact
 wheel. The five live notebooks execute only through protected manual certification.
