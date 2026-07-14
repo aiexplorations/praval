@@ -65,8 +65,10 @@ async def test_agent_runner_initialize_distributed(dummy_agent):
 
     reef = get_reef()
     assert backend.initialized is True
-    # In distributed mode, should subscribe to agent channel, shared channel, and
-    # default channel
+    # Distributed routing needs direct and broadcast topics. Logical channels stay
+    # subscribed for queue mappings and backward compatibility.
+    assert "agent.dummy" in backend.subscriptions
+    assert "broadcast" in backend.subscriptions
     assert dummy_agent._praval_channel in backend.subscriptions
     assert reef.default_channel in backend.subscriptions
     assert "distributed_agents" in backend.subscriptions

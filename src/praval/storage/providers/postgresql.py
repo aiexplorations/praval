@@ -5,6 +5,7 @@ Provides relational database capabilities with SQL query support,
 transactions, and schema management.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional, Union
 
@@ -94,6 +95,7 @@ class PostgreSQLProvider(BaseStorageProvider):
                 min_size=self.config["pool_min_size"],
                 max_size=self.config["pool_max_size"],
                 command_timeout=self.metadata.default_timeout,
+                init=self._configure_connection,
             )
 
             # Test connection
@@ -113,6 +115,18 @@ class PostgreSQLProvider(BaseStorageProvider):
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {e}")
             raise StorageConnectionError(self.name, str(e))
+
+    @staticmethod
+    async def _configure_connection(connection: Any) -> None:
+        """Configure native Python encoding for PostgreSQL JSON values."""
+        for type_name in ("json", "jsonb"):
+            await connection.set_type_codec(
+                type_name,
+                schema="pg_catalog",
+                encoder=json.dumps,
+                decoder=json.loads,
+                format="text",
+            )
 
     async def disconnect(self):
         """Close connection pool."""

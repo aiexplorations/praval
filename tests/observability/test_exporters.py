@@ -237,6 +237,8 @@ def test_otlp_conversion_covers_types_timestamps_events_and_invalid_hex():
 
     now = datetime.now()
     assert exporter._datetime_to_unix_nano(1.5) == 1_500_000_000
+    stored_nanoseconds = 1_783_998_449_129_443_000
+    assert exporter._datetime_to_unix_nano(stored_nanoseconds) == stored_nanoseconds
     assert exporter._datetime_to_unix_nano(now) > 0
     assert exporter._datetime_to_unix_nano(now.isoformat()) > 0
     assert exporter._datetime_to_unix_nano("invalid") == 0

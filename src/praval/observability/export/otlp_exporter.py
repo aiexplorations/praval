@@ -197,9 +197,12 @@ class OTLPExporter:
         return result
 
     def _datetime_to_unix_nano(self, dt: Any) -> int:
-        """Convert datetime to Unix nanoseconds."""
+        """Convert a datetime, Unix seconds, or Unix nanoseconds to nanoseconds."""
         if isinstance(dt, (int, float)):
-            # Already a timestamp
+            # Span and SQLite storage timestamps are already Unix nanoseconds.
+            # Smaller numeric values retain the public Unix-seconds behavior.
+            if abs(dt) >= 1_000_000_000_000_000:
+                return int(dt)
             return int(dt * 1e9)
         elif isinstance(dt, datetime):
             return int(dt.timestamp() * 1e9)

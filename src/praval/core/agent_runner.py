@@ -170,21 +170,25 @@ class AgentRunner:
             # Subscribe to agent's own channel via backend
             if self.reef._is_distributed_backend():
                 handler = underlying_agent.on_spore_received
-                # Subscribe to agent's own channel
-                await self.backend.subscribe(agent_channel, handler)
-                logger.debug(
-                    f"Subscribed '{agent_name}' to backend channel '{agent_channel}'"
+                # Topic routing uses agent.<name>.* for direct messages and
+                # broadcast.* for broadcasts. Retain logical-channel subscriptions
+                # for configured queue mappings and compatibility.
+                backend_channels = dict.fromkeys(
+                    (
+                        f"agent.{agent_name}",
+                        "broadcast",
+                        agent_channel,
+                        shared_channel,
+                        self.reef.default_channel,
+                    )
                 )
-
-                # Subscribe to shared channel
-                await self.backend.subscribe(shared_channel, handler)
-                logger.debug(
-                    f"Subscribed '{agent_name}' to backend channel '{shared_channel}'"
-                )
-
-                # Subscribe to default broadcast channel
-                await self.backend.subscribe(self.reef.default_channel, handler)
-                logger.debug(f"Subscribed '{agent_name}' to backend default channel")
+                for backend_channel in backend_channels:
+                    await self.backend.subscribe(backend_channel, handler)
+                    logger.debug(
+                        "Subscribed '%s' to backend channel '%s'",
+                        agent_name,
+                        backend_channel,
+                    )
 
             logger.info(f"  ✓ Agent '{agent_name}' ready on channel '{agent_channel}'")
 
