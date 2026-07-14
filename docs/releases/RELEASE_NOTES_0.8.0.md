@@ -101,18 +101,31 @@ descriptors require `allow_experimental_tools=True` plus provider-specific
 
 ## Candidate Validation Evidence
 
-- Current full local suite: `1682 passed, 91 skipped`, with zero failures, XFAIL,
-  or XPASS.
-- Complete-package statement coverage: `92.90%`; every focused floor passed.
-- Mypy passed across 72 source modules after replacing the broad provider
-  exemption with explicit legacy-module exemptions.
-- The wheel and normalized sdist reproduced byte for byte across consecutive
-  isolated builds. Clean minimal and MCP-extra wheel installations passed.
-- The local candidate wheel is about 220 KB and the sdist is about 2.2 MB,
-  below the 3 MiB release cap. Exact release hashes remain commit-derived CI
-  evidence and are intentionally not recorded before that artifact exists.
+- The complete local suite reports `1808 passed, 7 skipped`, with zero failures,
+  XFAIL, or XPASS.
+- Complete-package statement coverage is `93.04%`; every focused release floor
+  passes.
+- Mypy passes across 72 source modules. Black, isort, flake8, and the Sphinx
+  warning-as-error build also pass.
+- `twine check`, distribution-content validation, and clean exact-wheel
+  installation pass. The wheel is about 220 KiB and the normalized sdist is
+  about 2.4 MiB, below the 3 MiB release cap.
+- Two isolated builds reproduce byte for byte. Exact-wheel offline notebook
+  certification reports `10 passed, 0 skipped, 0 failed` with source-tree
+  isolation enabled.
 
-The final wheel hash, sdist hash, Praval Research regression result, DMG hash,
-and checksum-manifest verification will be recorded here only after the exact
-CI artifact completes downstream release validation. Until then this document
-describes a release candidate, not a published final release.
+The protected external certification has not run yet. It must validate the
+exact successful `main` CI wheel with real OpenAI, Anthropic, Cohere, Gemini,
+and OpenAI-compatible services, including model-generated HITL, embeddings,
+multimodal input, and the real STT-to-agent-to-TTS-to-STT voice path. The
+required `live-demo` environment secrets, model variables, and manual approval
+must be configured before that dispatch.
+
+These notes are frozen before protected certification. Exact wheel and sdist
+hashes belong in the CI build manifest, and provider, voice, and generated
+artifact evidence belongs in the live certification manifest. Both manifests
+are attached unchanged to the GitHub release, so recording their values does
+not require a post-certification source edit. Praval Research remains optional
+downstream integration evidence and is not a framework release gate. Until the
+main CI artifact and protected live certification both pass, this document
+describes a release candidate rather than a published final release.
