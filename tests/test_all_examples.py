@@ -41,6 +41,7 @@ def test_repository_manifest_registers_every_python_example():
         for path in (ROOT / "examples").rglob("*.py")
         if "__pycache__" not in path.parts
     }
+    discovered -= run_demos.NON_DEMO_EXAMPLE_FILES
     assert {demo.path.as_posix() for demo in manifest.demos} == discovered
     assert len(manifest.demos) == 47
 

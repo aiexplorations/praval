@@ -25,8 +25,9 @@ except ImportError:  # pragma: no cover - exercised by Python 3.9 CI
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MODES = {"offline", "services", "live", "reference"}
+LEARNING_LEVELS = {"fundamentals", "advanced", "capstone"}
 EXECUTION_DEPENDENCIES = (
     "nbclient==0.10.2",
     "nbformat==5.10.4",
@@ -54,6 +55,44 @@ TRANSIENT_PATTERNS = (
     "timeout",
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+COURSE_REQUIRED_SECTIONS = (
+    "## What you will build",
+    "## Prerequisites and setup",
+    "## Learning goals",
+    "## Mental model",
+    "## Try it",
+    "### What just happened?",
+    "### Why this matters",
+    "## Your turn",
+    "## Common mistake",
+    "<summary>Under the hood</summary>",
+    "## Recap",
+    "## Cleanup",
+)
+CASE_STUDY_REQUIRED_SECTIONS = (
+    "## Problem and outcome",
+    "## Course prerequisites",
+    "## Architecture and responsibilities",
+    "## Design decisions",
+    "## Implementation",
+    "## End-to-end run",
+    "## Inspect the system",
+    "## Failure modes and tradeoffs",
+    "## Extensions",
+    "## Cleanup",
+)
+HIDDEN_SKIP_PATTERNS = (
+    "SKIP:",
+    "exit(0)",
+    "sys.exit(0)",
+    "pytest.skip",
+    "notebook_skip",
+)
+LOCAL_PATH_RE = re.compile(r"(?:/Users/[^/\s]+|[A-Za-z]:\\\\Users\\\\[^\\\s]+)")
+SECRET_LITERAL_RE = re.compile(
+    r"(?i)(?:api[_-]?key|access[_-]?token|password)\s*=\s*['\"][^'\"]+['\"]"
+)
+NOTEBOOK_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)#?]+\.ipynb)(?:#[^)]*)?\)")
 
 
 class NotebookManifestError(ValueError):
@@ -70,6 +109,9 @@ class Notebook:
     track: str
     mode: str
     certify: bool
+    prerequisites: Tuple[str, ...]
+    estimated_minutes: int
+    learning_level: str
     extras: Tuple[str, ...]
     providers: Tuple[str, ...]
     services: Tuple[str, ...]
@@ -148,6 +190,8 @@ def load_manifest(path: Path) -> NotebookManifest:
         certify = item.get("certify")
         timeout = item.get("timeout")
         video_url = item.get("video_url")
+        estimated_minutes = item.get("estimated_minutes")
+        learning_level = item.get("learning_level")
         if not isinstance(title, str) or not title.strip():
             raise NotebookManifestError(f"{notebook_id}: title is required")
         if track not in {"course", "case-study"}:
@@ -158,6 +202,12 @@ def load_manifest(path: Path) -> NotebookManifest:
             raise NotebookManifestError(f"{notebook_id}: certify must be boolean")
         if not isinstance(timeout, int) or timeout < 0:
             raise NotebookManifestError(f"{notebook_id}: timeout must be non-negative")
+        if not isinstance(estimated_minutes, int) or estimated_minutes <= 0:
+            raise NotebookManifestError(
+                f"{notebook_id}: estimated_minutes must be a positive integer"
+            )
+        if learning_level not in LEARNING_LEVELS:
+            raise NotebookManifestError(f"{notebook_id}: invalid learning_level")
         if certify and (mode == "reference" or timeout == 0):
             raise NotebookManifestError(
                 f"{notebook_id}: certified notebooks need an executable mode "
@@ -177,6 +227,11 @@ def load_manifest(path: Path) -> NotebookManifest:
             track=track,
             mode=mode,
             certify=certify,
+            prerequisites=_string_tuple(
+                item.get("prerequisites"), "prerequisites", notebook_id
+            ),
+            estimated_minutes=estimated_minutes,
+            learning_level=learning_level,
             extras=_string_tuple(item.get("extras"), "extras", notebook_id),
             providers=_string_tuple(item.get("providers"), "providers", notebook_id),
             services=_string_tuple(item.get("services"), "services", notebook_id),
@@ -188,10 +243,30 @@ def load_manifest(path: Path) -> NotebookManifest:
         paths.add(relative.as_posix())
 
     manifest = NotebookManifest(path=resolved, notebooks=tuple(notebooks))
+    validate_prerequisites(manifest)
     validate_inventory(manifest)
     for notebook in manifest.notebooks:
         validate_notebook(manifest.notebooks_dir / notebook.path, notebook)
     return manifest
+
+
+def validate_prerequisites(manifest: NotebookManifest) -> None:
+    """Require prerequisite IDs to exist and precede the dependent notebook."""
+    positions = {item.id: index for index, item in enumerate(manifest.notebooks)}
+    for index, notebook in enumerate(manifest.notebooks):
+        if len(set(notebook.prerequisites)) != len(notebook.prerequisites):
+            raise NotebookManifestError(
+                f"{notebook.id}: prerequisite IDs must be unique"
+            )
+        for prerequisite in notebook.prerequisites:
+            if prerequisite not in positions:
+                raise NotebookManifestError(
+                    f"{notebook.id}: unknown prerequisite {prerequisite}"
+                )
+            if positions[prerequisite] >= index:
+                raise NotebookManifestError(
+                    f"{notebook.id}: prerequisite {prerequisite} must appear earlier"
+                )
 
 
 def validate_inventory(manifest: NotebookManifest) -> None:
@@ -226,16 +301,79 @@ def validate_notebook(path: Path, entry: Notebook) -> None:
     cells = raw["cells"]
     if not cells or cells[0].get("cell_type") != "markdown":
         raise NotebookManifestError(f"{entry.id}: first cell must be markdown")
-    if entry.track == "course":
-        metadata = raw.get("metadata", {}).get("praval", {})
-        if metadata.get("execution_mode") != entry.mode:
+    metadata = raw.get("metadata", {}).get("praval", {})
+    expected_metadata = {
+        "notebook_id": entry.id,
+        "execution_mode": entry.mode,
+        "prerequisites": list(entry.prerequisites),
+        "estimated_minutes": entry.estimated_minutes,
+        "learning_level": entry.learning_level,
+    }
+    for name, expected in expected_metadata.items():
+        if metadata.get(name) != expected:
             raise NotebookManifestError(
-                f"{entry.id}: notebook execution_mode does not match manifest"
+                f"{entry.id}: notebook {name} does not match manifest"
             )
-        if entry.video_url and metadata.get("video_url") != entry.video_url:
+    if entry.video_url and metadata.get("video_url") != entry.video_url:
+        raise NotebookManifestError(
+            f"{entry.id}: notebook video URL does not match manifest"
+        )
+    markdown = "\n".join(
+        (
+            "".join(cell.get("source", []))
+            if isinstance(cell.get("source", ""), list)
+            else str(cell.get("source", ""))
+        )
+        for cell in cells
+        if cell.get("cell_type") == "markdown"
+    )
+    required_sections = (
+        COURSE_REQUIRED_SECTIONS
+        if entry.track == "course"
+        else CASE_STUDY_REQUIRED_SECTIONS
+    )
+    missing_sections = [
+        section for section in required_sections if section not in markdown
+    ]
+    if missing_sections:
+        raise NotebookManifestError(
+            f"{entry.id}: missing teaching section(s): " + ", ".join(missing_sections)
+        )
+    expected_range = (20, 35) if entry.track == "course" else (12, 20)
+    if not expected_range[0] <= len(cells) <= expected_range[1]:
+        raise NotebookManifestError(
+            f"{entry.id}: expected {expected_range[0]}-{expected_range[1]} cells, "
+            f"found {len(cells)}"
+        )
+
+    all_source = "\n".join(
+        (
+            "".join(cell.get("source", []))
+            if isinstance(cell.get("source", ""), list)
+            else str(cell.get("source", ""))
+        )
+        for cell in cells
+    )
+    if LOCAL_PATH_RE.search(all_source):
+        raise NotebookManifestError(f"{entry.id}: contains an absolute local path")
+    if SECRET_LITERAL_RE.search(all_source) or re.search(
+        r"\bsk-[A-Za-z0-9_-]{12,}", all_source
+    ):
+        raise NotebookManifestError(f"{entry.id}: contains a credential literal")
+    hidden_skip = next(
+        (pattern for pattern in HIDDEN_SKIP_PATTERNS if pattern in all_source), None
+    )
+    if hidden_skip:
+        raise NotebookManifestError(
+            f"{entry.id}: contains hidden skip path {hidden_skip!r}"
+        )
+    for target in NOTEBOOK_LINK_RE.findall(markdown):
+        resolved = (path.parent / target).resolve()
+        if not resolved.is_file():
             raise NotebookManifestError(
-                f"{entry.id}: notebook video URL does not match manifest"
+                f"{entry.id}: notebook link does not resolve: {target}"
             )
+
     for index, cell in enumerate(cells):
         if cell.get("cell_type") != "code":
             continue
@@ -243,13 +381,20 @@ def validate_notebook(path: Path, entry: Notebook) -> None:
             raise NotebookManifestError(
                 f"{entry.id}: committed code cell {index} contains output"
             )
-        if entry.track != "course":
-            continue
         source = cell.get("source", "")
         if isinstance(source, list):
             source = "".join(source)
         if not isinstance(source, str):
             raise NotebookManifestError(f"{entry.id}: cell {index} source is invalid")
+        tags = cell.get("metadata", {}).get("tags", [])
+        if entry.track == "course" and "praval-setup" not in tags:
+            max_lines = 25 if entry.learning_level == "fundamentals" else 40
+            line_count = len(source.splitlines())
+            if line_count > max_lines:
+                raise NotebookManifestError(
+                    f"{entry.id}: code cell {index} has {line_count} lines; "
+                    f"maximum is {max_lines}"
+                )
         try:
             compile(
                 source,
@@ -417,7 +562,7 @@ def _run_one(
         "--output",
         str(output),
         "--execution-cwd",
-        str(copied_examples),
+        str(source.parent),
         "--cell-timeout",
         str(entry.timeout),
     ]
@@ -430,7 +575,7 @@ def _run_one(
         try:
             completed = subprocess.run(
                 command,
-                cwd=copied_examples,
+                cwd=source.parent,
                 env=environment,
                 capture_output=True,
                 text=True,
@@ -464,6 +609,8 @@ def _run_one(
         "stderr": sanitize(completed.stderr, secrets),
         "providers": list(entry.providers),
         "services": list(entry.services),
+        "prerequisites": list(entry.prerequisites),
+        "learning_level": entry.learning_level,
     }
     if output.is_file():
         result["executed_notebook"] = {

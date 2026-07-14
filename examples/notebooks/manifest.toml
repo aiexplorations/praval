@@ -1,4 +1,4 @@
-schema_version = 1
+schema_version = 2
 
 [[notebook]]
 id = "course-00-architecture"
@@ -7,6 +7,9 @@ title = "Understanding Praval Architecture"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = []
+estimated_minutes = 20
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -20,6 +23,9 @@ title = "Hello World Agent"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-00-architecture"]
+estimated_minutes = 25
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -33,6 +39,9 @@ title = "Research Pipeline"
 track = "course"
 mode = "live"
 certify = true
+prerequisites = ["course-00-architecture", "course-01-hello-world"]
+estimated_minutes = 35
+learning_level = "fundamentals"
 extras = []
 providers = ["openai"]
 services = []
@@ -46,6 +55,9 @@ title = "Feedback Loop Pattern"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-02-research-pipeline"]
+estimated_minutes = 30
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -59,6 +71,9 @@ title = "Parallel Agents: Fan-Out and Fan-In"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-02-research-pipeline"]
+estimated_minutes = 30
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -72,6 +87,9 @@ title = "Tool Use"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-01-hello-world"]
+estimated_minutes = 30
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -85,6 +103,9 @@ title = "Agent Memory"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-01-hello-world"]
+estimated_minutes = 30
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -98,6 +119,9 @@ title = "Qdrant Vector Memory"
 track = "course"
 mode = "live"
 certify = true
+prerequisites = ["course-06-agent-memory"]
+estimated_minutes = 35
+learning_level = "advanced"
 extras = ["memory", "storage"]
 providers = ["openai"]
 services = ["qdrant"]
@@ -111,6 +135,9 @@ title = "Production Reef, Security, and Observability"
 track = "course"
 mode = "services"
 certify = true
+prerequisites = ["course-02-research-pipeline", "course-04-parallel-agents"]
+estimated_minutes = 40
+learning_level = "advanced"
 extras = ["secure", "observability"]
 providers = []
 services = ["rabbitmq", "otlp"]
@@ -124,6 +151,9 @@ title = "ModelRuntime and Provider-Neutral Execution"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = ["course-01-hello-world", "course-05-tool-use"]
+estimated_minutes = 35
+learning_level = "advanced"
 extras = []
 providers = []
 services = []
@@ -137,6 +167,9 @@ title = "Human in the Loop"
 track = "course"
 mode = "live"
 certify = true
+prerequisites = ["course-05-tool-use", "course-09-model-runtime"]
+estimated_minutes = 40
+learning_level = "advanced"
 extras = []
 providers = ["openai"]
 services = []
@@ -150,6 +183,9 @@ title = "MCP Tools"
 track = "course"
 mode = "services"
 certify = true
+prerequisites = ["course-05-tool-use", "course-09-model-runtime", "course-10-hitl"]
+estimated_minutes = 40
+learning_level = "advanced"
 extras = ["mcp"]
 providers = []
 services = ["mcp-stdio", "mcp-streamable-http"]
@@ -163,6 +199,9 @@ title = "Voice and Multimodal Agents"
 track = "course"
 mode = "live"
 certify = true
+prerequisites = ["course-09-model-runtime"]
+estimated_minutes = 45
+learning_level = "advanced"
 extras = []
 providers = ["openai"]
 services = ["openai-stt", "openai-tts"]
@@ -172,51 +211,77 @@ video_url = ""
 [[notebook]]
 id = "case-study-building-agents"
 path = "case_studies/building_agents_tutorial.ipynb"
-title = "Building Agents Tutorial"
+title = "Building an Agent Team"
 track = "case-study"
-mode = "reference"
-certify = false
+mode = "offline"
+certify = true
+prerequisites = [
+    "course-01-hello-world",
+    "course-02-research-pipeline",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+    "course-06-agent-memory",
+]
+estimated_minutes = 45
+learning_level = "capstone"
 extras = []
 providers = []
 services = []
-timeout = 0
+timeout = 120
 video_url = ""
 
 [[notebook]]
 id = "case-study-conversational-memory"
 path = "case_studies/conversational_memory_agent.ipynb"
-title = "Conversational Memory Agent"
+title = "Conversational Memory Assistant"
 track = "case-study"
-mode = "reference"
-certify = false
-extras = ["memory"]
+mode = "offline"
+certify = true
+prerequisites = ["course-06-agent-memory"]
+estimated_minutes = 35
+learning_level = "capstone"
+extras = []
 providers = []
 services = []
-timeout = 0
+timeout = 120
 video_url = ""
 
 [[notebook]]
 id = "case-study-student-analytics"
 path = "case_studies/student_analytics.ipynb"
-title = "Student Analytics"
+title = "Student Analytics Pipeline"
 track = "case-study"
-mode = "reference"
-certify = false
+mode = "offline"
+certify = true
+prerequisites = [
+    "course-02-research-pipeline",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+]
+estimated_minutes = 45
+learning_level = "capstone"
 extras = []
 providers = []
 services = []
-timeout = 0
+timeout = 120
 video_url = ""
 
 [[notebook]]
 id = "case-study-student-analytics-ai"
 path = "case_studies/student_analytics_ai.ipynb"
-title = "Student Analytics with AI"
+title = "AI-Powered Student Analytics"
 track = "case-study"
-mode = "reference"
-certify = false
+mode = "live"
+certify = true
+prerequisites = [
+    "course-09-model-runtime",
+    "course-10-hitl",
+    "case-study-student-analytics",
+]
+estimated_minutes = 45
+learning_level = "capstone"
 extras = []
 providers = ["openai"]
 services = []
-timeout = 0
+timeout = 300
 video_url = ""

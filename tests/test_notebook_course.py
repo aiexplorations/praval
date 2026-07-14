@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
@@ -27,25 +28,59 @@ load_manifest = run_notebooks.load_manifest
 sanitize = run_notebooks.sanitize
 
 
-def _write_notebook(path: Path, mode: str = "offline") -> None:
+def _write_notebook(
+    path: Path, mode: str = "offline", notebook_id: str = "notebook"
+) -> None:
+    sections = """
+## What you will build
+## Prerequisites and setup
+## Learning goals
+## Mental model
+## Try it
+### What just happened?
+### Why this matters
+## Your turn
+## Common mistake
+<details><summary>Under the hood</summary></details>
+## Recap
+## Cleanup
+""".strip()
+    cells = [
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [f"# Notebook\n\n{sections}\n"],
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": ["await ready()\n"],
+        },
+    ]
+    cells.extend(
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [f"Supporting explanation {index}\n"],
+        }
+        for index in range(18)
+    )
     path.write_text(
         json.dumps(
             {
-                "cells": [
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": ["# Notebook\n"],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": ["await ready()\n"],
-                    },
-                ],
-                "metadata": {"praval": {"execution_mode": mode, "video_url": ""}},
+                "cells": cells,
+                "metadata": {
+                    "praval": {
+                        "notebook_id": notebook_id,
+                        "execution_mode": mode,
+                        "prerequisites": [],
+                        "estimated_minutes": 10,
+                        "learning_level": "fundamentals",
+                        "video_url": "",
+                    }
+                },
                 "nbformat": 4,
                 "nbformat_minor": 5,
             }
@@ -58,7 +93,7 @@ def _write_notebook(path: Path, mode: str = "offline") -> None:
 def _write_manifest(path: Path, notebook_id: str = "notebook") -> None:
     path.write_text(
         f"""
-schema_version = 1
+schema_version = 2
 [[notebook]]
 id = "{notebook_id}"
 path = "course.ipynb"
@@ -66,6 +101,9 @@ title = "Course"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = []
+estimated_minutes = 10
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []
@@ -87,7 +125,7 @@ def test_repository_catalog_registers_every_notebook() -> None:
 
     assert {item.path.as_posix() for item in manifest.notebooks} == discovered
     assert len(manifest.notebooks) == 17
-    assert sum(item.certify for item in manifest.notebooks) == 13
+    assert sum(item.certify for item in manifest.notebooks) == 17
 
 
 def test_course_has_offline_service_and_manual_live_paths() -> None:
@@ -95,9 +133,67 @@ def test_course_has_offline_service_and_manual_live_paths() -> None:
     certified = [item for item in manifest.notebooks if item.certify]
 
     assert {item.mode for item in certified} == {"offline", "services", "live"}
-    assert sum(item.mode == "offline" for item in certified) == 7
+    assert sum(item.mode == "offline" for item in certified) == 10
+    assert sum(item.mode == "services" for item in certified) == 2
+    assert sum(item.mode == "live" for item in certified) == 5
     assert sum(bool(item.video_url) for item in certified) == 9
     assert all(item.timeout > 0 for item in certified)
+    assert all(item.estimated_minutes > 0 for item in certified)
+    assert {item.learning_level for item in certified} == {
+        "fundamentals",
+        "advanced",
+        "capstone",
+    }
+
+
+def test_course_and_case_study_pacing_contracts() -> None:
+    manifest = load_manifest(MANIFEST)
+
+    for item in manifest.notebooks:
+        raw = json.loads((manifest.notebooks_dir / item.path).read_text())
+        if item.track == "course":
+            assert 20 <= len(raw["cells"]) <= 35
+            maximum = 25 if item.learning_level == "fundamentals" else 40
+            for cell in raw["cells"]:
+                if cell["cell_type"] != "code":
+                    continue
+                if "praval-setup" in cell.get("metadata", {}).get("tags", []):
+                    continue
+                source = "".join(cell["source"])
+                assert len(source.splitlines()) <= maximum
+        else:
+            assert 12 <= len(raw["cells"]) <= 20
+
+
+def test_prerequisites_are_known_unique_and_ordered() -> None:
+    manifest = load_manifest(MANIFEST)
+    positions = {item.id: index for index, item in enumerate(manifest.notebooks)}
+
+    for item in manifest.notebooks:
+        assert len(item.prerequisites) == len(set(item.prerequisites))
+        assert all(
+            positions[value] < positions[item.id] for value in item.prerequisites
+        )
+
+
+def test_shared_support_contains_no_agent_workflow() -> None:
+    support = ROOT / "examples" / "notebooks" / "support.py"
+    tree = ast.parse(support.read_text(encoding="utf-8"))
+    forbidden_names = {"Agent", "Reef", "MCPClient", "agent", "broadcast", "tool"}
+
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert not (forbidden_names & imported)
+    assert not (forbidden_names & called)
 
 
 def test_committed_notebooks_have_no_outputs_or_execution_counts() -> None:
@@ -136,6 +232,9 @@ title = "Second"
 track = "course"
 mode = "offline"
 certify = true
+prerequisites = []
+estimated_minutes = 10
+learning_level = "fundamentals"
 extras = []
 providers = []
 services = []

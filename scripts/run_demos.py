@@ -49,6 +49,10 @@ REQUIRED_LIVE_SECRETS = (
 )
 MAX_CAPTURE_CHARS = 64 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+NON_DEMO_EXAMPLE_FILES = {
+    "notebooks/__init__.py",
+    "notebooks/support.py",
+}
 # A demo may not report a successful result while declining to run the
 # behaviour it claims to certify.  Keep this deliberately narrow: ordinary
 # instructional text can mention credentials, but these forms are the
@@ -255,6 +259,8 @@ def validate_manifest_inventory(manifest: DemoManifest) -> None:
         for path in manifest.examples_dir.rglob("*.py")
         if "__pycache__" not in path.parts
         and not any(part.startswith(".") for part in path.parts)
+        and path.relative_to(manifest.examples_dir).as_posix()
+        not in NON_DEMO_EXAMPLE_FILES
     }
     registered = {demo.path.as_posix() for demo in manifest.demos}
     missing = sorted(discovered - registered)
