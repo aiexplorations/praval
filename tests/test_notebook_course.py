@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import json
 import sys
@@ -162,7 +163,82 @@ def test_course_and_case_study_pacing_contracts() -> None:
                 source = "".join(cell["source"])
                 assert len(source.splitlines()) <= maximum
         else:
-            assert 12 <= len(raw["cells"]) <= 20
+            assert 18 <= len(raw["cells"]) <= 24
+            for cell in raw["cells"]:
+                if cell["cell_type"] != "code":
+                    continue
+                tags = set(cell.get("metadata", {}).get("tags", []))
+                if tags & {"praval-setup", "praval-fixture"}:
+                    continue
+                assert len("".join(cell["source"]).splitlines()) <= 80
+
+
+def test_capstone_portfolio_replaces_legacy_paths() -> None:
+    manifest = load_manifest(MANIFEST)
+    case_studies = [item for item in manifest.notebooks if item.track == "case-study"]
+
+    assert {item.id for item in case_studies} == {
+        "case-study-research-intelligence",
+        "case-study-customer-support",
+        "case-study-release-readiness",
+        "case-study-marketing-studio",
+    }
+    assert {item.path.as_posix() for item in case_studies} == {
+        "case_studies/research_intelligence_desk.ipynb",
+        "case_studies/customer_support_resolution_center.ipynb",
+        "case_studies/software_release_readiness.ipynb",
+        "case_studies/marketing_studio.ipynb",
+    }
+
+
+def test_capstone_fixture_hashes_and_provenance() -> None:
+    fixture_root = ROOT / "examples" / "notebooks" / "fixtures"
+    sums = fixture_root / "SHA256SUMS"
+    provenance = fixture_root / "PROVENANCE.md"
+
+    assert provenance.is_file()
+    expected = {}
+    for line in sums.read_text(encoding="utf-8").splitlines():
+        digest, relative = line.split("  ", 1)
+        expected[relative] = digest
+
+    discovered = {
+        path.relative_to(fixture_root).as_posix()
+        for path in fixture_root.rglob("*")
+        if path.is_file() and path != sums
+    }
+    assert set(expected) == discovered
+    for relative, digest in expected.items():
+        contents = (fixture_root / relative).read_bytes()
+        assert hashlib.sha256(contents).hexdigest() == digest
+
+
+def test_capstones_expose_required_praval_behavior() -> None:
+    manifest = load_manifest(MANIFEST)
+    sources = {
+        item.id: (manifest.notebooks_dir / item.path).read_text(encoding="utf-8")
+        for item in manifest.notebooks
+        if item.track == "case-study"
+    }
+
+    for source in sources.values():
+        assert source.count("@agent(") >= 6 or source.count("make_agent(") >= 6
+        assert source.count("@tool(") + source.count("ToolSpec(") >= 2
+        assert "correlation_id" in source
+        assert "show_message_graph" in source
+        assert "show_artifact" in source
+
+    marketing = sources["case-study-marketing-studio"]
+    for contract in (
+        "await audience_agent.agenerate",
+        "ContentPart.image_base64",
+        "requires_approval=True",
+        "InterventionRequired",
+        "approve_intervention",
+        "aresume_run",
+        "PRAVAL_OPENAI_MODEL",
+    ):
+        assert contract in marketing
 
 
 def test_prerequisites_are_known_unique_and_ordered() -> None:

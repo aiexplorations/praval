@@ -1,0 +1,54 @@
+{
+  "case": {
+    "id": "CASE-4815",
+    "opened_at": "2026-01-15T09:15:00Z",
+    "account_id": "ACME-042",
+    "subject": "Automated exports delayed after Tuesday deployment",
+    "message": "Our finance export is arriving two hours late again. This broke month-end last quarter. We need a fix and a service credit, not another generic workaround.",
+    "requested_credit_percent": 25
+  },
+  "account": {
+    "name": "Acme Freight Europe",
+    "plan": "enterprise",
+    "annual_value_gbp": 84000,
+    "support_tier": "priority",
+    "credit_cap_percent": 15,
+    "preferences": [
+      "State the current service status before troubleshooting steps",
+      "Copy the finance operations lead on incident follow-ups"
+    ],
+    "history": [
+      "CASE-3971: delayed exports during 2025-09 month-end",
+      "Customer asked not to receive cache-clearing instructions unless browser state is implicated"
+    ]
+  },
+  "service_status": {
+    "component": "scheduled-exports-eu-west",
+    "state": "degraded",
+    "incident": "INC-2026-017",
+    "started_at": "2026-01-15T07:40:00Z",
+    "cause": "queue partition regression in release 4.18.0",
+    "mitigation": "rollback in progress",
+    "next_update_at": "2026-01-15T10:30:00Z"
+  },
+  "knowledge_articles": [
+    {
+      "id": "KB-122",
+      "updated": "2023-05-10",
+      "title": "Clear browser cache when scheduled exports are delayed",
+      "status": "stale",
+      "guidance": "Ask the user to clear browser cache and retry the export."
+    },
+    {
+      "id": "KB-418",
+      "updated": "2026-01-15",
+      "title": "Release 4.18 export queue regression",
+      "status": "current",
+      "guidance": "Confirm incident INC-2026-017, do not ask customers to retry repeatedly, and offer a corrected delivery window after rollback."
+    }
+  ],
+  "policy": {
+    "incident_credit_rule": "Priority customers with more than 60 minutes of impact may receive up to the account credit cap after reviewer approval.",
+    "approval_required_above_percent": 10
+  }
+}

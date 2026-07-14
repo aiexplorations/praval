@@ -1,0 +1,8 @@
+{
+  "landing_page": {"headline_max_chars": 72, "subhead_max_chars": 180},
+  "email": {"subject_max_chars": 52, "body_max_words": 180},
+  "linkedin": {"post_max_chars": 900},
+  "paid_social": {"primary_text_max_chars": 150},
+  "budget_gbp": 6000,
+  "campaign_days": 28
+}

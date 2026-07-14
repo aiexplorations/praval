@@ -339,7 +339,7 @@ def validate_notebook(path: Path, entry: Notebook) -> None:
         raise NotebookManifestError(
             f"{entry.id}: missing teaching section(s): " + ", ".join(missing_sections)
         )
-    expected_range = (20, 35) if entry.track == "course" else (12, 20)
+    expected_range = (20, 35) if entry.track == "course" else (18, 24)
     if not expected_range[0] <= len(cells) <= expected_range[1]:
         raise NotebookManifestError(
             f"{entry.id}: expected {expected_range[0]}-{expected_range[1]} cells, "
@@ -394,6 +394,16 @@ def validate_notebook(path: Path, entry: Notebook) -> None:
                 raise NotebookManifestError(
                     f"{entry.id}: code cell {index} has {line_count} lines; "
                     f"maximum is {max_lines}"
+                )
+        if entry.track == "case-study" and not {
+            "praval-setup",
+            "praval-fixture",
+        }.intersection(tags):
+            line_count = len(source.splitlines())
+            if line_count > 80:
+                raise NotebookManifestError(
+                    f"{entry.id}: code cell {index} has {line_count} lines; "
+                    "case-study maximum is 80"
                 )
         try:
             compile(

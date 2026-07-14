@@ -8,7 +8,8 @@ recursive-include examples *.py
 recursive-include scripts *.py *.sh
 include examples/manifest.toml
 recursive-include examples/certification/assets *.txt *.base64 *.md
-recursive-include examples/notebooks *.ipynb *.toml *.md *.py
+recursive-include examples/notebooks *.ipynb *.toml *.md *.py *.json *.txt *.base64 *.svg
+include examples/notebooks/fixtures/SHA256SUMS
 recursive-include docs *.md
 recursive-include docs *.png
 recursive-include docs *.rst

@@ -209,47 +209,52 @@ timeout = 360
 video_url = ""
 
 [[notebook]]
-id = "case-study-building-agents"
-path = "case_studies/building_agents_tutorial.ipynb"
-title = "Building an Agent Team"
+id = "case-study-research-intelligence"
+path = "case_studies/research_intelligence_desk.ipynb"
+title = "Research Intelligence Desk"
 track = "case-study"
 mode = "offline"
 certify = true
 prerequisites = [
-    "course-01-hello-world",
+    "course-02-research-pipeline",
+    "course-03-feedback-loop",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+    "course-06-agent-memory",
+]
+estimated_minutes = 60
+learning_level = "capstone"
+extras = []
+providers = []
+services = []
+timeout = 180
+video_url = ""
+
+[[notebook]]
+id = "case-study-customer-support"
+path = "case_studies/customer_support_resolution_center.ipynb"
+title = "Customer Support Resolution Center"
+track = "case-study"
+mode = "offline"
+certify = true
+prerequisites = [
     "course-02-research-pipeline",
     "course-04-parallel-agents",
     "course-05-tool-use",
     "course-06-agent-memory",
 ]
-estimated_minutes = 45
+estimated_minutes = 60
 learning_level = "capstone"
 extras = []
 providers = []
 services = []
-timeout = 120
+timeout = 180
 video_url = ""
 
 [[notebook]]
-id = "case-study-conversational-memory"
-path = "case_studies/conversational_memory_agent.ipynb"
-title = "Conversational Memory Assistant"
-track = "case-study"
-mode = "offline"
-certify = true
-prerequisites = ["course-06-agent-memory"]
-estimated_minutes = 35
-learning_level = "capstone"
-extras = []
-providers = []
-services = []
-timeout = 120
-video_url = ""
-
-[[notebook]]
-id = "case-study-student-analytics"
-path = "case_studies/student_analytics.ipynb"
-title = "Student Analytics Pipeline"
+id = "case-study-release-readiness"
+path = "case_studies/software_release_readiness.ipynb"
+title = "Software Release Readiness Team"
 track = "case-study"
 mode = "offline"
 certify = true
@@ -257,31 +262,36 @@ prerequisites = [
     "course-02-research-pipeline",
     "course-04-parallel-agents",
     "course-05-tool-use",
+    "course-08-production",
 ]
-estimated_minutes = 45
+estimated_minutes = 60
 learning_level = "capstone"
-extras = []
+extras = ["observability"]
 providers = []
 services = []
-timeout = 120
+timeout = 240
 video_url = ""
 
 [[notebook]]
-id = "case-study-student-analytics-ai"
-path = "case_studies/student_analytics_ai.ipynb"
-title = "AI-Powered Student Analytics"
+id = "case-study-marketing-studio"
+path = "case_studies/marketing_studio.ipynb"
+title = "AI Marketing Studio"
 track = "case-study"
 mode = "live"
 certify = true
 prerequisites = [
+    "course-02-research-pipeline",
+    "course-03-feedback-loop",
+    "course-05-tool-use",
+    "course-06-agent-memory",
     "course-09-model-runtime",
     "course-10-hitl",
-    "case-study-student-analytics",
+    "course-12-voice-multimodal",
 ]
-estimated_minutes = 45
+estimated_minutes = 75
 learning_level = "capstone"
 extras = []
 providers = ["openai"]
 services = []
-timeout = 300
+timeout = 480
 video_url = ""

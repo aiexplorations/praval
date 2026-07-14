@@ -1,0 +1,19 @@
+{
+  "interviews": [
+    {
+      "role": "VP Engineering",
+      "quote": "I do not need another dashboard. I need to know which evidence is missing before I approve the release.",
+      "signal": "decision_confidence"
+    },
+    {
+      "role": "Release Manager",
+      "quote": "Collecting test, security, incident, and documentation status takes most of release morning.",
+      "signal": "evidence_collection"
+    },
+    {
+      "role": "CTO",
+      "quote": "The audit trail matters because a green check without context is not defensible later.",
+      "signal": "auditability"
+    }
+  ]
+}

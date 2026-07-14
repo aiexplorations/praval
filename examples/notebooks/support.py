@@ -233,6 +233,84 @@ def show_spore(spore: Any, label: str = "Spore on the Reef") -> None:
     show_json(json.loads(spore.to_json()), label, role="spore")
 
 
+def show_scorecard(
+    rows: Sequence[Tuple[str, Any, str]], label: str = "Certification scorecard"
+) -> None:
+    """Render named checks with a value and pass, warn, or fail status."""
+    status_colors = {
+        "pass": ("#ecfdf5", "#047857"),
+        "warn": ("#fff7ed", "#c2410c"),
+        "fail": ("#fef2f2", "#b91c1c"),
+    }
+    rendered = []
+    for name, value, status in rows:
+        background, accent = status_colors.get(str(status).lower(), _COLORS["default"])
+        rendered.append(
+            "<tr>"
+            f"<td>{html.escape(str(name))}</td>"
+            f"<td><strong>{html.escape(str(value))}</strong></td>"
+            f'<td><span style="background:{background};color:{accent};'
+            'padding:3px 8px;border-radius:999px;font-size:12px">'
+            f"{html.escape(str(status).upper())}</span></td>"
+            "</tr>"
+        )
+    display(
+        HTML(
+            f'<h4 style="color:#0f172a;margin:14px 0 6px">{html.escape(label)}</h4>'
+            '<table style="border-collapse:collapse;width:100%;margin:6px 0 14px">'
+            "<thead><tr><th>Check</th><th>Observed</th><th>Status</th></tr>"
+            "</thead><tbody>" + "".join(rendered) + "</tbody></table>"
+        )
+    )
+
+
+def show_message_graph(
+    messages: Sequence[Mapping[str, Any]], label: str = "Correlated message trail"
+) -> None:
+    """Render a compact stage-by-stage view of domain message contracts."""
+    cards = []
+    for index, message in enumerate(messages):
+        if index:
+            cards.append('<div style="color:#64748b;font-size:20px">→</div>')
+        message_type = str(message.get("type", "message"))
+        producer = str(message.get("producer", "unknown"))
+        stage_name = str(message.get("stage", ""))
+        status = str(message.get("status", ""))
+        cards.append(
+            '<div style="border:1px solid #8b5cf6;background:#f5f3ff;'
+            'border-radius:10px;padding:10px 12px;min-width:150px">'
+            f'<strong style="color:#6d28d9">{html.escape(message_type)}</strong>'
+            f'<div style="font-size:12px;color:#475569">{html.escape(producer)}</div>'
+            f'<div style="font-size:12px;color:#475569">{html.escape(stage_name)} · '
+            f"{html.escape(status)}</div></div>"
+        )
+    display(
+        HTML(
+            f'<h4 style="color:#0f172a;margin:14px 0 6px">{html.escape(label)}</h4>'
+            '<div style="display:flex;gap:7px;align-items:center;overflow-x:auto;'
+            'padding:6px 0 14px">' + "".join(cards) + "</div>"
+        )
+    )
+
+
+def show_artifact(title: str, value: Any) -> None:
+    """Render a substantial final artifact without hiding how it was produced."""
+    if isinstance(value, str):
+        rendered = html.escape(value)
+    else:
+        rendered = html.escape(json.dumps(value, indent=2, sort_keys=True, default=str))
+    display(
+        HTML(
+            '<div style="border:1px solid #94a3b8;border-radius:12px;'
+            'background:#ffffff;padding:16px;margin:12px 0">'
+            f'<div style="font-size:18px;font-weight:650;color:#0f172a">'
+            f"{html.escape(title)}</div>"
+            f'<pre style="white-space:pre-wrap;color:#334155;margin-bottom:0">'
+            f"{rendered}</pre></div>"
+        )
+    )
+
+
 def require_env(*names: str) -> Dict[str, str]:
     """Return required environment values or fail with a useful action message."""
     missing = [name for name in names if not os.environ.get(name)]
@@ -261,10 +339,13 @@ __all__ = [
     "require_env",
     "setup_case_study",
     "setup_notebook",
+    "show_artifact",
     "show_callout",
     "show_flow",
     "show_json",
+    "show_message_graph",
     "show_roles",
+    "show_scorecard",
     "show_spore",
     "show_timeline",
     "stage",

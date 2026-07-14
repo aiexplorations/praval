@@ -51,6 +51,8 @@ MAX_CAPTURE_CHARS = 64 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 NON_DEMO_EXAMPLE_FILES = {
     "notebooks/__init__.py",
+    "notebooks/fixtures/release_candidate/src/ledger.py",
+    "notebooks/fixtures/release_candidate/tests/test_ledger.py",
     "notebooks/support.py",
 }
 # A demo may not report a successful result while declining to run the

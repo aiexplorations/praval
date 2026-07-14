@@ -221,6 +221,16 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         "/examples/certification/assets/voice_input.wav.gz.base64",
         "/examples/certification/assets/video_input.mp4.base64",
         "/examples/certification/assets/PROVENANCE.md",
+        "/examples/notebooks/fixtures/PROVENANCE.md",
+        "/examples/notebooks/fixtures/SHA256SUMS",
+        "/examples/notebooks/fixtures/research_sources.json",
+        "/examples/notebooks/fixtures/support_case.json",
+        "/examples/notebooks/fixtures/release_candidate/src/ledger.py",
+        "/examples/notebooks/fixtures/release_candidate/tests/test_ledger.py",
+        "/examples/notebooks/fixtures/release_candidate/pyproject.toml",
+        "/examples/notebooks/fixtures/marketing/product_brief.md",
+        "/examples/notebooks/fixtures/marketing/approved_facts.json",
+        "/examples/notebooks/fixtures/marketing/product_screenshot.png.base64",
     )
     if not all(
         any(name.endswith(suffix) for name in sdist_names)
