@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional
 MAX_SDIST_BYTES = 3 * 1024 * 1024
 FORBIDDEN_PARTS = {
     "__pycache__",
+    ".ipynb_checkpoints",
     ".pytest_cache",
     "_build",
     "archive",
@@ -77,6 +78,22 @@ def _metadata_from_wheel(wheel: Path) -> Dict[str, Any]:
 def _sdist_names(sdist: Path) -> List[str]:
     with tarfile.open(sdist, "r:gz") as archive:
         return archive.getnames()
+
+
+def _sdist_text(sdist: Path, suffix: str) -> Optional[str]:
+    """Read one UTF-8 text member selected by its path suffix."""
+    with tarfile.open(sdist, "r:gz") as archive:
+        matches = [
+            member
+            for member in archive.getmembers()
+            if member.isfile() and member.name.endswith(suffix)
+        ]
+        if len(matches) != 1:
+            return None
+        extracted = archive.extractfile(matches[0])
+        if extracted is None:
+            return None
+        return extracted.read().decode("utf-8")
 
 
 def _wheel_names(wheel: Path) -> List[str]:
@@ -179,12 +196,24 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         for name in sdist_names
         if "/examples/notebooks/" in name and name.endswith(".ipynb")
     ]
-    if len(notebook_names) < 17:
-        errors.append("sdist must contain the complete visual notebook catalog")
+    if len(notebook_names) != 17:
+        errors.append(
+            "sdist must contain exactly 17 maintained visual notebooks, "
+            f"found {len(notebook_names)}"
+        )
     if not any(
         name.endswith("/examples/notebooks/manifest.toml") for name in sdist_names
     ):
         errors.append("sdist must contain the notebook execution manifest")
+    else:
+        notebook_manifest = _sdist_text(sdist, "/examples/notebooks/manifest.toml")
+        schema_match = re.search(
+            r"(?m)^schema_version\s*=\s*(\d+)\s*$", notebook_manifest or ""
+        )
+        if schema_match is None or int(schema_match.group(1)) != 2:
+            errors.append("sdist notebook manifest must use schema version 2")
+    if not any(name.endswith("/examples/notebooks/support.py") for name in sdist_names):
+        errors.append("sdist must contain the shared notebook support module")
     required_fixture_suffixes = (
         "/examples/certification/assets/image_input.png.base64",
         "/examples/certification/assets/knowledge_input.pdf.base64",

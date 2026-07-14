@@ -37,12 +37,15 @@ are separate from direct connections owned by `praval.mcp.MCPClient`.
 ## Quality and Build Changes
 
 - Every prior expected-failure cause is fixed; strict xfail handling is on.
-- A 13-part visual Jupyter course now shows agent stages, Reef routing, Spore
-  payloads, feedback loops, fan-out/fan-in, tools, memory, ModelRuntime, HITL,
-  MCP, and real voice/multimodal flows. Four longer historical notebooks are
-  retained as catalogued case studies.
-- Exact-wheel notebook certification runs seven keyless notebooks in normal
-  CI, RabbitMQ/OTLP and official-SDK MCP notebooks in service CI, and live
+- A beginner-first 13-part Jupyter course now explains Agent, Reef, Spore,
+  handlers, routing, lifecycle, feedback, fan-out/fan-in, tools, memory,
+  ModelRuntime, HITL, MCP, and real voice/multimodal flows. Optional under-the-hood
+  sections preserve depth for experienced readers. Four architecture-focused
+  capstones are maintained and certified rather than retained as reference-only
+  historical material.
+- Manifest v2 records prerequisites, estimated time, and learning level for all
+  17 notebooks. Exact-wheel certification runs ten offline notebooks in normal
+  CI, RabbitMQ/OTLP and official-SDK MCP notebooks in service CI, and five live
   provider, Qdrant, HITL, STT, and TTS notebooks only through the protected
   manual live workflow.
 - Complete-package statement coverage must reach 90%, with focused floors for

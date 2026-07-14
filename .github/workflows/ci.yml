@@ -57,7 +57,7 @@ jobs:
           python-version: "3.13"
           cache: pip
       - name: Install quality dependencies
-        run: python -m pip install -e ".[dev,docs,mcp]"
+        run: python -m pip install -e ".[dev,docs,mcp,notebooks]"
       - name: Run complete coverage
         run: >-
           pytest tests/
@@ -75,17 +75,26 @@ jobs:
         run: mypy src/praval/
       - name: Check formatting and imports
         run: |
-          black --check src/ tests/ scripts/ examples/certification/
-          isort --check-only src/ tests/ scripts/ examples/certification/ --profile black
+          black --check src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py
+          isort --check-only src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py --profile black
       - name: Run lint
         run: >-
-          flake8 src/ tests/ scripts/ examples/certification/
+          flake8 src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py
           --max-line-length=88 --extend-ignore=E203,W503
       - name: Validate visual notebook catalog
         run: >-
           python scripts/run_notebooks.py
           --manifest examples/notebooks/manifest.toml
           --validate-only
+      - name: Render all notebooks to HTML
+        run: >-
+          jupyter nbconvert
+          --to html
+          --output-dir "$RUNNER_TEMP/notebook-html"
+          --TemplateExporter.exclude_input_prompt=True
+          --TemplateExporter.exclude_output_prompt=True
+          examples/notebooks/course/*.ipynb
+          examples/notebooks/case_studies/*.ipynb
       - name: Build warning-free documentation
         run: sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
       - name: Upload coverage evidence
@@ -98,6 +107,14 @@ jobs:
             htmlcov/
           if-no-files-found: warn
           retention-days: 14
+      - name: Upload notebook presentation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: notebook-html-${{ github.sha }}
+          path: ${{ runner.temp }}/notebook-html/
+          if-no-files-found: error
+          retention-days: 30
 
   mcp-contracts:
     name: MCP stdio and Streamable HTTP

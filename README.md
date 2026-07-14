@@ -91,11 +91,13 @@ models that have been verified against provider documentation for the release.
 
 ## Visual notebook course
 
-The [Jupyter course](examples/notebooks/README.md) renders agent stages, Reef
-routes, Spore payloads, feedback loops, parallel fan-out/fan-in, runtime events,
-HITL decisions, MCP calls, and real voice round trips as they execute. Start with
-`examples/notebooks/course/00_architecture.ipynb`. Seven course notebooks are
-keyless; service and paid-provider notebooks declare their prerequisites.
+The [Jupyter learning experience](examples/notebooks/README.md) has a detailed
+13-part course and four architecture-focused capstones. It renders agent stages,
+Reef routes, Spore payloads, feedback loops, parallel fan-out/fan-in, runtime events,
+memory state, HITL decisions, MCP calls, and real voice round trips as they execute.
+Start with `examples/notebooks/course/00_architecture.ipynb`. Normal CI certifies ten
+offline notebooks and two real-service notebooks; five provider-backed notebooks run
+only through protected manual certification.
 
 ```bash
 source venv/bin/activate

@@ -24,6 +24,7 @@ validation = _load_script("validate_distribution")
 _forbidden_entries = validation._forbidden_entries
 _package_version = validation._package_version
 _project_version = validation._project_version
+_sdist_text = validation._sdist_text
 write_manifest = _load_script("write_build_manifest").write_manifest
 
 
@@ -72,12 +73,29 @@ def test_distribution_validation_helpers_read_versions_and_reject_generated_file
             "praval-0.8.0/docs/generated/manual.pdf",
             "praval-0.8.0/docs/logo.png",
             "praval/__pycache__/module.pyc",
+            "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
         ]
     ) == [
         "praval-0.8.0/docs/generated/manual.pdf",
         "praval-0.8.0/docs/logo.png",
         "praval/__pycache__/module.pyc",
+        "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
     ]
+
+
+def test_sdist_text_reads_one_matching_member(tmp_path):
+    sdist = tmp_path / "praval-0.8.0.tar.gz"
+    content = b"schema_version = 2\n"
+    with tarfile.open(sdist, "w:gz") as archive:
+        member = tarfile.TarInfo("praval-0.8.0/examples/notebooks/manifest.toml")
+        member.size = len(content)
+        archive.addfile(member, io.BytesIO(content))
+
+    assert (
+        _sdist_text(sdist, "/examples/notebooks/manifest.toml")
+        == "schema_version = 2\n"
+    )
+    assert _sdist_text(sdist, "/missing.toml") is None
 
 
 def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
