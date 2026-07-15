@@ -231,6 +231,15 @@ ignore_errors = true
 module = ["mcp.*"]
 follow_imports = "skip"
 
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["sentence_transformers", "sentence_transformers.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["src/praval"]
 omit = [
