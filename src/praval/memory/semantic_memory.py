@@ -9,6 +9,7 @@ This manages:
 """
 
 from datetime import datetime
+from statistics import fmean
 from typing import Any, Dict, List, Optional
 
 from .long_term_memory import LongTermMemory
@@ -384,7 +385,7 @@ class SemanticMemory:
         confidence_scores = [
             entry.metadata.get("confidence", 0.5) for entry in domain_knowledge
         ]
-        average_confidence = sum(confidence_scores) / len(confidence_scores)
+        average_confidence = fmean(confidence_scores)
 
         # Determine expertise level
         if knowledge_count >= 50 and average_confidence >= 0.8:

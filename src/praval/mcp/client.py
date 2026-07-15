@@ -8,10 +8,10 @@ import json
 import logging
 import re
 import uuid
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -166,20 +166,16 @@ class MCPClient:
         stack = AsyncExitStack()
         try:
             sdk = self._load_sdk()
-            streams = await asyncio.wait_for(
-                self._enter_transport(stack, sdk),
-                timeout=self.config.connection_timeout,
-            )
+            async with self._timeout_scope(self.config.connection_timeout):
+                streams = await self._enter_transport(stack, sdk)
             read_stream, write_stream = streams[0], streams[1]
             session = sdk["ClientSession"](
                 read_stream,
                 write_stream,
                 read_timeout_seconds=timedelta(seconds=self.config.tool_timeout),
             )
-            await asyncio.wait_for(
-                stack.enter_async_context(session),
-                timeout=self.config.connection_timeout,
-            )
+            async with self._timeout_scope(self.config.connection_timeout):
+                await stack.enter_async_context(session)
             initialized = await asyncio.wait_for(
                 session.initialize(), timeout=self.config.connection_timeout
             )
@@ -460,6 +456,34 @@ class MCPClient:
             "create_mcp_http_client": create_mcp_http_client,
             "httpx": httpx,
         }
+
+    @staticmethod
+    @asynccontextmanager
+    async def _timeout_scope(timeout: float) -> AsyncIterator[None]:
+        """Apply a timeout without moving async context entry to another task."""
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("MCP timeout requires an active asyncio task")
+
+        timed_out = False
+
+        def cancel_task() -> None:
+            nonlocal timed_out
+            timed_out = True
+            task.cancel()
+
+        handle = asyncio.get_running_loop().call_later(timeout, cancel_task)
+        try:
+            yield
+        except asyncio.CancelledError:
+            if timed_out:
+                uncancel = getattr(task, "uncancel", None)
+                if uncancel is not None:
+                    uncancel()
+                raise asyncio.TimeoutError from None
+            raise
+        finally:
+            handle.cancel()
 
     def _sanitize_error(self, message: str) -> str:
         sanitized = str(message or "")

@@ -38,6 +38,27 @@ class FakeSession:
         return self.result
 
 
+class TaskBoundContext:
+    """Async context that requires exit from the task that entered it."""
+
+    def __init__(self, value=None):
+        self.value = value
+        self.task = None
+
+    async def __aenter__(self):
+        self.task = asyncio.current_task()
+        return self.value if self.value is not None else self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if asyncio.current_task() is not self.task:
+            raise RuntimeError("context exited from a different task")
+
+
+class TaskBoundSession(TaskBoundContext):
+    async def initialize(self):
+        return SimpleNamespace(capabilities=SimpleNamespace(tools=object()))
+
+
 def stdio_config(**overrides):
     values = {
         "name": "weather",
@@ -126,6 +147,47 @@ def test_http_config_accepts_https_and_localhost_and_rejects_stdio_fields():
         MCPServerConfig(
             name="remote", transport="streamable_http", url="ftp://example.com/mcp"
         )
+
+
+@pytest.mark.asyncio
+async def test_connect_and_close_keep_context_lifecycle_in_calling_task():
+    transport = TaskBoundContext((object(), object()))
+    session = TaskBoundSession()
+    client = MCPClient(stdio_config())
+
+    async def enter_transport(stack, sdk):
+        return await stack.enter_async_context(transport)
+
+    sdk = {"ClientSession": lambda *args, **kwargs: session}
+    with (
+        patch.object(client, "_load_sdk", return_value=sdk),
+        patch.object(client, "_enter_transport", side_effect=enter_transport),
+    ):
+        await client.connect()
+        await client.close()
+
+    assert transport.task is session.task
+
+
+@pytest.mark.asyncio
+async def test_connect_timeout_is_reported_without_leaking_cancellation():
+    client = MCPClient(stdio_config(connection_timeout=0.001))
+    task = asyncio.current_task()
+
+    async def delayed_transport(stack, sdk):
+        await asyncio.sleep(1)
+
+    with (
+        patch.object(client, "_load_sdk", return_value={}),
+        patch.object(client, "_enter_transport", side_effect=delayed_transport),
+    ):
+        with pytest.raises(MCPConnectionError, match="Failed to connect"):
+            await client.connect()
+
+    await asyncio.sleep(0)
+    assert client.connected is False
+    if task is not None and hasattr(task, "cancelling"):
+        assert task.cancelling() == 0
 
 
 @pytest.mark.asyncio
