@@ -149,6 +149,8 @@ dev = [
     "mcp>=1.27,<2; python_version >= '3.10'",
     # Embedded memory backend testing (without heavyweight embedding models)
     "chromadb>=0.4.0",
+    # Keep NumPy stubs compatible with mypy's Python 3.9 target.
+    "numpy>=1.22.5,<2.4",
     "build>=1.2.0",
     "twine>=5.0.0",
     # Storage provider testing
@@ -229,10 +231,6 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = ["mcp.*"]
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = ["numpy", "numpy.*"]
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
