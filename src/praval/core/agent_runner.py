@@ -96,7 +96,8 @@ class AgentRunner:
         self.backend = backend or self._create_backend()
         self.loop = loop
         self.reef: Optional[Reef] = None
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: Optional[asyncio.Event] = None
+        self._shutdown_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self._running = False
 
         # Validate agents
@@ -106,6 +107,14 @@ class AgentRunner:
                     f"Agent {agent.__name__} is not decorated with @agent. "
                     "All agents must be decorated with the @agent decorator."
                 )
+
+    def _get_shutdown_event(self) -> asyncio.Event:
+        """Return the shutdown event for the currently running event loop."""
+        loop = asyncio.get_running_loop()
+        if self._shutdown_event is None or self._shutdown_event_loop is not loop:
+            self._shutdown_event = asyncio.Event()
+            self._shutdown_event_loop = loop
+        return self._shutdown_event
 
     def _create_backend(self) -> Any:
         """Create RabbitMQ backend from config."""
@@ -202,6 +211,7 @@ class AgentRunner:
         if self._running:
             raise RuntimeError("Agent runner is already running")
 
+        shutdown_event = self._get_shutdown_event()
         self._running = True
         logger.info("=" * 70)
         logger.info(f"Starting distributed agent system with {len(self.agents)} agents")
@@ -215,7 +225,7 @@ class AgentRunner:
             logger.info("Agents ready and listening. Press Ctrl+C to shutdown...")
 
             # Wait for shutdown event (triggered by signal handler)
-            await self._shutdown_event.wait()
+            await shutdown_event.wait()
 
         except KeyboardInterrupt:
             logger.info("\nKeyboard interrupt received")
@@ -249,7 +259,8 @@ class AgentRunner:
             """Handle shutdown signals gracefully."""
             sig_name = signal.Signals(signum).name
             logger.info(f"\n{sig_name} received, shutting down gracefully...")
-            self._shutdown_event.set()
+            if self._shutdown_event is not None:
+                self._shutdown_event.set()
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, signal_handler)

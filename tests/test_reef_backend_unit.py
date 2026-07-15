@@ -1,7 +1,19 @@
+from unittest.mock import patch
+
 import pytest
 
 from praval.core.reef import Spore, SporeType
 from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
+
+
+def test_inmemory_backend_defers_lock_creation_until_async_use():
+    with patch(
+        "praval.core.reef_backend.asyncio.Lock",
+        side_effect=AssertionError("lock created eagerly"),
+    ):
+        backend = InMemoryBackend()
+
+    assert backend._lock is None
 
 
 @pytest.mark.asyncio

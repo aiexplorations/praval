@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -54,6 +55,17 @@ def test_agent_runner_validates_agents():
         AgentRunner(agents=[lambda spore: None])
 
 
+def test_agent_runner_defers_shutdown_event_until_async_use(dummy_agent):
+    backend = FakeBackend()
+    with patch(
+        "praval.core.agent_runner.asyncio.Event",
+        side_effect=AssertionError("event created eagerly"),
+    ):
+        runner = AgentRunner(agents=[dummy_agent], backend=backend)
+
+    assert runner._shutdown_event is None
+
+
 @pytest.mark.asyncio
 async def test_agent_runner_initialize_distributed(dummy_agent):
     backend = FakeBackend()
@@ -81,7 +93,7 @@ async def test_agent_runner_run_async_exits_when_shutdown_set(dummy_agent):
     runner = AgentRunner(
         agents=[dummy_agent], backend=backend, backend_config={"url": "amqp://"}
     )
-    runner._shutdown_event.set()
+    runner._get_shutdown_event().set()
     await runner.run_async()
     assert runner._running is False
 
