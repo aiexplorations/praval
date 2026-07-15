@@ -1,5 +1,7 @@
 """Behavioral edge coverage for HITL policy, runtime, and service APIs."""
 
+from __future__ import annotations
+
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 

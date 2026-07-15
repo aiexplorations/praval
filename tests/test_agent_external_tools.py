@@ -9,8 +9,14 @@ from praval.core.exceptions import PravalError
 from praval.models import ModelResponse, ProviderCapabilities, ToolCall, ToolSpec
 
 
+def _make_agent() -> Agent:
+    """Create an Agent without relying on developer API credentials."""
+    with patch("praval.core.agent.ProviderFactory.create_provider"):
+        return Agent("external-tools", provider="fake", model="fake-model")
+
+
 def test_add_tool_spec_preserves_schema_policy_and_metadata():
-    agent = Agent("external-tools")
+    agent = _make_agent()
     spec = ToolSpec(
         name="weather__lookup",
         description="Look up weather",
@@ -43,7 +49,7 @@ def test_add_tool_spec_preserves_schema_policy_and_metadata():
 
 
 def test_add_tool_spec_rejects_duplicate_name_and_invalid_schema():
-    agent = Agent("external-tools")
+    agent = _make_agent()
 
     def handler(**kwargs):
         return kwargs
@@ -60,7 +66,7 @@ def test_add_tool_spec_rejects_duplicate_name_and_invalid_schema():
 
 
 def test_add_tool_spec_rejects_non_async_handler_for_async_only_tool():
-    agent = Agent("external-tools")
+    agent = _make_agent()
     spec = ToolSpec(name="external")
 
     def handler() -> str:

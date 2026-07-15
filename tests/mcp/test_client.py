@@ -3,6 +3,7 @@
 import asyncio
 import sys
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
@@ -50,6 +51,12 @@ def stdio_config(**overrides):
 def attach_session(client, session):
     client._session = session
     return client
+
+
+def make_agent() -> Agent:
+    """Create an Agent without relying on developer API credentials."""
+    with patch("praval.core.agent.ProviderFactory.create_provider"):
+        return Agent("mcp-agent", provider="fake", model="fake-model")
 
 
 def test_server_config_validates_transport_and_insecure_urls():
@@ -229,7 +236,7 @@ async def test_register_tools_uses_agent_registry_and_async_handler():
     )
     session = FakeSession(tools=[tool], result=result)
     client = attach_session(MCPClient(stdio_config(require_approval=False)), session)
-    agent = Agent("mcp-agent")
+    agent = make_agent()
 
     await client.register_tools(agent)
     registered = agent.tools["weather__forecast"]
