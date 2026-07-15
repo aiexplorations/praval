@@ -149,10 +149,6 @@ dev = [
     "mcp>=1.27,<2; python_version >= '3.10'",
     # Embedded memory backend testing (without heavyweight embedding models)
     "chromadb>=0.4.0",
-    # Keep NumPy stubs compatible with mypy's Python 3.9 target.
-    "numpy>=1.22.5,<2.4",
-    # Keep Click source compatible with mypy's Python 3.9 target.
-    "click>=8.0,<8.3",
     "build>=1.2.0",
     "twine>=5.0.0",
     # Storage provider testing
@@ -201,7 +197,7 @@ profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

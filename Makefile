@@ -75,7 +75,7 @@ lint:
 	./venv/bin/flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
 
 type-check:
-	./venv/bin/mypy src/praval/
+	./venv/bin/python scripts/check_types.py
 
 clean:
 	rm -rf build/

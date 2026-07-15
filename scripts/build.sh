@@ -33,7 +33,7 @@ pytest tests/ \
 python scripts/check_coverage_floors.py coverage.json
 
 echo "Running static quality gates"
-mypy src/praval/
+python scripts/check_types.py
 black --check src/ tests/ scripts/
 isort --check-only src/ tests/ scripts/ --profile black
 flake8 src/ tests/ scripts/ --max-line-length=88 --extend-ignore=E203,W503

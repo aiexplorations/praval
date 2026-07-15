@@ -72,7 +72,7 @@ jobs:
       - name: Enforce focused coverage floors
         run: python scripts/check_coverage_floors.py coverage.json
       - name: Run typing
-        run: mypy src/praval/
+        run: python scripts/check_types.py
       - name: Check formatting and imports
         run: |
           black --check src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py

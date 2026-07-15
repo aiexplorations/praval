@@ -26,6 +26,7 @@ _package_version = validation._package_version
 _project_version = validation._project_version
 _sdist_text = validation._sdist_text
 write_manifest = _load_script("write_build_manifest").write_manifest
+type_checks = _load_script("check_types")
 
 
 def _write_sdist(path, *, mtime, uid):
@@ -113,3 +114,20 @@ def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
     checksums = (tmp_path / "SHA256SUMS").read_text()
     assert hashlib.sha256(b"wheel").hexdigest() in checksums
     assert hashlib.sha256(b"sdist").hexdigest() in checksums
+
+
+def test_type_checks_cover_current_and_minimum_python_versions():
+    labels = [label for label, _ in type_checks.TYPE_CHECKS]
+    commands = [tuple(arguments) for _, arguments in type_checks.TYPE_CHECKS]
+
+    assert labels == [
+        "strict Python 3.13 typing",
+        "Python 3.9 compatibility typing",
+    ]
+    assert ("--python-version", "3.13", "src/praval/") in commands
+    assert any(
+        "--python-version" in command
+        and "3.9" in command
+        and "--no-site-packages" in command
+        for command in commands
+    )
