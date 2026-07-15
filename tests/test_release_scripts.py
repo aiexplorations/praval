@@ -8,6 +8,11 @@ import sys
 import tarfile
 from pathlib import Path
 
+try:
+    import tomllib
+except ImportError:  # pragma: no cover - Python 3.9/3.10 compatibility
+    import tomli as tomllib
+
 
 def _load_script(name):
     path = Path("scripts") / f"{name}.py"
@@ -131,3 +136,11 @@ def test_type_checks_cover_current_and_minimum_python_versions():
         and "--no-site-packages" in command
         for command in commands
     )
+
+
+def test_python39_s3_extras_constrain_cohere_request_stubs():
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    expected = "types-requests==2.28.11.17; python_version < '3.10'"
+
+    for extra in ("storage", "all", "dev"):
+        assert expected in project["optional-dependencies"][extra]
