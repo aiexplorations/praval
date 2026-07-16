@@ -10,6 +10,6 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-python "$SCRIPT_DIR/stage_docs_artifact.py" \
+python3 "$SCRIPT_DIR/stage_docs_artifact.py" \
   --artifact "$1" \
   --website "$2"

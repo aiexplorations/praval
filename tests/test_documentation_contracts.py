@@ -112,6 +112,8 @@ def test_documentation_sanitizer_and_tree_hash(tmp_path):
     (site / ".doctrees/state").write_text("cache")
     (site / "index.html").write_text("<h1>Praval</h1>")
     (site / ".buildinfo.bak").write_text("backup")
+    (site / ".buildinfo").write_text("generated")
+    (site / ".nojekyll").write_text("")
 
     docs_builder.sanitize_site(site)
     first = docs_builder.tree_sha256(site)
@@ -120,6 +122,8 @@ def test_documentation_sanitizer_and_tree_hash(tmp_path):
     assert first == second
     assert not (site / ".doctrees").exists()
     assert not (site / ".buildinfo.bak").exists()
+    assert not (site / ".buildinfo").exists()
+    assert not (site / ".nojekyll").exists()
     assert len(first) == 64
 
 

@@ -50,7 +50,8 @@ def sanitize_site(site_dir: Path) -> None:
         if path.is_dir() and path.name in {".doctrees", "__pycache__"}:
             shutil.rmtree(path)
         elif path.is_file() and (
-            path.name.endswith((".bak", ".pyc", ".pyo")) or path.name in {".DS_Store"}
+            path.name.endswith((".bak", ".pyc", ".pyo"))
+            or path.name in {".buildinfo", ".DS_Store", ".nojekyll"}
         ):
             path.unlink()
 
