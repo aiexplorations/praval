@@ -12,9 +12,9 @@ structured model runtime APIs where provider capabilities, streaming events,
 structured outputs, multimodal input, and local LLM behavior are explicit.
 
 The model runtime is the execution boundary inside agents. It does not replace
-Praval's core architecture: specialized agents still coordinate through Reef
-messages and Spore knowledge payloads, with complex workflows emerging from
-typed local interactions rather than a central manager.
+Praval's collaboration architecture: specialized agents coordinate through
+Reef messages and structured Spore payloads. Applications may define their own
+message schemas when stronger domain contracts are required.
 
 Install
 ===========
@@ -29,8 +29,10 @@ Install
    pip install praval[mcp]  # Python 3.10+
    pip install praval[all]
 
-Quick Example
-=============
+Two Supported Entry Paths
+=========================
+
+Use ``Agent`` for direct provider-neutral model execution:
 
 .. code-block:: python
 
@@ -54,6 +56,29 @@ Quick Example
 
    print(response.content)
 
+Use decorated agents, Reef, and Spores for message-driven collaboration:
+
+.. code-block:: python
+
+   from praval import agent, broadcast, get_reef, start_agents
+
+   @agent("researcher", provider="ollama", responds_to=["request"])
+   def researcher(spore):
+       broadcast({"type": "finding", "text": spore.knowledge["topic"]})
+
+   @agent("editor", provider="ollama", responds_to=["finding"])
+   def editor(spore):
+       print(spore.knowledge["text"])
+
+   start_agents(
+       researcher,
+       editor,
+       initial_data={"type": "request", "topic": "agent systems"},
+   )
+   reef = get_reef()
+   reef.wait_for_completion(timeout=30)
+   reef.shutdown()
+
 What To Read
 ============
 
@@ -63,12 +88,14 @@ What To Read
 
    guide/getting-started
    guide/core-concepts
+   guide/application-lifecycle
    guide/model-runtime
    guide/providers
    guide/local-llms
    guide/streaming
    guide/structured-outputs
    guide/multimodal
+   guide/embeddings
    guide/tool-system
    guide/mcp
    guide/demo-certification
@@ -76,6 +103,7 @@ What To Read
    guide/reef-protocol
    guide/memory-system
    guide/storage
+   guide/observability
    guide/runtime-migration
    guide/troubleshooting
    guide/documentation-quality

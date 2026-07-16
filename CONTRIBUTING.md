@@ -19,7 +19,8 @@ Use this flow for any tagged release.
 
 ### 1. Stabilize release branch
 
-1. Ensure version metadata is updated consistently (`pyproject.toml`, package `__init__`, changelog, release notes).
+1. Update the authoritative version in `pyproject.toml`; runtime
+   `praval.__version__` is derived from installed distribution metadata.
 2. Confirm release notes include:
    - feature summary,
    - breaking/behavioral changes,
@@ -40,6 +41,8 @@ python tests/test_all_examples.py
 bash scripts/test-docker-examples.sh
 make docs-check
 make docs-html
+python scripts/check_release_metadata.py
+python scripts/check_api_surface.py
 ```
 
 Rules:
@@ -54,17 +57,21 @@ Use two PRs when docs are published from a separate site/docs repository:
 2. PR-B: docs/site publish repo (generated docs, version index updates, site badges/links).
 
 Order:
-1. Merge PR-A.
-2. Merge PR-B.
-3. Tag and publish release from `main`.
+1. Merge PR-A and let `main` CI build the exact package/docs artifacts.
+2. Run the protected live certification for that commit.
+3. Prepare and validate PR-B without merging it.
+4. Tag and publish the exact certified artifact from `main`.
+5. Merge PR-B only after the new version appears on PyPI.
 
 ### 4. Build and publish artifacts
 
-1. Clean old build outputs (`dist/`, `build/`, `*.egg-info`).
-2. Build artifacts according to release policy (wheel-only or wheel+sdist).
-3. Validate artifacts (`twine check`).
-4. Upload artifacts (`twine upload`).
-5. Smoke test installation from package registry in a clean virtual environment.
+1. Keep wheel and sdist files in `dist/`; write manifests and checksums to
+   `evidence/`.
+2. Validate the exact CI artifacts with `twine check`, distribution validation,
+   reproducibility, and clean-wheel smoke tests.
+3. Publish through the protected tag workflow and PyPI trusted publishing.
+4. Do not rebuild or manually upload a different local artifact.
+5. Smoke test installation from PyPI in a clean virtual environment.
 
 ### 5. Tag and GitHub release
 
@@ -77,7 +84,8 @@ Order:
 1. Install released version from registry and verify import/version.
 2. Verify CLI entry points and critical commands.
 3. Verify docs `latest` and versioned pages resolve correctly.
-4. Record final evidence in release notes or release checklist.
+4. Verify the generated release evidence; do not copy volatile counts or hashes
+   back into the committed release notes.
 
 ## Commit Convention
 

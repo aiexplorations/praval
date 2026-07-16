@@ -18,19 +18,22 @@ from pathlib import Path
 docs_dir = Path(__file__).parent
 project_root = docs_dir.parent.parent
 src_dir = project_root / "src"
+exact_wheel_build = os.environ.get("PRAVAL_DOCS_EXACT_WHEEL") == "1"
+offline_build = os.environ.get("PRAVAL_DOCS_OFFLINE") == "1"
 
-sys.path.insert(0, str(src_dir))
-sys.path.insert(0, str(project_root))
+if not exact_wheel_build:
+    sys.path.insert(0, str(src_dir))
+    sys.path.insert(0, str(project_root))
 
-# Import version from package
-try:
-    from praval import __version__
-except ImportError:
-    __version__ = "0.8.0"
+import praval
+
+__version__ = praval.__version__
+if exact_wheel_build and project_root in Path(praval.__file__).resolve().parents:
+    raise RuntimeError("Exact-wheel documentation imported Praval from source")
 
 # -- Project information -----------------------------------------------------
 project = "Praval"
-copyright = "2025, Praval Team"
+copyright = "2026, Praval Team"
 author = "Praval Team"
 version = __version__
 release = __version__
@@ -144,9 +147,11 @@ autosummary_generate = True
 autosummary_imported_members = False
 
 # -- intersphinx configuration
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-}
+intersphinx_mapping = (
+    {}
+    if exact_wheel_build or offline_build
+    else {"python": ("https://docs.python.org/3", None)}
+)
 
 # -- myst_parser configuration (Markdown support)
 myst_enable_extensions = [
@@ -165,10 +170,6 @@ copybutton_remove_prompts = True
 
 # -- todo extension configuration
 todo_include_todos = True
-
-# Autosummary pages and the module index can both describe the same public
-# objects. Keep the generated API pages and suppress duplicate-object noise.
-suppress_warnings = ["autodoc.duplicate_object"]
 
 # -- Code highlighting
 pygments_style = "sphinx"

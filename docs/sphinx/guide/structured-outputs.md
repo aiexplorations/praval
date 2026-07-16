@@ -23,6 +23,19 @@ The runtime rejects structured output requests when the resolved capability
 profile does not support them. It also enforces a schema size limit to avoid
 oversized provider payloads.
 
+The schema is sent to the provider as a generation constraint. The returned
+value remains JSON text in `ModelResponse.content`; Praval does not perform a
+second local JSON Schema validation pass.
+
+```python
+import json
+
+payload = json.loads(response.content)
+```
+
+Use a JSON Schema validator or a typed model in application code when local
+validation is required.
+
 Provider adapters map the neutral schema into provider-specific fields:
 
 | Provider | Mapping |
@@ -33,5 +46,5 @@ Provider adapters map the neutral schema into provider-specific fields:
 | Gemini | `generationConfig.responseMimeType` and `responseSchema` |
 | Local OpenAI-compatible | Disabled unless explicitly enabled |
 
-`Agent.chat()` still returns text. Prefer `Agent.generate()` when you need
-schema validation, response metadata, or usage.
+`Agent.chat()` still returns text. Prefer `Agent.generate()` when you need a
+provider-constrained schema, response metadata, or usage.

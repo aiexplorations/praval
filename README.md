@@ -10,107 +10,165 @@
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 </div>
 
-Praval helps you build AI applications as cooperating agents. It keeps the
-legacy decorator and `Agent.chat()` APIs, and adds a structured model runtime
-for modern provider features: native streaming, structured outputs, multimodal
-content parts, local OpenAI-compatible LLMs, tool/HITL orchestration, usage
-tracking, and provider capability validation.
+Praval supports two complementary ways to build:
+
+- Use `Agent` when one agent needs model calls, tools, streaming, structured
+  output, multimodal input, embeddings, transcription, or speech generation.
+- Use decorated agents with Reef and Spores when several specialists need to
+  exchange structured knowledge and react to one another.
+
+`ModelRuntime` is the provider-neutral execution boundary inside `Agent`.
+Reef is Praval's agent-to-agent delivery substrate, and Spores are the messages
+it carries. These layers work together; neither replaces the other.
 
 ## Install
 
 ```bash
 pip install praval
 
-# Optional feature groups
-pip install praval[memory]
-pip install praval[storage]
-pip install praval[mcp]  # Python 3.10+
-pip install praval[notebooks]
-pip install praval[all]
+# Install only the optional capabilities you use
+pip install "praval[memory]"
+pip install "praval[storage]"
+pip install "praval[mcp]"       # Python 3.10+
+pip install "praval[notebooks]"
 ```
 
-## Quick Start
+The core package supports Python 3.9 through 3.13. The official MCP Python SDK
+requires Python 3.10 or newer.
+
+## Path 1: Direct model execution
 
 ```python
+import json
+
 from praval import Agent
 
-agent = Agent("assistant", provider="openai", model="gpt-5.4-mini")
+assistant = Agent("assistant", provider="openai", model="gpt-5.4-mini")
+try:
+    response = assistant.generate(
+        "Return a short JSON summary of Praval.",
+        response_schema={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        },
+    )
+    payload = json.loads(response.content)
+    print(payload["summary"])
+    print(response.usage)
+finally:
+    assistant.close()
+```
 
-response = agent.generate(
-    "Return a short JSON summary of Praval.",
-    response_schema={
-        "type": "object",
-        "properties": {"summary": {"type": "string"}},
-        "required": ["summary"],
-    },
+`response_schema` asks a capable provider to constrain its response. Praval
+returns the provider's JSON text in `ModelResponse.content`; parse and validate
+it in your application when local validation is required.
+
+`Agent.chat()` remains available for compatibility when a plain string is all
+you need. New code should prefer `generate()`, `agenerate()`, `stream()`, or
+`astream()` when metadata, usage, structured output, or normalized events
+matter.
+
+## Path 2: Agents collaborating through Reef
+
+```python
+from praval import agent, broadcast, get_reef, start_agents
+
+
+@agent("researcher", provider="ollama", responds_to=["research_request"])
+def researcher(spore):
+    topic = spore.knowledge["topic"]
+    broadcast(
+        {
+            "type": "research_complete",
+            "topic": topic,
+            "finding": f"Evidence collected for {topic}",
+        }
+    )
+
+
+@agent("editor", provider="ollama", responds_to=["research_complete"])
+def editor(spore):
+    print(spore.knowledge["finding"])
+
+
+start_agents(
+    researcher,
+    editor,
+    initial_data={"type": "research_request", "topic": "agent systems"},
 )
-
-print(response.content)
+reef = get_reef()
+reef.wait_for_completion(timeout=30)
+reef.shutdown()
 ```
 
-Legacy string-returning calls still work:
+The in-process Reef is built in. RabbitMQ is the supported distributed Reef
+backend. Redis is a storage provider, not a Reef backend. AMQP, MQTT, and STOMP
+adapters belong to the optional secure transport layer.
+
+## Lifecycle ownership
+
+`PravalApp` owns agents and a Reef so an application can clean them up
+deterministically:
 
 ```python
-print(agent.chat("Say hello in one sentence."))
+from praval import PravalApp
+
+with PravalApp() as app:
+    assistant = app.create_agent("assistant", provider="openai")
+    print(assistant.chat("Say hello in one sentence."))
 ```
 
-## Local LLMs
+In this release, `PravalApp` is a lifecycle owner. It is not an isolated
+dependency-injection container and does not replace the process-wide provider
+registry used by `Agent`.
 
-Praval connects to already-running OpenAI-compatible HTTP servers:
+## Optional capabilities
 
-```python
-from praval import Agent
+- Tools and HITL: JSON-schema tools can require persisted human approval before
+  execution and resume.
+- MCP: `praval.mcp` consumes tools from stdio and Streamable HTTP servers. It is
+  separate from provider-hosted MCP descriptors.
+- Memory and embeddings: local or provider-backed retrieval paths are explicit.
+- Storage: the unified API is asynchronous and supports filesystem,
+  PostgreSQL, Redis, S3-compatible storage, and Qdrant.
+- Observability: local spans, SQLite trace storage, console viewing, and OTLP
+  HTTP export are available.
+- Voice: `Agent.transcribe()` and `Agent.speak()` are request-based STT and TTS
+  operations. Persistent realtime audio/model sessions are not part of this
+  release.
 
-agent = Agent("local", provider="ollama", model="llama3")
-print(agent.chat("Say hello."))
-```
+Local OpenAI-compatible presets are available for Ollama, vLLM, LM Studio, and
+llama.cpp. Their advanced capabilities are disabled unless the configured
+server profile explicitly enables them.
 
-Presets are available for `ollama`, `vllm`, `lmstudio`, and `llama-cpp`.
-Local profiles are conservative by default: text and streaming are enabled,
-while tools, structured output, reasoning, and multimodal input require explicit
-capability opt-in.
+## Documentation and examples
 
-## Documentation
-
-Sphinx is the canonical documentation surface:
-
+- [Published documentation](https://pravalagents.com/docs/latest/)
 - [Getting started](docs/sphinx/guide/getting-started.md)
+- [Architecture and API layers](docs/sphinx/guide/core-concepts.md)
 - [Model runtime](docs/sphinx/guide/model-runtime.md)
-- [Providers and capability matrix](docs/sphinx/guide/providers.md)
-- [Local LLMs](docs/sphinx/guide/local-llms.md)
-- [Streaming](docs/sphinx/guide/streaming.md)
-- [Structured outputs](docs/sphinx/guide/structured-outputs.md)
-- [Multimodal input](docs/sphinx/guide/multimodal.md)
-- [MCP tool clients](docs/sphinx/guide/mcp.md)
-- [Migration guide](docs/sphinx/guide/runtime-migration.md)
-- [Emergent coordination architecture](docs/sphinx/architecture/emergent-coordination.md)
+- [Providers and capabilities](docs/sphinx/guide/providers.md)
+- [MCP client](docs/sphinx/guide/mcp.md)
+- [Storage](docs/sphinx/guide/storage.md)
+- [API reference](docs/sphinx/api/index.rst)
+- [Jupyter course and capstones](examples/notebooks/README.md)
 
-Provider model catalogs change quickly. Praval ships conservative registry
-profiles for current known families, and production code should pass explicit
-models that have been verified against provider documentation for the release.
-
-## Visual notebook course
-
-The [Jupyter learning experience](examples/notebooks/README.md) has a detailed
-13-part course and four architecture-focused capstones. It renders agent stages,
-Reef routes, Spore payloads, feedback loops, parallel fan-out/fan-in, runtime events,
-memory state, HITL decisions, MCP calls, and real voice round trips as they execute.
-Start with `examples/notebooks/course/00_architecture.ipynb`. Normal CI certifies ten
-offline notebooks and two real-service notebooks; five provider-backed notebooks run
-only through protected manual certification.
+Run the offline provider-neutral example without credentials:
 
 ```bash
-source venv/bin/activate
-python -m pip install -e ".[notebooks]"
-cd examples/notebooks
-jupyter lab
+python examples/model_runtime_fake_provider.py
 ```
 
-Build docs locally:
+Build the reference documentation locally:
 
 ```bash
 make docs-html
 ```
+
+Provider model catalogs change independently of Praval. The packaged registry
+is a tested capability snapshot; production applications should still choose
+and verify explicit model names.
 
 ## Development
 
@@ -123,6 +181,5 @@ make type-check
 make build
 ```
 
-Offline runtime examples live in `examples/model_runtime_fake_provider.py`.
-Live-provider examples are in `examples/structured_output_runtime.py`,
-`examples/streaming_events.py`, and `examples/multimodal_input_runtime.py`.
+Release artifacts keep uploadable distributions in `dist/` and checksums,
+manifests, coverage, and certification records in `evidence/`.

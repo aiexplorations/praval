@@ -1,4 +1,4 @@
-# Praval 0.8.0 Release Candidate
+# Praval 0.8.0 (unreleased)
 
 Praval 0.8.0 modernizes model execution while preserving the decorator-first
 agent, Reef/Spore, memory, HITL, and observability APIs. Reef remains Praval's
@@ -99,33 +99,25 @@ descriptors require `allow_experimental_tools=True` plus provider-specific
 - Knowledge-only Spores retain the legacy AMQP body. Use JSON-safe content
   parts or storage references for multimodal data.
 
-## Candidate Validation Evidence
+## Required Release Evidence
 
-- The complete local suite reports `1808 passed, 7 skipped`, with zero failures,
-  XFAIL, or XPASS.
-- Complete-package statement coverage is `93.04%`; every focused release floor
-  passes.
-- Mypy passes across 72 source modules. Black, isort, flake8, and the Sphinx
-  warning-as-error build also pass.
-- `twine check`, distribution-content validation, and clean exact-wheel
-  installation pass. The wheel is about 220 KiB and the normalized sdist is
-  about 2.4 MiB, below the 3 MiB release cap.
-- Two isolated builds reproduce byte for byte. Exact-wheel offline notebook
-  certification reports `10 passed, 0 skipped, 0 failed` with source-tree
-  isolation enabled.
+The committed notes intentionally contain no copied test counts, coverage
+percentages, durations, artifact sizes, or hashes. Those values are generated
+for the exact commit and attached to the release:
 
-The protected external certification has not run yet. It must validate the
-exact successful `main` CI wheel with real OpenAI, Anthropic, Cohere, Gemini,
-and OpenAI-compatible services, including model-generated HITL, embeddings,
-multimodal input, and the real STT-to-agent-to-TTS-to-STT voice path. The
-required `live-demo` environment secrets, model variables, and manual approval
-must be configured before that dispatch.
+- `build-manifest.json` and `SHA256SUMS` identify the wheel and sdist.
+- coverage and API-surface reports record complete-package and documentation
+  gates.
+- offline and service demo reports identify the exact installed wheel.
+- the protected live certification records provider/model calls, real
+  model-generated HITL, embeddings, multimodal input, and the
+  STT-to-agent-to-TTS-to-STT voice round trip.
+- the documentation manifest identifies the commit, wheel hash, installed
+  version, and generated HTML tree hash.
 
-These notes are frozen before protected certification. Exact wheel and sdist
-hashes belong in the CI build manifest, and provider, voice, and generated
-artifact evidence belongs in the live certification manifest. Both manifests
-are attached unchanged to the GitHub release, so recording their values does
-not require a post-certification source edit. Praval Research remains optional
-downstream integration evidence and is not a framework release gate. Until the
-main CI artifact and protected live certification both pass, this document
-describes a release candidate rather than a published final release.
+Publication is blocked until normal `main` CI and protected live certification
+both pass for the same commit and wheel. Praval Research remains optional
+downstream integration evidence rather than a framework release gate.
+
+The corresponding `praval-ai` update is prepared from the exact-wheel
+documentation artifact and merged only after PyPI reports this release.

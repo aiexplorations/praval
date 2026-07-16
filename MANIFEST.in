@@ -14,6 +14,7 @@ recursive-include docs *.md
 recursive-include docs *.png
 recursive-include docs *.rst
 recursive-include docs *.py
+recursive-include docs *.toml
 recursive-exclude docs/_build *
 recursive-exclude docs/generated *
 recursive-exclude docs/archive *

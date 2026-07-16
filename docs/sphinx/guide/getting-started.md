@@ -1,432 +1,176 @@
-# Getting Started with Praval
+# Getting started
 
-Welcome to Praval! This guide will help you get up and running with the framework in minutes.
+Praval has two entry paths. Start with direct `Agent` calls when one agent is
+enough. Add Reef and Spores when independent specialists need to collaborate.
 
-## What is Praval?
-
-Praval is a Python framework for building multi-agent AI systems. Instead of creating monolithic AI applications, you create ecosystems of specialized agents that collaborate intelligently.
-
-**The name**: *Praval (प्रवाल)* is Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.
-
-## Installation
-
-### Minimal Installation
-
-For basic agent functionality with LLM support:
+## Install
 
 ```bash
-pip install praval
+python -m pip install praval
 ```
 
-### With Memory System
-
-To enable persistent memory with vector search:
+Praval supports Python 3.9 through 3.13. Optional capabilities are installed
+separately:
 
 ```bash
-pip install praval[memory]
+python -m pip install "praval[memory]"
+python -m pip install "praval[storage]"
+python -m pip install "praval[mcp]"  # Python 3.10+
 ```
 
-This adds:
-- ChromaDB for vector storage
-- Sentence Transformers for embeddings
-- scikit-learn for similarity search
-
-### With All Features
-
-For the complete Praval experience:
+For a hosted provider, set the corresponding environment variable before
+running an example:
 
 ```bash
-pip install praval[all]
+export OPENAI_API_KEY="..."
+# or ANTHROPIC_API_KEY, COHERE_API_KEY, or GEMINI_API_KEY
 ```
 
-This includes:
-- Memory system
-- Secure messaging (enterprise features)
-- PDF knowledge base support
-- All storage providers (PostgreSQL, Redis, S3, Qdrant)
+Passing `provider` and `model` explicitly makes an example reproducible. If
+they are omitted, Praval resolves its configured defaults and available
+credentials.
 
-### For Development
-
-If you're contributing to Praval:
-
-```bash
-git clone https://github.com/aiexplorations/praval.git
-cd praval
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -e ".[dev]"
-```
-
-## Prerequisites
-
-### Python Version
-
-Praval requires **Python 3.9 or higher**. We support:
-- Python 3.9
-- Python 3.10
-- Python 3.11
-- Python 3.12
-- Python 3.13
-
-Praval's optional MCP client uses the official MCP Python SDK and requires
-Python 3.10 or newer. The core framework and other extras retain Python 3.9
-support.
-
-### API Keys
-
-You'll need at least one LLM provider API key. Praval supports:
-
-**OpenAI** (recommended for beginners):
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-**Anthropic** (Claude models):
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-**Cohere**:
-```bash
-export COHERE_API_KEY="..."
-```
-
-Praval automatically detects which provider to use based on available API keys.
-
-## Your First Agent
-
-Let's create a simple research agent:
+## First path: call a model through Agent
 
 ```python
-from praval import agent, chat, start_agents, get_reef
+from praval import Agent
 
-@agent("researcher")
-def research_agent(spore):
-    """I research topics and provide insights."""
-    topic = spore.knowledge.get("topic", "AI")
-    result = chat(f"Provide a brief overview of: {topic}")
-    print(f"Research on {topic}: {result}")
-    return {"summary": result}
-
-# Start the agent system with initial data
-start_agents(
-    research_agent,
-    initial_data={"topic": "quantum computing"}
+assistant = Agent(
+    "assistant",
+    provider="openai",
+    model="gpt-5.4-mini",
+    system_message="Be concise.",
 )
-
-# Wait for processing to complete
-get_reef().wait_for_completion()
-get_reef().shutdown()
+try:
+    response = assistant.generate("Explain what a Praval Spore carries.")
+    print(response.content)
+    print(response.provider, response.model, response.usage)
+finally:
+    assistant.close()
 ```
 
-**That's it!** You've created your first Praval agent.
+`Agent.generate()` returns `ModelResponse`. Its content, provider, model,
+usage, tool calls, and raw provider data are available without changing the
+application contract for each provider.
 
-## Understanding the Code
-
-Let's break down what's happening:
-
-### 1. The `@agent` Decorator
+The compatibility method returns only a string:
 
 ```python
-@agent("researcher")
-def research_agent(spore):
-    ...
+text = assistant.chat("Explain Reef in one sentence.")
 ```
 
-This transforms a regular Python function into an intelligent agent. The agent:
-- Has a unique name: `"researcher"`
-- Receives messages through the `spore` parameter
-- Can communicate with other agents
-- Has access to LLM capabilities
+Prefer `generate()` for new code. Use `agenerate()`, `stream()`, and
+`astream()` for asynchronous work and normalized streaming events.
 
-### 2. The `chat()` Function
+## Structured output
 
 ```python
-result = chat(f"Provide a brief overview of: {topic}")
-```
+import json
 
-This sends a prompt to your configured LLM provider and returns the response. It automatically:
-- Selects the appropriate LLM provider
-- Handles API communication
-- Manages errors and retries
-
-### 3. The Spore Object
-
-```python
-topic = spore.knowledge.get("topic", "AI")
-```
-
-A **Spore** is Praval's message format. It's a structured container carrying:
-- `knowledge`: Data dictionary (including the message `type` field)
-- `from_agent`: Who sent it (agent name)
-- `spore_type`: Type of spore (BROADCAST, KNOWLEDGE, etc.)
-- `metadata`: Additional context
-
-### 4. Starting Agents
-
-```python
-start_agents(
-    research_agent,
-    initial_data={"topic": "quantum computing"}
+response = assistant.generate(
+    "Return one fact about Reef as JSON.",
+    response_schema={
+        "type": "object",
+        "properties": {"fact": {"type": "string"}},
+        "required": ["fact"],
+    },
 )
+fact = json.loads(response.content)["fact"]
 ```
 
-This initializes and runs the agent system. It:
-- Creates the Reef (message bus) if needed
-- Registers all provided agents
-- Broadcasts the `initial_data` to trigger the workflow
-- Returns immediately (use `get_reef().wait_for_completion()` to wait)
+The runtime checks that the selected provider profile supports structured
+output and then sends the schema as a provider constraint. It does not run a
+second local JSON Schema validation pass.
 
-## Multi-Agent Communication
+## Second path: collaborate through Reef
 
-Now let's create agents that collaborate:
+A Spore contains routing fields and a structured `knowledge` dictionary. The
+conventional `knowledge["type"]` value lets decorated agents decide which
+messages to handle.
 
 ```python
-from praval import agent, chat, broadcast, start_agents, get_reef
+from praval import agent, broadcast, get_reef, start_agents
 
-@agent("researcher", responds_to=["research_request"])
+
+@agent("researcher", provider="ollama", responds_to=["research_request"])
 def researcher(spore):
-    """Research topics in depth."""
-    topic = spore.knowledge.get("topic")
-    findings = chat(f"Research this deeply: {topic}")
+    topic = spore.knowledge["topic"]
+    broadcast(
+        {
+            "type": "research_complete",
+            "topic": topic,
+            "finding": f"Evidence collected for {topic}",
+        }
+    )
 
-    # Broadcast findings to other agents
-    broadcast({
-        "type": "research_complete",
-        "topic": topic,
-        "findings": findings
-    })
 
-    return {"status": "research_complete"}
+@agent("editor", provider="ollama", responds_to=["research_complete"])
+def editor(spore):
+    print(spore.knowledge["finding"])
 
-@agent("summarizer", responds_to=["research_complete"])
-def summarizer(spore):
-    """Create concise summaries."""
-    findings = spore.knowledge.get("findings")
-    summary = chat(f"Summarize this in 3 bullet points: {findings}")
 
-    print(f"Summary:\n{summary}")
-    return {"summary": summary}
-
-# Start the system with initial data
 start_agents(
     researcher,
-    summarizer,
-    initial_data={"type": "research_request", "topic": "neural networks"}
+    editor,
+    initial_data={"type": "research_request", "topic": "agent systems"},
 )
-
-# Wait for all agents to complete processing
-get_reef().wait_for_completion()
-get_reef().shutdown()
+reef = get_reef()
+reef.wait_for_completion(timeout=30)
+reef.shutdown()
 ```
 
-**What happens:**
+This example uses the Ollama preset only to construct credential-free message
+handlers; it does not call the local model server. A decorated handler may call
+`chat()` or `achat()` when it actually needs model output.
 
-1. You broadcast a `research_request`
-2. The `researcher` agent responds (it listens to `research_request`)
-3. Researcher does its work and broadcasts `research_complete`
-4. The `summarizer` agent responds (it listens to `research_complete`)
-5. Summarizer creates and prints a summary
+`wait_for_completion()` waits for submitted Reef work. Always shut down Reef
+and other resources explicitly in scripts and tests.
 
-**Key insight**: Agents coordinate themselves. You don't orchestrate the workflow - you just declare what each agent responds to.
+## When to use each layer
 
-## Human-in-the-Loop (HITL) Quick Start
+| Need | Start with |
+| --- | --- |
+| One conversational or tool-using agent | `Agent` |
+| Provider-neutral metadata and usage | `Agent.generate()` |
+| Streaming deltas and final events | `Agent.stream()` / `Agent.astream()` |
+| Multiple reactive specialists | `@agent`, Reef, and Spores |
+| Deterministic application cleanup | `PravalApp` |
+| External MCP tools | `praval.mcp.MCPClient` with async `Agent` calls |
 
-Enable HITL per agent:
+`PravalApp` owns agents and a Reef for cleanup. In this release it does not
+isolate provider registries or redirect agent Reef helpers; see
+{doc}`application-lifecycle`.
+
+## Local models
+
+Praval connects to an already-running OpenAI-compatible server:
 
 ```python
-from praval import agent, tool, InterventionRequired
+from praval import Agent
 
-@tool(
-    tool_name="critical_update",
-    requires_approval=True,
-    risk_level="critical",
-    approval_reason="Production-impacting update."
-)
-def critical_update(target: str) -> str:
-    return f"Updated {target}"
-
-@agent("ops_agent", tools=["critical_update"], hitl=True)
-def ops_agent(spore):
-    return {"status": "ready"}
-
+local = Agent("local", provider="ollama", model="llama3")
 try:
-    ops_agent._praval_agent.chat("Run critical_update on prod.")
-except InterventionRequired as interruption:
-    ops_agent.approve_intervention(interruption.intervention_id, reviewer="oncall")
-    print(ops_agent.resume_run(interruption.run_id))
+    print(local.chat("Say hello."))
+finally:
+    local.close()
 ```
 
-Important behavior:
+The presets are `ollama`, `vllm`, `lmstudio`, and `llama-cpp`. Text and
+streaming are enabled by default. Tools, structured output, reasoning, and
+multimodal input require explicit capability configuration for the server you
+are using.
 
-- `hitl=False` is the default for backward-compatible autonomy.
-- If a tool requires approval but agent HITL is disabled, Praval raises
-  `HITLConfigurationError` instead of silently bypassing policy.
+## Learn by inspecting execution
 
-## Adding Memory
+The Jupyter course explains Agent, Reef, Spore, tools, memory, HITL, MCP, and
+voice flows with visible runtime state. Start with
+`examples/notebooks/course/00_architecture.ipynb`.
 
-Give your agents persistent memory:
-
-```python
-@agent("expert", memory=True)
-def expert_agent(spore):
-    """An expert that learns from conversations."""
-    question = spore.knowledge.get("question")
-
-    # Recall similar past questions
-    past_context = expert_agent.recall(question, limit=3)
-
-    # Generate answer with context
-    answer = chat(f"Question: {question}\nContext: {past_context}")
-
-    # Remember this interaction
-    expert_agent.remember(f"Q: {question}\nA: {answer}")
-
-    return {"answer": answer}
-```
-
-Memory features:
-- `remember(text)`: Store information
-- `recall(query, limit=5)`: Retrieve similar memories
-- `forget()`: Clear memory
-- Works across sessions (persistent)
-
-## Next Steps
-
-Now that you have the basics:
-
-1. **Read Core Concepts** - Understand Praval's architecture
-2. **Follow Tutorials** - Build real applications step-by-step
-3. **Explore Examples** - See production-ready patterns
-4. **Check API Reference** - Deep dive into all capabilities
-
-### Recommended Learning Path
-
-**Beginners:**
-1. Tutorial: Creating Your First Agent
-2. Tutorial: Agent Communication
-3. Example: Simple Calculator
-
-**Intermediate:**
-1. Tutorial: Memory-Enabled Agents
-2. Tutorial: Tool Integration
-3. Example: Knowledge Graph Miner
-
-**Advanced:**
-1. Tutorial: Multi-Agent Systems
-2. Guide: Storage System
-3. Guide: Secure Spores
-
-## Common Patterns
-
-### Pattern 1: Request-Response
-
-```python
-@agent("responder", responds_to=["request"])
-def responder(spore):
-    print("Handling request")
-    return {"response": "done"}
-
-# Trigger via start_agents with initial_data
-start_agents(responder, initial_data={"type": "request"})
-get_reef().wait_for_completion()
-```
-
-### Pattern 2: Pipeline
-
-```python
-@agent("step1", responds_to=["start"])
-def step1(spore):
-    broadcast({"type": "step2_input", "data": "processed"})
-
-@agent("step2", responds_to=["step2_input"])
-def step2(spore):
-    broadcast({"type": "final_output", "result": "complete"})
-```
-
-### Pattern 3: Fan-Out/Fan-In
-
-```python
-# One trigger, multiple responders
-@agent("worker1", responds_to=["task"])
-def worker1(spore):
-    broadcast({"type": "result", "from": "worker1"})
-
-@agent("worker2", responds_to=["task"])
-def worker2(spore):
-    broadcast({"type": "result", "from": "worker2"})
-
-@agent("aggregator", responds_to=["result"])
-def aggregator(spore):
-    # Collect all results
-    pass
-```
-
-## Troubleshooting
-
-### No API Key Found
-
-```
-Error: No valid API key found for any LLM provider
-```
-
-**Solution**: Set at least one API key:
-```bash
-export OPENAI_API_KEY="your-key-here"
-```
-
-### Import Errors
-
-```
-ImportError: cannot import name 'MemoryManager'
-```
-
-**Solution**: Install memory dependencies:
-```bash
-pip install praval[memory]
-```
-
-### Agents Not Responding
-
-If agents aren't receiving messages:
-1. Check you called `start_agents()`
-2. Verify the `responds_to` types match broadcast types
-3. Add debug prints to see message flow
-
-## Configuration
-
-### Environment Variables
+For a credential-free runtime check:
 
 ```bash
-# LLM Provider Selection
-export PRAVAL_DEFAULT_PROVIDER=openai
-export PRAVAL_DEFAULT_MODEL=gpt-5.4-mini
-
-# Memory Configuration
-export QDRANT_URL=http://localhost:6333
-
-# Logging
-export PRAVAL_LOG_LEVEL=INFO
+python examples/model_runtime_fake_provider.py
 ```
 
-### Provider Selection
-
-Praval uses environment variables for configuration. To select a specific provider and model programmatically, set the environment variables before importing praval:
-
-```python
-import os
-os.environ["PRAVAL_DEFAULT_PROVIDER"] = "openai"
-os.environ["PRAVAL_DEFAULT_MODEL"] = "gpt-5.4-mini"
-
-from praval import agent, chat, start_agents
-# ... your agent code
-```
-
-## Getting Help
-
-- **Documentation**: You're reading it!
-- **GitHub Issues**: [Report bugs](https://github.com/aiexplorations/praval/issues)
-- **Examples**: See `examples/` directory
-- **API Reference**: Complete function documentation
-
-Ready to dive deeper? Head to **Core Concepts** to understand Praval's architecture!
+Next, read {doc}`core-concepts`, {doc}`model-runtime`, and the generated
+{doc}`../api/index`.

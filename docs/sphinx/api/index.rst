@@ -4,9 +4,10 @@
 API Reference
 =============
 
-The API reference is generated from source docstrings. Public model runtime
-contracts live in ``praval.models`` and ``praval.model_runtime``; provider
-registrations and profiles live in ``praval.providers.registry``.
+The API reference is generated from source docstrings. The supported surface
+is classified in ``docs/api-surface.toml``. That manifest maps every top-level
+export to its stability class and canonical guide. Prefer top-level ``praval``
+exports unless a guide explicitly documents a public submodule.
 
 .. contents:: API Modules
    :local:
@@ -15,10 +16,14 @@ registrations and profiles live in ``praval.providers.registry``.
 Core API
 ========
 
+The :mod:`praval` package re-exports the supported convenience surface. The
+pages below document the modules that define those objects, avoiding duplicate
+entries for the same class or function.
+
 .. autosummary::
    :toctree: generated
-   :recursive:
 
+   praval.app
    praval.core.agent
    praval.core.reef
    praval.core.registry
@@ -29,11 +34,11 @@ Model Runtime
 
 .. autosummary::
    :toctree: generated
-   :recursive:
 
    praval.models
    praval.model_runtime
    praval.providers.registry
+   praval.embeddings
 
 Decorators And Composition
 ==========================
@@ -49,7 +54,6 @@ Providers
 
 .. autosummary::
    :toctree: generated
-   :recursive:
 
    praval.providers.factory
    praval.providers.openai
@@ -67,12 +71,24 @@ Tool System
    praval.tools
    praval.core.tool_registry
 
+Human-in-the-Loop And MCP
+=========================
+
+.. autosummary::
+   :toctree: generated
+
+   praval.hitl.models
+   praval.hitl.policy
+   praval.hitl.service
+   praval.hitl.store
+   praval.hitl.runtime
+   praval.mcp.client
+
 Memory System
 =============
 
 .. autosummary::
    :toctree: generated
-   :recursive:
 
    praval.memory.memory_manager
    praval.memory.short_term_memory
@@ -86,10 +102,27 @@ Storage System
 
 .. autosummary::
    :toctree: generated
-   :recursive:
 
    praval.storage.data_manager
    praval.storage.base_provider
    praval.storage.storage_registry
    praval.storage.decorators
-   praval.storage.providers
+   praval.storage.providers.filesystem
+   praval.storage.providers.postgresql
+   praval.storage.providers.qdrant_provider
+   praval.storage.providers.redis_provider
+   praval.storage.providers.s3_provider
+
+Observability
+=============
+
+.. autosummary::
+   :toctree: generated
+
+   praval.observability.config
+   praval.observability.tracing.context
+   praval.observability.tracing.tracer
+   praval.observability.storage.sqlite_store
+   praval.observability.export.console_viewer
+   praval.observability.export.otlp_exporter
+   praval.observability.instrumentation.manager

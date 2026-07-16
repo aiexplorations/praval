@@ -1,13 +1,13 @@
-﻿praval.models
+praval.models
 =============
 
 .. automodule:: praval.models
 
-   
+
    .. rubric:: Classes
 
    .. autosummary::
-   
+
       AudioResponse
       ContentPart
       EmbeddingRequest
@@ -27,4 +27,3 @@
       ToolSpec
       TranscriptionRequest
       Usage
-   

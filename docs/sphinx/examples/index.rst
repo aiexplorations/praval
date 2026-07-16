@@ -29,7 +29,8 @@ Offline Runtime Contract
 **File**: ``examples/model_runtime_fake_provider.py``
 
 This example needs no provider credentials. It demonstrates a fake provider
-adapter, structured output validation, and normalized streaming events.
+adapter, propagation of a structured-output request, and normalized streaming
+events. It does not represent a provider constraint or local schema validation.
 
 **Run it**:
 

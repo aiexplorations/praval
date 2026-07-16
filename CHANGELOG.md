@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.0] - 2026-07-12
+## [0.8.0] - Unreleased
 
 ### Added
 - Provider-neutral `ModelRuntime` contracts for sync, async, streaming,
@@ -75,11 +75,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remain 0.9 work.
 - MCP resources/prompts, server hosting, OAuth negotiation, rich binary/image
   results, automatic reconnect, and optional sync bridging remain 0.9 work.
-
-### Planned (API/Architecture)
-- Split Reef into core transport layer vs API facade (backward compatible facade).
-- Introduce `ReefCore` as the internal core implementation.
-- Slim `@agent` decorator into smaller composable decorators.
 
 ## [0.7.22] - 2026-02-21
 
@@ -867,34 +862,8 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
 - Legacy example files that were replaced with new progressive series
 - Deprecated API patterns in favor of cleaner decorator approach
 
-## Version Bump Keywords
-
-Use these keywords in commit messages to trigger automatic version bumps:
-
-### Major Version (Breaking Changes)
-- `BREAKING CHANGE:` or `breaking change:`
-- `major:` - Major version bump
-- `api change:` - API breaking changes
-- `breaking:` - Breaking functionality changes
-
-### Minor Version (New Features)
-- `feat:` or `feature:` - New features
-- `add:` or `new:` - New functionality
-- `enhance:` - Enhancements to existing features
-- `memory system:` - Memory system changes
-- `agent capability:` - New agent capabilities
-- Changes to `decorators.py`, `core/agent.py`, or `core/reef.py`
-
-### Patch Version (Bug Fixes)
-- `fix:` or `patch:` - Bug fixes
-- `bug:` - Bug fixes
-- `docs:` - Documentation changes
-- `test:` - Test improvements
-- `refactor:` - Code refactoring
-- `style:` - Code style changes
-- `chore:` - Maintenance tasks
-
-[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.7.22...HEAD
+[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/aiexplorations/praval/compare/v0.7.22...v0.8.0
 [0.7.22]: https://github.com/aiexplorations/praval/compare/v0.7.21...v0.7.22
 [0.7.21]: https://github.com/aiexplorations/praval/compare/v0.7.20...v0.7.21
 [0.5.0]: https://github.com/aiexplorations/praval/releases/tag/v0.5.0

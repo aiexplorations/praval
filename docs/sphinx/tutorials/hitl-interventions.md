@@ -1,63 +1,68 @@
-# Tutorial: HITL Interventions
+# Tutorial: human approval for a tool call
 
-Learn how to enforce human approvals for risky tool calls using agent-gated HITL.
+HITL is enforced at the Agent boundary. A protected tool call can be persisted,
+reviewed, and resumed without exposing a private decorated-agent attribute.
 
-## Prerequisites
-- `pip install -e .[dev]`
-- At least one provider API key set (OpenAI, Anthropic, or Cohere)
-
-## 1) Mark a Tool as Approval-Gated
+## Define an approval-gated tool
 
 ```python
-from praval import tool
+from praval import Agent, InterventionRequired, ToolSpec
 
-@tool(
-    tool_name="critical_write",
-    description="Perform a critical write",
-    requires_approval=True,
-    risk_level="critical",
-    approval_reason="Writes to production resources."
-)
+
 def critical_write(resource: str) -> str:
     return f"write-complete:{resource}"
+
+
+spec = ToolSpec(
+    name="critical_write",
+    description="Perform a critical write",
+    parameters={
+        "type": "object",
+        "properties": {"resource": {"type": "string"}},
+        "required": ["resource"],
+    },
+    requires_approval=True,
+    risk_level="critical",
+    approval_reason="Writes to a production resource.",
+)
 ```
 
-## 2) Enable HITL on the Agent
+## Enable HITL and run
 
 ```python
-from praval import agent
-
-@agent("ops_agent", tools=["critical_write"], hitl=True)
-def ops_agent(spore):
-    return {"status": "ready"}
-```
-
-`hitl=False` is the default, so enable it only for agents that should pause for human decisions.
-
-## 3) Run, Approve, Resume
-
-```python
-from praval import InterventionRequired
+agent = Agent(
+    "ops-agent",
+    provider="openai",
+    model="gpt-5.4-mini",
+    hitl_enabled=True,
+    hitl_db_path="./interventions.sqlite3",
+)
+agent.add_tool_spec(spec, critical_write)
 
 try:
-    response = ops_agent._praval_agent.chat("Run critical_write on prod")
-    print(response)
-except InterventionRequired as interruption:
-    # Option A: approve original arguments
-    ops_agent.approve_intervention(interruption.intervention_id, reviewer="oncall")
-
-    # Option B: edit arguments before approval
-    # ops_agent.approve_intervention(
-    #     interruption.intervention_id,
-    #     reviewer="oncall",
-    #     edited_args={"resource": "staging"},
-    # )
-
-    resumed = ops_agent.resume_run(interruption.run_id)
-    print(resumed)
+    try:
+        response = agent.generate("Use critical_write for production/orders.")
+        print(response.content)
+    except InterventionRequired as interruption:
+        print(interruption.intervention_id, interruption.run_id)
+        agent.approve_intervention(
+            interruption.intervention_id,
+            reviewer="oncall",
+            edited_args={"resource": "staging/orders"},
+        )
+        print(agent.resume_run(interruption.run_id))
+finally:
+    agent.close()
 ```
 
-## 4) CLI Workflow
+The model must actually request the tool for an intervention to be created.
+`edited_args` is optional; omit it to approve the original arguments. Use
+`reject_intervention()` with a reason to reject.
+
+The SQLite store permits the pending intervention and suspended run to be
+inspected from another process before resumption.
+
+## CLI review
 
 ```bash
 praval hitl pending
@@ -67,13 +72,11 @@ praval hitl reject <intervention_id> --reason "Unsafe"
 praval hitl resume <run_id>
 ```
 
-## 5) Conflict Semantics
+If a tool requires approval while HITL is disabled, Praval raises
+`HITLConfigurationError`. It does not execute the tool autonomously.
 
-If an agent is declared with `hitl=False` and the invoked tool requires approval,
-Praval raises `HITLConfigurationError`. This prevents accidental policy bypass.
+MCP tools use the same approval flow but are async-only in this release. Resume
+those runs with the async Agent API.
 
-## See Also
-- [Tool Integration Tutorial](./tool-integration.md)
-- {doc}`../guide/tool-system`
-- `examples/015_hitl_tool_approval.py`
-- `examples/016_hitl_mixed_agents.py`
+The protected live certification verifies a real provider-generated call,
+persistent interruption, argument editing or approval, and resume.
