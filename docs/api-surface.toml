@@ -1,0 +1,187 @@
+schema_version = 1
+
+# Every name exported by praval.__all__ must occur in exactly one surface.
+# ``documentation`` is a Sphinx source path without its file extension.
+
+[[surfaces]]
+name = "primary"
+stability = "stable"
+documentation = "guide/model-runtime"
+exports = [
+  "Agent",
+  "AudioResponse",
+  "ContentPart",
+  "EmbeddingRequest",
+  "EmbeddingResponse",
+  "ModelEvent",
+  "ModelMessage",
+  "ModelRequest",
+  "ModelResponse",
+  "ProviderAdapter",
+  "ProviderCapabilities",
+  "ProviderProfile",
+  "ReasoningConfig",
+  "SpeechRequest",
+  "StructuredOutputConfig",
+  "ToolCall",
+  "ToolResult",
+  "ToolSpec",
+  "TranscriptionRequest",
+  "Usage",
+  "ModelRuntime",
+  "get_provider_registry",
+  "reset_provider_registry",
+]
+
+[[surfaces]]
+name = "collaboration"
+stability = "stable"
+documentation = "guide/core-concepts"
+exports = [
+  "register_agent",
+  "get_registry",
+  "get_reef",
+  "Spore",
+  "SporeType",
+  "agent",
+  "broadcast",
+  "agent_pipeline",
+  "conditional_agent",
+  "throttled_agent",
+  "AgentSession",
+  "start_agents",
+]
+
+[[surfaces]]
+name = "lifecycle"
+stability = "stable"
+documentation = "guide/application-lifecycle"
+exports = [
+  "PravalApp",
+  "get_default_app",
+  "reset_default_app",
+]
+
+[[surfaces]]
+name = "hitl"
+stability = "optional"
+documentation = "tutorials/hitl-interventions"
+exports = [
+  "InterventionDecision",
+  "InterventionPolicy",
+  "InterventionRequest",
+  "InterventionStatus",
+  "SuspendedRunState",
+  "HITLService",
+  "HITLStore",
+  "get_hitl_store",
+  "InterventionRequired",
+  "HITLConfigurationError",
+]
+
+[[surfaces]]
+name = "embeddings"
+stability = "optional"
+documentation = "guide/embeddings"
+exports = [
+  "EmbeddingRuntime",
+  "EmbeddingConfigurationError",
+]
+
+[[surfaces]]
+name = "tools"
+stability = "optional"
+documentation = "guide/tool-system"
+exports = [
+  "tool",
+  "get_tool_info",
+  "is_tool",
+  "discover_tools",
+  "list_tools",
+  "register_tool_with_agent",
+  "unregister_tool_from_agent",
+  "ToolCollection",
+  "ToolRegistry",
+  "Tool",
+  "ToolMetadata",
+  "get_tool_registry",
+  "reset_tool_registry",
+  "TOOLS_AVAILABLE",
+]
+
+[[surfaces]]
+name = "memory"
+stability = "optional"
+documentation = "guide/memory-system"
+exports = [
+  "MemoryManager",
+  "MemoryType",
+  "MemoryEntry",
+  "MemoryQuery",
+  "MEMORY_AVAILABLE",
+]
+
+[[surfaces]]
+name = "storage"
+stability = "optional"
+documentation = "guide/storage"
+exports = [
+  "BaseStorageProvider",
+  "StorageRegistry",
+  "DataManager",
+  "storage_enabled",
+  "requires_storage",
+  "get_storage_registry",
+  "get_data_manager",
+  "PostgreSQLProvider",
+  "RedisProvider",
+  "S3Provider",
+  "FileSystemProvider",
+  "QdrantProvider",
+  "DataReference",
+  "StorageResult",
+  "StorageType",
+  "STORAGE_AVAILABLE",
+]
+
+[[surfaces]]
+name = "compatibility"
+stability = "compatibility"
+documentation = "guide/runtime-migration"
+exports = [
+  "chat",
+  "achat",
+  "get_agent_info",
+]
+
+[[submodules]]
+name = "praval"
+documentation = "api/index"
+
+[[submodules]]
+name = "praval.app"
+documentation = "guide/application-lifecycle"
+
+[[submodules]]
+name = "praval.embeddings"
+documentation = "guide/embeddings"
+
+[[submodules]]
+name = "praval.hitl"
+documentation = "tutorials/hitl-interventions"
+
+[[submodules]]
+name = "praval.mcp"
+documentation = "guide/mcp"
+
+[[submodules]]
+name = "praval.observability"
+documentation = "guide/observability"
+
+[[submodules]]
+name = "praval.storage"
+documentation = "guide/storage"
+
+[[submodules]]
+name = "praval.tools"
+documentation = "guide/tool-system"

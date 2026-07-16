@@ -42,8 +42,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/aiexplorations/praval"
-Documentation = "https://github.com/aiexplorations/praval/tree/main/docs"
+Homepage = "https://pravalagents.com/"
+Documentation = "https://pravalagents.com/docs/latest/"
 Repository = "https://github.com/aiexplorations/praval"
 "Bug Tracker" = "https://github.com/aiexplorations/praval/issues"
 Changelog = "https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md"

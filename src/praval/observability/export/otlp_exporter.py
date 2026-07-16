@@ -14,6 +14,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from praval import __version__
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,7 +98,7 @@ class OTLPExporter:
             scope_spans = {
                 "scope": {
                     "name": "praval",
-                    "version": "0.8.0",
+                    "version": __version__,
                 },
                 "spans": [self._span_to_otlp(s) for s in trace_spans],
             }
@@ -111,7 +113,7 @@ class OTLPExporter:
                         },
                         {
                             "key": "telemetry.sdk.version",
-                            "value": {"stringValue": "0.8.0"},
+                            "value": {"stringValue": __version__},
                         },
                     ]
                 },

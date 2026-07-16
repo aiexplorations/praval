@@ -26,6 +26,15 @@ DEFAULT_MAX_RESULT_SIZE = 1024 * 1024
 TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 MAX_TOOL_NAME_LENGTH = 64
 
+__all__ = [
+    "MCPClient",
+    "MCPClientClosedError",
+    "MCPConnectionError",
+    "MCPError",
+    "MCPServerConfig",
+    "MCPToolError",
+]
+
 
 class MCPError(RuntimeError):
     """Base error for Praval MCP client operations."""

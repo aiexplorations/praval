@@ -1,0 +1,36 @@
+schema_version = 1
+
+[[claims]]
+id = "provider-neutral-runtime"
+statement = "Agent model execution uses provider-neutral request, response, event, tool, and usage contracts."
+evidence = ["tests/test_model_runtime_contracts.py", "tests/test_provider_streaming.py"]
+
+[[claims]]
+id = "reef-rabbitmq"
+statement = "Reef supports in-process delivery and an optional RabbitMQ distributed backend."
+evidence = ["tests/test_reef.py", "tests/integration/test_rabbitmq_distributed_workflow.py"]
+
+[[claims]]
+id = "secure-transports"
+statement = "The optional secure transport layer supports AMQP, MQTT, and STOMP adapters."
+evidence = ["tests/test_transport.py", "tests/test_secure_reef.py"]
+
+[[claims]]
+id = "storage-providers"
+statement = "The async storage API provides filesystem, PostgreSQL, Redis, S3-compatible, and Qdrant providers."
+evidence = ["tests/storage", "docs/sphinx/guide/storage.md"]
+
+[[claims]]
+id = "mcp-client"
+statement = "The optional MCP client consumes tools over stdio and Streamable HTTP."
+evidence = ["tests/mcp", "docs/sphinx/guide/mcp.md"]
+
+[[claims]]
+id = "request-voice"
+statement = "OpenAI-backed agents support request-based transcription and speech generation."
+evidence = ["examples/request_based_voice_agent.py", "examples/certification/live_voice_roundtrip.py"]
+
+[[claims]]
+id = "hitl"
+statement = "Approval-gated model tool calls can be persisted, reviewed, and resumed."
+evidence = ["tests/test_hitl_agent.py", "tests/test_hitl_provider_parity.py"]

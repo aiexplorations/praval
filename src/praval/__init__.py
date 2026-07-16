@@ -5,13 +5,12 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.8.0 adds the provider-neutral model runtime, structured model
-contracts, local OpenAI-compatible providers, Gemini support, normalized
-streaming events, multimodal request validation, and runtime-owned capability
-checks while preserving legacy agent APIs.
+The installed distribution metadata is the runtime source of truth for the
+package version.
 
 """
 
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from .app import PravalApp, get_default_app, reset_default_app
@@ -191,7 +190,10 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.8.0"
+try:
+    __version__ = version("praval")
+except PackageNotFoundError:  # pragma: no cover - direct source-tree import
+    __version__ = "0+unknown"
 __all__ = [
     # Core classes
     "Agent",

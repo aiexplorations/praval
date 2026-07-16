@@ -10,7 +10,12 @@ from .providers.registry import ProviderRegistry, get_provider_registry
 
 
 class PravalApp:
-    """Owns the core runtime objects for an isolated Praval application."""
+    """Own agents and a Reef for explicit lifecycle cleanup.
+
+    ``PravalApp`` does not isolate provider registries or redirect an agent's
+    Reef convenience methods in 0.8. Use it when explicit ownership and
+    deterministic cleanup are useful, not as a dependency-injection boundary.
+    """
 
     def __init__(
         self,
