@@ -92,19 +92,19 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
-          path: dist
+          path: artifact
           github-token: ${{ github.token }}
           run-id: ${{ steps.ci-run.outputs.run-id }}
       - name: Verify downloaded provenance and configuration
         shell: bash
         run: |
-          (cd dist && shasum -a 256 -c SHA256SUMS)
+          (cd artifact/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          manifest = json.loads(Path("artifact/evidence/build-manifest.json").read_text())
           if manifest["commit"] != os.environ["GITHUB_SHA"]:
               raise SystemExit("CI artifact commit does not match live commit")
           required = [
@@ -153,7 +153,7 @@ jobs:
         run: >-
           python scripts/run_demos.py
           --manifest examples/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode live
           --report-dir "$RUNNER_TEMP/live-demo-results"
           --commit-sha "${{ github.sha }}"
@@ -161,7 +161,7 @@ jobs:
         run: >-
           python scripts/run_notebooks.py
           --manifest examples/notebooks/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode live
           --report-dir "$RUNNER_TEMP/live-notebook-results"
           --commit-sha "${{ github.sha }}"

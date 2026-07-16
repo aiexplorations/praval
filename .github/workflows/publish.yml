@@ -61,6 +61,13 @@ jobs:
           path: release
           github-token: ${{ github.token }}
           run-id: ${{ steps.ci-run.outputs.run-id }}
+      - name: Download exact-wheel documentation manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-docs-${{ github.sha }}
+          path: documentation
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.ci-run.outputs.run-id }}
       - name: Download exact live certification
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -71,21 +78,40 @@ jobs:
       - name: Verify tag, distributions, provenance, and live certificate
         shell: bash
         run: |
-          (cd release && shasum -a 256 -c SHA256SUMS)
-          python scripts/validate_distribution.py release --tag "$GITHUB_REF_NAME"
+          (cd release/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
+          python scripts/validate_distribution.py release/dist --tag "$GITHUB_REF_NAME"
           python scripts/verify_demo_certification.py \
-            release/build-manifest.json \
+            release/evidence/build-manifest.json \
             certification/certification-live.json \
             --commit "$GITHUB_SHA" \
             --version "${GITHUB_REF_NAME#v}"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          build = json.loads(Path("release/evidence/build-manifest.json").read_text())
+          docs = json.loads(Path("documentation/documentation-manifest.json").read_text())
+          wheel = next(item for item in build["artifacts"] if item["filename"].endswith(".whl"))
+          expected = {
+              "commit": os.environ["GITHUB_SHA"],
+              "version": os.environ["GITHUB_REF_NAME"].removeprefix("v"),
+              "wheel_sha256": wheel["sha256"],
+          }
+          actual = {key: docs.get(key) for key in expected}
+          if actual != expected:
+              raise SystemExit(f"Documentation provenance mismatch: {actual} != {expected}")
+          PY
           notes="docs/releases/RELEASE_NOTES_${GITHUB_REF_NAME#v}.md"
           if [[ ! -f "$notes" ]]; then
             echo "Release notes not found: $notes" >&2
             exit 1
           fi
           mkdir -p verified/dist verified/evidence
-          cp release/*.whl release/*.tar.gz verified/dist/
-          cp release/SHA256SUMS release/build-manifest.json verified/evidence/
+          cp release/dist/*.whl release/dist/*.tar.gz verified/dist/
+          cp release/evidence/SHA256SUMS release/evidence/build-manifest.json verified/evidence/
+          cp documentation/documentation-manifest.json verified/evidence/
           cp "$notes" verified/evidence/RELEASE_NOTES.md
           cp -R certification/. verified/evidence/live-demo/
       - name: Upload protected publication bundle
@@ -131,6 +157,7 @@ jobs:
           verified/dist/*
           verified/evidence/SHA256SUMS
           verified/evidence/build-manifest.json
+          verified/evidence/documentation-manifest.json
           verified/evidence/live-demo/*
           --verify-tag
           --title "Praval $GITHUB_REF_NAME"

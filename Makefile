@@ -22,7 +22,7 @@ help:
 	@echo "  docs-clean   - Clean documentation build artifacts"
 	@echo "  docs-serve   - Build and open documentation in browser"
 	@echo "  docs-check   - Check documentation for errors"
-	@echo "  docs-deploy  - Build and deploy docs to praval-ai website"
+	@echo "  docs-deploy  - Stage a verified docs artifact in praval-ai"
 	@echo ""
 	@echo "📄 PDF Manual:"
 	@echo "  pdf          - Generate PDF with LuaLaTeX (recommended)"
@@ -61,8 +61,9 @@ build:
 	./scripts/build.sh
 
 package-check:
-	./venv/bin/twine check dist/*
+	./venv/bin/twine check dist/*.whl dist/*.tar.gz
 	./venv/bin/python scripts/validate_distribution.py dist
+	./venv/bin/python scripts/check_release_metadata.py --dist dist
 
 reproducible-build:
 	./scripts/check_reproducible_build.sh
@@ -142,12 +143,10 @@ docs-check:
 	cd docs/sphinx && ../../venv/bin/sphinx-build -b html -W --keep-going . ../_build/html
 	@echo "✅ Documentation check passed!"
 
-docs-deploy: docs-html
-	@echo "🚀 Deploying documentation to praval-ai website..."
-	./scripts/deploy-docs.sh
-	@echo "✅ Documentation deployed!"
-	@echo ""
-	@echo "📋 Next: cd ~/Github/praval-ai && git add docs/ && git commit && git push"
+docs-deploy:
+	@test -n "$(DOCS_ARTIFACT)" || (echo "Set DOCS_ARTIFACT" >&2; exit 2)
+	@test -n "$(WEBSITE_CHECKOUT)" || (echo "Set WEBSITE_CHECKOUT" >&2; exit 2)
+	./scripts/deploy-docs.sh "$(DOCS_ARTIFACT)" "$(WEBSITE_CHECKOUT)"
 
 # PDF Manual Generation
 PDF_DIR = docs/generated

@@ -39,14 +39,17 @@ isort --check-only src/ tests/ scripts/ --profile black
 flake8 src/ tests/ scripts/ --max-line-length=88 --extend-ignore=E203,W503
 
 echo "Building documentation with warnings treated as errors"
+python scripts/check_release_metadata.py
+python scripts/check_api_surface.py --report evidence/api-coverage.json
 sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
 
 echo "Building distribution artifacts"
 rm -rf build dist
 python -m build
 python scripts/normalize_sdist.py dist/praval-*.tar.gz
-twine check dist/*
+twine check dist/*.whl dist/*.tar.gz
 python scripts/validate_distribution.py dist
-python scripts/write_build_manifest.py dist
+python scripts/write_build_manifest.py dist --evidence-dir evidence
+python scripts/check_release_metadata.py --dist dist
 
 echo "Praval release candidate passed all local build gates"

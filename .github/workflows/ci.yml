@@ -96,7 +96,13 @@ jobs:
           examples/notebooks/course/*.ipynb
           examples/notebooks/case_studies/*.ipynb
       - name: Build warning-free documentation
+        env:
+          PRAVAL_DOCS_OFFLINE: "1"
         run: sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
+      - name: Validate release metadata and documented API surface
+        run: |
+          python scripts/check_release_metadata.py
+          python scripts/check_api_surface.py --report evidence/api-coverage.json
       - name: Upload coverage evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -105,6 +111,7 @@ jobs:
           path: |
             coverage.json
             htmlcov/
+            evidence/api-coverage.json
           if-no-files-found: warn
           retention-days: 14
       - name: Upload notebook presentation evidence
@@ -156,14 +163,51 @@ jobs:
           export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
           python -m build
           python scripts/normalize_sdist.py dist/praval-*.tar.gz
-          twine check dist/*
+          twine check dist/*.whl dist/*.tar.gz
           python scripts/validate_distribution.py dist
-          python scripts/write_build_manifest.py dist
+          python scripts/write_build_manifest.py dist --evidence-dir evidence
+          python scripts/check_release_metadata.py --dist dist
       - name: Upload exact commit artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: praval-${{ github.sha }}
-          path: dist/
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            evidence/SHA256SUMS
+            evidence/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  docs-exact-wheel:
+    name: Exact-wheel documentation
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Download exact commit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: praval-${{ github.sha }}
+          path: artifact
+      - name: Verify distributions and build installed-wheel documentation
+        shell: bash
+        run: |
+          (cd artifact/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
+          python scripts/build_exact_wheel_docs.py \
+            --dist artifact/dist \
+            --output documentation-artifact \
+            --commit "$GITHUB_SHA"
+      - name: Upload exact-wheel documentation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: praval-docs-${{ github.sha }}
+          path: documentation-artifact/
           if-no-files-found: error
           retention-days: 30
 
@@ -186,9 +230,9 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
-          path: dist
+          path: artifact
       - name: Install and exercise wheel in a clean environment
-        run: python scripts/smoke_install.py dist
+        run: python scripts/smoke_install.py artifact/dist
 
   install-smoke:
     name: Install smoke (${{ matrix.extra }})
@@ -208,13 +252,13 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
-          path: dist
+          path: artifact
       - name: Minimal installation
         if: matrix.extra == 'minimal'
-        run: python scripts/smoke_install.py dist
+        run: python scripts/smoke_install.py artifact/dist
       - name: MCP installation
         if: matrix.extra == 'mcp'
-        run: python scripts/smoke_install.py dist --extra mcp
+        run: python scripts/smoke_install.py artifact/dist --extra mcp
 
   demo-offline:
     name: Exact-wheel offline demos
@@ -233,17 +277,17 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
-          path: dist
+          path: artifact
       - name: Verify exact artifact provenance
         shell: bash
         run: |
-          (cd dist && shasum -a 256 -c SHA256SUMS)
+          (cd artifact/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          manifest = json.loads(Path("artifact/evidence/build-manifest.json").read_text())
           if manifest.get("commit") != os.environ["GITHUB_SHA"]:
               raise SystemExit("CI artifact commit does not match this workflow commit")
           PY
@@ -251,7 +295,7 @@ jobs:
         run: >-
           python scripts/run_demos.py
           --manifest examples/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode offline
           --report-dir "$RUNNER_TEMP/demo-results/offline"
           --commit-sha "${{ github.sha }}"
@@ -259,7 +303,7 @@ jobs:
         run: >-
           python scripts/run_notebooks.py
           --manifest examples/notebooks/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode offline
           --report-dir "$RUNNER_TEMP/notebook-results/offline"
           --commit-sha "${{ github.sha }}"
@@ -342,17 +386,17 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: praval-${{ github.sha }}
-          path: dist
+          path: artifact
       - name: Verify exact artifact provenance
         shell: bash
         run: |
-          (cd dist && shasum -a 256 -c SHA256SUMS)
+          (cd artifact/dist && shasum -a 256 -c ../evidence/SHA256SUMS)
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          manifest = json.loads(Path("dist/build-manifest.json").read_text())
+          manifest = json.loads(Path("artifact/evidence/build-manifest.json").read_text())
           if manifest.get("commit") != os.environ["GITHUB_SHA"]:
               raise SystemExit("CI artifact commit does not match this workflow commit")
           PY
@@ -406,7 +450,7 @@ jobs:
         run: >-
           python scripts/run_demos.py
           --manifest examples/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode services
           --report-dir "$RUNNER_TEMP/demo-results/services"
           --commit-sha "${{ github.sha }}"
@@ -414,7 +458,7 @@ jobs:
         run: >-
           python scripts/run_notebooks.py
           --manifest examples/notebooks/manifest.toml
-          --wheel dist
+          --wheel artifact/dist
           --mode services
           --report-dir "$RUNNER_TEMP/notebook-results/services"
           --commit-sha "${{ github.sha }}"

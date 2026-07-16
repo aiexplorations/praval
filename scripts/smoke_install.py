@@ -34,8 +34,9 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
             [str(python), "-m", "pip", "install", wheel_requirement], check=True
         )
         checks: List[str] = [
+            "import importlib.metadata",
             "import praval",
-            "assert praval.__version__ == '0.8.0'",
+            "assert praval.__version__ == importlib.metadata.version('praval')",
             "from praval.model_runtime import ModelRuntime",
             "from praval.models import ModelResponse, ProviderCapabilities",
         ]

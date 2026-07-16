@@ -6,7 +6,10 @@ import io
 import json
 import sys
 import tarfile
+import zipfile
 from pathlib import Path
+
+import pytest
 
 try:
     import tomllib
@@ -32,6 +35,9 @@ _project_version = validation._project_version
 _sdist_text = validation._sdist_text
 write_manifest = _load_script("write_build_manifest").write_manifest
 type_checks = _load_script("check_types")
+release_metadata = _load_script("check_release_metadata")
+sys.modules["build_exact_wheel_docs"] = _load_script("build_exact_wheel_docs")
+stage_docs = _load_script("stage_docs_artifact")
 
 
 def _write_sdist(path, *, mtime, uid):
@@ -105,20 +111,27 @@ def test_sdist_text_reads_one_matching_member(tmp_path):
 
 
 def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
-    (tmp_path / "praval.whl").write_bytes(b"wheel")
-    (tmp_path / "praval.tar.gz").write_bytes(b"sdist")
+    dist_dir = tmp_path / "dist"
+    evidence_dir = tmp_path / "evidence"
+    dist_dir.mkdir()
+    (dist_dir / "praval.whl").write_bytes(b"wheel")
+    (dist_dir / "praval.tar.gz").write_bytes(b"sdist")
     monkeypatch.setenv("GITHUB_SHA", "abc123")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
 
-    manifest = write_manifest(tmp_path)
+    manifest = write_manifest(dist_dir, evidence_dir)
 
     assert manifest["commit"] == "abc123"
     assert manifest["source_date_epoch"] == "1700000000"
-    written = json.loads((tmp_path / "build-manifest.json").read_text())
+    written = json.loads((evidence_dir / "build-manifest.json").read_text())
     assert written == manifest
-    checksums = (tmp_path / "SHA256SUMS").read_text()
+    checksums = (evidence_dir / "SHA256SUMS").read_text()
     assert hashlib.sha256(b"wheel").hexdigest() in checksums
     assert hashlib.sha256(b"sdist").hexdigest() in checksums
+    assert sorted(path.name for path in dist_dir.iterdir()) == [
+        "praval.tar.gz",
+        "praval.whl",
+    ]
 
 
 def test_type_checks_cover_current_and_minimum_python_versions():
@@ -144,3 +157,95 @@ def test_python39_s3_extras_constrain_cohere_request_stubs():
 
     for extra in ("storage", "all", "dev"):
         assert expected in project["optional-dependencies"][extra]
+
+
+def _write_version_wheel(path: Path, version: str = "0.8.0") -> None:
+    metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(f"praval-{version}.dist-info/METADATA", metadata)
+
+
+def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
+    _write_version_wheel(tmp_path / "praval-0.8.0-py3-none-any.whl")
+
+    def not_installed(_name):
+        raise release_metadata.importlib.metadata.PackageNotFoundError
+
+    monkeypatch.setattr(release_metadata.importlib.metadata, "version", not_installed)
+
+    assert release_metadata.validate(Path.cwd(), dist_dir=tmp_path) == []
+
+
+def _write_docs_artifact(root: Path, *, commit: str) -> None:
+    site = root / "site"
+    site.mkdir(parents=True)
+    (site / "index.html").write_text("<h1>Praval</h1>", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "commit": commit,
+        "version": "0.8.0",
+        "wheel": "praval-0.8.0-py3-none-any.whl",
+        "wheel_sha256": "a" * 64,
+        "documentation_tree_sha256": stage_docs.tree_sha256(site),
+        "file_count": 1,
+    }
+    (root / "documentation-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+
+
+def test_docs_stager_rejects_non_release_commit_provenance(tmp_path):
+    artifact = tmp_path / "artifact"
+    _write_docs_artifact(artifact, commit="local-docs-build")
+
+    with pytest.raises(ValueError, match="full Git SHA"):
+        stage_docs.stage_docs(artifact, tmp_path / "website")
+
+
+def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
+    artifact = tmp_path / "artifact"
+    website = tmp_path / "website"
+    (website / "docs").mkdir(parents=True)
+    (website / "docs/versions.json").write_text(
+        json.dumps(
+            {
+                "current": "0.7.22",
+                "latest": "0.7.22",
+                "versions": [
+                    {
+                        "version": "0.7.22",
+                        "url": "/docs/v0.7.22/",
+                        "title": "v0.7.22 (latest)",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_docs_artifact(artifact, commit="b" * 40)
+
+    manifest = stage_docs.stage_docs(artifact, website)
+
+    assert manifest["version"] == "0.8.0"
+    versioned = website / "docs/v0.8.0"
+    latest = website / "docs/latest"
+    expected_files = [Path("documentation-manifest.json"), Path("index.html")]
+    assert (
+        sorted(
+            path.relative_to(versioned)
+            for path in versioned.rglob("*")
+            if path.is_file()
+        )
+        == expected_files
+    )
+    assert {
+        path.relative_to(versioned): path.read_bytes()
+        for path in versioned.rglob("*")
+        if path.is_file()
+    } == {
+        path.relative_to(latest): path.read_bytes()
+        for path in latest.rglob("*")
+        if path.is_file()
+    }
+    versions = json.loads((website / "docs/versions.json").read_text())
+    assert versions["current"] == versions["latest"] == "0.8.0"

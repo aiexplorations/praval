@@ -46,9 +46,14 @@ def _project_version(pyproject: Path) -> str:
 def _package_version(init_file: Path) -> str:
     contents = init_file.read_text(encoding="utf-8")
     match = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', contents, re.MULTILINE)
-    if match is None:
-        raise ValueError("praval.__version__ is not defined")
-    return match.group(1)
+    if match is not None:
+        return match.group(1)
+    if 'version("praval")' not in contents:
+        raise ValueError("praval.__version__ is not derived from package metadata")
+    # Release validation runs before the newly built wheel is installed. The
+    # source contract above proves runtime lookup is dynamic; compare using the
+    # authoritative project metadata instead of the active environment.
+    return _project_version(init_file.parents[2] / "pyproject.toml")
 
 
 def _metadata_from_wheel(wheel: Path) -> Dict[str, Any]:
@@ -239,6 +244,10 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         errors.append("sdist must contain certification fixture provenance")
     if not any("/docs/sphinx/" in name for name in sdist_names):
         errors.append("sdist must contain Sphinx documentation sources")
+    if not any(name.endswith("/docs/api-surface.toml") for name in sdist_names):
+        errors.append("sdist must contain the public API surface manifest")
+    if not any(name.endswith("/docs/feature-claims.toml") for name in sdist_names):
+        errors.append("sdist must contain the feature claim evidence manifest")
     return errors
 
 

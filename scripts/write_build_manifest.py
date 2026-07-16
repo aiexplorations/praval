@@ -26,12 +26,12 @@ def _git_value(root: Path, *args: str) -> str:
     ).strip()
 
 
-def write_manifest(dist_dir: Path) -> Dict[str, object]:
+def write_manifest(dist_dir: Path, evidence_dir: Path) -> Dict[str, object]:
     root = Path(__file__).resolve().parents[1]
     artifacts = sorted(
         path
         for path in dist_dir.iterdir()
-        if path.is_file() and path.name not in {"SHA256SUMS", "build-manifest.json"}
+        if path.is_file() and path.name.endswith((".whl", ".tar.gz"))
     )
     artifact_data: List[Dict[str, object]] = [
         {"filename": path.name, "sha256": _sha256(path), "size": path.stat().st_size}
@@ -43,13 +43,14 @@ def write_manifest(dist_dir: Path) -> Dict[str, object]:
         or _git_value(root, "show", "-s", "--format=%ct", "HEAD"),
         "artifacts": artifact_data,
     }
-    (dist_dir / "build-manifest.json").write_text(
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / "build-manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     checksum_lines = [
         f"{artifact['sha256']}  {artifact['filename']}" for artifact in artifact_data
     ]
-    (dist_dir / "SHA256SUMS").write_text(
+    (evidence_dir / "SHA256SUMS").write_text(
         "\n".join(checksum_lines) + "\n", encoding="utf-8"
     )
     return manifest
@@ -58,9 +59,10 @@ def write_manifest(dist_dir: Path) -> Dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("dist_dir", type=Path)
+    parser.add_argument("--evidence-dir", type=Path, default=Path("evidence"))
     args = parser.parse_args()
-    write_manifest(args.dist_dir)
-    print(f"Wrote checksums and build manifest to {args.dist_dir}")
+    write_manifest(args.dist_dir, args.evidence_dir)
+    print(f"Wrote checksums and build manifest to {args.evidence_dir}")
     return 0
 
 
