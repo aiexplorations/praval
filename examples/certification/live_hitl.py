@@ -40,7 +40,10 @@ def build_agent(decision: str) -> Agent:
         model=values["PRAVAL_OPENAI_MODEL"],
         hitl_enabled=True,
         hitl_db_path=str(paths()["database"]),
-        config={"temperature": 0, "max_output_tokens": 96, "timeout": 60},
+        # A reasoning-capable model needs room for both the tool call and the
+        # post-approval continuation. Keep the budget bounded, but large enough
+        # that a successful tool execution can produce an auditable final reply.
+        config={"temperature": 0, "max_output_tokens": 512, "timeout": 60},
     )
 
     def guarded_multiply(a: int, b: int) -> int:
@@ -123,12 +126,17 @@ def resume_intervention(decision: str, state_path: Path, result_path: Path) -> N
                 reason="Certification rejection path",
             )
         response = agent.resume_run(state["run_id"])
-        assert isinstance(response, str) and response.strip()
+        assert (
+            isinstance(response, str) and response.strip()
+        ), "resumed provider continuation returned no final text"
 
     suspended = HITLService(db_path=str(paths()["database"])).get_suspended_run(
         state["run_id"]
     )
-    assert suspended is not None and suspended.status == "completed"
+    assert suspended is not None, "resumed HITL run was not persisted"
+    assert (
+        suspended.status == "completed"
+    ), f"resumed HITL run ended with status {suspended.status!r}"
     result_path.write_text(
         json.dumps(
             {
