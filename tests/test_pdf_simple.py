@@ -20,7 +20,7 @@ def test_pdf_text_extraction():
         EmbeddedVectorStore
     )  # Create without calling __init__
 
-    with patch("PyPDF2.PdfReader") as mock_pdf_reader:
+    with patch("pypdf.PdfReader") as mock_pdf_reader:
         # Mock PDF reader and pages
         mock_page1 = Mock()
         mock_page1.extract_text.return_value = (
@@ -50,7 +50,7 @@ def test_pdf_text_extraction():
             assert "Q-learning" in result
             assert len(result) > 50  # Should have substantial content
 
-            # Verify PyPDF2 was called correctly
+            # Verify pypdf was called correctly
             mock_pdf_reader.assert_called_once()
             mock_page1.extract_text.assert_called_once()
             mock_page2.extract_text.assert_called_once()
@@ -93,21 +93,21 @@ def test_pdf_extraction_error_handling():
 
     store = EmbeddedVectorStore.__new__(EmbeddedVectorStore)
 
-    # Test PyPDF2 not installed
+    # Test pypdf not installed
     with patch(
-        "builtins.__import__", side_effect=ImportError("No module named 'PyPDF2'")
+        "builtins.__import__", side_effect=ImportError("No module named 'pypdf'")
     ):
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             pdf_path = Path(tmp.name)
 
         try:
-            with pytest.raises(ImportError, match="PyPDF2 is required"):
+            with pytest.raises(ImportError, match="pypdf is required"):
                 store._extract_pdf_text(pdf_path)
         finally:
             pdf_path.unlink()
 
     # Test corrupted PDF
-    with patch("PyPDF2.PdfReader", side_effect=Exception("PDF corrupted")):
+    with patch("pypdf.PdfReader", side_effect=Exception("PDF corrupted")):
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             pdf_path = Path(tmp.name)
 

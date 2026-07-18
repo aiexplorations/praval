@@ -1,0 +1,297 @@
+schema_version = 2
+
+[[notebook]]
+id = "course-00-architecture"
+path = "course/00_architecture.ipynb"
+title = "Understanding Praval Architecture"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = []
+estimated_minutes = 20
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=M30U-6w_WGc"
+
+[[notebook]]
+id = "course-01-hello-world"
+path = "course/01_hello_world.ipynb"
+title = "Hello World Agent"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-00-architecture"]
+estimated_minutes = 25
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=X25zLFSmXt8"
+
+[[notebook]]
+id = "course-02-research-pipeline"
+path = "course/02_research_pipeline.ipynb"
+title = "Research Pipeline"
+track = "course"
+mode = "live"
+certify = true
+prerequisites = ["course-00-architecture", "course-01-hello-world"]
+estimated_minutes = 35
+learning_level = "fundamentals"
+extras = []
+providers = ["openai"]
+services = []
+timeout = 240
+video_url = "https://www.youtube.com/watch?v=u7gib_vrMMQ"
+
+[[notebook]]
+id = "course-03-feedback-loop"
+path = "course/03_feedback_loop.ipynb"
+title = "Feedback Loop Pattern"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-02-research-pipeline"]
+estimated_minutes = 30
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=uNXC_XDeVlc"
+
+[[notebook]]
+id = "course-04-parallel-agents"
+path = "course/04_parallel_agents.ipynb"
+title = "Parallel Agents: Fan-Out and Fan-In"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-02-research-pipeline"]
+estimated_minutes = 30
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=VNZ_lhljPBc"
+
+[[notebook]]
+id = "course-05-tool-use"
+path = "course/05_tool_use.ipynb"
+title = "Tool Use"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-01-hello-world"]
+estimated_minutes = 30
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=40-DUQ4Cf2Q"
+
+[[notebook]]
+id = "course-06-agent-memory"
+path = "course/06_agent_memory.ipynb"
+title = "Agent Memory"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-01-hello-world"]
+estimated_minutes = 30
+learning_level = "fundamentals"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = "https://www.youtube.com/watch?v=sH3NkfoTZ1c"
+
+[[notebook]]
+id = "course-07-qdrant-memory"
+path = "course/07_qdrant_integration.ipynb"
+title = "Qdrant Vector Memory"
+track = "course"
+mode = "live"
+certify = true
+prerequisites = ["course-06-agent-memory"]
+estimated_minutes = 35
+learning_level = "advanced"
+extras = ["memory", "storage"]
+providers = ["openai"]
+services = ["qdrant"]
+timeout = 300
+video_url = "https://www.youtube.com/watch?v=ZhEEFfIpuJg"
+
+[[notebook]]
+id = "course-08-production"
+path = "course/08_production_features.ipynb"
+title = "Production Reef, Security, and Observability"
+track = "course"
+mode = "services"
+certify = true
+prerequisites = ["course-02-research-pipeline", "course-04-parallel-agents"]
+estimated_minutes = 40
+learning_level = "advanced"
+extras = ["secure", "observability"]
+providers = []
+services = ["rabbitmq", "otlp"]
+timeout = 180
+video_url = "https://www.youtube.com/watch?v=wPXbCCjNBHw"
+
+[[notebook]]
+id = "course-09-model-runtime"
+path = "course/09_model_runtime.ipynb"
+title = "ModelRuntime and Provider-Neutral Execution"
+track = "course"
+mode = "offline"
+certify = true
+prerequisites = ["course-01-hello-world", "course-05-tool-use"]
+estimated_minutes = 35
+learning_level = "advanced"
+extras = []
+providers = []
+services = []
+timeout = 90
+video_url = ""
+
+[[notebook]]
+id = "course-10-hitl"
+path = "course/10_human_in_the_loop.ipynb"
+title = "Human in the Loop"
+track = "course"
+mode = "live"
+certify = true
+prerequisites = ["course-05-tool-use", "course-09-model-runtime"]
+estimated_minutes = 40
+learning_level = "advanced"
+extras = []
+providers = ["openai"]
+services = []
+timeout = 240
+video_url = ""
+
+[[notebook]]
+id = "course-11-mcp"
+path = "course/11_mcp_tools.ipynb"
+title = "MCP Tools"
+track = "course"
+mode = "services"
+certify = true
+prerequisites = ["course-05-tool-use", "course-09-model-runtime", "course-10-hitl"]
+estimated_minutes = 40
+learning_level = "advanced"
+extras = ["mcp"]
+providers = []
+services = ["mcp-stdio", "mcp-streamable-http"]
+timeout = 180
+video_url = ""
+
+[[notebook]]
+id = "course-12-voice-multimodal"
+path = "course/12_voice_and_multimodal.ipynb"
+title = "Voice and Multimodal Agents"
+track = "course"
+mode = "live"
+certify = true
+prerequisites = ["course-09-model-runtime"]
+estimated_minutes = 45
+learning_level = "advanced"
+extras = []
+providers = ["openai"]
+services = ["openai-stt", "openai-tts"]
+timeout = 360
+video_url = ""
+
+[[notebook]]
+id = "case-study-research-intelligence"
+path = "case_studies/research_intelligence_desk.ipynb"
+title = "Research Intelligence Desk"
+track = "case-study"
+mode = "offline"
+certify = true
+prerequisites = [
+    "course-02-research-pipeline",
+    "course-03-feedback-loop",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+    "course-06-agent-memory",
+]
+estimated_minutes = 60
+learning_level = "capstone"
+extras = []
+providers = []
+services = []
+timeout = 180
+video_url = ""
+
+[[notebook]]
+id = "case-study-customer-support"
+path = "case_studies/customer_support_resolution_center.ipynb"
+title = "Customer Support Resolution Center"
+track = "case-study"
+mode = "offline"
+certify = true
+prerequisites = [
+    "course-02-research-pipeline",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+    "course-06-agent-memory",
+]
+estimated_minutes = 60
+learning_level = "capstone"
+extras = []
+providers = []
+services = []
+timeout = 180
+video_url = ""
+
+[[notebook]]
+id = "case-study-release-readiness"
+path = "case_studies/software_release_readiness.ipynb"
+title = "Software Release Readiness Team"
+track = "case-study"
+mode = "offline"
+certify = true
+prerequisites = [
+    "course-02-research-pipeline",
+    "course-04-parallel-agents",
+    "course-05-tool-use",
+    "course-08-production",
+]
+estimated_minutes = 60
+learning_level = "capstone"
+extras = ["observability"]
+providers = []
+services = []
+timeout = 240
+video_url = ""
+
+[[notebook]]
+id = "case-study-marketing-studio"
+path = "case_studies/marketing_studio.ipynb"
+title = "AI Marketing Studio"
+track = "case-study"
+mode = "live"
+certify = true
+prerequisites = [
+    "course-02-research-pipeline",
+    "course-03-feedback-loop",
+    "course-05-tool-use",
+    "course-06-agent-memory",
+    "course-09-model-runtime",
+    "course-10-hitl",
+    "course-12-voice-multimodal",
+]
+estimated_minutes = 75
+learning_level = "capstone"
+extras = []
+providers = ["openai"]
+services = []
+timeout = 480
+video_url = ""

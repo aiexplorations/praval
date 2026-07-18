@@ -41,30 +41,33 @@ def writer(spore):
     return {"status": "done"}
 ```
 
-## 3) Category-Based Tools + Provider Tool Calls
+## 3) Direct Agent tools
 
 ```python
-from praval import agent, tool, Agent
+from praval import Agent
 
-@tool("weather", category="external", shared=True)
+assistant = Agent("assistant", provider="openai", model="gpt-5.4-mini")
+
+
+@assistant.tool
 def get_weather(city: str) -> str:
+    """Return the current weather for a city."""
     return f"Sunny in {city}"
 
-@agent("assistant", tool_categories=["external"], auto_discover_tools=False)
-def assistant(spore):
-    return {"answer": "Ask me the weather."}
 
-llm = Agent("assistant")
-llm.tools["weather"] = {
-    "function": get_weather,
-    "description": "Get weather",
-    "parameters": {"city": {"type": "str", "required": True}}
-}
-print(llm.chat("What's the weather in Paris?"))
+try:
+    print(assistant.chat("What's the weather in Paris? Use the tool."))
+finally:
+    assistant.close()
 ```
 
+Do not mutate `Agent.tools` manually. Use `Agent.tool()` for a Python function,
+the global `@tool` registry for shared decorated-agent tools, or
+`Agent.add_tool_spec()` for an externally described JSON-schema tool such as an
+MCP tool.
+
 ## See Also
-- [Tool System Guide](../guide/tool-system.md)
+- {doc}`../guide/tool-system`
 - `examples/012_tools_basic.py`
 - `examples/013_tools_shared.py`
 - `examples/014_tools_categories.py`

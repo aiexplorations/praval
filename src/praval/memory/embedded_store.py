@@ -29,7 +29,7 @@ try:
     from sentence_transformers import SentenceTransformer
 
     SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
+except Exception:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
 
@@ -43,6 +43,8 @@ except ImportError:
     cosine_similarity = None
     np = None
 
+from ..core.exceptions import EmbeddingConfigurationError
+from ..embeddings import EmbeddingRuntime
 from .memory_types import MemoryEntry, MemoryQuery, MemorySearchResult, MemoryType
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,10 @@ class EmbeddedVectorStore:
         storage_path: Optional[str] = None,
         collection_name: str = "praval_memories",
         embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_provider: Optional[str] = None,
+        embedding_dimensions: Optional[int] = None,
+        embedding_provider_options: Optional[Dict[str, Any]] = None,
+        embedding_runtime: Optional[EmbeddingRuntime] = None,
         enable_collection_separation: bool = True,
     ):
         """
@@ -75,11 +81,26 @@ class EmbeddedVectorStore:
             collection_name: Base name for collections (will create _knowledge and
             _memory variants)
             embedding_model: SentenceTransformer model name
+            embedding_provider: Optional provider-neutral embedding provider
+            embedding_dimensions: Expected embedding vector size
+            embedding_provider_options: Provider-specific embedding options
+            embedding_runtime: Preconfigured embedding runtime
             enable_collection_separation: Whether to use separate collections for
             knowledge vs memory
         """
         self.base_collection_name = collection_name
         self.embedding_model_name = embedding_model
+        self.embedding_provider = embedding_provider or "sentence-transformers"
+        self.embedding_dimensions = embedding_dimensions
+        self.embedding_provider_options = dict(embedding_provider_options or {})
+        self.embedding_runtime = embedding_runtime
+        if self.embedding_runtime is None and embedding_provider is not None:
+            self.embedding_runtime = EmbeddingRuntime(
+                provider=embedding_provider,
+                model=embedding_model,
+                dimensions=embedding_dimensions,
+                provider_options=self.embedding_provider_options,
+            )
         self.enable_collection_separation = enable_collection_separation
 
         # Define collection names based on separation setting
@@ -109,8 +130,8 @@ class EmbeddedVectorStore:
             self._client_path = self.storage_path
 
         # Initialize components
-        self._init_chromadb()
         self._init_embedding_model()
+        self._init_chromadb()
 
         logger.info(f"Embedded vector store initialized at {self.storage_path}")
 
@@ -169,8 +190,11 @@ class EmbeddedVectorStore:
         """Get or create a ChromaDB collection with proper error handling"""
         try:
             collection = self.client.get_collection(name=collection_name)
+            self._validate_collection_embedding(collection, collection_name)
             logger.info(f"Using existing ChromaDB collection: {collection_name}")
             return collection
+        except EmbeddingConfigurationError:
+            raise
         except Exception:
             # Handle ChromaDB NotFoundError and other exceptions for collection not
             # found
@@ -178,10 +202,44 @@ class EmbeddedVectorStore:
                 f"Collection '{collection_name}' not found, creating new collection"
             )
             collection = self.client.create_collection(
-                name=collection_name, metadata={"hnsw:space": "cosine"}
+                name=collection_name, metadata=self._collection_metadata()
             )
             logger.info(f"Created new ChromaDB collection: {collection_name}")
             return collection
+
+    def _collection_metadata(self) -> Dict[str, Any]:
+        """Return Chroma metadata that identifies the embedding vector space."""
+        return {
+            "hnsw:space": "cosine",
+            "praval:embedding_provider": self.embedding_provider,
+            "praval:embedding_model": self.embedding_model_name,
+            "praval:embedding_dimensions": int(self.embedding_size),
+        }
+
+    def _validate_collection_embedding(
+        self, collection: Any, collection_name: str
+    ) -> None:
+        """Reject collections built with a different embedding vector space."""
+        metadata = getattr(collection, "metadata", None)
+        if not isinstance(metadata, dict):
+            return
+        expected = self._collection_metadata()
+        mismatches = []
+        for key in (
+            "praval:embedding_provider",
+            "praval:embedding_model",
+            "praval:embedding_dimensions",
+        ):
+            stored = metadata.get(key)
+            if stored is not None and str(stored) != str(expected[key]):
+                mismatches.append(f"{key}={stored!r} (configured {expected[key]!r})")
+        if mismatches:
+            details = ", ".join(mismatches)
+            raise EmbeddingConfigurationError(
+                f"Chroma collection '{collection_name}' uses a different embedding "
+                f"configuration: {details}. Use a new collection name or re-index "
+                "the existing collection before changing embedding model or dimensions."
+            )
 
     def _migrate_legacy_collection_if_needed(self):
         """
@@ -304,6 +362,14 @@ class EmbeddedVectorStore:
 
     def _init_embedding_model(self):
         """Initialize embedding model with fallbacks"""
+        if self.embedding_runtime is not None:
+            self.embedding_model = None
+            self.embedding_size = int(
+                getattr(self.embedding_runtime, "dimensions", None)
+                or self.embedding_dimensions
+                or 384
+            )
+            return
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
                 self.embedding_model = SentenceTransformer(self.embedding_model_name)
@@ -504,16 +570,23 @@ class EmbeddedVectorStore:
                     for i in range(len(results["ids"][0])):
                         distance = results["distances"][0][i]
 
-                        # Convert distance to similarity score
-                        # ChromaDB returns cosine distance (1 - cosine_similarity)
-                        similarity = 1.0 - distance
-
-                        # Apply similarity threshold
-                        if similarity < query.similarity_threshold:
-                            continue
-
                         memory = self._result_to_memory_entry(results, i)
                         if memory:
+                            # Convert distance to similarity score
+                            # ChromaDB returns cosine distance (1 - cosine_similarity)
+                            similarity = 1.0 - distance
+                            if self.embedding_model is None:
+                                similarity = max(
+                                    similarity,
+                                    self._fallback_similarity(
+                                        query.query_text, memory.content
+                                    ),
+                                )
+
+                            # Apply similarity threshold
+                            if similarity < query.similarity_threshold:
+                                continue
+
                             memory.mark_accessed()
                             all_entries.append(memory)
                             all_scores.append(similarity)
@@ -695,6 +768,8 @@ class EmbeddedVectorStore:
             return [0.0] * self.embedding_size
 
         try:
+            if self.embedding_runtime is not None:
+                return self.embedding_runtime.embed_text(text)
             if self.embedding_model:
                 # Use SentenceTransformer for quality embeddings
                 embedding = self.embedding_model.encode(text, convert_to_tensor=False)
@@ -704,37 +779,47 @@ class EmbeddedVectorStore:
                     else list(embedding)
                 )
             else:
-                # Fallback to simple hash-based embedding
+                # Fallback to lexical embedding
                 return self._fallback_embedding(text)
         except Exception as e:
             logger.warning(f"Failed to generate embedding, using fallback: {e}")
             return self._fallback_embedding(text)
 
     def _fallback_embedding(self, text: str) -> List[float]:
-        """Simple fallback embedding for when SentenceTransformers unavailable"""
+        """Lexical fallback embedding for when SentenceTransformers unavailable."""
         import hashlib
+        import math
+        import re
 
-        # Use multiple hash functions for better distribution
-        hash_funcs = [hashlib.md5, hashlib.sha1, hashlib.sha256]
-        embedding = []
+        tokens = re.findall(r"[a-z0-9]+", text.lower())
+        embedding = [0.0] * self.embedding_size
+        if not tokens:
+            return embedding
 
-        for hash_func in hash_funcs:
-            hash_obj = hash_func(text.encode("utf-8"))
-            hash_hex = hash_obj.hexdigest()
+        features = list(tokens)
+        features.extend(f"{left}_{right}" for left, right in zip(tokens, tokens[1:]))
 
-            # Convert hex to normalized floats
-            for i in range(0, min(len(hash_hex), 16), 2):  # Limit to reasonable size
-                byte_val = int(hash_hex[i : i + 2], 16)
-                normalized_val = (byte_val - 127.5) / 127.5  # Normalize to [-1, 1]
-                embedding.append(normalized_val)
+        for feature in features:
+            digest = hashlib.sha256(feature.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % self.embedding_size
+            embedding[index] += 1.0
 
-        # Pad or truncate to target size
-        while len(embedding) < self.embedding_size:
-            embedding.extend(
-                embedding[: min(len(embedding), self.embedding_size - len(embedding))]
-            )
+        norm = math.sqrt(sum(value * value for value in embedding))
+        if norm == 0:
+            return embedding
+        return [value / norm for value in embedding]
 
-        return embedding[: self.embedding_size]
+    def _fallback_similarity(self, query_text: str, content: str) -> float:
+        """Return query-token coverage for offline fallback search."""
+        import re
+
+        query_tokens = set(re.findall(r"[a-z0-9]+", query_text.lower()))
+        if not query_tokens:
+            return 0.0
+        content_tokens = set(re.findall(r"[a-z0-9]+", content.lower()))
+        if not content_tokens:
+            return 0.0
+        return len(query_tokens & content_tokens) / len(query_tokens)
 
     def _result_to_memory_entry(
         self, results: Dict, index: int
@@ -851,39 +936,7 @@ class EmbeddedVectorStore:
                         importance=0.8,  # Knowledge base files are important
                     )
 
-                    # Store directly in knowledge collection (bypass automatic type
-                    # detection)
-                    if self.enable_collection_separation:
-                        # Generate embedding if not provided
-                        if memory.embedding is None:
-                            memory.embedding = self._generate_embedding(memory.content)
-
-                        # Prepare metadata for ChromaDB
-                        metadata = {
-                            "agent_id": memory.agent_id,
-                            "memory_type": memory.memory_type.value,
-                            "created_at": memory.created_at.isoformat(),
-                            "importance": float(memory.importance),
-                            "access_count": int(memory.access_count),
-                        }
-
-                        # Add simple metadata fields
-                        for key, value in memory.metadata.items():
-                            if isinstance(value, (str, int, float, bool)):
-                                metadata[f"meta_{key}"] = value
-                            else:
-                                metadata[f"meta_{key}"] = str(value)
-
-                        # Store directly in knowledge collection
-                        self.knowledge_collection.upsert(
-                            ids=[memory.id],
-                            embeddings=[memory.embedding],
-                            metadatas=[metadata],
-                            documents=[memory.content],
-                        )
-                    else:
-                        # Use regular store method for legacy mode
-                        self.store(memory)
+                    self.store(memory)
 
                     indexed_count += 1
                     logger.debug(f"Indexed knowledge file: {file_path}")
@@ -897,7 +950,7 @@ class EmbeddedVectorStore:
 
     def _extract_pdf_text(self, pdf_path: Path) -> str:
         """
-        Extract text content from a PDF file using PyPDF2
+        Extract text content from a PDF file using pypdf
 
         Args:
             pdf_path: Path to the PDF file
@@ -906,22 +959,22 @@ class EmbeddedVectorStore:
             Extracted text content
 
         Raises:
-            ImportError: If PyPDF2 is not installed
+            ImportError: If pypdf is not installed
             Exception: If PDF cannot be read
         """
         try:
-            import PyPDF2
+            import pypdf
         except ImportError:
             raise ImportError(
-                "PyPDF2 is required for PDF processing. "
-                "Install with: pip install PyPDF2"
+                "pypdf is required for PDF processing. "
+                "Install with: pip install pypdf"
             )
 
         try:
             text_content = []
 
             with open(pdf_path, "rb") as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = pypdf.PdfReader(file)
 
                 # Extract text from all pages
                 for page_num, page in enumerate(pdf_reader.pages):

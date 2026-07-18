@@ -1,242 +1,80 @@
-# Manual Release Process for Praval
+# Praval release process
 
-This document describes how to manually create and publish new versions of Praval to PyPI.
+Praval publishes the exact wheel and source distribution produced by a
+successful `main` CI run. Tag and publication workflows never rebuild the
+package.
 
-## Prerequisites
+## Sources of truth
 
-- Clean working directory (no uncommitted changes)
-- All tests passing
-- CHANGELOG.md updated with release notes
-- PyPI credentials configured (`~/.pypirc` or API token)
+- `pyproject.toml` contains the authoritative package version.
+- `praval.__version__` comes from installed distribution metadata.
+- `CHANGELOG.md` describes user-visible changes.
+- `docs/releases/RELEASE_NOTES_<version>.md` describes the release without
+  copying volatile test counts or hashes.
+- `dist/` contains only `.whl` and `.tar.gz` files.
+- `evidence/` contains checksums, manifests, coverage, and certification data.
 
-## Version Numbering
-
-Follow [Semantic Versioning](https://semver.org/):
-- **Patch** (0.7.11 → 0.7.12): Bug fixes, documentation, minor changes
-- **Minor** (0.7.11 → 0.8.0): New features, backwards compatible
-- **Major** (0.7.11 → 1.0.0): Breaking changes, API redesign
-
-## Release Steps
-
-### 1. Update Version Numbers
-
-Use bump2version to update all version references automatically:
+Run the metadata contract before freezing:
 
 ```bash
-# Activate virtual environment
 source venv/bin/activate
-
-# Install bump2version if not already installed
-pip install bump2version
-
-# Bump version (choose one)
-bump2version patch   # 0.7.11 → 0.7.12
-bump2version minor   # 0.7.11 → 0.8.0
-bump2version major   # 0.7.11 → 1.0.0
+python scripts/check_release_metadata.py
+python scripts/check_api_surface.py --report evidence/api-coverage.json
 ```
 
-This automatically updates:
-- `pyproject.toml`
-- `src/praval/__init__.py`
-- `.bumpversion.cfg`
-- Creates a git commit and tag
+## Release sequence
 
-### 2. Update CHANGELOG.md
+1. Update `pyproject.toml`, changelog, release notes, examples, and current
+   documentation in a reviewable PR.
+2. Make the candidate commit clean and merge it to `main`.
+3. Let `main` CI test Python 3.9 through 3.13 and produce the exact package and
+   documentation artifacts for that commit.
+4. Verify offline and service-backed demos against that wheel.
+5. Manually dispatch the protected `live-demo` workflow from `main`. It must
+   reuse the successful CI artifact and validate real providers, HITL,
+   multimodal input, embeddings, STT, and TTS.
+6. Prepare the corresponding `praval-ai` PR from the exact-wheel documentation
+   artifact, but do not merge it yet.
+7. Create `v<version>` on the exact certified `main` commit.
+8. The tag workflow verifies commit, version, wheel hash, live certificate, and
+   release notes, then pauses at the protected `pypi` environment.
+9. Approve trusted publishing. The workflow publishes only `verified/dist/`
+   and attaches the evidence to the GitHub release.
+10. After PyPI reports the release, merge the `praval-ai` PR and verify the
+    production site.
 
-Edit `CHANGELOG.md` to document the changes:
+Any source change after live certification invalidates the certification and
+requires a new `main` artifact and manual live run.
 
-```markdown
-## [0.7.7] - 2025-10-23
-
-### Added
-- New feature description
-
-### Fixed
-- Bug fix description
-
-### Changed
-- Breaking change description (for major versions)
-```
-
-Commit the changelog:
-```bash
-git add CHANGELOG.md
-git commit -m "docs: Update CHANGELOG for v0.7.7"
-```
-
-### 3. Build the Package
+## Local package validation
 
 ```bash
-# Clean previous builds
-rm -rf dist/ build/ src/praval.egg-info/
-
-# Build both wheel and source distribution
-python -m build
-```
-
-Verify the build:
-```bash
-ls -lh dist/
-# Should show:
-# praval-0.7.7-py3-none-any.whl
-# praval-0.7.7.tar.gz
-```
-
-### 4. Test the Package (Optional but Recommended)
-
-Test in a clean virtual environment:
-
-```bash
-# Create test environment
-python -m venv test_env
-source test_env/bin/activate
-
-# Install from local build
-pip install dist/praval-0.7.7-py3-none-any.whl
-
-# Test import
-python -c "import praval; print(praval.__version__)"
-
-# Test basic functionality
-python -c "from praval import agent, chat; print('Success!')"
-
-# Deactivate and remove
-deactivate
-rm -rf test_env
-```
-
-### 5. Upload to TestPyPI (Optional)
-
-Test the upload process first:
-
-```bash
-# Upload to TestPyPI
-twine upload --repository testpypi dist/*
-
-# Test installation from TestPyPI
-pip install --index-url https://test.pypi.org/simple/ praval
-```
-
-### 6. Upload to Production PyPI
-
-```bash
-# Check package validity
-twine check dist/*
-
-# Upload to PyPI (will prompt for credentials or use .pypirc)
-twine upload dist/*
-
-# Or use API token directly
-twine upload -u __token__ -p pypi-YOUR-API-TOKEN-HERE dist/*
-```
-
-### 7. Push to GitHub
-
-```bash
-# Push the version bump commit and tag
-git push origin main
-git push origin --tags
-
-# Or use --follow-tags to push both at once
-git push --follow-tags
-```
-
-### 8. Create GitHub Release
-
-1. Go to https://github.com/aiexplorations/praval/releases/new
-2. Select the tag you just created (e.g., `v0.7.7`)
-3. Title: `Praval v0.7.7`
-4. Description: Copy from CHANGELOG.md
-5. Attach the distribution files from `dist/`
-6. Click "Publish release"
-
-Or use GitHub CLI:
-
-```bash
-gh release create v0.7.7 \
-  --title "Praval v0.7.7" \
-  --notes-file CHANGELOG.md \
-  dist/praval-0.7.7-py3-none-any.whl \
-  dist/praval-0.7.7.tar.gz
-```
-
-## Quick Reference Commands
-
-```bash
-# Complete release process
 source venv/bin/activate
-bump2version patch
-# Edit CHANGELOG.md
-git add CHANGELOG.md
-git commit -m "docs: Update CHANGELOG for v$(python -c 'import praval; print(praval.__version__)')"
-rm -rf dist/ build/
 python -m build
-twine check dist/*
-twine upload dist/*
-git push --follow-tags
+python scripts/normalize_sdist.py dist/praval-*.tar.gz
+twine check dist/*.whl dist/*.tar.gz
+python scripts/validate_distribution.py dist
+python scripts/write_build_manifest.py dist --evidence-dir evidence
+python scripts/check_release_metadata.py --dist dist
 ```
 
-## Verifying the Release
+Do not run `twine upload dist/*` if non-distribution files have been placed in
+`dist/`. The repository contract prevents that state; `twine` accepts Python
+distributions, not JSON manifests or checksum files.
 
-After publishing:
+## Post-publication verification
+
+In a clean environment, install from PyPI and verify package and CLI metadata:
 
 ```bash
-# Wait a few minutes for PyPI to index
-
-# Install from PyPI
-pip install --upgrade praval
-
-# Verify version
-python -c "import praval; print(praval.__version__)"
-
-# Test with UV
-uv pip install praval
+python -m venv /tmp/praval-release-check
+/tmp/praval-release-check/bin/python -m pip install --upgrade praval
+/tmp/praval-release-check/bin/python -c \
+  "import importlib.metadata, praval; print(praval.__version__); print(importlib.metadata.version('praval'))"
+/tmp/praval-release-check/bin/praval --help
 ```
 
-## Rolling Back a Release
-
-If you need to unpublish a version:
-
-1. **PyPI doesn't allow deletion** of releases (only yanking)
-2. To yank a release: https://pypi.org/manage/project/praval/releases/
-3. Click the version → "Options" → "Yank release"
-4. This prevents new installs but doesn't delete it
-
-For local rollback:
-```bash
-# Delete tag
-git tag -d v1.0.0
-git push origin :refs/tags/v1.0.0
-
-# Revert version bump commit
-git revert <commit-hash>
-git push origin main
-```
-
-## Troubleshooting
-
-### "File already exists" error from PyPI
-- You cannot re-upload the same version
-- Bump to a new version (e.g., 0.7.7 → 0.7.8)
-
-### Tests failing after version bump
-- Run: `pytest tests/ -v`
-- Fix issues before publishing
-- May need to update tests that check version numbers
-
-### Import errors after installation
-- Check dependencies in `pyproject.toml`
-- Verify all required files are in MANIFEST.in
-- Test in clean environment
-
-## Notes
-
-- **Never bump to 1.0.0 without team discussion** - this signals API stability
-- Patch versions can be released frequently for bug fixes
-- Minor versions should have feature announcements
-- Major versions need migration guides
-
----
-
-**Current Version**: 0.7.11
-**Last Updated**: 2025-11-05
+Verify that PyPI, the Git tag, GitHub release, `pravalagents.com` badge,
+`docs/versions.json`, `docs/latest`, and the versioned documentation all report
+the same version. PyPI releases cannot be replaced; use PyPI's yank mechanism
+and publish a corrected version if a serious defect is found.

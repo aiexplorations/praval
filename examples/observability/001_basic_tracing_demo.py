@@ -54,7 +54,7 @@ def simulate_agent_operation():
             kind=SpanKind.CLIENT
         ) as llm_span:
             llm_span.set_attribute("llm.provider", "openai")
-            llm_span.set_attribute("llm.model", "gpt-4-turbo")
+            llm_span.set_attribute("llm.model", "gpt-5.4-mini")
             llm_span.set_attribute("llm.tokens.input", 150)
             llm_span.set_attribute("llm.tokens.output", 200)
             llm_span.set_attribute("llm.tokens.total", 350)

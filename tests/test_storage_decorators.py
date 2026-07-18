@@ -4,7 +4,6 @@ Tests for storage decorators in Praval.
 Tests the decorator-based integration between agents and storage providers.
 """
 
-import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -370,10 +369,11 @@ class TestAutoRegisterProvider:
         mock_registry.register_provider.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch.dict(os.environ, {"POSTGRES_HOST": "testhost", "POSTGRES_DB": "testdb"})
     @patch("praval.storage.providers.PostgreSQLProvider")
-    async def test_env_config_loading(self, mock_pg_class):
+    async def test_env_config_loading(self, mock_pg_class, monkeypatch):
         """Test that environment variables are loaded into config."""
+        monkeypatch.setenv("POSTGRES_HOST", "testhost")
+        monkeypatch.setenv("POSTGRES_DB", "testdb")
         mock_registry = AsyncMock()
         mock_registry.register_provider = AsyncMock(return_value=True)
         mock_provider = Mock()

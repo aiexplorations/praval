@@ -14,6 +14,7 @@ They will be skipped if RabbitMQ is not available.
 
 import asyncio
 import logging
+import threading
 from datetime import datetime
 
 import pytest
@@ -93,6 +94,8 @@ class TestDistributedWorkflow:
     def workflow_agents(self):
         """Create agents for workflow testing."""
         messages_processed = {"count": 0, "data": []}
+        processor_delivered = threading.Event()
+        analyzer_delivered = threading.Event()
 
         @agent("processor")
         def processor_agent(spore):
@@ -105,6 +108,7 @@ class TestDistributedWorkflow:
             }
             messages_processed["count"] += 1
             messages_processed["data"].append(processed)
+            processor_delivered.set()
             return processed
 
         @agent("analyzer")
@@ -118,8 +122,11 @@ class TestDistributedWorkflow:
                 ),
                 "analyzer_timestamp": datetime.now().isoformat(),
             }
+            analyzer_delivered.set()
             return analysis
 
+        processor_agent.delivery_event = processor_delivered
+        analyzer_agent.delivery_event = analyzer_delivered
         return [processor_agent, analyzer_agent]
 
     @pytest.mark.integration
@@ -180,18 +187,18 @@ class TestDistributedWorkflow:
 
             # Send a message to processor agent
             reef = runner.reef
-            spore_id = await reef.send(
+            spore_id = reef.send(
                 from_agent="test_client",
                 to_agent="processor",
                 knowledge={"data": "hello"},
                 spore_type=SporeType.REQUEST,
             )
 
-            # Wait a bit for message delivery
-            await asyncio.sleep(0.5)
-
-            # Verify message was sent (basic check)
+            delivered = await asyncio.to_thread(
+                workflow_agents[0].delivery_event.wait, 5
+            )
             assert spore_id is not None
+            assert delivered
 
         except ConnectionError as e:
             pytest.skip(f"RabbitMQ not available: {e}")
@@ -211,16 +218,19 @@ class TestDistributedWorkflow:
             reef = runner.reef
 
             # Broadcast a message
-            spore_id = await reef.broadcast(
+            spore_id = reef.broadcast(
                 from_agent="test_client",
                 knowledge={"type": "broadcast_test", "data": "test_broadcast"},
             )
 
-            # Wait for delivery
-            await asyncio.sleep(0.5)
-
-            # Verify broadcast was sent
+            delivered = await asyncio.gather(
+                *(
+                    asyncio.to_thread(agent.delivery_event.wait, 5)
+                    for agent in workflow_agents
+                )
+            )
             assert spore_id is not None
+            assert all(delivered)
 
         except ConnectionError as e:
             pytest.skip(f"RabbitMQ not available: {e}")

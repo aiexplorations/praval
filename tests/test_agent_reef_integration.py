@@ -5,9 +5,7 @@ These tests verify that agents can seamlessly communicate through the reef
 while maintaining backward compatibility with existing functionality.
 """
 
-import time
 from typing import Any, Dict, List
-from unittest.mock import patch
 
 import pytest
 
@@ -30,12 +28,6 @@ class TestAgentReefIntegration:
         assert hasattr(agent, "subscribe_to_channel")
         assert hasattr(agent, "unsubscribe_from_channel")
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
-        )
-    )
     def test_agent_send_knowledge(self):
         """Test agent sending knowledge to another agent."""
         sender = Agent("sender")
@@ -50,39 +42,30 @@ class TestAgentReefIntegration:
         # Register agents and subscribe receiver
         register_agent(sender)
         register_agent(receiver)
+        receiver.set_spore_handler(mock_handler)
         receiver.subscribe_to_channel("main")
 
-        # Patch the receiver's handler
-        with patch.object(receiver, "on_spore_received", side_effect=mock_handler):
-            # Send knowledge
-            spore_id = sender.send_knowledge(
-                to_agent="receiver",
-                knowledge={
-                    "research_topic": "quantum computing",
-                    "findings": ["coherence_improved", "error_rates_reduced"],
-                    "confidence": 0.89,
-                },
-            )
-
-            assert isinstance(spore_id, str)
-            assert len(spore_id) > 0
-
-            # Verify spore was received
-            assert len(received_spores) == 1
-            received_spore = received_spores[0]
-
-            assert received_spore.from_agent == "sender"
-            assert received_spore.to_agent == "receiver"
-            assert received_spore.spore_type == SporeType.KNOWLEDGE
-            assert received_spore.knowledge["research_topic"] == "quantum computing"
-            assert received_spore.knowledge["confidence"] == 0.89
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
+        spore_id = sender.send_knowledge(
+            to_agent="receiver",
+            knowledge={
+                "research_topic": "quantum computing",
+                "findings": ["coherence_improved", "error_rates_reduced"],
+                "confidence": 0.89,
+            },
         )
-    )
+        assert get_reef().wait_for_completion(timeout=2)
+
+        assert isinstance(spore_id, str)
+        assert len(spore_id) > 0
+        assert len(received_spores) == 1
+        received_spore = received_spores[0]
+
+        assert received_spore.from_agent == "sender"
+        assert received_spore.to_agent == "receiver"
+        assert received_spore.spore_type == SporeType.KNOWLEDGE
+        assert received_spore.knowledge["research_topic"] == "quantum computing"
+        assert received_spore.knowledge["confidence"] == 0.89
+
     def test_agent_broadcast_knowledge(self):
         """Test agent broadcasting knowledge to all agents."""
         broadcaster = Agent("broadcaster")
@@ -106,42 +89,30 @@ class TestAgentReefIntegration:
         register_agent(listener1)
         register_agent(listener2)
 
+        listener1.set_spore_handler(listener1_handler)
+        listener2.set_spore_handler(listener2_handler)
         listener1.subscribe_to_channel("main")
         listener2.subscribe_to_channel("main")
 
-        with (
-            patch.object(listener1, "on_spore_received", side_effect=listener1_handler),
-            patch.object(listener2, "on_spore_received", side_effect=listener2_handler),
-        ):
-
-            # Broadcast knowledge
-            spore_id = broadcaster.broadcast_knowledge(
-                {
-                    "announcement": "system_upgrade_complete",
-                    "new_features": ["faster_processing", "better_accuracy"],
-                    "downtime": "none",
-                }
-            )
-
-            # Both listeners should receive the broadcast
-            assert len(listener1_received) == 1
-            assert len(listener2_received) == 1
-
-            # Verify broadcast content
-            broadcast1 = listener1_received[0]
-            broadcast2 = listener2_received[0]
-
-            assert broadcast1.id == broadcast2.id == spore_id
-            assert broadcast1.from_agent == "broadcaster"
-            assert broadcast1.to_agent is None  # Broadcasts have no specific target
-            assert broadcast1.knowledge["announcement"] == "system_upgrade_complete"
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
+        spore_id = broadcaster.broadcast_knowledge(
+            {
+                "announcement": "system_upgrade_complete",
+                "new_features": ["faster_processing", "better_accuracy"],
+                "downtime": "none",
+            }
         )
-    )
+        assert get_reef().wait_for_completion(timeout=2)
+
+        assert len(listener1_received) == 1
+        assert len(listener2_received) == 1
+        broadcast1 = listener1_received[0]
+        broadcast2 = listener2_received[0]
+
+        assert broadcast1.id == broadcast2.id == spore_id
+        assert broadcast1.from_agent == "broadcaster"
+        assert broadcast1.to_agent is None
+        assert broadcast1.knowledge["announcement"] == "system_upgrade_complete"
+
     def test_agent_request_knowledge(self):
         """Test agent requesting knowledge from another agent."""
         requester = Agent("requester")
@@ -168,20 +139,18 @@ class TestAgentReefIntegration:
 
         register_agent(requester)
         register_agent(responder)
+        responder.set_spore_handler(auto_responder)
         responder.subscribe_to_channel("main")
 
-        with patch.object(responder, "on_spore_received", side_effect=auto_responder):
-            # Request knowledge with timeout
-            response = requester.request_knowledge(
-                from_agent="responder",
-                request={"query": "get_weather", "location": "san_francisco"},
-                timeout=5,
-            )
+        response = requester.request_knowledge(
+            from_agent="responder",
+            request={"query": "get_weather", "location": "san_francisco"},
+            timeout=5,
+        )
 
-            # Should receive response
-            assert response is not None
-            assert response["temperature"] == 22
-            assert response["condition"] == "sunny"
+        assert response is not None
+        assert response["temperature"] == 22
+        assert response["condition"] == "sunny"
 
     def test_agent_request_timeout(self):
         """Test agent request timeout when no response."""
@@ -201,12 +170,6 @@ class TestAgentReefIntegration:
         # Should timeout and return None
         assert response is None
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
-        )
-    )
     def test_agent_channel_subscription(self):
         """Test agent subscribing to different channels."""
         agent = Agent("multi_channel_agent")
@@ -222,46 +185,38 @@ class TestAgentReefIntegration:
         def message_collector(spore: Spore) -> None:
             received_messages.append((spore.knowledge, spore.metadata.get("channel")))
 
-        with patch.object(agent, "on_spore_received", side_effect=message_collector):
-            reef = get_reef()
+        agent.set_spore_handler(message_collector)
+        # Re-subscribe so each channel captures the current public handler.
+        for channel in ("research", "alerts", "social"):
+            agent.subscribe_to_channel(channel)
 
-            # Send messages to different channels
-            reef.send(
-                from_agent="researcher",
-                to_agent="multi_channel_agent",
-                knowledge={"paper": "quantum_algorithms"},
-                channel="research",
-            )
-
-            reef.send(
-                from_agent="monitor",
-                to_agent="multi_channel_agent",
-                knowledge={"alert": "cpu_high"},
-                channel="alerts",
-            )
-
-            reef.send(
-                from_agent="friend",
-                to_agent="multi_channel_agent",
-                knowledge={"message": "hello"},
-                channel="social",
-            )
-
-            # Agent should receive all messages
-            assert len(received_messages) == 3
-
-            # Verify messages from different channels
-            knowledge_items = [msg[0] for msg in received_messages]
-            assert {"paper": "quantum_algorithms"} in knowledge_items
-            assert {"alert": "cpu_high"} in knowledge_items
-            assert {"message": "hello"} in knowledge_items
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
+        reef = get_reef()
+        reef.send(
+            from_agent="researcher",
+            to_agent="multi_channel_agent",
+            knowledge={"paper": "quantum_algorithms"},
+            channel="research",
         )
-    )
+        reef.send(
+            from_agent="monitor",
+            to_agent="multi_channel_agent",
+            knowledge={"alert": "cpu_high"},
+            channel="alerts",
+        )
+        reef.send(
+            from_agent="friend",
+            to_agent="multi_channel_agent",
+            knowledge={"message": "hello"},
+            channel="social",
+        )
+        assert reef.wait_for_completion(timeout=2)
+
+        assert len(received_messages) == 3
+        knowledge_items = [msg[0] for msg in received_messages]
+        assert {"paper": "quantum_algorithms"} in knowledge_items
+        assert {"alert": "cpu_high"} in knowledge_items
+        assert {"message": "hello"} in knowledge_items
+
     def test_agent_unsubscribe_from_channel(self):
         """Test agent unsubscribing from channels."""
         agent = Agent("subscriber")
@@ -274,41 +229,29 @@ class TestAgentReefIntegration:
             received_count += 1
 
         # Subscribe to channel
+        agent.set_spore_handler(counter)
         agent.subscribe_to_channel("test_channel")
+        reef = get_reef()
 
-        with patch.object(agent, "on_spore_received", side_effect=counter):
-            reef = get_reef()
-
-            # Send message while subscribed
-            reef.send(
-                from_agent="sender",
-                to_agent="subscriber",
-                knowledge={"test": "message1"},
-                channel="test_channel",
-            )
-
-            assert received_count == 1
-
-            # Unsubscribe
-            agent.unsubscribe_from_channel("test_channel")
-
-            # Send another message
-            reef.send(
-                from_agent="sender",
-                to_agent="subscriber",
-                knowledge={"test": "message2"},
-                channel="test_channel",
-            )
-
-            # Should not receive second message
-            assert received_count == 1
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: custom on_spore_received is not called "
-            "by reef callback system"
+        reef.send(
+            from_agent="sender",
+            to_agent="subscriber",
+            knowledge={"test": "message1"},
+            channel="test_channel",
         )
-    )
+        assert reef.wait_for_completion(timeout=2)
+        assert received_count == 1
+
+        agent.unsubscribe_from_channel("test_channel")
+        reef.send(
+            from_agent="sender",
+            to_agent="subscriber",
+            knowledge={"test": "message2"},
+            channel="test_channel",
+        )
+        assert reef.wait_for_completion(timeout=2)
+        assert received_count == 1
+
     def test_agent_custom_spore_handler(self):
         """Test agent with custom spore handling logic."""
 
@@ -359,6 +302,7 @@ class TestAgentReefIntegration:
                 "applications": ["nlp", "computer_vision"],
             },
         )
+        assert reef.wait_for_completion(timeout=2)
 
         # Verify knowledge was stored
         assert "machine_learning" in smart_agent.knowledge_base
@@ -376,22 +320,19 @@ class TestAgentReefIntegration:
 
         requester = Agent("requester")
         register_agent(requester)
+        requester.set_spore_handler(response_handler)
         requester.subscribe_to_channel("main")
 
-        with patch.object(requester, "on_spore_received", side_effect=response_handler):
-            _ = reef.request(
-                from_agent="requester",
-                to_agent="smart_agent",
-                request={"topic": "machine_learning"},
-            )
-
-            # Should get automatic response
-            time.sleep(0.1)  # Small delay for processing
-            assert len(response_received) == 1
-            assert (
-                response_received[0]["definition"]
-                == "AI technique for pattern recognition"
-            )
+        reef.request(
+            from_agent="requester",
+            to_agent="smart_agent",
+            request={"topic": "machine_learning"},
+        )
+        assert reef.wait_for_completion(timeout=2)
+        assert len(response_received) == 1
+        assert (
+            response_received[0]["definition"] == "AI technique for pattern recognition"
+        )
 
 
 class TestAgentReefCompatibility:
@@ -420,12 +361,6 @@ class TestAgentReefCompatibility:
         with pytest.raises(ValueError, match="Message cannot be empty"):
             agent.chat("")
 
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
-        )
-    )
     def test_agent_registry_with_reef(self):
         """Test that agent registry works with reef communication."""
         # Create and register agents
@@ -450,23 +385,17 @@ class TestAgentReefCompatibility:
         def message_handler(spore: Spore) -> None:
             received_messages.append(spore.knowledge)
 
+        agent2.set_spore_handler(message_handler)
         agent2.subscribe_to_channel("main")
-
-        with patch.object(agent2, "on_spore_received", side_effect=message_handler):
-            agent1.send_knowledge(
-                to_agent="registry_agent2",
-                knowledge={"registry_test": "communication_works"},
-            )
-
-            assert len(received_messages) == 1
-            assert received_messages[0]["registry_test"] == "communication_works"
-
-    @pytest.mark.xfail(
-        reason=(
-            "Test design issue: patches on_spore_received but reef uses"
-            " callback subscriptions"
+        agent1.send_knowledge(
+            to_agent="registry_agent2",
+            knowledge={"registry_test": "communication_works"},
         )
-    )
+        assert get_reef().wait_for_completion(timeout=2)
+
+        assert len(received_messages) == 1
+        assert received_messages[0]["registry_test"] == "communication_works"
+
     def test_agent_tools_with_reef_communication(self):
         """Test that agent tools can use reef communication."""
         calculator_agent = Agent("calculator")
@@ -502,30 +431,25 @@ class TestAgentReefCompatibility:
         # Set up listener for broadcasts
         listener_agent = Agent("listener")
         register_agent(listener_agent)
-        listener_agent.subscribe_to_channel("main")
-
         received_broadcasts = []
 
         def broadcast_listener(spore: Spore) -> None:
             if spore.spore_type == SporeType.BROADCAST:
                 received_broadcasts.append(spore.knowledge)
 
-        with patch.object(
-            listener_agent, "on_spore_received", side_effect=broadcast_listener
-        ):
-            # Use tool that broadcasts
-            tool_func = calculator_agent.tools["complex_calculation"]["function"]
-            result = tool_func("sum", [1, 2, 3, 4, 5])
+        listener_agent.set_spore_handler(broadcast_listener)
+        listener_agent.subscribe_to_channel("main")
+        tool_func = calculator_agent.tools["complex_calculation"]["function"]
+        result = tool_func("sum", [1, 2, 3, 4, 5])
+        assert get_reef().wait_for_completion(timeout=2)
 
-            assert result["result"] == 15
-            assert result["broadcasted"] is True
-
-            # Verify broadcast was sent
-            assert len(received_broadcasts) == 1
-            broadcast = received_broadcasts[0]
-            assert broadcast["calculation_completed"] is True
-            assert broadcast["operation"] == "sum"
-            assert broadcast["result"] == 15
+        assert result["result"] == 15
+        assert result["broadcasted"] is True
+        assert len(received_broadcasts) == 1
+        broadcast = received_broadcasts[0]
+        assert broadcast["calculation_completed"] is True
+        assert broadcast["operation"] == "sum"
+        assert broadcast["result"] == 15
 
 
 # Fixtures for Agent + Reef integration tests

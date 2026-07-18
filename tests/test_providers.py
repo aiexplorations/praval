@@ -12,6 +12,16 @@ import pytest
 
 from praval.core.agent import AgentConfig
 from praval.core.exceptions import ProviderError
+from praval.model_runtime import ModelRuntime
+from praval.models import (
+    ModelMessage,
+    ModelRequest,
+    ReasoningConfig,
+    SpeechRequest,
+    StructuredOutputConfig,
+    ToolSpec,
+    TranscriptionRequest,
+)
 from praval.providers.anthropic import AnthropicProvider
 from praval.providers.cohere import CohereProvider
 from praval.providers.factory import ProviderFactory
@@ -115,6 +125,238 @@ class TestOpenAIProvider:
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
     @patch("openai.OpenAI")
+    def test_openai_transcribe_normalizes_bytes_request(self, mock_openai_class):
+        mock_client = Mock()
+        transcription = Mock()
+        transcription.text = "Hello from audio."
+        mock_client.audio.transcriptions.create.return_value = transcription
+        mock_openai_class.return_value = mock_client
+        provider = OpenAIProvider(
+            AgentConfig(provider_options={"transcription_model": "gpt-4o-transcribe"})
+        )
+
+        response = provider.transcribe(
+            TranscriptionRequest(
+                audio=b"RIFFdata",
+                filename="sample.wav",
+                mime_type="audio/wav",
+                language="en",
+                prompt="Praval",
+                temperature=0.1,
+                timeout=12,
+                provider_options={"include": ["logprobs"]},
+                metadata={"trace": "audio-test"},
+            )
+        )
+
+        assert response.text == "Hello from audio."
+        assert response.provider == "openai"
+        assert response.model == "gpt-4o-transcribe"
+        assert response.metadata == {"trace": "audio-test"}
+        call_kwargs = mock_client.audio.transcriptions.create.call_args.kwargs
+        assert call_kwargs["file"] == ("sample.wav", b"RIFFdata", "audio/wav")
+        assert call_kwargs["model"] == "gpt-4o-transcribe"
+        assert call_kwargs["language"] == "en"
+        assert call_kwargs["prompt"] == "Praval"
+        assert call_kwargs["temperature"] == 0.1
+        assert call_kwargs["timeout"] == 12
+        assert call_kwargs["include"] == ["logprobs"]
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_transcribe_closes_opened_path(self, mock_openai_class, tmp_path):
+        audio_path = tmp_path / "sample.mp3"
+        audio_path.write_bytes(b"audio")
+        mock_client = Mock()
+        mock_client.audio.transcriptions.create.return_value = {"text": "path text"}
+        mock_openai_class.return_value = mock_client
+        provider = OpenAIProvider(AgentConfig())
+
+        response = provider.transcribe(
+            TranscriptionRequest(audio=audio_path, response_format="json")
+        )
+
+        assert response.text == "path text"
+        opened_file = mock_client.audio.transcriptions.create.call_args.kwargs["file"]
+        assert opened_file.closed is True
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_speak_normalizes_binary_response(self, mock_openai_class):
+        mock_client = Mock()
+        speech_response = Mock()
+        speech_response.content = b"generated-audio"
+        mock_client.audio.speech.create.return_value = speech_response
+        mock_openai_class.return_value = mock_client
+        provider = OpenAIProvider(
+            AgentConfig(provider_options={"speech_model": "tts-1-hd"})
+        )
+
+        response = provider.speak(
+            SpeechRequest(
+                input="Hello Praval",
+                voice="nova",
+                response_format="wav",
+                speed=1.25,
+                timeout=9,
+                provider_options={"extra_headers": {"x-test": "voice"}},
+            )
+        )
+
+        assert response.data == b"generated-audio"
+        assert response.model == "tts-1-hd"
+        assert response.mime_type == "audio/wav"
+        call_kwargs = mock_client.audio.speech.create.call_args.kwargs
+        assert call_kwargs == {
+            "input": "Hello Praval",
+            "model": "tts-1-hd",
+            "voice": "nova",
+            "response_format": "wav",
+            "speed": 1.25,
+            "timeout": 9,
+            "extra_headers": {"x-test": "voice"},
+        }
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_voice_helpers_reject_streaming_audio(self, mock_openai_class):
+        mock_openai_class.return_value = Mock()
+        provider = OpenAIProvider(AgentConfig())
+
+        with pytest.raises(ProviderError, match="request-based voice API"):
+            provider.transcribe(
+                TranscriptionRequest(audio=b"audio", provider_options={"stream": True})
+            )
+
+        with pytest.raises(ProviderError, match="request-based voice API"):
+            provider.speak(
+                SpeechRequest(input="hello", provider_options={"stream": True})
+            )
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_speak_validates_speed_and_model_instructions(
+        self, mock_openai_class
+    ):
+        mock_openai_class.return_value = Mock()
+        provider = OpenAIProvider(AgentConfig())
+
+        with pytest.raises(ProviderError, match="speed must be between"):
+            provider.speak(SpeechRequest(input="hello", speed=4.1))
+        with pytest.raises(ProviderError, match="instructions are not supported"):
+            provider.speak(
+                SpeechRequest(input="hello", model="tts-1", instructions="Whisper")
+            )
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_audio_config_options_do_not_leak_into_model_request(
+        self, mock_openai_class
+    ):
+        mock_client = Mock()
+        response = Mock()
+        response.output_text = "hello"
+        response.usage = None
+        mock_client.responses.create.return_value = response
+        mock_openai_class.return_value = mock_client
+        provider = OpenAIProvider(
+            AgentConfig(
+                model="gpt-5.4-mini",
+                provider_options={
+                    "endpoint": "responses",
+                    "transcription_model": "gpt-4o-transcribe",
+                    "speech_model": "tts-1",
+                },
+            )
+        )
+
+        result = provider.invoke(
+            ModelRequest(
+                provider="openai",
+                model="gpt-5.4-mini",
+                messages=[ModelMessage(role="user", content="hello")],
+                provider_options={
+                    "endpoint": "responses",
+                    "transcription_model": "gpt-4o-transcribe",
+                    "speech_model": "tts-1",
+                },
+            )
+        )
+
+        assert result.content == "hello"
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert "transcription_model" not in call_kwargs
+        assert "speech_model" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_generate_gpt5_uses_supported_chat_params(self, mock_openai_class):
+        """Test GPT-5 Chat Completions requests omit unsupported params."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "Hello from GPT-5."
+        mock_response.choices[0].message.tool_calls = None
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(
+            AgentConfig(model="gpt-5-mini", temperature=0.8, max_tokens=500)
+        )
+
+        response = provider.generate([{"role": "user", "content": "Hello"}])
+
+        assert response == "Hello from GPT-5."
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-5-mini"
+        assert call_kwargs["max_completion_tokens"] == 500
+        assert "max_tokens" not in call_kwargs
+        assert "temperature" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_generate_gpt5_retries_empty_text(self, mock_openai_class):
+        """Test GPT-5 empty Chat Completions text gets a larger retry budget."""
+        mock_client = Mock()
+        empty_choice = Mock()
+        empty_choice.finish_reason = "length"
+        empty_choice.message.content = ""
+        empty_choice.message.tool_calls = None
+        empty_response = Mock()
+        empty_response.choices = [empty_choice]
+
+        final_choice = Mock()
+        final_choice.finish_reason = "stop"
+        final_choice.message.content = "Recovered GPT-5 response."
+        final_choice.message.tool_calls = None
+        final_response = Mock()
+        final_response.choices = [final_choice]
+
+        mock_client.chat.completions.create.side_effect = [
+            empty_response,
+            final_response,
+        ]
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(
+            AgentConfig(model="gpt-5-mini", temperature=0.8, max_tokens=500)
+        )
+
+        response = provider.generate([{"role": "user", "content": "Hello"}])
+
+        assert response == "Recovered GPT-5 response."
+        assert mock_client.chat.completions.create.call_count == 2
+        first_kwargs = mock_client.chat.completions.create.call_args_list[0].kwargs
+        retry_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
+        assert first_kwargs["max_completion_tokens"] == 500
+        assert retry_kwargs["max_completion_tokens"] >= 4096
+        for call_kwargs in (first_kwargs, retry_kwargs):
+            assert call_kwargs["model"] == "gpt-5-mini"
+            assert "max_tokens" not in call_kwargs
+            assert "temperature" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
     def test_openai_generate_empty_choices(self, mock_openai_class):
         """Test OpenAI provider handles empty choices gracefully."""
         mock_client = Mock()
@@ -186,6 +428,361 @@ class TestOpenAIProvider:
         messages = [{"role": "user", "content": "Hello"}]
         with pytest.raises(ProviderError, match="OpenAI API error"):
             provider.generate(messages)
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_invoke_responses_api(self, mock_openai_class):
+        """Test OpenAI adapter maps reasoning to Responses API parameters."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.output_text = "reasoned answer"
+        mock_response.usage = {
+            "input_tokens": 4,
+            "output_tokens": 5,
+            "total_tokens": 9,
+            "output_tokens_details": {"reasoning_tokens": 2},
+        }
+        mock_client.responses.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-test"))
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-test",
+            messages=[ModelMessage(role="user", content="think")],
+            reasoning=ReasoningConfig(effort="medium", summary="auto"),
+            response_schema=StructuredOutputConfig(
+                name="answer",
+                schema={"type": "object", "properties": {"answer": {"type": "string"}}},
+            ),
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == "reasoned answer"
+        assert response.usage is not None
+        assert response.usage.reasoning_tokens == 2
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert call_kwargs["reasoning"] == {"effort": "medium", "summary": "auto"}
+        assert call_kwargs["text"]["format"]["type"] == "json_schema"
+        assert call_kwargs["text"]["format"]["name"] == "answer"
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_responses_passes_explicit_experimental_tools(
+        self, mock_openai_class
+    ):
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.id = "resp-hosted-tool"
+        mock_response.output_text = "searched"
+        mock_response.output = []
+        mock_response.usage = None
+        mock_client.responses.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-test"))
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-test",
+            messages=[ModelMessage(role="user", content="search")],
+            provider_options={
+                "endpoint": "responses",
+                "allow_experimental_tools": True,
+                "experimental_tools": [{"type": "web_search"}],
+            },
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == "searched"
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert call_kwargs["tools"] == [{"type": "web_search"}]
+        assert "experimental_tools" not in call_kwargs
+        assert "allow_experimental_tools" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_responses_uses_top_level_function_tool_schema(
+        self, mock_openai_class
+    ):
+        """Responses functions use a different shape from Chat Completions."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.id = "resp-tool"
+        mock_response.output_text = ""
+        mock_response.output = []
+        mock_response.usage = None
+        mock_openai_class.return_value = mock_client
+        mock_client.responses.create.return_value = mock_response
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-5.4-mini"))
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-5.4-mini",
+            messages=[ModelMessage(role="user", content="multiply")],
+            tools=[
+                ToolSpec(
+                    name="multiply",
+                    description="Multiply two integers.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "integer"},
+                            "b": {"type": "integer"},
+                        },
+                        "required": ["a", "b"],
+                        "additionalProperties": False,
+                    },
+                    strict=True,
+                )
+            ],
+            provider_options={"endpoint": "responses"},
+        )
+
+        provider.invoke(request)
+
+        assert mock_client.responses.create.call_args.kwargs["tools"] == [
+            {
+                "type": "function",
+                "name": "multiply",
+                "description": "Multiply two integers.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "integer"},
+                        "b": {"type": "integer"},
+                    },
+                    "required": ["a", "b"],
+                    "additionalProperties": False,
+                },
+                "strict": True,
+            }
+        ]
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_invoke_chat_with_structured_output(self, mock_openai_class):
+        """Test OpenAI adapter maps JSON schema to Chat Completions."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = '{"answer":"ok"}'
+        mock_response.usage = {"prompt_tokens": 3, "completion_tokens": 4}
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-test"))
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-test",
+            messages=[ModelMessage(role="user", content="json")],
+            response_schema=StructuredOutputConfig(
+                name="answer",
+                schema={"type": "object", "properties": {"answer": {"type": "string"}}},
+            ),
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == '{"answer":"ok"}'
+        assert response.usage is not None
+        assert response.usage.total_tokens == 7
+        response_format = mock_client.chat.completions.create.call_args.kwargs[
+            "response_format"
+        ]
+        assert response_format["type"] == "json_schema"
+        assert response_format["json_schema"]["name"] == "answer"
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_adapter_defers_chat_tool_execution_to_runtime(
+        self, mock_openai_class
+    ):
+        mock_client = Mock()
+        tool_call = Mock()
+        tool_call.type = "function"
+        tool_call.id = "call-runtime"
+        tool_call.function.name = "add"
+        tool_call.function.arguments = '{"x": 2, "y": 3}'
+        response = Mock()
+        response.choices = [Mock()]
+        response.choices[0].message.content = ""
+        response.choices[0].message.tool_calls = [tool_call]
+        response.choices[0].finish_reason = "tool_calls"
+        response.usage = None
+        mock_client.chat.completions.create.return_value = response
+        mock_openai_class.return_value = mock_client
+        calls = []
+
+        def add(x: int, y: int) -> int:
+            calls.append((x, y))
+            return x + y
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-test"))
+        result = provider.invoke(
+            ModelRequest(
+                provider="openai",
+                model="gpt-test",
+                messages=[ModelMessage(role="user", content="2+3?")],
+            ),
+            tools=[{"function": add, "description": "Add"}],
+        )
+
+        assert result.content == ""
+        assert result.tool_calls[0].name == "add"
+        assert calls == []
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_runtime_executes_chat_tool_and_submits_result(
+        self, mock_openai_class
+    ):
+        mock_client = Mock()
+        tool_call = Mock()
+        tool_call.type = "function"
+        tool_call.id = "call-runtime"
+        tool_call.function.name = "add"
+        tool_call.function.arguments = '{"x": 2, "y": 3}'
+        initial = Mock()
+        initial.choices = [Mock()]
+        initial.choices[0].message.content = ""
+        initial.choices[0].message.tool_calls = [tool_call]
+        initial.choices[0].finish_reason = "tool_calls"
+        initial.usage = None
+        final = Mock()
+        final.choices = [Mock()]
+        final.choices[0].message.content = "5"
+        final.choices[0].message.tool_calls = None
+        final.choices[0].finish_reason = "stop"
+        final.usage = None
+        mock_client.chat.completions.create.side_effect = [initial, final]
+        mock_openai_class.return_value = mock_client
+
+        def add(x: int, y: int) -> int:
+            return x + y
+
+        config = AgentConfig(provider="openai", model="gpt-test")
+        runtime = ModelRuntime(
+            provider=OpenAIProvider(config),
+            provider_name="openai",
+            config=config,
+        )
+        result = runtime.invoke(
+            messages=[{"role": "user", "content": "2+3?"}],
+            tools=[{"function": add, "description": "Add"}],
+        )
+
+        assert result.content == "5"
+        assert result.metadata["tool_results"][0]["content"] == "5"
+        followup = mock_client.chat.completions.create.call_args_list[1].kwargs
+        assert followup["messages"][-1] == {
+            "role": "tool",
+            "tool_call_id": "call-runtime",
+            "content": "5",
+        }
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_runtime_executes_responses_tool_and_submits_output(
+        self, mock_openai_class
+    ):
+        mock_client = Mock()
+        initial = Mock()
+        initial.id = "resp-initial"
+        initial.output_text = ""
+        initial.output = [
+            {
+                "type": "function_call",
+                "call_id": "call-responses",
+                "name": "add",
+                "arguments": '{"x": 2, "y": 3}',
+            }
+        ]
+        initial.usage = None
+        final = Mock()
+        final.id = "resp-final"
+        final.output_text = "5"
+        final.output = []
+        final.usage = None
+        mock_client.responses.create.side_effect = [initial, final]
+        mock_openai_class.return_value = mock_client
+
+        def add(x: int, y: int) -> int:
+            return x + y
+
+        config = AgentConfig(provider="openai", model="gpt-test")
+        runtime = ModelRuntime(
+            provider=OpenAIProvider(config),
+            provider_name="openai",
+            config=config,
+        )
+        result = runtime.invoke(
+            messages=[{"role": "user", "content": "2+3?"}],
+            tools=[{"function": add, "description": "Add"}],
+            provider_options={"endpoint": "responses"},
+        )
+
+        assert result.content == "5"
+        assert result.tool_calls[0].id == "call-responses"
+        followup = mock_client.responses.create.call_args_list[1].kwargs
+        assert followup["previous_response_id"] == "resp-initial"
+        assert followup["input"] == [
+            {
+                "type": "function_call_output",
+                "call_id": "call-responses",
+                "output": "5",
+            }
+        ]
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_invoke_gpt5_retries_empty_text(self, mock_openai_class):
+        """Test runtime Chat Completions retry preserves final metadata."""
+        mock_client = Mock()
+        empty_choice = Mock()
+        empty_choice.finish_reason = "length"
+        empty_choice.message.content = None
+        empty_choice.message.tool_calls = None
+        empty_response = Mock()
+        empty_response.choices = [empty_choice]
+        empty_response.usage = {"prompt_tokens": 3, "completion_tokens": 500}
+
+        final_choice = Mock()
+        final_choice.finish_reason = "stop"
+        final_choice.message.content = "runtime retry response"
+        final_choice.message.tool_calls = None
+        final_response = Mock()
+        final_response.choices = [final_choice]
+        final_response.usage = {"prompt_tokens": 3, "completion_tokens": 12}
+
+        mock_client.chat.completions.create.side_effect = [
+            empty_response,
+            final_response,
+        ]
+        mock_openai_class.return_value = mock_client
+
+        provider = OpenAIProvider(
+            AgentConfig(model="gpt-5-mini", temperature=0.8, max_tokens=500)
+        )
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-5-mini",
+            messages=[ModelMessage(role="user", content="Hello")],
+            temperature=0.8,
+            max_output_tokens=500,
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == "runtime retry response"
+        assert response.finish_reason == "stop"
+        assert response.usage is not None
+        assert response.usage.output_tokens == 12
+        assert mock_client.chat.completions.create.call_count == 2
+        retry_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
+        assert retry_kwargs["max_completion_tokens"] >= 4096
+        assert "temperature" not in retry_kwargs
 
 
 class TestOpenAIToolFormatting:
@@ -639,6 +1236,110 @@ class TestOpenAIToolCallHandling:
         assert result == "The weather in Paris is sunny."
         assert mock_client.chat.completions.create.call_count == 2
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_gpt5_tool_follow_up_uses_supported_chat_params(self, mock_openai_class):
+        """Test GPT-5 tool follow-up requests use supported Chat params."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        mock_tool_call = Mock()
+        mock_tool_call.type = "function"
+        mock_tool_call.id = "call_gpt5_tool"
+        mock_tool_call.function.name = "get_weather"
+        mock_tool_call.function.arguments = '{"location": "Paris"}'
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = None
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+
+        mock_followup = Mock()
+        mock_followup.choices = [Mock()]
+        mock_followup.choices[0].message.content = "The weather in Paris is sunny."
+
+        mock_client.chat.completions.create.side_effect = [mock_response, mock_followup]
+
+        provider = OpenAIProvider(
+            AgentConfig(model="gpt-5-mini", temperature=0.8, max_tokens=500)
+        )
+
+        def get_weather(location):
+            return f"Sunny in {location}"
+
+        result = provider.generate(
+            [{"role": "user", "content": "What's the weather in Paris?"}],
+            [{"function": get_weather, "description": "Get weather for a location"}],
+        )
+
+        assert result == "The weather in Paris is sunny."
+        initial_kwargs = mock_client.chat.completions.create.call_args_list[0].kwargs
+        followup_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
+        for call_kwargs in (initial_kwargs, followup_kwargs):
+            assert call_kwargs["model"] == "gpt-5-mini"
+            assert call_kwargs["max_completion_tokens"] == 500
+            assert "max_tokens" not in call_kwargs
+            assert "temperature" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_gpt5_tool_follow_up_retries_empty_text(self, mock_openai_class):
+        """Test GPT-5 tool follow-up calls retry blank visible output."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+
+        mock_tool_call = Mock()
+        mock_tool_call.type = "function"
+        mock_tool_call.id = "call_gpt5_tool"
+        mock_tool_call.function.name = "get_weather"
+        mock_tool_call.function.arguments = '{"location": "Paris"}'
+
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].finish_reason = "tool_calls"
+        mock_response.choices[0].message.content = None
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+
+        mock_empty_followup = Mock()
+        mock_empty_followup.choices = [Mock()]
+        mock_empty_followup.choices[0].finish_reason = "length"
+        mock_empty_followup.choices[0].message.content = ""
+        mock_empty_followup.choices[0].message.tool_calls = None
+
+        mock_final_followup = Mock()
+        mock_final_followup.choices = [Mock()]
+        mock_final_followup.choices[0].finish_reason = "stop"
+        mock_final_followup.choices[0].message.content = (
+            "The weather in Paris is sunny."
+        )
+        mock_final_followup.choices[0].message.tool_calls = None
+
+        mock_client.chat.completions.create.side_effect = [
+            mock_response,
+            mock_empty_followup,
+            mock_final_followup,
+        ]
+
+        provider = OpenAIProvider(
+            AgentConfig(model="gpt-5-mini", temperature=0.8, max_tokens=500)
+        )
+
+        def get_weather(location):
+            return f"Sunny in {location}"
+
+        result = provider.generate(
+            [{"role": "user", "content": "What's the weather in Paris?"}],
+            [{"function": get_weather, "description": "Get weather for a location"}],
+        )
+
+        assert result == "The weather in Paris is sunny."
+        assert mock_client.chat.completions.create.call_count == 3
+        retry_kwargs = mock_client.chat.completions.create.call_args_list[2].kwargs
+        assert retry_kwargs["model"] == "gpt-5-mini"
+        assert retry_kwargs["max_completion_tokens"] >= 4096
+        assert "max_tokens" not in retry_kwargs
+        assert "temperature" not in retry_kwargs
+
 
 class TestAnthropicProvider:
     """Test Anthropic provider implementation."""
@@ -676,6 +1377,43 @@ class TestAnthropicProvider:
 
         assert response == "Hello! How can I assist you today?"
         mock_client.messages.create.assert_called_once()
+
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
+    @patch("anthropic.Anthropic")
+    def test_anthropic_passes_explicit_experimental_tools(self, mock_anthropic_class):
+        mock_client = Mock()
+        block = Mock()
+        block.type = "text"
+        block.text = "searched"
+        mock_response = Mock()
+        mock_response.content = [block]
+        mock_response.usage = None
+        mock_response.stop_reason = "end_turn"
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic_class.return_value = mock_client
+
+        provider = AnthropicProvider(AgentConfig(model="claude-test"))
+        request = ModelRequest(
+            provider="anthropic",
+            model="claude-test",
+            messages=[ModelMessage(role="user", content="search")],
+            provider_options={
+                "allow_experimental_tools": True,
+                "experimental_tools": [
+                    {"type": "web_search_20250305", "name": "web_search"}
+                ],
+            },
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == "searched"
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["tools"] == [
+            {"type": "web_search_20250305", "name": "web_search"}
+        ]
+        assert "experimental_tools" not in call_kwargs
+        assert "allow_experimental_tools" not in call_kwargs
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
     @patch("anthropic.Anthropic")
@@ -805,6 +1543,142 @@ class TestAnthropicProvider:
         assert result == "Result is 7"
         assert mock_client.messages.create.call_count == 2
 
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
+    @patch("anthropic.Anthropic")
+    def test_anthropic_adapter_defers_tool_execution_to_runtime(
+        self, mock_anthropic_class
+    ):
+        mock_client = Mock()
+        tool_use = Mock()
+        tool_use.type = "tool_use"
+        tool_use.id = "tool-runtime"
+        tool_use.name = "add"
+        tool_use.input = {"x": 2, "y": 5}
+        response = Mock()
+        response.content = [tool_use]
+        response.usage = None
+        response.stop_reason = "tool_use"
+        mock_client.messages.create.return_value = response
+        mock_anthropic_class.return_value = mock_client
+        calls = []
+
+        def add(x: int, y: int) -> int:
+            calls.append((x, y))
+            return x + y
+
+        provider = AnthropicProvider(AgentConfig(model="claude-test"))
+        result = provider.invoke(
+            ModelRequest(
+                provider="anthropic",
+                model="claude-test",
+                messages=[ModelMessage(role="user", content="Add")],
+            ),
+            tools=[{"function": add, "description": "Add"}],
+        )
+
+        assert result.content == ""
+        assert result.tool_calls[0].name == "add"
+        assert calls == []
+        mock_client.messages.create.assert_called_once()
+
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
+    @patch("anthropic.Anthropic")
+    def test_anthropic_runtime_executes_tool_and_submits_tool_result(
+        self, mock_anthropic_class
+    ):
+        mock_client = Mock()
+        tool_use = Mock()
+        tool_use.type = "tool_use"
+        tool_use.id = "tool-runtime"
+        tool_use.name = "add"
+        tool_use.input = {"x": 2, "y": 5}
+        initial = Mock()
+        initial.content = [tool_use]
+        initial.usage = None
+        initial.stop_reason = "tool_use"
+        text_block = Mock()
+        text_block.type = "text"
+        text_block.text = "Result is 7"
+        final = Mock()
+        final.content = [text_block]
+        final.usage = None
+        final.stop_reason = "end_turn"
+        mock_client.messages.create.side_effect = [initial, final]
+        mock_anthropic_class.return_value = mock_client
+
+        def add(x: int, y: int) -> int:
+            return x + y
+
+        config = AgentConfig(provider="anthropic", model="claude-test")
+        runtime = ModelRuntime(
+            provider=AnthropicProvider(config),
+            provider_name="anthropic",
+            config=config,
+        )
+        result = runtime.invoke(
+            messages=[{"role": "user", "content": "Add"}],
+            tools=[{"function": add, "description": "Add"}],
+        )
+
+        assert result.content == "Result is 7"
+        assert result.metadata["tool_results"][0]["content"] == "7"
+        followup = mock_client.messages.create.call_args_list[1].kwargs
+        assert followup["messages"][-1] == {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "tool-runtime",
+                    "content": "7",
+                }
+            ],
+        }
+
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fake-test-key"})
+    @patch("anthropic.Anthropic")
+    def test_anthropic_invoke_with_thinking_and_structured_output(
+        self, mock_anthropic_class
+    ):
+        """Test Anthropic adapter maps thinking and structured outputs."""
+        mock_client = Mock()
+        block = Mock()
+        block.type = "text"
+        block.text = '{"answer":"ok"}'
+        mock_response = Mock()
+        mock_response.content = [block]
+        mock_response.usage = {"input_tokens": 6, "output_tokens": 7}
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic_class.return_value = mock_client
+
+        provider = AnthropicProvider(AgentConfig(model="claude-test"))
+        schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+        request = ModelRequest(
+            provider="anthropic",
+            model="claude-test",
+            messages=[ModelMessage(role="user", content="json")],
+            reasoning=ReasoningConfig(
+                effort="medium",
+                budget_tokens=1024,
+                mode="enabled",
+            ),
+            response_schema=StructuredOutputConfig(name="answer", schema=schema),
+        )
+
+        response = provider.invoke(request)
+
+        assert response.content == '{"answer":"ok"}'
+        assert response.usage is not None
+        assert response.usage.total_tokens == 13
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["thinking"] == {
+            "type": "enabled",
+            "budget_tokens": 1024,
+        }
+        assert call_kwargs["output_config"] == {
+            "format": {"type": "json_schema", "schema": schema},
+            "effort": "medium",
+        }
+
 
 class TestCohereProvider:
     """Test Cohere provider implementation."""
@@ -888,6 +1762,68 @@ class TestCohereProvider:
         result = provider.generate(messages, tools)
         assert result == "hello"
         assert mock_client.chat.call_count == 2
+
+    @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
+    @patch("cohere.Client")
+    def test_cohere_adapter_defers_tool_execution_to_runtime(self, mock_cohere_class):
+        mock_client = Mock()
+        response = Mock()
+        response.text = ""
+        response.tool_calls = [{"name": "echo", "args": {"text": "hello"}}]
+        mock_client.chat.return_value = response
+        mock_cohere_class.return_value = mock_client
+        calls = []
+
+        def echo(text: str) -> str:
+            calls.append(text)
+            return text
+
+        provider = CohereProvider(AgentConfig(model="command-test"))
+        result = provider.invoke(
+            ModelRequest(
+                provider="cohere",
+                model="command-test",
+                messages=[ModelMessage(role="user", content="Echo")],
+            ),
+            tools=[{"function": echo, "description": "Echo"}],
+        )
+
+        assert result.content == ""
+        assert result.tool_calls[0].name == "echo"
+        assert calls == []
+        mock_client.chat.assert_called_once()
+
+    @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
+    @patch("cohere.Client")
+    def test_cohere_runtime_executes_tool_and_submits_result(self, mock_cohere_class):
+        mock_client = Mock()
+        initial = Mock()
+        initial.text = ""
+        initial.tool_calls = [{"name": "echo", "args": {"text": "hello"}}]
+        final = Mock()
+        final.text = "hello"
+        final.tool_calls = []
+        mock_client.chat.side_effect = [initial, final]
+        mock_cohere_class.return_value = mock_client
+
+        def echo(text: str) -> str:
+            return text
+
+        config = AgentConfig(provider="cohere", model="command-test")
+        runtime = ModelRuntime(
+            provider=CohereProvider(config),
+            provider_name="cohere",
+            config=config,
+        )
+        result = runtime.invoke(
+            messages=[{"role": "user", "content": "Echo"}],
+            tools=[{"function": echo, "description": "Echo"}],
+        )
+
+        assert result.content == "hello"
+        assert result.metadata["tool_results"][0]["content"] == "hello"
+        followup = mock_client.chat.call_args_list[1].kwargs
+        assert followup["tool_results"] == [{"name": "echo", "result": "hello"}]
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
     @patch("cohere.Client")

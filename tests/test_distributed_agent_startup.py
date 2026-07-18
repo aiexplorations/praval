@@ -217,7 +217,7 @@ class TestAgentRunnerShutdown:
         # We'll trigger shutdown immediately to avoid infinite wait
         async def trigger_shutdown():
             await asyncio.sleep(0.1)
-            runner._shutdown_event.set()
+            runner._get_shutdown_event().set()
 
         # Start shutdown trigger task
         shutdown_task = asyncio.create_task(trigger_shutdown())
@@ -226,6 +226,7 @@ class TestAgentRunnerShutdown:
         await runner.run_async()
 
         # Verify we completed without error
+        assert runner._shutdown_event is not None
         assert runner._shutdown_event.is_set()
         await shutdown_task
 

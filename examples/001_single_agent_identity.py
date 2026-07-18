@@ -19,6 +19,11 @@ Run: python examples/001_single_agent_identity.py
 
 import sys
 import os
+
+if __name__ == "__main__" and os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+    print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
+    raise SystemExit(0)
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from praval import agent, tool, start_agents, get_reef
@@ -150,6 +155,9 @@ The beauty of philosophy lies not in providing definitive answers, but in deepen
 
 def main():
     """Demonstrate identity-driven agent behavior with tools."""
+    if os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+        print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
+        return
     print("=" * 70)
     print("Example 001: Single Agent Identity with Philosophical Tools")
     print("=" * 70)

@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from praval.core.exceptions import EmbeddingConfigurationError
 from praval.memory.embedded_store import (
     EmbeddedVectorStore,
 )
@@ -121,6 +122,29 @@ class TestEmbeddedVectorStoreInitialization:
         # plus the legacy collection for migration check
         assert mock_client.get_collection.call_count >= 2
         mock_client.create_collection.assert_not_called()
+
+    @patch("praval.memory.embedded_store.chromadb")
+    def test_existing_collection_rejects_embedding_model_change(self, mock_chromadb):
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.metadata = {
+            "hnsw:space": "cosine",
+            "praval:embedding_provider": "sentence-transformers",
+            "praval:embedding_model": "old-model",
+            "praval:embedding_dimensions": 384,
+        }
+        mock_client.get_collection.return_value = mock_collection
+        mock_chromadb.PersistentClient.return_value = mock_client
+
+        with patch("praval.memory.embedded_store.CHROMADB_AVAILABLE", True):
+            with patch(
+                "praval.memory.embedded_store.SENTENCE_TRANSFORMERS_AVAILABLE", False
+            ):
+                with pytest.raises(EmbeddingConfigurationError, match="re-index"):
+                    EmbeddedVectorStore(
+                        storage_path=tempfile.mkdtemp(),
+                        embedding_model="new-model",
+                    )
 
     def test_embedded_store_chromadb_unavailable(self):
         """Test initialization when ChromaDB is not available."""

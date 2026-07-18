@@ -1,7 +1,19 @@
+from unittest.mock import patch
+
 import pytest
 
 from praval.core.reef import Spore, SporeType
 from praval.core.reef_backend import InMemoryBackend, RabbitMQBackend
+
+
+def test_inmemory_backend_defers_lock_creation_until_async_use():
+    with patch(
+        "praval.core.reef_backend.asyncio.Lock",
+        side_effect=AssertionError("lock created eagerly"),
+    ):
+        backend = InMemoryBackend()
+
+    assert backend._lock is None
 
 
 @pytest.mark.asyncio
@@ -36,6 +48,7 @@ class FakeTransport:
     def __init__(self):
         self.published = []
         self.subscriptions = []
+        self.handlers = {}
         self.queue_subscriptions = []
         self.closed = False
 
@@ -47,6 +60,7 @@ class FakeTransport:
 
     async def subscribe(self, topic, handler):
         self.subscriptions.append(topic)
+        self.handlers[topic] = handler
 
     async def subscribe_to_queue(self, queue_name, handler):
         self.queue_subscriptions.append(queue_name)
@@ -105,3 +119,26 @@ async def test_rabbitmq_backend_subscribe_modes():
     await backend2.initialize({})
     await backend2.subscribe("topic_chan", handler)
     assert backend2.transport.subscriptions
+
+
+@pytest.mark.asyncio
+async def test_rabbitmq_backend_accepts_sync_spore_handlers():
+    transport = FakeTransport()
+    backend = RabbitMQBackend(transport=transport)
+    await backend.initialize({})
+    received = []
+
+    await backend.subscribe("agent.worker", received.append)
+    callback = transport.handlers["agent.worker.*"]
+    spore = Spore(
+        id="sync-handler",
+        spore_type=SporeType.REQUEST,
+        from_agent="sender",
+        to_agent="worker",
+        knowledge={"ready": True},
+        created_at=__import__("datetime").datetime.now(),
+    )
+
+    await callback(spore)
+
+    assert received == [spore]

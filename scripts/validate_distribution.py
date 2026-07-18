@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""Validate Praval wheel and source-distribution release invariants."""
+
+from __future__ import annotations
+
+import argparse
+import email
+import re
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional
+
+MAX_SDIST_BYTES = 3 * 1024 * 1024
+FORBIDDEN_PARTS = {
+    "__pycache__",
+    ".ipynb_checkpoints",
+    ".pytest_cache",
+    "_build",
+    "archive",
+    "generated",
+    "dist",
+}
+FORBIDDEN_EXACT_SUFFIXES = {
+    "docs/logo.png",
+    "docs/sphinx/_static/praval-logo.png",
+}
+
+
+def _project_version(pyproject: Path) -> str:
+    contents = pyproject.read_text(encoding="utf-8")
+    project_match = re.search(r"(?ms)^\[project\]\s+(.*?)(?=^\[|\Z)", contents)
+    if project_match is None:
+        raise ValueError("pyproject.toml has no [project] table")
+    version_match = re.search(
+        r'^version\s*=\s*["\']([^"\']+)["\']\s*$',
+        project_match.group(1),
+        re.MULTILINE,
+    )
+    if version_match is None:
+        raise ValueError("pyproject.toml has no static project version")
+    return version_match.group(1)
+
+
+def _package_version(init_file: Path) -> str:
+    contents = init_file.read_text(encoding="utf-8")
+    match = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', contents, re.MULTILINE)
+    if match is not None:
+        return match.group(1)
+    if 'version("praval")' not in contents:
+        raise ValueError("praval.__version__ is not derived from package metadata")
+    # Release validation runs before the newly built wheel is installed. The
+    # source contract above proves runtime lookup is dynamic; compare using the
+    # authoritative project metadata instead of the active environment.
+    return _project_version(init_file.parents[2] / "pyproject.toml")
+
+
+def _metadata_from_wheel(wheel: Path) -> Dict[str, Any]:
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_names = [
+            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+        ]
+        wheel_names = [
+            name for name in archive.namelist() if name.endswith(".dist-info/WHEEL")
+        ]
+        if len(metadata_names) != 1 or len(wheel_names) != 1:
+            raise ValueError("wheel must contain exactly one METADATA and WHEEL file")
+        metadata = email.message_from_bytes(archive.read(metadata_names[0]))
+        wheel_metadata = email.message_from_bytes(archive.read(wheel_names[0]))
+    return {
+        "name": str(metadata["Name"]),
+        "version": str(metadata["Version"]),
+        "requires_python": str(metadata["Requires-Python"]),
+        "root_is_purelib": str(wheel_metadata["Root-Is-Purelib"]),
+        "tag": str(wheel_metadata["Tag"]),
+        "requires_dist": [
+            str(value) for value in metadata.get_all("Requires-Dist", [])
+        ],
+    }
+
+
+def _sdist_names(sdist: Path) -> List[str]:
+    with tarfile.open(sdist, "r:gz") as archive:
+        return archive.getnames()
+
+
+def _sdist_text(sdist: Path, suffix: str) -> Optional[str]:
+    """Read one UTF-8 text member selected by its path suffix."""
+    with tarfile.open(sdist, "r:gz") as archive:
+        matches = [
+            member
+            for member in archive.getmembers()
+            if member.isfile() and member.name.endswith(suffix)
+        ]
+        if len(matches) != 1:
+            return None
+        extracted = archive.extractfile(matches[0])
+        if extracted is None:
+            return None
+        return extracted.read().decode("utf-8")
+
+
+def _wheel_names(wheel: Path) -> List[str]:
+    with zipfile.ZipFile(wheel) as archive:
+        return archive.namelist()
+
+
+def _forbidden_entries(names: Iterable[str]) -> List[str]:
+    forbidden: List[str] = []
+    for name in names:
+        normalized = name.replace("\\", "/").strip("/")
+        parts = normalized.split("/")
+        without_root = "/".join(parts[1:]) if len(parts) > 1 else normalized
+        if FORBIDDEN_PARTS.intersection(parts):
+            forbidden.append(name)
+        elif any(without_root.endswith(suffix) for suffix in FORBIDDEN_EXACT_SUFFIXES):
+            forbidden.append(name)
+        elif normalized.endswith((".pyc", ".pyo", ".DS_Store")):
+            forbidden.append(name)
+    return forbidden
+
+
+def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
+    errors: List[str] = []
+    wheels = sorted(dist_dir.glob("praval-*.whl"))
+    sdists = sorted(dist_dir.glob("praval-*.tar.gz"))
+    if len(wheels) != 1:
+        errors.append(f"expected one wheel, found {len(wheels)}")
+    if len(sdists) != 1:
+        errors.append(f"expected one sdist, found {len(sdists)}")
+    if errors:
+        return errors
+
+    wheel = wheels[0]
+    sdist = sdists[0]
+    root = Path(__file__).resolve().parents[1]
+    project_version = _project_version(root / "pyproject.toml")
+    package_version = _package_version(root / "src/praval/__init__.py")
+    wheel_metadata = _metadata_from_wheel(wheel)
+
+    versions = {
+        "pyproject.toml": project_version,
+        "praval.__version__": package_version,
+        "wheel metadata": wheel_metadata["version"],
+    }
+    if len(set(versions.values())) != 1:
+        errors.append(f"version mismatch: {versions}")
+    if expected_tag is not None and expected_tag != f"v{project_version}":
+        errors.append(
+            f"tag {expected_tag!r} does not match package version v{project_version}"
+        )
+    if wheel_metadata["name"].lower() != "praval":
+        errors.append(f"unexpected wheel project name: {wheel_metadata['name']!r}")
+    if wheel_metadata["requires_python"] != ">=3.9":
+        errors.append("wheel Requires-Python must retain core support for Python >=3.9")
+    if wheel_metadata["root_is_purelib"].lower() != "true":
+        errors.append("wheel must declare Root-Is-Purelib: true")
+    if wheel_metadata["tag"] != "py3-none-any":
+        errors.append(f"wheel must use py3-none-any, got {wheel_metadata['tag']!r}")
+    if not wheel.name.endswith("-py3-none-any.whl"):
+        errors.append(f"wheel filename is not universal pure Python: {wheel.name}")
+    requirements = wheel_metadata["requires_dist"]
+    mcp_requirements = [
+        requirement
+        for requirement in requirements
+        if requirement.lower().startswith("mcp") and 'extra == "mcp"' in requirement
+    ]
+    if len(mcp_requirements) != 1:
+        errors.append("wheel must declare exactly one mcp-extra SDK requirement")
+    elif not all(
+        fragment in mcp_requirements[0]
+        for fragment in (">=1.27", "<2", 'python_version >= "3.10"')
+    ):
+        errors.append(f"invalid MCP SDK requirement: {mcp_requirements[0]!r}")
+    if any(requirement.lower().startswith("pypdf2") for requirement in requirements):
+        errors.append("wheel must not depend on deprecated PyPDF2")
+    if not any(
+        requirement.lower().startswith("pypdf") and 'extra == "pdf"' in requirement
+        for requirement in requirements
+    ):
+        errors.append("wheel must declare the pypdf extra")
+    if sdist.stat().st_size >= MAX_SDIST_BYTES:
+        errors.append(
+            f"sdist is {sdist.stat().st_size} bytes; limit is {MAX_SDIST_BYTES}"
+        )
+
+    sdist_names = _sdist_names(sdist)
+    wheel_names = _wheel_names(wheel)
+    forbidden = _forbidden_entries(sdist_names + wheel_names)
+    if forbidden:
+        errors.append("forbidden package entries: " + ", ".join(forbidden[:20]))
+    if not any("/tests/" in name and name.endswith(".py") for name in sdist_names):
+        errors.append("sdist must contain the test suite")
+    if not any("/examples/" in name and name.endswith(".py") for name in sdist_names):
+        errors.append("sdist must contain Python examples")
+    if not any(name.endswith("/examples/manifest.toml") for name in sdist_names):
+        errors.append("sdist must contain the demo certification manifest")
+    notebook_names = [
+        name
+        for name in sdist_names
+        if "/examples/notebooks/" in name and name.endswith(".ipynb")
+    ]
+    if len(notebook_names) != 17:
+        errors.append(
+            "sdist must contain exactly 17 maintained visual notebooks, "
+            f"found {len(notebook_names)}"
+        )
+    if not any(
+        name.endswith("/examples/notebooks/manifest.toml") for name in sdist_names
+    ):
+        errors.append("sdist must contain the notebook execution manifest")
+    else:
+        notebook_manifest = _sdist_text(sdist, "/examples/notebooks/manifest.toml")
+        schema_match = re.search(
+            r"(?m)^schema_version\s*=\s*(\d+)\s*$", notebook_manifest or ""
+        )
+        if schema_match is None or int(schema_match.group(1)) != 2:
+            errors.append("sdist notebook manifest must use schema version 2")
+    if not any(name.endswith("/examples/notebooks/support.py") for name in sdist_names):
+        errors.append("sdist must contain the shared notebook support module")
+    required_fixture_suffixes = (
+        "/examples/certification/assets/image_input.png.base64",
+        "/examples/certification/assets/knowledge_input.pdf.base64",
+        "/examples/certification/assets/voice_phrase.txt",
+        "/examples/certification/assets/voice_input.wav.gz.base64",
+        "/examples/certification/assets/video_input.mp4.base64",
+        "/examples/certification/assets/PROVENANCE.md",
+        "/examples/notebooks/fixtures/PROVENANCE.md",
+        "/examples/notebooks/fixtures/SHA256SUMS",
+        "/examples/notebooks/fixtures/research_sources.json",
+        "/examples/notebooks/fixtures/support_case.json",
+        "/examples/notebooks/fixtures/release_candidate/src/ledger.py",
+        "/examples/notebooks/fixtures/release_candidate/tests/test_ledger.py",
+        "/examples/notebooks/fixtures/release_candidate/pyproject.toml",
+        "/examples/notebooks/fixtures/marketing/product_brief.md",
+        "/examples/notebooks/fixtures/marketing/approved_facts.json",
+        "/examples/notebooks/fixtures/marketing/product_screenshot.png.base64",
+    )
+    if not all(
+        any(name.endswith(suffix) for name in sdist_names)
+        for suffix in required_fixture_suffixes
+    ):
+        errors.append("sdist must contain certification fixture provenance")
+    if not any("/docs/sphinx/" in name for name in sdist_names):
+        errors.append("sdist must contain Sphinx documentation sources")
+    if not any(name.endswith("/docs/api-surface.toml") for name in sdist_names):
+        errors.append("sdist must contain the public API surface manifest")
+    if not any(name.endswith("/docs/feature-claims.toml") for name in sdist_names):
+        errors.append("sdist must contain the feature claim evidence manifest")
+    return errors
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("dist_dir", type=Path)
+    parser.add_argument("--tag", help="optional release tag, such as v0.8.0")
+    args = parser.parse_args()
+    errors = validate(args.dist_dir, args.tag)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("Distribution validation passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

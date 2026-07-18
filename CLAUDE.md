@@ -210,47 +210,21 @@ pytest tests/ -m integration                # Only integration tests
 
 ## Release Process
 
-### Version Bumping
-Version is defined in two places - keep them in sync:
-- `pyproject.toml` line 7: `version = "X.Y.Z"`
-- `src/praval/__init__.py` line 90: `__version__ = "X.Y.Z"`
-- `src/praval/__init__.py` docstring (update release notes)
+### Version and release metadata
 
-### Quick Release (Recommended)
-Use the Makefile release wizard:
-```bash
-source venv/bin/activate
-make release
-# Follow prompts to select: patch/minor/major
-# Updates version, builds, and prepares for upload
-```
+`pyproject.toml` is the authoritative version source. Runtime
+`praval.__version__` comes from installed distribution metadata. Validate the
+contract with `python scripts/check_release_metadata.py`.
 
-### Manual Release Steps
-```bash
-# 1. Ensure all tests pass
-pytest tests/ -v --cov=praval --cov-fail-under=90
+Releases reuse the successful `main` CI wheel and sdist. After protected live
+certification, create the version tag on that exact commit. The tag workflow
+verifies the artifact, pauses at the protected `pypi` environment, and uses
+trusted publishing. Do not rebuild or upload a local artifact manually.
 
-# 2. Update version in pyproject.toml, src/praval/__init__.py, and docstring
-
-# 3. Commit version bump
-git add pyproject.toml src/praval/__init__.py
-git commit -m "🔖 Bump version: X.Y.Z → X.Y.Z+1"
-
-# 4. Create and push tag
-git tag vX.Y.Z
-git push origin main --tags
-
-# 5. Build wheel
-python -m build
-
-# 6. Upload to PyPI (wheel only)
-twine upload dist/praval-X.Y.Z-py3-none-any.whl
-```
-
-### Post-Release
-After PyPI release, update the pravalagents.com website:
-1. Update version displayed on the site
-2. Deploy new documentation (see Documentation Build section)
+Keep distributions in `dist/` and JSON/checksum/certification files in
+`evidence/`. Prepare the `praval-ai` documentation PR from the exact-wheel docs
+artifact, then merge it only after the version appears on PyPI. See
+`RELEASE.md` for the complete sequence.
 
 ### Version Semantics
 - **Major (X)**: Breaking API changes
@@ -329,7 +303,7 @@ cp -r docs/_build/html /path/to/praval-ai/docs/latest
 - `docs/secure_spores_architecture.md` - Secure Spores Enterprise
 - `docs/tool-system-specification.md` - Tool system (@tool decorator)
 - `docs/DEPLOYMENT.md` - Docker deployment guide
-- `docs/praval-complete-guide.md` - Comprehensive framework guide
+- `docs/archive/praval-complete-guide.md` - Historical 0.7.17 generated guide
 - `examples/simple_multi_agent.py` - Reference example
 
 ## Related Repositories

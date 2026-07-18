@@ -12,6 +12,7 @@ Design:
 """
 
 import asyncio
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -118,8 +119,19 @@ class InMemoryBackend(ReefBackend):
     def __init__(self):
         super().__init__()
         self.channels: Dict[str, ReefChannel] = {}
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
+        self._lock_loop: Optional[asyncio.AbstractEventLoop] = None
         self._subscriptions: Dict[str, List[Callable]] = defaultdict(list)
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Return a lock bound to the currently running event loop."""
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
+            if self._lock is not None and self._lock.locked():
+                raise RuntimeError("InMemoryBackend is active on another event loop")
+            self._lock = asyncio.Lock()
+            self._lock_loop = loop
+        return self._lock
 
     async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
         """Initialize in-memory backend (no-op)."""
@@ -128,7 +140,7 @@ class InMemoryBackend(ReefBackend):
 
     async def shutdown(self) -> None:
         """Cleanup all channels."""
-        async with self._lock:
+        async with self._get_lock():
             for channel in self.channels.values():
                 channel.shutdown(wait=False)
             self.channels.clear()
@@ -146,7 +158,7 @@ class InMemoryBackend(ReefBackend):
             raise RuntimeError("InMemoryBackend not connected")
 
         try:
-            async with self._lock:
+            async with self._get_lock():
                 # Create channel if it doesn't exist
                 if channel not in self.channels:
                     self.channels[channel] = ReefChannel(channel)
@@ -196,7 +208,7 @@ class InMemoryBackend(ReefBackend):
             raise RuntimeError("InMemoryBackend not connected")
 
         try:
-            async with self._lock:
+            async with self._get_lock():
                 # Create channel if it doesn't exist
                 if channel not in self.channels:
                     self.channels[channel] = ReefChannel(channel)
@@ -224,7 +236,7 @@ class InMemoryBackend(ReefBackend):
     async def unsubscribe(self, channel: str) -> None:
         """Unsubscribe from in-memory channel."""
         try:
-            async with self._lock:
+            async with self._get_lock():
                 if channel in self.channels:
                     agent_name = (
                         channel.replace("agent.", "")
@@ -382,7 +394,9 @@ class RabbitMQBackend(ReefBackend):
             async def spore_handler(spore: Spore):
                 # Filter by channel if needed
                 if self._spore_matches_channel(spore, channel):
-                    await handler(spore)
+                    result = handler(spore)
+                    if inspect.isawaitable(result):
+                        await result
 
             # Check if this channel has a mapped queue
             if channel in self.channel_queue_map:

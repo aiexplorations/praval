@@ -11,12 +11,54 @@ Usage:
 """
 
 import os
+from contextlib import contextmanager
+from typing import Callable, Iterator, Optional, TypeVar
 
 import pytest
 import pytest_asyncio
 
 # Integration test marker - applied to all tests using container fixtures
 INTEGRATION_MARKER = pytest.mark.integration
+T = TypeVar("T")
+
+
+def _is_docker_unavailable(exc: BaseException) -> bool:
+    """Return True when testcontainers cannot reach the Docker daemon."""
+    current: Optional[BaseException] = exc
+    while current is not None:
+        module = current.__class__.__module__
+        name = current.__class__.__name__
+        message = str(current).lower()
+        if isinstance(current, (PermissionError, FileNotFoundError)):
+            return True
+        if module.startswith("docker.") and name.endswith("Exception"):
+            return True
+        if "error while fetching server api version" in message:
+            return True
+        if "docker daemon" in message:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+@contextmanager
+def _container_or_skip(container: T) -> Iterator[T]:
+    try:
+        with container as running:
+            yield running
+    except Exception as exc:
+        if _is_docker_unavailable(exc):
+            pytest.skip(f"Docker is unavailable for container tests: {exc}")
+        raise
+
+
+def _new_container_or_skip(factory: Callable[[], T]) -> T:
+    try:
+        return factory()
+    except Exception as exc:
+        if _is_docker_unavailable(exc):
+            pytest.skip(f"Docker is unavailable for container tests: {exc}")
+        raise
 
 
 def pytest_configure(config):
@@ -45,7 +87,8 @@ def postgres_container():
     except ImportError:
         pytest.skip("testcontainers[postgres] not installed")
 
-    with PostgresContainer("postgres:15") as postgres:
+    container = _new_container_or_skip(lambda: PostgresContainer("postgres:15"))
+    with _container_or_skip(container) as postgres:
         # Create test table using psycopg2 (sync) for setup
         # Tests will use asyncpg through the provider
         try:
@@ -142,7 +185,8 @@ def redis_container():
     except ImportError:
         pytest.skip("testcontainers[redis] not installed")
 
-    with RedisContainer("redis:7") as redis:
+    container = _new_container_or_skip(lambda: RedisContainer("redis:7"))
+    with _container_or_skip(container) as redis:
         yield redis
 
 
@@ -200,7 +244,8 @@ def qdrant_container():
     except ImportError:
         pytest.skip("testcontainers[qdrant] not installed")
 
-    with QdrantContainer() as qdrant:
+    container = _new_container_or_skip(QdrantContainer)
+    with _container_or_skip(container) as qdrant:
         yield qdrant
 
 

@@ -28,6 +28,15 @@ from praval.core.transport import TransportProtocol
 class TestKeyRegistry:
     """Test key registry functionality."""
 
+    def test_constructor_defers_lock_creation_until_async_use(self):
+        with patch(
+            "praval.core.secure_reef.asyncio.Lock",
+            side_effect=AssertionError("lock created eagerly"),
+        ):
+            registry = KeyRegistry()
+
+        assert registry._lock is None
+
     @pytest.fixture
     def key_registry(self):
         """Create key registry for testing."""

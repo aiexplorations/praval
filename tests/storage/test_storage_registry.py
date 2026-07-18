@@ -608,12 +608,6 @@ class TestExecuteQuery:
         return registry
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in execute_query: passes 'data' both as positional and"
-            " keyword argument"
-        )
-    )
     async def test_execute_query_store(self, registry_with_provider):
         """Executes store operation."""
         query = StorageQuery(
@@ -625,12 +619,6 @@ class TestExecuteQuery:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in execute_query: passes 'data' both as positional and"
-            " keyword argument"
-        )
-    )
     async def test_execute_query_retrieve(self, registry_with_provider):
         """Executes retrieve operation."""
         # First store
@@ -649,12 +637,6 @@ class TestExecuteQuery:
         assert result.data == "test_value"
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in execute_query: passes 'query' both as positional an"
-            "d keyword argument"
-        )
-    )
     async def test_execute_query_query_operation(self, registry_with_provider):
         """Executes query operation."""
         query = StorageQuery(
@@ -668,12 +650,6 @@ class TestExecuteQuery:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in execute_query: passes 'data' both as positional and"
-            " keyword argument"
-        )
-    )
     async def test_execute_query_delete(self, registry_with_provider):
         """Executes delete operation."""
         # First store
@@ -703,12 +679,6 @@ class TestExecuteQuery:
         assert isinstance(result, StorageResult)
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Bug in execute_query: passes 'data' both as positional and"
-            " keyword argument"
-        )
-    )
     async def test_execute_query_updates_stats_success(self, registry_with_provider):
         """Updates usage statistics on successful operation."""
         query = StorageQuery(

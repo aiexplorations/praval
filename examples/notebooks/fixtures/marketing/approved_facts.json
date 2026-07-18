@@ -1,0 +1,13 @@
+{
+  "product_name": "Relayboard",
+  "approved_claims": [
+    "Combines release evidence from connected systems into one decision workspace.",
+    "Preserves the evidence and reviewer trail behind each release decision.",
+    "Supports GitHub, incident-tool, and customer-feedback inputs."
+  ],
+  "prohibited_claims": [
+    "guarantees safe releases",
+    "reduces incidents by 50 percent",
+    "replaces release managers"
+  ]
+}

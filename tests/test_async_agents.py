@@ -34,10 +34,8 @@ class TestAsyncAgentExecution:
         # Setup mock
         mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "word1, word2, word3"
-        mock_response.choices[0].message.tool_calls = None
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_response.output_text = "word1, word2, word3"
+        mock_client.responses.create.return_value = mock_response
         mock_openai_class.return_value = mock_client
 
         results = []
@@ -75,7 +73,7 @@ class TestAsyncAgentExecution:
 
         # Verify agent was called
         assert len(results) >= 0  # May or may not process depending on timing
-        mock_client.chat.completions.create.assert_called()
+        mock_client.responses.create.assert_called()
 
     @patch("openai.OpenAI")
     def test_concurrent_agent_execution(self, mock_openai_class):

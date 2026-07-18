@@ -8,6 +8,7 @@ with consistent configuration handling.
 from typing import Any
 
 from ..core.exceptions import ProviderError
+from .registry import get_provider_registry
 
 
 class ProviderFactory:
@@ -29,20 +30,7 @@ class ProviderFactory:
             ProviderError: If provider is not supported or creation fails
         """
         try:
-            if provider_name == "openai":
-                from .openai import OpenAIProvider
-
-                return OpenAIProvider(config)
-            elif provider_name == "anthropic":
-                from .anthropic import AnthropicProvider
-
-                return AnthropicProvider(config)
-            elif provider_name == "cohere":
-                from .cohere import CohereProvider
-
-                return CohereProvider(config)
-            else:
-                raise ProviderError(f"Unsupported provider: {provider_name}")
+            return get_provider_registry().create_provider(provider_name, config)
         except ImportError as e:
             raise ProviderError(
                 f"Failed to import provider '{provider_name}': {str(e)}"

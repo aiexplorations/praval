@@ -18,19 +18,22 @@ from pathlib import Path
 docs_dir = Path(__file__).parent
 project_root = docs_dir.parent.parent
 src_dir = project_root / "src"
+exact_wheel_build = os.environ.get("PRAVAL_DOCS_EXACT_WHEEL") == "1"
+offline_build = os.environ.get("PRAVAL_DOCS_OFFLINE") == "1"
 
-sys.path.insert(0, str(src_dir))
-sys.path.insert(0, str(project_root))
+if not exact_wheel_build:
+    sys.path.insert(0, str(src_dir))
+    sys.path.insert(0, str(project_root))
 
-# Import version from package
-try:
-    from praval import __version__
-except ImportError:
-    __version__ = "0.7.9"
+import praval
+
+__version__ = praval.__version__
+if exact_wheel_build and project_root in Path(praval.__file__).resolve().parents:
+    raise RuntimeError("Exact-wheel documentation imported Praval from source")
 
 # -- Project information -----------------------------------------------------
 project = "Praval"
-copyright = "2025, Praval Team"
+copyright = "2026, Praval Team"
 author = "Praval Team"
 version = __version__
 release = __version__
@@ -60,6 +63,7 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns.append("README.md")
 
 # The suffix(es) of source filenames.
 source_suffix = {
@@ -81,7 +85,6 @@ html_theme_options = {
     "includehidden": True,
     "titles_only": False,
     "logo_only": False,
-    "display_version": True,
     "prev_next_buttons_location": "bottom",
     "style_external_links": True,
 }
@@ -144,11 +147,11 @@ autosummary_generate = True
 autosummary_imported_members = False
 
 # -- intersphinx configuration
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "pydantic": ("https://docs.pydantic.dev/latest/", None),
-    "openai": ("https://platform.openai.com/docs/api-reference", None),
-}
+intersphinx_mapping = (
+    {}
+    if exact_wheel_build or offline_build
+    else {"python": ("https://docs.python.org/3", None)}
+)
 
 # -- myst_parser configuration (Markdown support)
 myst_enable_extensions = [

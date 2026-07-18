@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, Union
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +51,21 @@ class DataReference:
     @classmethod
     def from_uri(cls, uri: str) -> "DataReference":
         """Create DataReference from URI"""
-        parsed = urlparse(uri)
-        provider = parsed.scheme
-        storage_type = StorageType(parsed.path.split("/")[1])
-        resource_id = "/".join(parsed.path.split("/")[2:])
+        provider_or_scheme, separator, remainder = uri.partition("://")
+        authority, path_separator, path = remainder.partition("/")
+        path_parts = [part for part in path.split("/") if part]
+        if not separator or not authority or not path_separator:
+            raise ValueError(f"Invalid data reference URI: {uri}")
+        if provider_or_scheme == "praval":
+            if not path_parts:
+                raise ValueError(f"Invalid Praval data reference URI: {uri}")
+            storage_type = StorageType(authority)
+            provider = path_parts[0]
+            resource_id = "/".join(path_parts[1:])
+        else:
+            provider = provider_or_scheme
+            storage_type = StorageType(authority)
+            resource_id = "/".join(path_parts)
 
         return cls(
             provider=provider, storage_type=storage_type, resource_id=resource_id

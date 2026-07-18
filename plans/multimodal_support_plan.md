@@ -2,10 +2,18 @@
 
 **Version**: 1.0
 **Date**: 2024-12-29
-**Status**: Draft
-**Target Release**: v0.8.0
+**Status**: Historical draft, superseded by
+`plans/praval_model_runtime_rearchitecture.md` and the 0.8.0 final release plan
+**Target Release**: No longer an implementation contract
 
 ---
+
+> **0.8.0 scope correction:** The final 0.8.0 implementation uses
+> `praval.models.ContentPart`, request-based OpenAI transcription/TTS, Gemini
+> multimodal generation input, and JSON-safe Spore content/storage references.
+> It does not include video frame extraction, raw binary Spore attachments,
+> realtime audio/video sessions, or WebRTC. Those items remain future work.
+> The design below is retained only as historical context.
 
 ## Executive Summary
 

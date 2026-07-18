@@ -56,6 +56,7 @@ class TestMemoryManagerInitialization:
         assert manager.collection_name == "custom_collection"
         assert manager.knowledge_base_path == "/path/to/kb"
 
+    @patch("praval.memory.long_term_memory.QDRANT_AVAILABLE", False)
     def test_memory_manager_qdrant_backend_unavailable(self):
         """Test that explicit qdrant backend raises when dependencies unavailable."""
         # When qdrant backend is explicitly requested but dependencies aren't available,
@@ -152,7 +153,13 @@ class TestMemoryManagerBackendInitialization:
 
         # Verify Qdrant was initialized as fallback
         mock_long_term.assert_called_once_with(
-            qdrant_url="http://localhost:6333", collection_name="praval_memories"
+            qdrant_url="http://localhost:6333",
+            collection_name="praval_memories",
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small",
+            embedding_dimensions=None,
+            embedding_provider_options={},
+            embedding_runtime=None,
         )
 
         assert manager.backend == "qdrant"
@@ -165,6 +172,69 @@ class TestMemoryManagerBackendInitialization:
             short_term_memory=mock_short_term_instance,
         )
         mock_semantic.assert_called_once_with(long_term_memory=mock_long_term_instance)
+
+    @patch("praval.memory.memory_manager.EmbeddedVectorStore")
+    @patch("praval.memory.memory_manager.ShortTermMemory")
+    @patch("praval.memory.memory_manager.EpisodicMemory")
+    @patch("praval.memory.memory_manager.SemanticMemory")
+    def test_embedding_config_flows_to_embedded_store(
+        self, mock_semantic, mock_episodic, mock_short_term, mock_embedded_store
+    ):
+        """Test embedding provider config is passed to embedded memory."""
+        mock_embedded_store.return_value = Mock()
+        mock_short_term.return_value = Mock()
+
+        MemoryManager(
+            agent_id="embedding_config_test",
+            backend="chromadb",
+            embedding_provider="gemini",
+            embedding_model="gemini-embedding-2",
+            embedding_dimensions=768,
+            embedding_provider_options={"base_url": "http://gemini.test"},
+        )
+
+        call_kwargs = mock_embedded_store.call_args.kwargs
+        assert call_kwargs["embedding_provider"] == "gemini"
+        assert call_kwargs["embedding_model"] == "gemini-embedding-2"
+        assert call_kwargs["embedding_dimensions"] == 768
+        assert call_kwargs["embedding_provider_options"] == {
+            "base_url": "http://gemini.test"
+        }
+
+    @patch("praval.memory.memory_manager.EmbeddedVectorStore")
+    @patch("praval.memory.memory_manager.LongTermMemory")
+    @patch("praval.memory.memory_manager.ShortTermMemory")
+    @patch("praval.memory.memory_manager.EpisodicMemory")
+    @patch("praval.memory.memory_manager.SemanticMemory")
+    def test_embedding_config_flows_to_qdrant_fallback(
+        self,
+        mock_semantic,
+        mock_episodic,
+        mock_short_term,
+        mock_long_term,
+        mock_embedded_store,
+    ):
+        """Test embedding provider config is passed to Qdrant memory."""
+        mock_embedded_store.side_effect = Exception("ChromaDB unavailable")
+        mock_long_term.return_value = Mock()
+        mock_short_term.return_value = Mock()
+
+        MemoryManager(
+            agent_id="qdrant_embedding_test",
+            backend="auto",
+            embedding_provider="openai-compatible",
+            embedding_model="nomic-embed-text",
+            embedding_dimensions=768,
+            embedding_provider_options={"base_url": "http://localhost:11434/v1"},
+        )
+
+        call_kwargs = mock_long_term.call_args.kwargs
+        assert call_kwargs["embedding_provider"] == "openai-compatible"
+        assert call_kwargs["embedding_model"] == "nomic-embed-text"
+        assert call_kwargs["embedding_dimensions"] == 768
+        assert call_kwargs["embedding_provider_options"] == {
+            "base_url": "http://localhost:11434/v1"
+        }
 
     @patch("praval.memory.memory_manager.EmbeddedVectorStore")
     def test_embedded_store_failure_non_auto_raises(self, mock_embedded_store):

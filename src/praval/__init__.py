@@ -5,14 +5,15 @@ Inspired by coral ecosystems where simple organisms create complex structures
 through collaboration, Praval enables simple agents to work together for
 sophisticated behaviors.
 
-Version 0.7.22 adds agent-gated HITL interventions (approve/edit/reject with
-durable SQLite state), provider parity for tool-call interruptions and resume,
-and CLI support for operator intervention workflows.
+The installed distribution metadata is the runtime source of truth for the
+package version.
 
 """
 
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
+from .app import PravalApp, get_default_app, reset_default_app
 from .composition import (
     AgentSession,
     agent_pipeline,
@@ -21,12 +22,17 @@ from .composition import (
     throttled_agent,
 )
 from .core.agent import Agent
-from .core.exceptions import HITLConfigurationError, InterventionRequired
+from .core.exceptions import (
+    EmbeddingConfigurationError,
+    HITLConfigurationError,
+    InterventionRequired,
+)
 from .core.reef import Spore, SporeType, get_reef
 from .core.registry import get_registry, register_agent
 
 # Enhanced agent decorator with memory support (v0.7.0+)
 from .decorators import achat, agent, broadcast, chat, get_agent_info
+from .embeddings import EmbeddingRuntime
 from .hitl import (
     HITLService,
     HITLStore,
@@ -37,6 +43,29 @@ from .hitl import (
     SuspendedRunState,
     get_hitl_store,
 )
+from .model_runtime import ModelRuntime
+from .models import (
+    AudioResponse,
+    ContentPart,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    ModelEvent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ProviderAdapter,
+    ProviderCapabilities,
+    ProviderProfile,
+    ReasoningConfig,
+    SpeechRequest,
+    StructuredOutputConfig,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
+    TranscriptionRequest,
+    Usage,
+)
+from .providers.registry import get_provider_registry, reset_provider_registry
 
 tool: Any = None
 get_tool_info: Any = None
@@ -161,7 +190,10 @@ except ImportError:
     StorageResult = None
     StorageType = None
 
-__version__ = "0.7.22"
+try:
+    __version__ = version("praval")
+except PackageNotFoundError:  # pragma: no cover - direct source-tree import
+    __version__ = "0+unknown"
 __all__ = [
     # Core classes
     "Agent",
@@ -193,6 +225,34 @@ __all__ = [
     "get_hitl_store",
     "InterventionRequired",
     "HITLConfigurationError",
+    "EmbeddingConfigurationError",
+    # Model runtime contracts
+    "AudioResponse",
+    "ContentPart",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "ModelEvent",
+    "ModelMessage",
+    "ModelRequest",
+    "ModelResponse",
+    "ProviderAdapter",
+    "ProviderCapabilities",
+    "ProviderProfile",
+    "ReasoningConfig",
+    "SpeechRequest",
+    "StructuredOutputConfig",
+    "ToolCall",
+    "ToolResult",
+    "ToolSpec",
+    "TranscriptionRequest",
+    "Usage",
+    "ModelRuntime",
+    "EmbeddingRuntime",
+    "get_provider_registry",
+    "reset_provider_registry",
+    "PravalApp",
+    "get_default_app",
+    "reset_default_app",
     # Tool system (if available)
     "tool",
     "get_tool_info",

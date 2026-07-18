@@ -1,0 +1,76 @@
+{
+  "scenario": "Northstar Analytics market entry into UK mid-market logistics",
+  "as_of": "2026-01-15",
+  "sources": [
+    {
+      "id": "INT-001",
+      "kind": "customer_interview",
+      "published": "2025-12-02",
+      "claim": "Operations leaders lose 6 to 10 hours each week reconciling shipment exceptions across carrier portals.",
+      "supports": ["pain_is_frequent", "exception_work_is_manual"],
+      "quality": "primary"
+    },
+    {
+      "id": "INT-002",
+      "kind": "customer_interview",
+      "published": "2025-12-06",
+      "claim": "Three of five interviewees would pilot below GBP 60 per operations seat each month.",
+      "supports": ["pilot_interest", "price_below_60"],
+      "quality": "primary"
+    },
+    {
+      "id": "INT-003",
+      "kind": "customer_interview",
+      "published": "2025-12-09",
+      "claim": "Security review and carrier data residency are purchase blockers for two larger prospects.",
+      "supports": ["security_is_blocker"],
+      "quality": "primary"
+    },
+    {
+      "id": "COMP-001",
+      "kind": "competitor_pricing",
+      "published": "2025-11-18",
+      "claim": "RouteBoard lists its comparable plan at GBP 79 per operations seat each month.",
+      "supports": ["competitor_price_79"],
+      "quality": "primary"
+    },
+    {
+      "id": "COMP-002",
+      "kind": "competitor_claim",
+      "published": "2025-11-20",
+      "claim": "RouteBoard claims a 40 percent reduction in exception resolution time without publishing its methodology.",
+      "supports": ["competitor_claims_40_percent"],
+      "quality": "vendor_claim"
+    },
+    {
+      "id": "ANL-001",
+      "kind": "analyst_note",
+      "published": "2023-02-12",
+      "claim": "UK logistics teams generally standardize on a single carrier portal.",
+      "supports": ["single_portal_norm"],
+      "quality": "secondary"
+    },
+    {
+      "id": "OPS-001",
+      "kind": "internal_pilot",
+      "published": "2026-01-04",
+      "claim": "The internal pilot connected three carrier feeds and reduced manual reconciliation steps from seven to four.",
+      "supports": ["integration_is_feasible", "workflow_steps_reduced"],
+      "quality": "internal"
+    }
+  ],
+  "contradictions": [
+    {
+      "left": "INT-002",
+      "right": "COMP-001",
+      "topic": "acceptable_price",
+      "note": "Interview pilot willingness is below the competitor list price; it does not establish willingness to pay GBP 79."
+    },
+    {
+      "left": "ANL-001",
+      "right": "INT-001",
+      "topic": "portal_fragmentation",
+      "note": "The stale analyst note conflicts with current interviews describing several carrier portals."
+    }
+  ]
+}

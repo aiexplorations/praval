@@ -9,7 +9,7 @@ This provides fast, in-memory storage for:
 """
 
 import threading
-import time
+import weakref
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -57,6 +57,8 @@ class ShortTermMemory:
         # Background cleanup
         self._cleanup_thread = None
         self._shutdown = False
+        self._shutdown_event = threading.Event()
+        weakref.finalize(self, self._shutdown_event.set)
         self._start_cleanup_thread()
 
     def store(self, memory: MemoryEntry) -> str:
@@ -312,12 +314,20 @@ class ShortTermMemory:
     def _start_cleanup_thread(self):
         """Start background cleanup thread"""
 
+        memory_ref = weakref.ref(self)
+        shutdown_event = self._shutdown_event
+        cleanup_interval = self.cleanup_interval
+
         def cleanup_worker():
-            while not self._shutdown:
-                time.sleep(self.cleanup_interval)
-                if not self._shutdown:
-                    with self._lock:
-                        self._cleanup_old_memories()
+            while not shutdown_event.wait(cleanup_interval):
+                memory = memory_ref()
+                if memory is None:
+                    return
+                try:
+                    with memory._lock:
+                        memory._cleanup_old_memories()
+                finally:
+                    del memory
 
         self._cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
         self._cleanup_thread.start()
@@ -325,5 +335,9 @@ class ShortTermMemory:
     def shutdown(self):
         """Shutdown the memory system"""
         self._shutdown = True
-        if self._cleanup_thread:
+        self._shutdown_event.set()
+        if (
+            self._cleanup_thread
+            and self._cleanup_thread is not threading.current_thread()
+        ):
             self._cleanup_thread.join(timeout=1.0)

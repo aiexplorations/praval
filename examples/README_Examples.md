@@ -261,7 +261,7 @@ The progression shows how:
 
 ---
 
-## 🤝 HITL Examples (0.7.22)
+## 🤝 HITL Examples (0.8.0)
 
 ### **015: HITL Tool Approval** `015_hitl_tool_approval.py`
 **Core Concept:** Human approval gate on tool calls using `@agent(hitl=True)`.

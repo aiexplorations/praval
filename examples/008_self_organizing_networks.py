@@ -18,10 +18,16 @@ Key Concepts:
 Run: python examples/008_self_organizing_networks.py
 """
 
-from praval import agent, chat, broadcast, start_agents, get_reef
+import os
 import random
 from collections import defaultdict
+
+if __name__ == "__main__" and os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
+    print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this agent example.")
+    raise SystemExit(0)
+
 from dotenv import load_dotenv
+from praval import agent, chat, broadcast, start_agents, get_reef
 
 # Load environment variables from .env file
 load_dotenv()

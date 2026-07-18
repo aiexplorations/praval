@@ -1,0 +1,19 @@
+{
+  "window": "bounded synthetic early signal sample",
+  "variants": [
+    {
+      "id": "decision-confidence",
+      "impressions": 1240,
+      "clicks": 78,
+      "qualified_signups": 16,
+      "message": "Know which release evidence is missing before you approve."
+    },
+    {
+      "id": "meeting-reduction",
+      "impressions": 1190,
+      "clicks": 61,
+      "qualified_signups": 7,
+      "message": "Replace release status meetings with an AI dashboard."
+    }
+  ]
+}

@@ -3,6 +3,7 @@ Instrumentation manager.
 
 Coordinates all instrumentation of Praval components.
 """
+
 # mypy: ignore-errors
 
 import logging
@@ -54,6 +55,7 @@ def initialize_instrumentation() -> bool:
 
     except Exception as e:
         logger.error(f"Failed to initialize instrumentation: {e}")
+        reset_instrumentation()
         return False
 
 
@@ -239,6 +241,8 @@ def _instrument_memory_operations() -> None:
 
         logger.debug("Memory operations instrumented successfully")
 
+    except ImportError as e:
+        logger.debug(f"Memory instrumentation dependency unavailable: {e}")
     except Exception as e:
         logger.warning(f"Failed to instrument memory operations: {e}")
 
@@ -284,6 +288,8 @@ def _instrument_storage_providers() -> None:
 
         logger.debug("Storage providers instrumented successfully")
 
+    except ImportError as e:
+        logger.debug(f"Storage instrumentation dependency unavailable: {e}")
     except Exception as e:
         logger.warning(f"Failed to instrument storage providers: {e}")
 
@@ -298,7 +304,10 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.openai import OpenAIProvider
 
-            original_openai_generate = OpenAIProvider.generate
+            key = "providers.OpenAIProvider.generate"
+            if key not in _original_functions:
+                _original_functions[key] = OpenAIProvider.generate
+            original_openai_generate = _original_functions[key]
 
             @instrument_function(
                 span_name="llm.OpenAIProvider.generate", kind=SpanKind.CLIENT
@@ -316,7 +325,10 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.anthropic import AnthropicProvider
 
-            original_anthropic_generate = AnthropicProvider.generate
+            key = "providers.AnthropicProvider.generate"
+            if key not in _original_functions:
+                _original_functions[key] = AnthropicProvider.generate
+            original_anthropic_generate = _original_functions[key]
 
             @instrument_function(
                 span_name="llm.AnthropicProvider.generate", kind=SpanKind.CLIENT
@@ -336,7 +348,10 @@ def _instrument_llm_providers() -> None:
         try:
             from praval.providers.cohere import CohereProvider
 
-            original_cohere_generate = CohereProvider.generate
+            key = "providers.CohereProvider.generate"
+            if key not in _original_functions:
+                _original_functions[key] = CohereProvider.generate
+            original_cohere_generate = _original_functions[key]
 
             @instrument_function(
                 span_name="llm.CohereProvider.generate", kind=SpanKind.CLIENT
@@ -349,6 +364,27 @@ def _instrument_llm_providers() -> None:
             CohereProvider.generate = instrumented_generate_cohere
         except (ImportError, AttributeError) as e:
             logger.debug(f"Could not instrument Cohere provider: {e}")
+
+        # Instrument Gemini provider
+        try:
+            from praval.providers.gemini import GeminiProvider
+
+            key = "providers.GeminiProvider.generate"
+            if key not in _original_functions:
+                _original_functions[key] = GeminiProvider.generate
+            original_gemini_generate = _original_functions[key]
+
+            @instrument_function(
+                span_name="llm.GeminiProvider.generate", kind=SpanKind.CLIENT
+            )
+            def instrumented_generate_gemini(
+                self, messages, tools=None, *args, **kwargs
+            ):
+                return original_gemini_generate(self, messages, tools, *args, **kwargs)
+
+            GeminiProvider.generate = instrumented_generate_gemini
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"Could not instrument Gemini provider: {e}")
 
         logger.debug("LLM providers instrumented successfully")
 
@@ -448,6 +484,38 @@ def reset_instrumentation() -> None:
 
             EmbeddedStore.load = _original_functions["EmbeddedStore.load"]
         except ImportError:
+            pass
+
+    provider_methods = (
+        (
+            "providers.OpenAIProvider.generate",
+            "praval.providers.openai",
+            "OpenAIProvider",
+        ),
+        (
+            "providers.AnthropicProvider.generate",
+            "praval.providers.anthropic",
+            "AnthropicProvider",
+        ),
+        (
+            "providers.CohereProvider.generate",
+            "praval.providers.cohere",
+            "CohereProvider",
+        ),
+        (
+            "providers.GeminiProvider.generate",
+            "praval.providers.gemini",
+            "GeminiProvider",
+        ),
+    )
+    for key, module_name, class_name in provider_methods:
+        if key not in _original_functions:
+            continue
+        try:
+            module = __import__(module_name, fromlist=[class_name])
+            provider_class = getattr(module, class_name)
+            provider_class.generate = _original_functions[key]
+        except (ImportError, AttributeError):
             pass
 
     # Clear stored originals and reset flag

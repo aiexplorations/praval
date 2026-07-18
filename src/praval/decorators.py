@@ -23,8 +23,8 @@ Example::
 """
 
 import logging
-import threading
 import time
+from contextvars import ContextVar
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from .core.agent import Agent
@@ -34,8 +34,25 @@ from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
 
 logger = logging.getLogger(__name__)
 
-# Thread-local storage for current agent context
-_agent_context = threading.local()
+_agent_context_state: ContextVar[Dict[str, Any]] = ContextVar(
+    "praval_agent_context",
+    default={},
+)
+
+
+class _AgentContextProxy:
+    """Context-local agent state with the old attribute API."""
+
+    def __getattr__(self, name: str) -> Any:
+        return _agent_context_state.get().get(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        state = dict(_agent_context_state.get())
+        state[name] = value
+        _agent_context_state.set(state)
+
+
+_agent_context = _AgentContextProxy()
 
 
 def _handle_agent_error(
@@ -236,6 +253,9 @@ def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[To
 def agent(
     name: Optional[str] = None,
     channel: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
     system_message: Optional[str] = None,
     auto_broadcast: bool = True,
     responds_to: Optional[List[str]] = None,
@@ -253,6 +273,9 @@ def agent(
     Args:
         name: Agent name (defaults to function name)
         channel: Channel to subscribe to (defaults to name + "_channel")
+        provider: LLM provider to use
+        model: Provider model name or compact provider:model value
+        config: Additional Agent configuration
         system_message: System message (defaults to function docstring)
         auto_broadcast: Whether to auto-broadcast return values
         responds_to: List of message types this agent responds to (None = all messages)
@@ -327,14 +350,22 @@ def agent(
             memory_config = memory
 
         # Create underlying agent with memory support
-        underlying_agent = Agent(
-            name=agent_name,
-            system_message=auto_system_message,
-            memory_enabled=memory_enabled,
-            memory_config=memory_config,
-            knowledge_base=knowledge_base,
-            hitl_enabled=hitl,
-        )
+        agent_kwargs: Dict[str, Any] = {
+            "name": agent_name,
+            "system_message": auto_system_message,
+            "memory_enabled": memory_enabled,
+            "memory_config": memory_config,
+            "knowledge_base": knowledge_base,
+            "hitl_enabled": hitl,
+        }
+        if provider is not None:
+            agent_kwargs["provider"] = provider
+        if model is not None:
+            agent_kwargs["model"] = model
+        if config is not None:
+            agent_kwargs["config"] = config
+
+        underlying_agent = Agent(**agent_kwargs)
 
         def agent_handler(spore: Any) -> Any:
             """Handler that sets up context and calls the decorated function."""

@@ -341,22 +341,22 @@ class StorageRegistry:
         start_time = datetime.now()
 
         try:
+            parameters = dict(query.parameters)
+
             # Execute the query
             if query.operation == "store":
-                result = await provider.store(
-                    query.resource, query.parameters.get("data"), **query.parameters
-                )
+                data = parameters.pop("data", None)
+                result = await provider.store(query.resource, data, **parameters)
             elif query.operation == "retrieve":
-                result = await provider.retrieve(query.resource, **query.parameters)
+                result = await provider.retrieve(query.resource, **parameters)
             elif query.operation == "query":
-                result = await provider.query(
-                    query.resource, query.parameters.get("query"), **query.parameters
-                )
+                criteria = parameters.pop("query", None)
+                result = await provider.query(query.resource, criteria, **parameters)
             elif query.operation == "delete":
-                result = await provider.delete(query.resource, **query.parameters)
+                result = await provider.delete(query.resource, **parameters)
             else:
                 result = await provider.safe_execute(
-                    query.operation, query.resource, **query.parameters
+                    query.operation, query.resource, **parameters
                 )
 
             # Update statistics

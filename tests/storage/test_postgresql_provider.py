@@ -114,6 +114,10 @@ class TestPostgreSQLStore:
 
         assert result.success is True
         assert result.data.get("inserted") == 1
+        retrieved = await postgres_provider.retrieve(
+            "test_table", where={"name": "Test Record"}
+        )
+        assert retrieved.data[0]["data"] == {"key": "value"}
 
     @pytest.mark.asyncio
     async def test_store_with_returning(self, postgres_provider):

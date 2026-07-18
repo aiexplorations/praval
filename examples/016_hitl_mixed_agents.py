@@ -85,13 +85,27 @@ def dangerous_action(target: str) -> str:
     return f"Simulated operation against {target}"
 
 
-@agent("non_hitl_agent", tools=["dangerous_action"], hitl=False, auto_broadcast=False)
+@agent(
+    "non_hitl_agent",
+    provider="openai",
+    model="gpt-5-mini",
+    config={"provider_options": {"endpoint": "chat_completions"}},
+    tools=["dangerous_action"],
+    hitl=False,
+    auto_broadcast=False,
+)
 def non_hitl_agent(spore):
     return {"status": "non-hitl"}
 
 
 @agent(
-    "hitl_enabled_agent", tools=["dangerous_action"], hitl=True, auto_broadcast=False
+    "hitl_enabled_agent",
+    provider="openai",
+    model="gpt-5-mini",
+    config={"provider_options": {"endpoint": "chat_completions"}},
+    tools=["dangerous_action"],
+    hitl=True,
+    auto_broadcast=False,
 )
 def hitl_enabled_agent(spore):
     return {"status": "hitl-enabled"}

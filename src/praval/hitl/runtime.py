@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import inspect
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..core.exceptions import HITLConfigurationError, InterventionRequired
 from .models import InterventionDecision, InterventionRequest, InterventionStatus
 from .policy import approval_reason, requires_approval, risk_level
 from .store import HITLStore, get_hitl_store
+
+
+def _run_coroutine_sync(coroutine: Any) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coroutine)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(lambda: asyncio.run(coroutine))
+        return future.result()
 
 
 class HITLRuntime:
@@ -50,7 +63,7 @@ class HITLRuntime:
         for tool in available_tools or []:
             func = tool.get("function")
             if callable(func):
-                mapping[func.__name__] = tool
+                mapping[str(tool.get("name") or func.__name__)] = tool
         return mapping
 
     @staticmethod
@@ -79,10 +92,52 @@ class HITLRuntime:
         continuation_state: Dict[str, Any],
     ) -> str:
         """Execute a tool call or interrupt if policy requires approval."""
+        tool_def, args = self._prepare_or_interrupt(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            raw_args=raw_args,
+            available_tools=available_tools,
+            continuation_state=continuation_state,
+        )
+        if tool_def is None:
+            return f"Unknown function: {function_name}"
+        return self._execute_tool(tool_def, args)
+
+    async def execute_or_interrupt_async(
+        self,
+        *,
+        tool_call_id: str,
+        function_name: str,
+        raw_args: Any,
+        available_tools: List[Dict[str, Any]],
+        continuation_state: Dict[str, Any],
+    ) -> Any:
+        """Async tool execution with the same approval interruption policy."""
+        tool_def, args = self._prepare_or_interrupt(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            raw_args=raw_args,
+            available_tools=available_tools,
+            continuation_state=continuation_state,
+        )
+        if tool_def is None:
+            return f"Unknown function: {function_name}"
+        return await self._execute_tool_async(tool_def, args)
+
+    def _prepare_or_interrupt(
+        self,
+        *,
+        tool_call_id: str,
+        function_name: str,
+        raw_args: Any,
+        available_tools: List[Dict[str, Any]],
+        continuation_state: Dict[str, Any],
+    ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        """Resolve a tool call and create an intervention when required."""
         tool_map = self._tool_map(available_tools)
         tool_def = tool_map.get(function_name)
         if tool_def is None:
-            return f"Unknown function: {function_name}"
+            return None, {}
 
         args = self._parse_args(raw_args)
         if requires_approval(tool_def):
@@ -140,7 +195,7 @@ class HITLRuntime:
                 reason=intervention.approval_reason,
             )
 
-        return self._execute_tool(tool_def, args)
+        return tool_def, args
 
     def execute_with_decision(
         self,
@@ -149,6 +204,40 @@ class HITLRuntime:
         available_tools: List[Dict[str, Any]],
     ) -> str:
         """Execute the blocked tool call using a decided intervention."""
+        tool_def, args, result = self._prepare_decision(
+            intervention=intervention,
+            available_tools=available_tools,
+        )
+        if result is not None:
+            return result
+        if tool_def is None:
+            return "Unknown function"
+        return self._execute_tool(tool_def, args)
+
+    async def execute_with_decision_async(
+        self,
+        *,
+        intervention: Union[InterventionRequest, Dict[str, Any]],
+        available_tools: List[Dict[str, Any]],
+    ) -> Any:
+        """Execute an approved or edited tool decision asynchronously."""
+        tool_def, args, result = self._prepare_decision(
+            intervention=intervention,
+            available_tools=available_tools,
+        )
+        if result is not None:
+            return result
+        if tool_def is None:
+            return "Unknown function"
+        return await self._execute_tool_async(tool_def, args)
+
+    def _prepare_decision(
+        self,
+        *,
+        intervention: Union[InterventionRequest, Dict[str, Any]],
+        available_tools: List[Dict[str, Any]],
+    ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Optional[str]]:
+        """Normalize a decision and resolve the tool without executing it."""
         if isinstance(intervention, dict):
             decision_raw = intervention.get("decision")
             status_raw = intervention.get("status", InterventionStatus.APPROVED.value)
@@ -189,12 +278,12 @@ class HITLRuntime:
                     "reviewer": intervention.reviewer,
                 },
             )
-            return f"Rejected by human reviewer: {reason}"
+            return None, {}, f"Rejected by human reviewer: {reason}"
 
         tool_map = self._tool_map(available_tools)
         tool_def = tool_map.get(intervention.tool_name)
         if tool_def is None:
-            return f"Unknown function: {intervention.tool_name}"
+            return None, {}, f"Unknown function: {intervention.tool_name}"
 
         if intervention.decision == InterventionDecision.EDIT:
             args = intervention.edited_args or {}
@@ -212,21 +301,37 @@ class HITLRuntime:
             },
         )
 
-        return self._execute_tool(tool_def, args)
+        return tool_def, args, None
 
     def _execute_tool(self, tool_def: Dict[str, Any], args: Dict[str, Any]) -> str:
+        if tool_def.get("async_only"):
+            return (
+                "Error: This tool is async-only; use Agent.agenerate() "
+                "or Agent.astream()."
+            )
         tool_func = tool_def.get("function")
         if not callable(tool_func):
             return "Error: Tool function is not callable"
         try:
             result = tool_func(**args)
             if inspect.iscoroutine(result):
-                return (
-                    "Error: Async tool functions are not supported in sync prov"
-                    "ider flow"
-                )
+                result = _run_coroutine_sync(result)
             return str(result)
         except (
             Exception
         ) as exc:  # pragma: no cover - error message path validated in provider tests
+            return f"Error: {str(exc)}"
+
+    async def _execute_tool_async(
+        self, tool_def: Dict[str, Any], args: Dict[str, Any]
+    ) -> Any:
+        tool_func = tool_def.get("function")
+        if not callable(tool_func):
+            return "Error: Tool function is not callable"
+        try:
+            result = tool_func(**args)
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+        except Exception as exc:
             return f"Error: {str(exc)}"

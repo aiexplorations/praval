@@ -96,7 +96,8 @@ class AgentRunner:
         self.backend = backend or self._create_backend()
         self.loop = loop
         self.reef: Optional[Reef] = None
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: Optional[asyncio.Event] = None
+        self._shutdown_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self._running = False
 
         # Validate agents
@@ -106,6 +107,14 @@ class AgentRunner:
                     f"Agent {agent.__name__} is not decorated with @agent. "
                     "All agents must be decorated with the @agent decorator."
                 )
+
+    def _get_shutdown_event(self) -> asyncio.Event:
+        """Return the shutdown event for the currently running event loop."""
+        loop = asyncio.get_running_loop()
+        if self._shutdown_event is None or self._shutdown_event_loop is not loop:
+            self._shutdown_event = asyncio.Event()
+            self._shutdown_event_loop = loop
+        return self._shutdown_event
 
     def _create_backend(self) -> Any:
         """Create RabbitMQ backend from config."""
@@ -170,21 +179,25 @@ class AgentRunner:
             # Subscribe to agent's own channel via backend
             if self.reef._is_distributed_backend():
                 handler = underlying_agent.on_spore_received
-                # Subscribe to agent's own channel
-                await self.backend.subscribe(agent_channel, handler)
-                logger.debug(
-                    f"Subscribed '{agent_name}' to backend channel '{agent_channel}'"
+                # Topic routing uses agent.<name>.* for direct messages and
+                # broadcast.* for broadcasts. Retain logical-channel subscriptions
+                # for configured queue mappings and compatibility.
+                backend_channels = dict.fromkeys(
+                    (
+                        f"agent.{agent_name}",
+                        "broadcast",
+                        agent_channel,
+                        shared_channel,
+                        self.reef.default_channel,
+                    )
                 )
-
-                # Subscribe to shared channel
-                await self.backend.subscribe(shared_channel, handler)
-                logger.debug(
-                    f"Subscribed '{agent_name}' to backend channel '{shared_channel}'"
-                )
-
-                # Subscribe to default broadcast channel
-                await self.backend.subscribe(self.reef.default_channel, handler)
-                logger.debug(f"Subscribed '{agent_name}' to backend default channel")
+                for backend_channel in backend_channels:
+                    await self.backend.subscribe(backend_channel, handler)
+                    logger.debug(
+                        "Subscribed '%s' to backend channel '%s'",
+                        agent_name,
+                        backend_channel,
+                    )
 
             logger.info(f"  ✓ Agent '{agent_name}' ready on channel '{agent_channel}'")
 
@@ -198,6 +211,7 @@ class AgentRunner:
         if self._running:
             raise RuntimeError("Agent runner is already running")
 
+        shutdown_event = self._get_shutdown_event()
         self._running = True
         logger.info("=" * 70)
         logger.info(f"Starting distributed agent system with {len(self.agents)} agents")
@@ -211,7 +225,7 @@ class AgentRunner:
             logger.info("Agents ready and listening. Press Ctrl+C to shutdown...")
 
             # Wait for shutdown event (triggered by signal handler)
-            await self._shutdown_event.wait()
+            await shutdown_event.wait()
 
         except KeyboardInterrupt:
             logger.info("\nKeyboard interrupt received")
@@ -245,7 +259,8 @@ class AgentRunner:
             """Handle shutdown signals gracefully."""
             sig_name = signal.Signals(signum).name
             logger.info(f"\n{sig_name} received, shutting down gracefully...")
-            self._shutdown_event.set()
+            if self._shutdown_event is not None:
+                self._shutdown_event.set()
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, signal_handler)

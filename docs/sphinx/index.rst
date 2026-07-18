@@ -1,135 +1,86 @@
-.. Praval documentation master file
-
 ====================================
 Praval: Multi-Agent AI Framework
 ====================================
 
-.. image:: https://img.shields.io/pypi/v/praval.svg
-   :target: https://pypi.org/project/praval/
-   :alt: PyPI version
+Praval is a Python framework for building decentralized agent systems that use
+provider-neutral model execution, structured tool orchestration, memory,
+storage, observability, and Reef/Spore communication.
 
-.. image:: https://img.shields.io/pypi/pyversions/praval.svg
-   :target: https://pypi.org/project/praval/
-   :alt: Python versions
+The current documentation is organized around the APIs users should build on
+now. The legacy string-returning APIs still work, but new code should prefer the
+structured model runtime APIs where provider capabilities, streaming events,
+structured outputs, multimodal input, and local LLM behavior are explicit.
 
-.. image:: https://img.shields.io/github/license/aiexplorations/praval.svg
-   :target: https://github.com/aiexplorations/praval/blob/main/LICENSE
-   :alt: License
+The model runtime is the execution boundary inside agents. It does not replace
+Praval's collaboration architecture: specialized agents coordinate through
+Reef messages and structured Spore payloads. Applications may define their own
+message schemas when stronger domain contracts are required.
 
-**The Pythonic Multi-Agent AI Framework for building intelligent, collaborative agent systems**
-
-*Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
-
-----
-
-Overview
-========
-
-Praval is a revolutionary Python framework that transforms complex AI applications into simple, composable agent systems.
-Instead of monolithic AI systems, Praval enables you to create ecosystems of specialized agents that collaborate
-intelligently through a coral reef-inspired architecture.
-
-**Key Features:**
-
-🎯 **Decorator-Based API**
-   Transform functions into intelligent agents with simple ``@agent()`` decorators
-
-🌊 **Reef Communication**
-   Knowledge-first messaging between agents through structured "spores"
-
-🧠 **Comprehensive Memory**
-   Multi-layered memory system with vector search and persistent storage
-
-🔧 **Multi-LLM Support**
-   Seamless integration with OpenAI, Anthropic, and Cohere
-
-🏗️ **Self-Organizing**
-   Agents coordinate without central orchestration
-
-🎨 **Production-Ready**
-   Built with type safety, error handling, and scalability in mind
-
-Quick Start
+Install
 ===========
-
-Installation
-------------
 
 .. code-block:: bash
 
-   # Minimal installation
    pip install praval
 
-   # With memory system
+   # Optional feature groups
    pip install praval[memory]
-
-   # With all features
+   pip install praval[storage]
+   pip install praval[mcp]  # Python 3.10+
    pip install praval[all]
 
-Your First Agent
------------------
+Two Supported Entry Paths
+=========================
 
-Create a simple agent in just a few lines:
+Use ``Agent`` for direct provider-neutral model execution:
 
 .. code-block:: python
 
-   from praval import agent, chat, broadcast, start_agents, get_reef
+   from praval import Agent
 
-   @agent("researcher", responds_to=["research_query"])
-   def research_agent(spore):
-       """I'm an expert at finding and analyzing information."""
-       query = spore.knowledge.get("query")
-       result = chat(f"Research this topic deeply: {query}")
-
-       broadcast({
-           "type": "research_complete",
-           "findings": result,
-           "confidence": 0.9
-       })
-
-       return {"research": result}
-
-   # Start the agent system with initial data
-   start_agents(
-       research_agent,
-       initial_data={
-           "type": "research_query",
-           "query": "What are the latest developments in multi-agent AI?"
-       }
+   agent = Agent(
+       "assistant",
+       provider="openai",
+       model="gpt-5.4-mini",
+       config={"system_message": "Be concise."},
    )
 
-   # Wait for agents to complete and clean up
-   get_reef().wait_for_completion()
-   get_reef().shutdown()
+   response = agent.generate(
+       "Summarize why capability validation matters.",
+       response_schema={
+           "type": "object",
+           "properties": {"summary": {"type": "string"}},
+           "required": ["summary"],
+       },
+   )
 
-That's it! You've created an intelligent research agent that:
+   print(response.content)
 
-✓ Listens for research queries
-✓ Uses AI to generate insights
-✓ Broadcasts results to other agents
-✓ Returns structured data
+Use decorated agents, Reef, and Spores for message-driven collaboration:
 
-Architecture Philosophy
-=======================
+.. code-block:: python
 
-Praval is inspired by coral reef ecosystems:
+   from praval import agent, broadcast, get_reef, start_agents
 
-.. admonition:: The Coral Reef Metaphor
-   :class: tip
+   @agent("researcher", provider="ollama", responds_to=["request"])
+   def researcher(spore):
+       broadcast({"type": "finding", "text": spore.knowledge["topic"]})
 
-   Just as coral polyps are simple organisms that create complex reef ecosystems through collaboration,
-   Praval agents are specialized functions that create sophisticated AI systems through communication.
+   @agent("editor", provider="ollama", responds_to=["finding"])
+   def editor(spore):
+       print(spore.knowledge["text"])
 
-**Design Principles:**
+   start_agents(
+       researcher,
+       editor,
+       initial_data={"type": "request", "topic": "agent systems"},
+   )
+   reef = get_reef()
+   reef.wait_for_completion(timeout=30)
+   reef.shutdown()
 
-1. **Specialization Over Generalization** - Each agent excels at one thing
-2. **Declarative Design** - Define what agents ARE, not what they DO
-3. **Emergent Intelligence** - Complex behaviors from simple interactions
-4. **Zero Configuration** - Sensible defaults, progressive enhancement
-5. **Composability** - Agents combine naturally through standard interfaces
-
-What's Inside
-=============
+What To Read
+============
 
 .. toctree::
    :maxdepth: 2
@@ -137,11 +88,25 @@ What's Inside
 
    guide/getting-started
    guide/core-concepts
-   guide/memory-system
-   guide/reef-protocol
+   guide/application-lifecycle
+   guide/model-runtime
+   guide/providers
+   guide/local-llms
+   guide/streaming
+   guide/structured-outputs
+   guide/multimodal
+   guide/embeddings
    guide/tool-system
-   guide/storage
+   guide/mcp
+   guide/demo-certification
    guide/hitl-troubleshooting
+   guide/reef-protocol
+   guide/memory-system
+   guide/storage
+   guide/observability
+   guide/runtime-migration
+   guide/troubleshooting
+   guide/documentation-quality
 
 .. toctree::
    :maxdepth: 2
@@ -153,6 +118,13 @@ What's Inside
    tutorials/tool-integration
    tutorials/hitl-interventions
    tutorials/multi-agent-systems
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Architecture
+
+   architecture/emergent-coordination
+   architecture/runtime-adr
 
 .. toctree::
    :maxdepth: 2
@@ -168,105 +140,17 @@ What's Inside
 
 .. toctree::
    :maxdepth: 1
-   :caption: Additional Resources
+   :caption: Project
 
    changelog
    contributing
    license
 
-Key Capabilities
-================
+Documentation Policy
+====================
 
-Decorator-Based Agent Creation
--------------------------------
-
-Transform any Python function into an intelligent agent:
-
-.. code-block:: python
-
-   @agent("explorer", channel="knowledge", responds_to=["concept_request"])
-   def explore_concepts(spore):
-       '''Find related concepts and broadcast discoveries.'''
-       concepts = chat("Related to: " + spore.knowledge.get("concept", ""))
-       return {"type": "discovery", "discovered": concepts.split(",")}
-
-Reef Communication System
---------------------------
-
-Agents communicate through a structured messaging protocol:
-
-.. code-block:: python
-
-   from praval import agent, start_agents, get_reef
-
-   # Agents automatically filter messages they care about
-   @agent("analyst", responds_to=["task_request"])
-   def handle_tasks(spore):
-       if spore.knowledge.get("task") == "analyze_data":
-           # Process the task
-           return {"status": "completed"}
-
-   # Start with initial data - this triggers the agent
-   start_agents(
-       handle_tasks,
-       initial_data={
-           "type": "task_request",
-           "task": "analyze_data",
-           "priority": "high"
-       }
-   )
-   get_reef().wait_for_completion()
-
-Memory System
--------------
-
-Multi-layered memory for persistent, intelligent agents:
-
-.. code-block:: python
-
-   @agent("researcher", memory=True, knowledge_base="./docs/")
-   def expert_agent(spore):
-       '''Expert with pre-loaded knowledge base.'''
-       question = spore.knowledge.get("question")
-
-       # Search long-term memory
-       relevant_info = expert_agent.recall(question)
-
-       # Store new knowledge
-       expert_agent.remember(f"Answered: {question}")
-
-       return {"answer": chat(f"Answer based on: {relevant_info}")}
-
-Community & Support
-===================
-
-- **GitHub**: `github.com/aiexplorations/praval <https://github.com/aiexplorations/praval>`_
-- **Issues**: `Report bugs or request features <https://github.com/aiexplorations/praval/issues>`_
-- **PyPI**: `pypi.org/project/praval <https://pypi.org/project/praval/>`_
-
-Version Information
-===================
-
-Current version: |version|
-
-**Changelog:**
-
-- **v0.7.9** - Latest release with enhanced storage and tool systems
-- **v0.7.x** - Tool system, secure spores, unified storage
-- **v0.6.x** - Memory system integration
-- **v0.5.x** - Knowledge base and PDF support
-- **v0.3.x** - Multi-LLM provider support
-
-See the :doc:`changelog` for detailed version history.
-
-License
-=======
-
-Praval is released under the MIT License. See :doc:`license` for details.
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+Sphinx source under ``docs/sphinx`` is the canonical documentation surface.
+Generated HTML, generated API pages, and generated PDFs are build artifacts.
+Older long-form manuals live under ``docs/archive`` and should be treated as
+legacy background unless their content has been ported into the current Sphinx
+guide.

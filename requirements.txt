@@ -29,7 +29,10 @@ python-dotenv>=1.0.0
 # msgpack>=1.0.0
 
 # Optional - PDF Support
-# PyPDF2>=3.0.0
+# pypdf>=5.0.0
+
+# Optional - MCP Tool Client (Python 3.10+)
+# mcp>=1.27,<2
 
 # Optional - Storage Providers
 # psycopg2-binary>=2.9.0

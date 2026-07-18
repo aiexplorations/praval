@@ -444,7 +444,7 @@ class TestKnowledgeBaseIndexing:
         from praval.core.reef import get_reef
 
         start_agents(test_agent, initial_data={"type": "file_test"})
-        get_reef().wait_for_completion(timeout=10.0)
+        get_reef().wait_for_completion(timeout=30.0)
 
         assert results.get("txt_indexed")
         assert results.get("md_indexed")

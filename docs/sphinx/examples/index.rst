@@ -6,6 +6,11 @@ Examples
 
 Working code examples demonstrating Praval's capabilities.
 
+Examples that contact model providers are offline by default. Set
+``PRAVAL_RUN_LIVE_EXAMPLES=1`` and the relevant provider credentials to execute
+live requests. The full example smoke sweep removes ambient provider keys unless
+that opt-in is present.
+
 Overview
 ========
 
@@ -14,6 +19,124 @@ The Praval examples showcase progressively complex agent patterns, from simple s
 .. contents:: Example Categories
    :local:
    :depth: 1
+
+Model Runtime Examples
+======================
+
+Offline Runtime Contract
+------------------------
+
+**File**: ``examples/model_runtime_fake_provider.py``
+
+This example needs no provider credentials. It demonstrates a fake provider
+adapter, propagation of a structured-output request, and normalized streaming
+events. It does not represent a provider constraint or local schema validation.
+
+**Run it**:
+
+.. code-block:: bash
+
+   python examples/model_runtime_fake_provider.py
+
+Local OpenAI-Compatible LLM
+---------------------------
+
+**File**: ``examples/local_llm_openai_compatible.py``
+
+Connects to an already-running Ollama, vLLM, LM Studio, llama.cpp, or generic
+OpenAI-compatible server.
+
+**Run it**:
+
+.. code-block:: bash
+
+   PRAVAL_LOCAL_PROVIDER=ollama PRAVAL_LOCAL_MODEL=llama3 \
+     python examples/local_llm_openai_compatible.py
+
+Structured Output
+-----------------
+
+**File**: ``examples/structured_output_runtime.py``
+
+Shows ``Agent.generate(..., response_schema=...)`` with a live provider. Use
+``examples/model_runtime_fake_provider.py`` as the offline alternative.
+
+Streaming Events
+----------------
+
+**File**: ``examples/streaming_events.py``
+
+Shows normalized ``start``, ``delta``, ``usage``, and ``final`` event handling
+for live provider streaming.
+
+Multimodal Input
+----------------
+
+**File**: ``examples/multimodal_input_runtime.py``
+
+Shows ``ContentPart`` lists for text plus image URL input. The runtime validates
+that the selected provider/model profile supports image input before execution.
+
+Gemini Multimodal File Input
+----------------------------
+
+**File**: ``examples/gemini_multimodal_file.py``
+
+Shows how to pass a URI returned by the Gemini Files API as a
+``ContentPart.file_url``. The example accepts PDF, audio, video, and other MIME
+types supported by the selected Gemini model. Uploading local files is outside
+the Praval 0.8.0 adapter.
+
+**Run it**:
+
+.. code-block:: bash
+
+   python examples/gemini_multimodal_file.py \
+     https://generativelanguage.googleapis.com/v1beta/files/FILE_ID \
+     --mime-type application/pdf
+
+Request-Based Voice Agent
+-------------------------
+
+**File**: ``examples/request_based_voice_agent.py``
+
+Shows the 0.8 voice flow: transcribe a local audio file, send the transcript to
+an agent, and synthesize the reply. It requires ``OPENAI_API_KEY`` and an audio
+file path. Realtime voice sessions are not part of this example.
+
+**Run it**:
+
+.. code-block:: bash
+
+   python examples/request_based_voice_agent.py question.wav --output reply.mp3
+
+Gemini Client Tools
+-------------------
+
+**File**: ``examples/gemini_tool_runtime.py``
+
+Shows a Gemini ``functionCall`` round trip executed by ``ModelRuntime``. It
+requires ``GEMINI_API_KEY`` or ``GOOGLE_API_KEY``.
+
+**Run it**:
+
+.. code-block:: bash
+
+   python examples/gemini_tool_runtime.py
+
+Configurable Embeddings
+-----------------------
+
+**File**: ``examples/configurable_embeddings.py``
+
+Shows chat model and memory embedding configuration as independent choices,
+using local Chroma storage and ``text-embedding-3-small``.
+
+**Run it**:
+
+.. code-block:: bash
+
+   python examples/configurable_embeddings.py
 
 Beginner Examples
 =================

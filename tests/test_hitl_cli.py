@@ -123,3 +123,68 @@ def test_cli_resume_uses_registered_agent(tmp_path: Path, capsys):
     out = capsys.readouterr().out
     assert "resumed" in out
     fake_agent.resume_run.assert_called_once_with("run-cli-1")
+
+
+def test_cli_reports_empty_missing_and_invalid_inputs(tmp_path: Path, capsys):
+    db_path = str(tmp_path / "empty-hitl.db")
+
+    assert main([]) == 1
+    assert "usage:" in capsys.readouterr().out
+    assert main(["hitl"]) == 1
+    assert "usage:" in capsys.readouterr().out
+
+    assert main(["--hitl-db-path", db_path, "hitl", "pending"]) == 0
+    assert "No pending interventions" in capsys.readouterr().out
+
+    assert main(["--hitl-db-path", db_path, "hitl", "show", "missing"]) == 1
+    assert "not found" in capsys.readouterr().out
+
+    for invalid_json, expected in (
+        ("not-json", "Invalid --edited-args-json"),
+        ("[]", "must be a JSON object"),
+    ):
+        assert (
+            main(
+                [
+                    "--hitl-db-path",
+                    db_path,
+                    "hitl",
+                    "approve",
+                    "missing",
+                    "--edited-args-json",
+                    invalid_json,
+                ]
+            )
+            == 1
+        )
+        assert expected in capsys.readouterr().out
+
+
+def test_cli_resume_reports_missing_run_and_unregistered_agent(tmp_path: Path, capsys):
+    db_path = str(tmp_path / "resume-hitl.db")
+    assert main(["--hitl-db-path", db_path, "hitl", "resume", "missing-run"]) == 1
+    assert "not found" in capsys.readouterr().out
+
+    _seed(db_path)
+    registry = Mock()
+    registry.get_agent.return_value = None
+    with (
+        patch("praval.cli.importlib.import_module") as import_module,
+        patch("praval.cli.get_registry", return_value=registry),
+    ):
+        assert (
+            main(
+                [
+                    "--hitl-db-path",
+                    db_path,
+                    "hitl",
+                    "resume",
+                    "run-cli-1",
+                    "--module",
+                    "my_agents",
+                ]
+            )
+            == 1
+        )
+    assert import_module.call_args_list[-1].args == ("my_agents",)
+    assert "not registered" in capsys.readouterr().out

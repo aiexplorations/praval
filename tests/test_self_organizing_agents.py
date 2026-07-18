@@ -477,12 +477,6 @@ class TestAsyncAgentExecution:
         for result in results:
             assert 0.25 < result["elapsed"] < 0.4  # Around 0.3s +/- overhead
 
-    @pytest.mark.xfail(
-        reason=(
-            "Framework doesn't await async spore handlers - needs Agent"
-            " class enhancement"
-        )
-    )
     def test_async_agent_with_achat(self):
         """Test async agent using achat function."""
         results = []

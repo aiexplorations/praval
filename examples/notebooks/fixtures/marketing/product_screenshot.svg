@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#f8fafc"/>
+  <rect x="45" y="35" width="1110" height="650" rx="24" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="45" y="35" width="220" height="650" rx="24" fill="#0f172a"/>
+  <text x="85" y="95" fill="#ffffff" font-family="Arial" font-size="30" font-weight="700">Relayboard</text>
+  <text x="85" y="145" fill="#94a3b8" font-family="Arial" font-size="17">Release overview</text>
+  <text x="85" y="190" fill="#94a3b8" font-family="Arial" font-size="17">Evidence</text>
+  <text x="85" y="235" fill="#94a3b8" font-family="Arial" font-size="17">Review trail</text>
+  <text x="305" y="92" fill="#0f172a" font-family="Arial" font-size="32" font-weight="700">Release 4.18 readiness</text>
+  <text x="305" y="128" fill="#64748b" font-family="Arial" font-size="18">Decision workspace · updated 6 minutes ago</text>
+  <rect x="305" y="165" width="810" height="105" rx="16" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="335" y="207" fill="#9a3412" font-family="Arial" font-size="18" font-weight="700">HOLD · 2 required evidence items missing</text>
+  <text x="335" y="240" fill="#7c2d12" font-family="Arial" font-size="16">Security review incomplete · rollback owner not assigned</text>
+  <rect x="305" y="305" width="250" height="150" rx="16" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="330" y="345" fill="#047857" font-family="Arial" font-size="17" font-weight="700">TESTS</text>
+  <text x="330" y="397" fill="#064e3b" font-family="Arial" font-size="36" font-weight="700">184 / 184</text>
+  <text x="330" y="430" fill="#047857" font-family="Arial" font-size="15">evidence attached</text>
+  <rect x="585" y="305" width="250" height="150" rx="16" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="610" y="345" fill="#b91c1c" font-family="Arial" font-size="17" font-weight="700">SECURITY</text>
+  <text x="610" y="397" fill="#7f1d1d" font-family="Arial" font-size="36" font-weight="700">Pending</text>
+  <text x="610" y="430" fill="#b91c1c" font-family="Arial" font-size="15">owner: unassigned</text>
+  <rect x="865" y="305" width="250" height="150" rx="16" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="890" y="345" fill="#1d4ed8" font-family="Arial" font-size="17" font-weight="700">DOCUMENTATION</text>
+  <text x="890" y="397" fill="#1e3a8a" font-family="Arial" font-size="36" font-weight="700">Ready</text>
+  <text x="890" y="430" fill="#1d4ed8" font-family="Arial" font-size="15">reviewed by Maya</text>
+  <text x="305" y="515" fill="#0f172a" font-family="Arial" font-size="22" font-weight="700">Decision trail</text>
+  <circle cx="325" cy="565" r="8" fill="#10b981"/>
+  <text x="350" y="571" fill="#334155" font-family="Arial" font-size="16">Test evidence attached by CI</text>
+  <circle cx="325" cy="612" r="8" fill="#f59e0b"/>
+  <text x="350" y="618" fill="#334155" font-family="Arial" font-size="16">Security review requested from platform team</text>
+</svg>

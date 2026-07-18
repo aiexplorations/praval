@@ -28,6 +28,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
+from ..models import ContentPart
+
 if TYPE_CHECKING:
     import aio_pika
 
@@ -44,6 +46,17 @@ def _estimate_payload_size_bytes(payload: Any) -> int:
     except Exception:
         # Fallback to conservative estimate if payload isn't JSON-serializable
         return MAX_SPORE_SIZE_BYTES + 1
+
+
+def _contains_binary(value: Any) -> bool:
+    """Return whether a nested value contains raw binary data."""
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return True
+    if isinstance(value, Mapping):
+        return any(_contains_binary(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_binary(item) for item in value)
+    return False
 
 
 class SporeValidationError(Exception):
@@ -93,6 +106,14 @@ class Spore:
     metadata: Optional[Dict[str, Any]] = None
     knowledge_references: List[str] = None  # References to stored knowledge
     data_references: List[str] = None  # References to storage system data
+    schema_version: str = "1.0"
+    payload: Optional[Dict[str, Any]] = None
+    content_parts: List[Dict[str, Any]] = None
+    correlation_id: Optional[str] = None
+    causation_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    run_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -101,9 +122,47 @@ class Spore:
             self.knowledge_references = []
         if self.data_references is None:
             self.data_references = []
+        if self.content_parts is None:
+            self.content_parts = []
+        self.content_parts = self._normalize_content_parts(self.content_parts)
+        if self.payload is None and self.knowledge is not None:
+            self.payload = self.knowledge
+        if self.knowledge is None and self.payload is not None:
+            self.knowledge = self.payload
 
         # Validate the spore
         self.validate()
+
+    @staticmethod
+    def _normalize_content_parts(content_parts: List[Any]) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        for item in content_parts:
+            if isinstance(item, ContentPart):
+                part = item
+            elif isinstance(item, Mapping):
+                if _contains_binary(item):
+                    raise SporeValidationError(
+                        "content_parts must use base64 strings or data references, "
+                        "not raw binary values"
+                    )
+                try:
+                    part = ContentPart.model_validate(dict(item))
+                except Exception as exc:
+                    raise SporeValidationError(
+                        f"invalid content_parts entry: {exc}"
+                    ) from exc
+            else:
+                raise SporeValidationError(
+                    "content_parts entries must be ContentPart instances or mappings"
+                )
+            dumped = part.model_dump(exclude_none=True)
+            if _contains_binary(dumped):
+                raise SporeValidationError(
+                    "content_parts must use base64 strings or data references, "
+                    "not raw binary values"
+                )
+            normalized.append(dumped)
+        return normalized
 
     def validate(self, max_size: int = None) -> None:
         """
@@ -125,14 +184,19 @@ class Spore:
                 f"knowledge must be a dict, got {type(self.knowledge).__name__}"
             )
 
-        if self.knowledge is None:
-            return
+        if not isinstance(self.data_references, list) or not all(
+            isinstance(reference, str) for reference in self.data_references
+        ):
+            raise SporeValidationError("data_references must be a list of strings")
+        if not isinstance(self.knowledge_references, list) or not all(
+            isinstance(reference, str) for reference in self.knowledge_references
+        ):
+            raise SporeValidationError("knowledge_references must be a list of strings")
 
-        # Validate JSON serializability
         try:
-            encoded = json.dumps(self.knowledge, ensure_ascii=False)
+            encoded = json.dumps(self._transport_body_payload(), ensure_ascii=False)
         except (TypeError, ValueError):
-            raise SporeValidationError("knowledge not JSON-serializable")
+            raise SporeValidationError("spore content is not JSON-serializable")
 
         # Validate payload size
         payload_size = len(encoded.encode("utf-8"))
@@ -142,6 +206,24 @@ class Spore:
                 f"(max: {max_size} bytes = {max_size / 1024 / 1024:.1f}MB). "
                 f"Consider using knowledge_references for large data."
             )
+
+    def _transport_body_payload(self) -> Any:
+        """Build the backward-compatible JSON body used for size and AMQP wire data."""
+        if not (
+            self.content_parts
+            or self.data_references
+            or self.knowledge_references
+            or self.payload != self.knowledge
+        ):
+            return self.knowledge if self.knowledge is not None else None
+        return {
+            "_praval_spore_envelope": "2.0",
+            "knowledge": self.knowledge,
+            "payload": self.payload,
+            "content_parts": list(self.content_parts),
+            "knowledge_references": list(self.knowledge_references),
+            "data_references": list(self.data_references),
+        }
 
     def get_payload_size(self) -> int:
         """Get the size of the knowledge payload in bytes."""
@@ -167,6 +249,14 @@ class Spore:
             "metadata": (self.metadata if self.metadata is not None else {}),
             "knowledge_references": list(self.knowledge_references),
             "data_references": list(self.data_references),
+            "schema_version": self.schema_version,
+            "payload": (self.payload if self.payload is not None else None),
+            "content_parts": list(self.content_parts),
+            "correlation_id": self.correlation_id,
+            "causation_id": self.causation_id,
+            "trace_id": self.trace_id,
+            "run_id": self.run_id,
+            "idempotency_key": self.idempotency_key,
         }
         # Handle datetime serialization
         data["created_at"] = self.created_at.isoformat()
@@ -209,6 +299,14 @@ class Spore:
             metadata=(self.metadata if self.metadata is not None else {}),
             knowledge_references=list(self.knowledge_references) + [reference_id],
             data_references=list(self.data_references),
+            schema_version=self.schema_version,
+            payload=(self.payload if self.payload is not None else None),
+            content_parts=list(self.content_parts),
+            correlation_id=self.correlation_id,
+            causation_id=self.causation_id,
+            trace_id=self.trace_id,
+            run_id=self.run_id,
+            idempotency_key=self.idempotency_key,
         )
 
     def add_data_reference(self, reference_uri: str) -> "Spore":
@@ -228,6 +326,14 @@ class Spore:
             metadata=(self.metadata if self.metadata is not None else {}),
             knowledge_references=list(self.knowledge_references),
             data_references=list(self.data_references) + [reference_uri],
+            schema_version=self.schema_version,
+            payload=(self.payload if self.payload is not None else None),
+            content_parts=list(self.content_parts),
+            correlation_id=self.correlation_id,
+            causation_id=self.causation_id,
+            trace_id=self.trace_id,
+            run_id=self.run_id,
+            idempotency_key=self.idempotency_key,
         )
 
     def has_knowledge_references(self) -> bool:
@@ -247,9 +353,12 @@ class Spore:
         try:
             knowledge_size = _estimate_payload_size_bytes(self.knowledge or {})
             metadata_size = _estimate_payload_size_bytes(self.metadata or {})
-            refs_size = _estimate_payload_size_bytes(self.knowledge_references or [])
+            refs_size = _estimate_payload_size_bytes(
+                list(self.knowledge_references or []) + list(self.data_references or [])
+            )
+            content_size = _estimate_payload_size_bytes(self.content_parts or [])
             overhead = 500
-            return knowledge_size + metadata_size + refs_size + overhead
+            return knowledge_size + metadata_size + refs_size + content_size + overhead
         except Exception:
             return len(self.to_json())
 
@@ -275,10 +384,7 @@ class Spore:
         except ImportError:
             raise ImportError("aio-pika package required for AMQP serialization")
 
-        # Serialize knowledge to JSON bytes
-        knowledge_bytes = json.dumps(
-            self.knowledge if self.knowledge is not None else None
-        ).encode("utf-8")
+        knowledge_bytes = json.dumps(self._transport_body_payload()).encode("utf-8")
 
         # Build AMQP headers with spore metadata
         headers = {
@@ -290,7 +396,12 @@ class Spore:
             "expires_at": (self.expires_at.isoformat() if self.expires_at else ""),
             "priority": str(self.priority),
             "reply_to": (self.reply_to or ""),
-            "version": "1.0",  # Protocol versioning for future compatibility
+            "version": self.schema_version,
+            "correlation_id": self.correlation_id or "",
+            "causation_id": self.causation_id or "",
+            "trace_id": self.trace_id or "",
+            "run_id": self.run_id or "",
+            "idempotency_key": self.idempotency_key or "",
         }
 
         # Calculate TTL in milliseconds (if expires_at is set)
@@ -339,10 +450,29 @@ class Spore:
 
         # Parse knowledge from message body
         try:
-            knowledge = json.loads(amqp_msg.body.decode("utf-8"))
+            decoded_body = json.loads(amqp_msg.body.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             # Fallback if body is not valid JSON
-            knowledge = {"raw_content": amqp_msg.body.decode("utf-8", errors="replace")}
+            decoded_body = {
+                "raw_content": amqp_msg.body.decode("utf-8", errors="replace")
+            }
+
+        is_envelope = (
+            isinstance(decoded_body, dict)
+            and decoded_body.get("_praval_spore_envelope") == "2.0"
+        )
+        if is_envelope:
+            knowledge = decoded_body.get("knowledge")
+            payload = decoded_body.get("payload")
+            content_parts = decoded_body.get("content_parts") or []
+            knowledge_references = decoded_body.get("knowledge_references") or []
+            data_references = decoded_body.get("data_references") or []
+        else:
+            knowledge = decoded_body
+            payload = knowledge if isinstance(knowledge, dict) else None
+            content_parts = []
+            knowledge_references = []
+            data_references = []
 
         # Parse expires_at timestamp
         expires_at = None
@@ -375,8 +505,16 @@ class Spore:
             reply_to=(headers.get("reply_to") or None),
             # Metadata not serialized in AMQP headers to keep headers small.
             metadata={},
-            knowledge_references=[],
-            data_references=[],
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=headers.get("version", "1.0"),
+            payload=payload,
+            content_parts=content_parts,
+            correlation_id=(headers.get("correlation_id") or None),
+            causation_id=(headers.get("causation_id") or None),
+            trace_id=(headers.get("trace_id") or None),
+            run_id=(headers.get("run_id") or None),
+            idempotency_key=(headers.get("idempotency_key") or None),
         )
 
 
@@ -406,10 +544,12 @@ class SubscriptionManager:
 
     def iter_broadcast(self, exclude_agent: Optional[str] = None):
         with self._lock:
-            for agent_name, handlers in self._subscribers.items():
-                if exclude_agent and agent_name == exclude_agent:
-                    continue
-                yield agent_name, list(handlers)
+            subscribers = [
+                (agent_name, list(handlers))
+                for agent_name, handlers in self._subscribers.items()
+                if not exclude_agent or agent_name != exclude_agent
+            ]
+        yield from subscribers
 
     def counts(self) -> Dict[str, int]:
         with self._lock:

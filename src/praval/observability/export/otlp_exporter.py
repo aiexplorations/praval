@@ -12,7 +12,9 @@ Sends traces to OTLP-compatible collectors like:
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
+
+from praval import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +98,7 @@ class OTLPExporter:
             scope_spans = {
                 "scope": {
                     "name": "praval",
-                    "version": "0.8.0",
+                    "version": __version__,
                 },
                 "spans": [self._span_to_otlp(s) for s in trace_spans],
             }
@@ -111,7 +113,7 @@ class OTLPExporter:
                         },
                         {
                             "key": "telemetry.sdk.version",
-                            "value": {"stringValue": "0.8.0"},
+                            "value": {"stringValue": __version__},
                         },
                     ]
                 },
@@ -151,13 +153,13 @@ class OTLPExporter:
 
         # Map status
         status_map = {"ok": 1, "error": 2}
-        status_code = status_map.get(span.get("status", "ok"), 1)
+        status_code = status_map.get(str(span.get("status", "ok")).lower(), 1)
 
         return {
-            "traceId": self._hex_to_base64(span.get("trace_id", "")),
-            "spanId": self._hex_to_base64(span.get("span_id", "")),
+            "traceId": self._format_otlp_id(span.get("trace_id", "")),
+            "spanId": self._format_otlp_id(span.get("span_id", "")),
             "parentSpanId": (
-                self._hex_to_base64(span.get("parent_span_id", ""))
+                self._format_otlp_id(span.get("parent_span_id", ""))
                 if span.get("parent_span_id")
                 else ""
             ),
@@ -197,9 +199,12 @@ class OTLPExporter:
         return result
 
     def _datetime_to_unix_nano(self, dt: Any) -> int:
-        """Convert datetime to Unix nanoseconds."""
+        """Convert a datetime, Unix seconds, or Unix nanoseconds to nanoseconds."""
         if isinstance(dt, (int, float)):
-            # Already a timestamp
+            # Span and SQLite storage timestamps are already Unix nanoseconds.
+            # Smaller numeric values retain the public Unix-seconds behavior.
+            if abs(dt) >= 1_000_000_000_000_000:
+                return int(dt)
             return int(dt * 1e9)
         elif isinstance(dt, datetime):
             return int(dt.timestamp() * 1e9)
@@ -211,15 +216,12 @@ class OTLPExporter:
                 return 0
         return 0
 
-    def _hex_to_base64(self, hex_str: str) -> str:
-        """Convert hex string to base64 for OTLP."""
+    def _format_otlp_id(self, hex_str: str) -> str:
+        """Return an OTLP/JSON trace or span ID as a lowercase hex string."""
         if not hex_str:
             return ""
         try:
-            import base64
-
-            bytes_data = bytes.fromhex(hex_str)
-            return base64.b64encode(bytes_data).decode("ascii")
+            return bytes.fromhex(hex_str).hex()
         except (ValueError, TypeError):
             return hex_str
 
@@ -252,7 +254,9 @@ def export_traces_to_otlp(
         for trace_id in trace_ids:
             spans.extend(store.get_trace(trace_id))
     else:
-        spans = cast(List[Dict[str, Any]], store.get_recent_traces(limit=limit))
+        spans = []
+        for trace_id in store.get_recent_traces(limit=limit):
+            spans.extend(store.get_trace(trace_id))
 
     if not spans:
         logger.info("No spans to export")

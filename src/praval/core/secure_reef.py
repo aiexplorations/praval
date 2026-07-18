@@ -32,28 +32,39 @@ class KeyRegistry:
 
     def __init__(self):
         self._keys: Dict[str, Dict[str, bytes]] = {}
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
+        self._lock_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Return a lock bound to the currently running event loop."""
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
+            if self._lock is not None and self._lock.locked():
+                raise RuntimeError("KeyRegistry is active on another event loop")
+            self._lock = asyncio.Lock()
+            self._lock_loop = loop
+        return self._lock
 
     async def register_agent(self, agent_name: str, public_keys: Dict[str, bytes]):
         """Register an agent's public keys."""
-        async with self._lock:
+        async with self._get_lock():
             self._keys[agent_name] = public_keys
             logger.debug(f"Registered public keys for agent: {agent_name}")
 
     async def get_agent_keys(self, agent_name: str) -> Optional[Dict[str, bytes]]:
         """Retrieve an agent's public keys."""
-        async with self._lock:
+        async with self._get_lock():
             return self._keys.get(agent_name)
 
     async def remove_agent(self, agent_name: str):
         """Remove an agent's public keys."""
-        async with self._lock:
+        async with self._get_lock():
             self._keys.pop(agent_name, None)
             logger.debug(f"Removed public keys for agent: {agent_name}")
 
     async def list_agents(self) -> List[str]:
         """List all registered agents."""
-        async with self._lock:
+        async with self._get_lock():
             return list(self._keys.keys())
 
 

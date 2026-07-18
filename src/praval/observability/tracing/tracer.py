@@ -2,12 +2,15 @@
 OpenTelemetry-compatible Tracer implementation.
 """
 
+import logging
 import uuid
 from typing import Optional
 
 from ..config import get_config
 from .context import TraceContext, get_current_span, set_current_span
 from .span import NoOpSpan, Span, SpanKind
+
+logger = logging.getLogger(__name__)
 
 
 def generate_trace_id() -> str:
@@ -114,7 +117,8 @@ class Tracer:
         Returns:
             Context manager for the span
         """
-        span = self.start_span(name, parent, kind, attributes)
+        parent_context = parent if parent is not None else TraceContext.current()
+        span = self.start_span(name, parent_context, kind, attributes)
 
         class SpanContextManager:
             def __init__(self, span_obj):
@@ -127,11 +131,22 @@ class Tracer:
                 return self.span
 
             def __exit__(self, exc_type, exc_val, exc_tb):
-                # Span's own __exit__ will handle recording exception
-                self.span.__exit__(exc_type, exc_val, exc_tb)
+                try:
+                    # Span's own __exit__ records errors and finalizes timing.
+                    self.span.__exit__(exc_type, exc_val, exc_tb)
+                finally:
+                    # Restore context before exporting the completed span.
+                    set_current_span(self.previous_span)
 
-                # Restore previous span
-                set_current_span(self.previous_span)
+                if isinstance(self.span, Span):
+                    try:
+                        # Import lazily to avoid a tracing/storage import cycle.
+                        from ..storage import get_trace_store
+
+                        get_trace_store().store_span(self.span)
+                    except Exception:
+                        # Observability must not change application behavior.
+                        logger.exception("Failed to store completed trace span")
                 return False
 
         return SpanContextManager(span)

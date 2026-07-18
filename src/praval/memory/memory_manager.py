@@ -43,6 +43,11 @@ class MemoryManager:
         short_term_max_entries: int = 1000,
         short_term_retention_hours: int = 24,
         knowledge_base_path: Optional[str] = None,
+        embedding_provider: Optional[str] = None,
+        embedding_model: Optional[str] = None,
+        embedding_dimensions: Optional[int] = None,
+        embedding_provider_options: Optional[Dict[str, Any]] = None,
+        embedding_runtime: Optional[Any] = None,
     ):
         """
         Initialize the unified memory manager
@@ -56,6 +61,11 @@ class MemoryManager:
             short_term_max_entries: Max entries in short-term memory
             short_term_retention_hours: Short-term memory retention time
             knowledge_base_path: Path to knowledge base files to auto-index
+            embedding_provider: Provider used for vector embeddings
+            embedding_model: Embedding model identifier
+            embedding_dimensions: Expected embedding vector size
+            embedding_provider_options: Provider-specific embedding options
+            embedding_runtime: Preconfigured embedding runtime
         """
         self.agent_id = agent_id
         self.backend = backend
@@ -63,6 +73,11 @@ class MemoryManager:
         self.storage_path = storage_path
         self.collection_name = collection_name
         self.knowledge_base_path = knowledge_base_path
+        self.embedding_provider = embedding_provider
+        self.embedding_model = embedding_model
+        self.embedding_dimensions = embedding_dimensions
+        self.embedding_provider_options = dict(embedding_provider_options or {})
+        self.embedding_runtime = embedding_runtime
 
         # Auto-detect knowledge base from environment if not provided
         if not self.knowledge_base_path:
@@ -78,6 +93,11 @@ class MemoryManager:
                 self.embedded_store = EmbeddedVectorStore(
                     storage_path=storage_path,
                     collection_name=collection_name,
+                    embedding_model=embedding_model or "all-MiniLM-L6-v2",
+                    embedding_provider=embedding_provider,
+                    embedding_dimensions=embedding_dimensions,
+                    embedding_provider_options=self.embedding_provider_options,
+                    embedding_runtime=embedding_runtime,
                     enable_collection_separation=True,
                 )
                 self.backend = "chromadb"
@@ -97,7 +117,13 @@ class MemoryManager:
         if backend in ["auto", "qdrant"] and self.embedded_store is None:
             try:
                 self.long_term_memory = LongTermMemory(
-                    qdrant_url=qdrant_url, collection_name=collection_name
+                    qdrant_url=qdrant_url,
+                    collection_name=collection_name,
+                    embedding_provider=embedding_provider or "openai",
+                    embedding_model=embedding_model or "text-embedding-3-small",
+                    embedding_dimensions=embedding_dimensions,
+                    embedding_provider_options=self.embedding_provider_options,
+                    embedding_runtime=embedding_runtime,
                 )
                 self.backend = "qdrant"
                 logger.info("Qdrant long-term memory initialized successfully")

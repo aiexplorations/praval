@@ -14,6 +14,7 @@ from typing import List
 from unittest.mock import Mock, patch
 
 import pytest
+from reportlab.pdfgen import canvas
 
 from praval.memory.embedded_store import EmbeddedVectorStore
 from praval.memory.memory_manager import MemoryManager
@@ -149,8 +150,8 @@ class TestKnowledgeBaseBenchmark:
 
         return files
 
-    def create_mock_pdf_files(self, num_pdfs: int = 3) -> List[Path]:
-        """Create mock PDF files for testing"""
+    def create_pdf_files(self, num_pdfs: int = 3) -> List[Path]:
+        """Create valid PDF fixtures with extractable research-paper text."""
         pdf_files = []
 
         pdf_contents = [
@@ -216,9 +217,13 @@ class TestKnowledgeBaseBenchmark:
             content = pdf_contents[i % len(pdf_contents)]
             pdf_path = self.temp_dir / f"research_paper_{i+1}.pdf"
 
-            # Create mock PDF file (will be mocked during tests)
-            pdf_path.write_bytes(b"Mock PDF content")
-            pdf_files.append((pdf_path, content))
+            document = canvas.Canvas(str(pdf_path))
+            text = document.beginText(72, 750)
+            for line in content:
+                text.textLine(line)
+            document.drawText(text)
+            document.save()
+            pdf_files.append(pdf_path)
 
         return pdf_files
 
@@ -254,50 +259,13 @@ class TestKnowledgeBaseBenchmark:
         assert ".png" not in file_types  # Unsupported
 
     @pytest.mark.integration
-    @pytest.mark.xfail(
-        reason=(
-            "PDF mocking is complex - Mock() doesn't support context ma"
-            "nager protocol for open()"
-        )
-    )
-    @patch("PyPDF2.PdfReader")
-    def test_mixed_knowledge_base_indexing(self, mock_pdf_reader):
+    def test_mixed_knowledge_base_indexing(self):
         """Test indexing of mixed file types including PDFs"""
         # Create text files
         text_files = self.create_test_knowledge_base(3)
 
-        # Create mock PDFs
-        pdf_files = self.create_mock_pdf_files(2)
-
-        # Mock PDF reader for each PDF
-        def pdf_reader_side_effect(file_handle):
-            # Determine which PDF based on file path
-            file_path = (
-                str(file_handle.name)
-                if hasattr(file_handle, "name")
-                else str(file_handle)
-            )
-
-            for pdf_path, content_lines in pdf_files:
-                if str(pdf_path) in file_path:
-                    mock_reader = Mock()
-                    mock_pages = []
-
-                    # Create mock pages from content
-                    for line in content_lines:
-                        mock_page = Mock()
-                        mock_page.extract_text.return_value = line
-                        mock_pages.append(mock_page)
-
-                    mock_reader.pages = mock_pages
-                    return mock_reader
-
-            # Default fallback
-            mock_reader = Mock()
-            mock_reader.pages = []
-            return mock_reader
-
-        mock_pdf_reader.side_effect = pdf_reader_side_effect
+        # Create valid PDFs and exercise the real pypdf parser.
+        pdf_files = self.create_pdf_files(2)
 
         # Mock the store initialization and indexing
         # Use enable_collection_separation=False for legacy mode (uses store() method)
@@ -307,13 +275,7 @@ class TestKnowledgeBaseBenchmark:
         indexed_entries = []
         store.store = lambda entry: indexed_entries.append(entry)
 
-        with patch(
-            "builtins.open",
-            side_effect=lambda *args, **kwargs: (
-                open(*args, **kwargs) if not str(args[0]).endswith(".pdf") else Mock()
-            ),
-        ):
-            count = store.index_knowledge_files(self.temp_dir, self.agent_id)
+        count = store.index_knowledge_files(self.temp_dir, self.agent_id)
 
         # Should index all files (text + PDF)
         total_files = len(text_files) + len(pdf_files)

@@ -282,9 +282,9 @@ class TestPDFIntegration:
 def check_dependencies():
     """Check if required dependencies are available"""
     try:
-        __import__("PyPDF2")
+        __import__("pypdf")
     except ImportError:
-        pytest.skip("PyPDF2 not available", allow_module_level=True)
+        pytest.skip("pypdf not available", allow_module_level=True)
 
 
 if __name__ == "__main__":
