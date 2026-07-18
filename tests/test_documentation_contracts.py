@@ -7,6 +7,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 try:
     import tomllib
@@ -32,6 +33,24 @@ def _load_script(name):
 api_surface = _load_script("check_api_surface")
 release_metadata = _load_script("check_release_metadata")
 docs_builder = _load_script("build_exact_wheel_docs")
+
+
+def _local_markdown_links(text):
+    repository_prefix = "https://github.com/aiexplorations/praval/blob/main/"
+    for target in re.findall(r"!?\[[^\]]*\]\(([^)]+)\)", text):
+        target = target.strip().split(maxsplit=1)[0]
+        if target.startswith(repository_prefix):
+            target = target[len(repository_prefix) :]
+        elif target.startswith(("#", "http://", "https://", "mailto:")):
+            continue
+        yield unquote(target.split("#", maxsplit=1)[0])
+
+
+def _assert_repository_links_resolve(text):
+    for target in _local_markdown_links(text):
+        path = Path(target)
+        assert not path.is_absolute(), f"absolute repository link: {target}"
+        assert (ROOT / path).exists(), f"missing repository link: {target}"
 
 
 def test_every_top_level_export_is_classified_and_documented():
@@ -79,6 +98,58 @@ def test_readme_python_blocks_compile():
     assert len(blocks) >= 3
     for index, block in enumerate(blocks):
         ast.parse(block, filename=f"README.md:python-block-{index}")
+
+
+def test_readme_has_layered_navigation_and_resolving_links():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    headings = [
+        "## Choose where to start",
+        "## How the pieces fit",
+        "## Install",
+        "## Quick start: call a model",
+        "## Quick start: connect agents through Reef",
+        "## Capability map",
+        "## Learning center",
+        "### Visual course",
+        "### Capstones",
+        "### Runnable examples",
+        "## Documentation map",
+        "## Important boundaries",
+        "## Development and release validation",
+    ]
+
+    positions = [readme.index(heading) for heading in headings]
+    assert positions == sorted(positions)
+    _assert_repository_links_resolve(readme)
+
+
+def test_unreleased_changelog_is_substantial_and_linked():
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    start = changelog.index("## [0.8.0] - Unreleased")
+    end = changelog.index("## [0.7.22]", start)
+    section = changelog[start:end]
+    headings = [
+        "### Release overview",
+        "### Highlights",
+        "### Added",
+        "### Changed",
+        "### Fixed",
+        "### Compatibility",
+        "### Migration guidance",
+        "### Learning resources",
+        "### Validation and publication",
+        "### Known limitations",
+        "### Deferred",
+    ]
+
+    positions = [section.index(heading) for heading in headings]
+    assert positions == sorted(positions)
+    assert "README.md#learning-center" in section
+    assert "examples/notebooks/README.md" in section
+    assert "docs/sphinx/guide/demo-certification.md" in section
+    assert not re.search(r"\b\d{3,5} passed\b", section)
+    assert not re.search(r"\b\d{2}\.\d{2}%\b", section)
+    _assert_repository_links_resolve(section)
 
 
 def test_current_docs_reject_known_false_or_private_examples():
