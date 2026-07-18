@@ -1,172 +1,89 @@
 #!/usr/bin/env python3
-"""
-Example 002: Agent Communication
-================================
+"""Example 002: bounded communication between two Praval agents.
 
-This example demonstrates the foundational communication pattern in Praval.
-Agents communicate through structured messages (spores) using the broadcast
-and responds_to mechanisms.
-
-Key Concepts:
-- Agent-to-agent communication
-- The broadcast() function
-- Message filtering with responds_to
-- Spore knowledge structure
-- Natural conversation flow
-
-Run: python examples/002_agent_communication.py
+Run with: python examples/002_agent_communication.py
 """
 
-import sys
-import os
+from typing import Dict, List
 
-if __name__ == "__main__" and os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
-    print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
-    raise SystemExit(0)
+from praval import agent, broadcast, get_reef, start_agents
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+QUESTIONS = {
+    "creativity": "What role does failure play in the creative process?",
+    "learning": "How does feedback change what people retain?",
+    "collaboration": "What helps specialists combine their knowledge?",
+}
 
-from praval import agent, broadcast, start_agents, get_reef
+DIALOGUES: List[Dict[str, str]] = []
 
 
-@agent("questioner", responds_to=["start_dialogue"])
+@agent("questioner", provider="ollama", responds_to=["start_dialogue"])
 def curious_questioner(spore):
-    """
-    I am naturally curious and love to ask thoughtful questions
-    about any topic that interests me.
-    """
-    topic = spore.knowledge.get("topic", "artificial intelligence")
-    
-    # Generate a thoughtful question with fallback
-    try:
-        from praval import chat
-        question = chat(f"""
-        As a curious person, generate one thoughtful, engaging question about {topic}.
-        Make it something that would spark interesting discussion.
-        Return only the question.
-        """)
-    except Exception:
-        # Fallback questions when LLM is not available
-        fallback_questions = {
-            "creativity": "What role does failure play in the creative process?",
-            "learning": "How does the way we teach affect what students actually learn?",
-            "collaboration": "What makes some teams more creative than others?"
+    """Turn one topic into one correlated question Spore."""
+    topic = str(spore.knowledge["topic"])
+    correlation_id = str(spore.knowledge["correlation_id"])
+    question = QUESTIONS[topic]
+    broadcast(
+        {
+            "type": "question_posed",
+            "correlation_id": correlation_id,
+            "topic": topic,
+            "question": question,
         }
-        question = fallback_questions.get(topic.lower(), f"What interests you most about {topic}?")
-    
-    print(f"🤔 Questioner: {question}")
-    
-    # Broadcast the question to any agents who might be interested
-    broadcast({
-        "type": "question_posed",
-        "topic": topic,
-        "question": question,
-        "from": "questioner"
-    })
-    
+    )
     return {"question": question}
 
 
-@agent("responder", responds_to=["question_posed"])
+@agent("responder", provider="ollama", responds_to=["question_posed"])
 def thoughtful_responder(spore):
-    """
-    I am a knowledgeable person who enjoys providing thoughtful,
-    informative answers to interesting questions.
-    """
-    question = spore.knowledge.get("question")
-    topic = spore.knowledge.get("topic")
-    
-    if not question:
-        return
-    
-    # Provide a thoughtful response with fallback
-    try:
-        from praval import chat
-        answer = chat(f"""
-        Someone asked this thoughtful question about {topic}: "{question}"
-        
-        As a knowledgeable person, provide an informative, engaging answer that:
-        - Addresses the question directly
-        - Provides useful insights
-        - Is clear and accessible
-        - Might spark further discussion
-        """)
-    except Exception:
-        # Fallback responses when LLM is not available
-        answer = f"That's a fascinating question about {topic}: '{question}'. This touches on fundamental aspects of human nature and how we interact with the world. Different perspectives would approach this differently, but what's most important is how we apply these insights in practice."
-    
-    print(f"💡 Responder: {answer}")
-    
-    # Continue the conversation by asking a follow-up with fallback
-    try:
-        from praval import chat
-        follow_up = chat(f"""
-        Based on my answer about {topic}, generate a brief follow-up question
-        that could deepen the discussion. Return only the question.
-        """)
-    except Exception:
-        # Fallback follow-up questions
-        fallback_followups = {
-            "creativity": "How do cultural differences shape creative expression?",
-            "learning": "What role does emotion play in how we remember things?",
-            "collaboration": "How do we balance individual expertise with collective wisdom?"
+    """Answer once and record a terminal result without another broadcast."""
+    topic = str(spore.knowledge["topic"])
+    answer = (
+        f"For {topic}, progress improves when a team makes assumptions visible, "
+        "tests them, and shares what it learns."
+    )
+    DIALOGUES.append(
+        {
+            "correlation_id": str(spore.knowledge["correlation_id"]),
+            "topic": topic,
+            "question": str(spore.knowledge["question"]),
+            "answer": answer,
         }
-        follow_up = fallback_followups.get(topic.lower(), f"What practical steps could we take to improve {topic}?")
-    
-    print(f"🔄 Responder: {follow_up}")
-    
-    # Broadcast the follow-up to continue the dialogue
-    broadcast({
-        "type": "question_posed",
-        "topic": topic,
-        "question": follow_up,
-        "from": "responder"
-    })
-    
-    return {"answer": answer, "follow_up": follow_up}
+    )
+    return {"status": "complete", "answer": answer}
 
 
-def main():
-    """Demonstrate agent communication patterns."""
-    if os.getenv("PRAVAL_EXAMPLE_SMOKE") == "1":
-        print("SKIP: Set PRAVAL_RUN_LIVE_EXAMPLES=1 to run this LLM example.")
-        return
-    print("=" * 60)
+def main() -> int:
+    """Run three bounded request and response exchanges."""
+    DIALOGUES.clear()
+    reef = get_reef()
+    try:
+        for index, topic in enumerate(QUESTIONS, 1):
+            start_agents(
+                curious_questioner,
+                thoughtful_responder,
+                initial_data={
+                    "type": "start_dialogue",
+                    "correlation_id": f"dialogue-{index}",
+                    "topic": topic,
+                },
+            )
+            if not reef.wait_for_completion(timeout=10):
+                raise TimeoutError(f"dialogue did not complete: {topic}")
+    finally:
+        reef.shutdown()
+
+    if len(DIALOGUES) != len(QUESTIONS):
+        raise RuntimeError("not every dialogue produced a terminal response")
+
     print("Example 002: Agent Communication")
-    print("=" * 60)
-    
-    print("Starting a dialogue between two agents...")
-    print("The questioner will ask about a topic,")
-    print("and the responder will answer and ask a follow-up.")
-    print()
-    
-    # Start the dialogue with different topics
-    topics = ["creativity", "learning", "collaboration"]
-    
-    for topic in topics:
-        print(f"--- Dialogue about: {topic.upper()} ---")
-
-        # This will trigger both agents through their communication
-        start_agents(
-            curious_questioner,
-            thoughtful_responder,
-            initial_data={"type": "start_dialogue", "topic": topic}
-        )
-
-        # Wait for agents to complete
-        get_reef().wait_for_completion()
-
-        print()
-
-    # Shutdown after all iterations
-    get_reef().shutdown()
-
-    print("Key Insights:")
-    print("- Agents communicate through structured messages (spores)")
-    print("- responds_to filters ensure agents only handle relevant messages")
-    print("- broadcast() enables natural, asynchronous communication")
-    print("- Conversations can continue through chained broadcasts")
+    for dialogue in DIALOGUES:
+        print(f"\n[{dialogue['correlation_id']}] {dialogue['topic'].title()}")
+        print(f"Questioner: {dialogue['question']}")
+        print(f"Responder: {dialogue['answer']}")
+    print("\nCompleted three correlated, bounded Reef exchanges.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

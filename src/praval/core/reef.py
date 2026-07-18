@@ -593,6 +593,7 @@ class ReefChannel:
         )
         self._owns_executor = executor is None
         self._shutdown = False
+        self._shutdown_result: Optional[bool] = None
         self._active_futures: List[Future] = []  # Track active handler executions
         self._futures_lock = threading.Lock()
         self._async_loop = None
@@ -941,6 +942,9 @@ class ReefChannel:
         Returns:
             True if shutdown completed cleanly, False if timeout occurred
         """
+        if self._shutdown:
+            return bool(self._shutdown_result)
+
         self._shutdown = True
 
         if not wait:
@@ -958,7 +962,8 @@ class ReefChannel:
                     self._async_loop.call_soon_threadsafe(self._async_loop.stop)
                     if self._async_thread and self._async_thread.is_alive():
                         self._async_thread.join(timeout=min(5.0, timeout))
-            return True
+            self._shutdown_result = True
+            return self._shutdown_result
 
         # Cancel pending futures
         with self._futures_lock:
@@ -991,7 +996,8 @@ class ReefChannel:
                         self._async_loop.call_soon_threadsafe(self._async_loop.stop)
                         if self._async_thread and self._async_thread.is_alive():
                             self._async_thread.join(timeout=min(5.0, timeout))
-                return True
+                self._shutdown_result = True
+                return self._shutdown_result
             time.sleep(0.1)
 
         with self._futures_lock:
@@ -1008,7 +1014,8 @@ class ReefChannel:
                 self._async_loop.call_soon_threadsafe(self._async_loop.stop)
                 if self._async_thread and self._async_thread.is_alive():
                     self._async_thread.join(timeout=min(5.0, timeout))
-            return False
+            self._shutdown_result = False
+            return self._shutdown_result
 
         # Stop async handler loop
         if self._async_loop and self._async_loop.is_running():
@@ -1016,7 +1023,8 @@ class ReefChannel:
             if self._async_thread and self._async_thread.is_alive():
                 self._async_thread.join(timeout=min(5.0, timeout))
 
-        return True
+        self._shutdown_result = True
+        return self._shutdown_result
 
 
 class ReefCore:
@@ -1069,6 +1077,7 @@ class ReefCore:
         self._broadcast_window_seconds = 1.0
         self.lock = threading.RLock()
         self._shutdown = False
+        self._shutdown_result: Optional[bool] = None
         self.auth_provider = auth_provider
 
         # Async loop for running backend coroutines from sync context
@@ -1473,6 +1482,9 @@ class ReefCore:
         Returns:
             True if all channels shut down cleanly, False if timeout occurred
         """
+        if self._shutdown:
+            return bool(self._shutdown_result)
+
         self._shutdown = True
 
         all_clean = True
@@ -1516,7 +1528,8 @@ class ReefCore:
                 logger.warning("Cleanup thread did not stop within timeout")
                 all_clean = False
 
-        return all_clean
+        self._shutdown_result = all_clean
+        return self._shutdown_result
 
     def __del__(self):
         try:
@@ -1649,4 +1662,5 @@ def reset_reef() -> None:
         # Recreate default channel
         _global_reef.create_channel(_global_reef.default_channel)
         _global_reef._shutdown = False
+        _global_reef._shutdown_result = None
         _global_reef._backend_initialized = False

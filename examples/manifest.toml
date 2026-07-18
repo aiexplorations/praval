@@ -53,12 +53,16 @@ id = "tutorial-002-agent-communication"
 path = "002_agent_communication.py"
 features = ["reef.delivery"]
 modes = ["offline"]
+execution = "run"
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-003-specialist-collaboration"
 path = "003_specialist_collaboration.py"
 features = ["reef.delivery"]
 modes = ["offline"]
+execution = "run"
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-004-registry-discovery"

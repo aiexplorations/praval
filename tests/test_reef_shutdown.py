@@ -23,6 +23,7 @@ class TestReefChannelShutdown:
 
         assert result is True
         assert channel._shutdown is True
+        assert channel.shutdown(wait=True, timeout=5.0) is True
 
     def test_shutdown_with_wait_false_returns_immediately(self):
         """Verify shutdown returns True immediately when wait=False."""
@@ -58,6 +59,7 @@ class TestReefChannelShutdown:
         assert result is False
         assert elapsed >= 0.5  # Waited for timeout
         assert elapsed < 2.0  # But didn't wait too long
+        assert channel.shutdown(wait=True, timeout=0.5) is False
 
     def test_shutdown_cancels_pending_futures(self):
         """Verify shutdown attempts to cancel pending futures."""
@@ -114,6 +116,21 @@ class TestReefShutdown:
         result = reef.shutdown(wait=True, timeout=5.0)
 
         assert result is True
+
+    def test_reef_shutdown_is_idempotent(self):
+        """A second close must return the first result without new cleanup."""
+        from praval.core.reef import Reef
+
+        reef = Reef()
+        assert reef.shutdown() is True
+
+        with patch.object(
+            reef, "_run_async", side_effect=AssertionError("unexpected async cleanup")
+        ):
+            assert reef.shutdown() is True
+
+        reef._shutdown_result = False
+        assert reef.shutdown() is False
 
     def test_reef_shutdown_distributes_timeout(self):
         """Verify reef distributes timeout across channels."""
