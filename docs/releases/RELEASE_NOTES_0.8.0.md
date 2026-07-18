@@ -1,4 +1,6 @@
-# Praval 0.8.0 (unreleased)
+# Praval 0.8.0
+
+Released: 2026-07-18
 
 Praval 0.8.0 modernizes model execution while preserving the decorator-first
 agent, Reef/Spore, memory, HITL, and observability APIs. Reef remains Praval's

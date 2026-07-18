@@ -320,7 +320,7 @@ extras, services, timeouts, and expected artifacts for release certification.
 | Common failures | [Troubleshooting](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/troubleshooting.md) |
 | Detailed learning course | [Notebook catalog](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/README.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
-| Unreleased release scope | [Release candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md) |
+| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md) |
 
 Build the reference documentation locally with warnings treated as errors:
 
@@ -345,9 +345,8 @@ make docs-html
   universal circuit breaker, storage fallback, or automatic reconnect layer.
 - `PravalApp` owns cleanup. It is not an isolated service container.
 
-See the [unreleased release candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md)
-for the planned stable scope, compatibility details, limitations, and deferred
-work.
+See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md)
+for the stable scope, compatibility details, limitations, and deferred work.
 
 ## Development and release validation
 

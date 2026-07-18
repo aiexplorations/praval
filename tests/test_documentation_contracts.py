@@ -123,9 +123,9 @@ def test_readme_has_layered_navigation_and_resolving_links():
     _assert_repository_links_resolve(readme)
 
 
-def test_unreleased_changelog_is_substantial_and_linked():
+def test_release_changelog_is_substantial_and_linked():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    start = changelog.index("## [0.8.0] - Unreleased")
+    start = changelog.index("## [0.8.0] - 2026-07-18")
     end = changelog.index("## [0.7.22]", start)
     section = changelog[start:end]
     headings = [
@@ -201,7 +201,8 @@ def test_documentation_sanitizer_and_tree_hash(tmp_path):
 def test_release_notes_delegate_volatile_values_to_evidence():
     notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.0.md").read_text()
 
-    assert "(unreleased)" in notes.splitlines()[0].lower()
+    assert notes.splitlines()[0] == "# Praval 0.8.0"
+    assert "Released: 2026-07-18" in notes
     assert not re.search(r"\b\d{3,5} passed\b", notes)
     assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
     assert "build-manifest.json" in notes
