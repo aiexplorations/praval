@@ -129,7 +129,7 @@ def test_readme_has_layered_navigation_and_resolving_links():
 
 def test_release_changelog_is_substantial_and_linked():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    start = changelog.index("## [0.8.1] - Unreleased")
+    start = changelog.index("## [0.8.1] - 2026-07-18")
     end = changelog.index("## [0.7.22]", start)
     section = changelog[start:end]
     headings = [
