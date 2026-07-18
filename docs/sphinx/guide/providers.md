@@ -26,7 +26,7 @@ Praval's registry includes release-time profiles for OpenAI `gpt-5.4`,
 `claude-haiku-4-5`; Cohere `command-a-03-2025`; and Gemini
 `gemini-3.5-flash`, `gemini-3.1-flash-lite`, and
 `gemini-3.1-pro-preview`. The names were checked against the official model
-catalogs for the 0.8.0 release. They are package metadata, not a live catalog.
+catalogs for the 0.8 release line. They are package metadata, not a live catalog.
 Use each provider's model-list API when availability must be checked at runtime.
 
 ## Capability Matrix
@@ -62,7 +62,7 @@ continuation state and can resume after approval, editing, or rejection.
 ## Provider-Hosted Tools and MCP Descriptors
 
 Provider-hosted tools, provider-hosted MCP descriptors, and computer-use
-descriptors are not stable cross-provider capabilities in 0.8.0. OpenAI
+descriptors are not stable cross-provider capabilities in the 0.8 line. OpenAI
 Responses and Anthropic Messages can receive raw experimental descriptors only
 through an explicit per-call opt-in:
 
@@ -113,7 +113,7 @@ policy, and notes. The downgrade policy is `error` by default: a declared but
 unsupported feature should fail before execution.
 
 Provider catalogs should be audited against provider documentation before a
-release and captured in tests. The 0.8.0 audit used the official
+release and captured in tests. The 0.8 audit used the official
 [OpenAI model catalog](https://developers.openai.com/api/docs/models/all),
 [Claude model overview](https://platform.claude.com/docs/en/about-claude/models/overview),
 [Gemini model catalog](https://ai.google.dev/gemini-api/docs/models), and

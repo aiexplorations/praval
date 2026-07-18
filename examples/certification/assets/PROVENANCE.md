@@ -1,7 +1,7 @@
 # Certification fixture provenance
 
 The encoded fixtures are decoded by certification demos before use. Encoding
-keeps deterministic binary test data reviewable in source distributions.
+keeps deterministic binary test data reviewable in the source repository.
 
 | Fixture | Origin | Decoded SHA-256 |
 | --- | --- | --- |

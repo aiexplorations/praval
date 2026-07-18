@@ -58,20 +58,22 @@ Use two PRs when docs are published from a separate site/docs repository:
 
 Order:
 1. Merge PR-A and let `main` CI build the exact package/docs artifacts.
-2. Run the protected live certification for that commit.
+2. Optionally run protected live certification for that commit.
 3. Prepare and validate PR-B without merging it.
-4. Tag and publish the exact certified artifact from `main`.
+4. Upload the exact CI wheel to PyPI, verify it, and tag that `main` commit.
 5. Merge PR-B only after the new version appears on PyPI.
 
 ### 4. Build and publish artifacts
 
-1. Keep wheel and sdist files in `dist/`; write manifests and checksums to
+1. Keep exactly one wheel in `dist/`; write manifests and checksums to
    `evidence/`.
-2. Validate the exact CI artifacts with `twine check`, distribution validation,
+2. Validate the exact CI wheel with `twine check`, distribution validation,
    reproducibility, and clean-wheel smoke tests.
-3. Publish through the protected tag workflow and PyPI trusted publishing.
-4. Do not rebuild or manually upload a different local artifact.
-5. Smoke test installation from PyPI in a clean virtual environment.
+3. Upload the named CI wheel with Twine. Do not use `dist/*`.
+4. Create the tag only after PyPI serves that exact wheel. The tag workflow
+   verifies its hash and creates the GitHub release.
+5. Do not rebuild or upload a different local artifact.
+6. Smoke test installation from PyPI in a clean virtual environment.
 
 ### 5. Tag and GitHub release
 

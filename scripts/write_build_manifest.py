@@ -28,11 +28,13 @@ def _git_value(root: Path, *args: str) -> str:
 
 def write_manifest(dist_dir: Path, evidence_dir: Path) -> Dict[str, object]:
     root = Path(__file__).resolve().parents[1]
-    artifacts = sorted(
-        path
-        for path in dist_dir.iterdir()
-        if path.is_file() and path.name.endswith((".whl", ".tar.gz"))
-    )
+    artifacts = sorted(path for path in dist_dir.iterdir() if path.is_file())
+    wheels = [path for path in artifacts if path.name.endswith(".whl")]
+    if len(artifacts) != 1 or len(wheels) != 1:
+        raise ValueError(
+            "dist must contain exactly one wheel and no other files before "
+            "writing release evidence"
+        )
     artifact_data: List[Dict[str, object]] = [
         {"filename": path.name, "sha256": _sha256(path), "size": path.stat().st_size}
         for path in artifacts

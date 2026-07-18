@@ -1,20 +1,20 @@
 # Praval release process
 
-Praval publishes the exact wheel and source distribution produced by a
-successful `main` CI run. Tag and publication workflows never rebuild the
-package.
+Praval publishes one universal Python wheel. The wheel attached to GitHub must
+be the same file that normal `main` CI tested and that PyPI serves. Release
+workflows do not rebuild the package.
 
 ## Sources of truth
 
-- `pyproject.toml` contains the authoritative package version.
+- `pyproject.toml` contains the package version.
 - `praval.__version__` comes from installed distribution metadata.
 - `CHANGELOG.md` describes user-visible changes.
-- `docs/releases/RELEASE_NOTES_<version>.md` describes the release without
-  copying volatile test counts or hashes.
-- `dist/` contains only `.whl` and `.tar.gz` files.
-- `evidence/` contains checksums, manifests, coverage, and certification data.
+- `docs/releases/RELEASE_NOTES_<version>.md` describes release scope without
+  copied test counts or hashes.
+- `dist/` contains exactly one `.whl` file and nothing else.
+- `evidence/` contains checksums, manifests, coverage, and demo records.
 
-Run the metadata contract before freezing:
+Run the metadata contracts before the release freeze:
 
 ```bash
 source venv/bin/activate
@@ -22,59 +22,98 @@ python scripts/check_release_metadata.py
 python scripts/check_api_surface.py --report evidence/api-coverage.json
 ```
 
+## Required and optional validation
+
+Normal CI is required. It tests Python 3.9 through 3.13, runs quality and
+coverage checks, builds exact-wheel documentation, and certifies offline and
+service-backed demos against the installed wheel.
+
+Paid live checks are optional. They are manually dispatched from trusted
+`main`, never from a push or pull request. They can exercise real provider
+models, model-generated HITL, multimodal input, embeddings, STT, and TTS. A
+developer can also run the OpenAI checks locally with their own keys by
+following the demo certification guide.
+
+Praval Research is optional downstream integration evidence. Its state does
+not block a framework patch release.
+
 ## Release sequence
 
-1. Update `pyproject.toml`, changelog, release notes, examples, and current
-   documentation in a reviewable PR.
-2. Make the candidate commit clean and merge it to `main`.
-3. Let `main` CI test Python 3.9 through 3.13 and produce the exact package and
-   documentation artifacts for that commit.
-4. Verify offline and service-backed demos against that wheel.
-5. Manually dispatch the protected `live-demo` workflow from `main`. It must
-   reuse the successful CI artifact and validate real providers, HITL,
-   multimodal input, embeddings, STT, and TTS.
-6. Prepare the corresponding `praval-ai` PR from the exact-wheel documentation
-   artifact, but do not merge it yet.
-7. Create `v<version>` on the exact certified `main` commit.
-8. The tag workflow verifies commit, version, wheel hash, live certificate, and
-   release notes, then pauses at the protected `pypi` environment.
-9. Approve trusted publishing. The workflow publishes only `verified/dist/`
-   and attaches the evidence to the GitHub release.
-10. After PyPI reports the release, merge the `praval-ai` PR and verify the
-    production site.
+1. Update the version, changelog, release notes, examples, and current docs in
+   one reviewable PR.
+2. Merge the clean candidate commit to `main`.
+3. Let normal `main` CI pass and produce `praval-<commit>` and
+   `praval-docs-<commit>` artifacts.
+4. Confirm offline and service-backed demo jobs passed for that exact commit.
+5. Optionally dispatch `live-demos.yml` from `main` with protected credentials.
+6. Prepare the `praval-ai` PR from the exact-wheel docs artifact. Do not merge
+   it while PyPI still reports the prior version.
+7. Download the successful `praval-<commit>` artifact. Keep its wheel under
+   `dist/` and its manifest and checksum under `evidence/`.
+8. Verify the downloaded hash and distribution:
 
-Any source change after live certification invalidates the certification and
-requires a new `main` artifact and manual live run.
+   ```bash
+   (cd dist && shasum -a 256 -c ../evidence/SHA256SUMS)
+   twine check dist/praval-0.8.1-py3-none-any.whl
+   python scripts/validate_distribution.py dist
+   python scripts/check_release_metadata.py --dist dist
+   ```
 
-## Local package validation
+9. Upload only the named wheel. Do not use a wildcard:
+
+   ```bash
+   twine upload dist/praval-0.8.1-py3-none-any.whl
+   ```
+
+10. Verify that PyPI serves the exact CI hash:
+
+    ```bash
+    python scripts/verify_pypi_wheel.py \
+      evidence/build-manifest.json \
+      --version 0.8.1
+    ```
+
+11. Create `v0.8.1` on the exact tested `main` commit and push the tag.
+12. The tag workflow retrieves the prior CI artifacts, verifies the tag,
+    documentation provenance, and PyPI wheel hash, then creates the GitHub
+    release with the same wheel and evidence.
+13. Merge the prepared `praval-ai` PR and verify the production site.
+
+Any source change after the CI build requires a new CI artifact. Do not rebuild
+locally and upload a different wheel under the same release plan.
+
+## Local candidate validation
+
+Local builds are useful before merge. They do not replace the exact `main` CI
+artifact used for publication.
 
 ```bash
 source venv/bin/activate
-python -m build
-python scripts/normalize_sdist.py dist/praval-*.tar.gz
-twine check dist/*.whl dist/*.tar.gz
+rm -rf build dist
+python -m build --wheel
+twine check dist/praval-0.8.1-py3-none-any.whl
 python scripts/validate_distribution.py dist
 python scripts/write_build_manifest.py dist --evidence-dir evidence
 python scripts/check_release_metadata.py --dist dist
 ```
 
-Do not run `twine upload dist/*` if non-distribution files have been placed in
-`dist/`. The repository contract prevents that state; `twine` accepts Python
-distributions, not JSON manifests or checksum files.
+The wheel-only contract prevents the earlier Twine error where
+`build-manifest.json` was selected as if it were a Python distribution. Twine
+accepts wheels and source distributions, not JSON evidence files. Praval now
+publishes only the named wheel and keeps every evidence file outside `dist/`.
 
 ## Post-publication verification
 
-In a clean environment, install from PyPI and verify package and CLI metadata:
+Install from PyPI in a clean environment and inspect the installation:
 
 ```bash
 python -m venv /tmp/praval-release-check
-/tmp/praval-release-check/bin/python -m pip install --upgrade praval
-/tmp/praval-release-check/bin/python -c \
-  "import importlib.metadata, praval; print(praval.__version__); print(importlib.metadata.version('praval'))"
-/tmp/praval-release-check/bin/praval --help
+/tmp/praval-release-check/bin/python -m pip install --upgrade praval==0.8.1
+/tmp/praval-release-check/bin/praval --version
+/tmp/praval-release-check/bin/praval doctor
 ```
 
 Verify that PyPI, the Git tag, GitHub release, `pravalagents.com` badge,
-`docs/versions.json`, `docs/latest`, and the versioned documentation all report
-the same version. PyPI releases cannot be replaced; use PyPI's yank mechanism
-and publish a corrected version if a serious defect is found.
+`docs/versions.json`, `docs/latest`, and the versioned documentation report the
+same version. PyPI releases cannot be replaced. If a serious defect appears,
+yank the affected release and publish a new patch version.

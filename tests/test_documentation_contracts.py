@@ -106,6 +106,7 @@ def test_readme_has_layered_navigation_and_resolving_links():
         "## Choose where to start",
         "## How the pieces fit",
         "## Install",
+        "## Check your installation",
         "## Quick start: call a model",
         "## Quick start: connect agents through Reef",
         "## Capability map",
@@ -121,11 +122,14 @@ def test_readme_has_layered_navigation_and_resolving_links():
     positions = [readme.index(heading) for heading in headings]
     assert positions == sorted(positions)
     _assert_repository_links_resolve(readme)
+    assert "Why the 0.8 line starts at 0.8.1" in readme
+    assert "praval doctor --json" in readme
+    assert "Version 0.8.1 is the first supported" in readme
 
 
 def test_release_changelog_is_substantial_and_linked():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    start = changelog.index("## [0.8.0] - 2026-07-18")
+    start = changelog.index("## [0.8.1] - Unreleased")
     end = changelog.index("## [0.7.22]", start)
     section = changelog[start:end]
     headings = [
@@ -199,10 +203,10 @@ def test_documentation_sanitizer_and_tree_hash(tmp_path):
 
 
 def test_release_notes_delegate_volatile_values_to_evidence():
-    notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.0.md").read_text()
+    notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.1.md").read_text()
 
-    assert notes.splitlines()[0] == "# Praval 0.8.0"
-    assert "Released: 2026-07-18" in notes
+    assert notes.splitlines()[0] == "# Praval 0.8.1"
+    assert "Why there is no supported 0.8.0" in notes
     assert not re.search(r"\b\d{3,5} passed\b", notes)
     assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
     assert "build-manifest.json" in notes
@@ -212,9 +216,10 @@ def test_release_notes_delegate_volatile_values_to_evidence():
 def test_dist_policy_is_documented_as_distributions_only():
     release = (ROOT / "RELEASE.md").read_text()
 
-    assert "`dist/` contains only `.whl` and `.tar.gz` files" in release
+    assert "`dist/` contains exactly one `.whl` file" in release
     assert "`evidence/` contains checksums" in release
-    assert "twine upload dist/*" in release
+    assert "twine upload dist/praval-0.8.1-py3-none-any.whl" in release
+    assert "Do not use a wildcard" in release
 
 
 def test_api_surface_report_is_json_serializable():

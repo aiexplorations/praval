@@ -43,11 +43,10 @@ python scripts/check_release_metadata.py
 python scripts/check_api_surface.py --report evidence/api-coverage.json
 sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
 
-echo "Building distribution artifacts"
+echo "Building the wheel"
 rm -rf build dist
-python -m build
-python scripts/normalize_sdist.py dist/praval-*.tar.gz
-twine check dist/*.whl dist/*.tar.gz
+python -m build --wheel
+twine check dist/*.whl
 python scripts/validate_distribution.py dist
 python scripts/write_build_manifest.py dist --evidence-dir evidence
 python scripts/check_release_metadata.py --dist dist

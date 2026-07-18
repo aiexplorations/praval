@@ -104,7 +104,7 @@ This is a request-response API. In Praval, a realtime session would keep a
 provider connection open for continuous input/output events and potentially
 bidirectional audio over WebRTC or WebSocket. Those persistent sessions,
 streaming audio conversations, and raw binary Spore transport are deferred
-beyond 0.8.0.
+beyond the 0.8 line.
 `ContentPart.audio_*` and `ContentPart.video_*` are generation inputs for
 capable providers such as Gemini; they are distinct from the transcription and
 speech helpers.

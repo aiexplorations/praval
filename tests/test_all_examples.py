@@ -210,7 +210,7 @@ def test_clean_offline_environment_removes_provider_credentials(monkeypatch, tmp
 
 
 def test_install_target_validates_extras(tmp_path):
-    wheel = tmp_path / "praval-0.8.0-py3-none-any.whl"
+    wheel = tmp_path / "praval-0.8.1-py3-none-any.whl"
 
     assert _install_target(wheel, ["mcp", "pdf", "mcp"]).endswith("[mcp,pdf]")
     with pytest.raises(ValueError, match="invalid wheel extra"):
@@ -218,15 +218,15 @@ def test_install_target_validates_extras(tmp_path):
 
 
 def test_find_wheel_requires_exactly_one_praval_wheel(tmp_path):
-    wheel = tmp_path / "praval-0.8.0-py3-none-any.whl"
+    wheel = tmp_path / "praval-0.8.1-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
     assert _find_wheel(tmp_path) == wheel
 
-    (tmp_path / "praval-0.8.1-py3-none-any.whl").write_bytes(b"wheel")
+    (tmp_path / "praval-0.8.2-py3-none-any.whl").write_bytes(b"wheel")
     with pytest.raises(ValueError, match="expected one Praval wheel"):
         _find_wheel(tmp_path)
 
-    other = tmp_path / "other-0.8.0-py3-none-any.whl"
+    other = tmp_path / "other-0.8.1-py3-none-any.whl"
     other.write_bytes(b"wheel")
     with pytest.raises(ValueError, match="not a Praval wheel"):
         _find_wheel(other)

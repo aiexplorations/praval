@@ -84,6 +84,15 @@ your application needs:
 | Documentation | `python -m pip install "praval[docs]"` | Sphinx and the documentation theme |
 | Runtime features | `python -m pip install "praval[all]"` | All optional runtime features, excluding notebooks and documentation tools |
 
+### Why the 0.8 line starts at 0.8.1
+
+Version 0.8.0 was briefly uploaded during release preparation, then withdrawn
+before Praval created a matching Git tag and GitHub release. PyPI does not
+allow a deleted release filename to be reused. Praval therefore moved to
+0.8.1 so every supported package has clear, matching provenance. There is no
+user migration between 0.8.0 and 0.8.1. Version 0.8.1 is the first supported
+release in the 0.8 line.
+
 Provider credentials are read from the standard environment variables:
 
 | Provider | Environment variable |
@@ -96,6 +105,21 @@ Provider credentials are read from the standard environment variables:
 OpenAI-compatible endpoints use an explicit base URL, API key, and model
 profile. See [Providers and capabilities](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/providers.md) for
 configuration and the tested capability matrix.
+
+## Check your installation
+
+Praval includes diagnostics that do not print secret values:
+
+```bash
+praval --version
+praval doctor
+praval doctor --json
+```
+
+`praval doctor` reports the installed version and path, Python runtime,
+available optional dependencies, and whether provider environment variables
+are present. Missing provider keys are informational because a Praval install
+does not require every provider.
 
 ## Quick start: call a model
 
@@ -298,7 +322,7 @@ Lessons 00 through 08 also have companion videos. Use the links in the
 | [Simple multi-agent system](https://github.com/aiexplorations/praval/blob/main/examples/simple_multi_agent.py) | Decorated agents and Reef delivery | None |
 | [Streaming events](https://github.com/aiexplorations/praval/blob/main/examples/streaming_events.py) | Normalized streaming events | Provider key |
 | [Structured output](https://github.com/aiexplorations/praval/blob/main/examples/structured_output_runtime.py) | Provider-constrained JSON output | Provider key |
-| [HITL tool approval](https://github.com/aiexplorations/praval/blob/main/examples/015_hitl_tool_approval.py) | Approval-protected tool execution | Provider key |
+| [HITL tool approval](https://github.com/aiexplorations/praval/blob/main/examples/015_hitl_tool_approval.py) | Deterministic approval-protected tool execution | None |
 | [Configurable embeddings](https://github.com/aiexplorations/praval/blob/main/examples/configurable_embeddings.py) | Local and provider embedding profiles | Depends on profile |
 | [Local OpenAI-compatible server](https://github.com/aiexplorations/praval/blob/main/examples/local_llm_openai_compatible.py) | Local model configuration | Local server |
 | [Request-based voice agent](https://github.com/aiexplorations/praval/blob/main/examples/request_based_voice_agent.py) | STT, agent generation, and TTS | OpenAI key |
@@ -320,7 +344,7 @@ extras, services, timeouts, and expected artifacts for release certification.
 | Common failures | [Troubleshooting](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/troubleshooting.md) |
 | Detailed learning course | [Notebook catalog](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/README.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
-| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md) |
+| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.1.md) |
 
 Build the reference documentation locally with warnings treated as errors:
 
@@ -345,7 +369,7 @@ make docs-html
   universal circuit breaker, storage fallback, or automatic reconnect layer.
 - `PravalApp` owns cleanup. It is not an isolated service container.
 
-See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.0.md)
+See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.1.md)
 for the stable scope, compatibility details, limitations, and deferred work.
 
 ## Development and release validation
@@ -363,12 +387,34 @@ make build
 
 Praval validates examples and notebooks against the exact built wheel outside
 the source tree. Normal CI runs deterministic and service-backed paths. Paid
-provider calls, real HITL, and real STT and TTS run only through protected
-manual certification.
+provider calls are optional checks that developers run with their own
+credentials. They never run on a push or pull request.
 
-Uploadable distributions live in `dist/`. Checksums, coverage, demo reports,
-voice evidence, and certification manifests live in `evidence/`. This keeps
-`twine upload dist/*` limited to the wheel and source distribution.
+For a real OpenAI HITL and voice check, set models available to your account
+and choose an output directory:
+
+```bash
+export OPENAI_API_KEY="your-key"
+export PRAVAL_OPENAI_MODEL="your-model"
+export PRAVAL_OPENAI_TRANSCRIPTION_MODEL="your-transcription-model"
+export PRAVAL_OPENAI_TTS_MODEL="your-tts-model"
+export PRAVAL_OPENAI_TTS_VOICE="your-voice"
+export PRAVAL_DEMO_REPORT_DIR="$PWD/evidence/live-openai"
+
+python examples/certification/live_hitl.py
+python examples/certification/live_voice_roundtrip.py
+```
+
+The HITL check requires a real model-generated protected tool call and verifies
+approve, edit, reject, persistence, and cross-process resume. The voice check
+runs a real STT to agent to TTS to STT round trip and writes sanitized evidence
+under `PRAVAL_DEMO_REPORT_DIR`. API use can incur provider charges. The
+[demo certification guide](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/demo-certification.md)
+also explains the optional all-provider workflow.
+
+The sole uploadable distribution lives in `dist/` as one universal wheel.
+Checksums, coverage, demo reports, voice evidence, and certification manifests
+live in `evidence/`. Upload the named wheel, never a wildcard.
 
 Read [Contributing](https://github.com/aiexplorations/praval/blob/main/CONTRIBUTING.md) before opening a change. Bug reports and
 feature requests belong in [GitHub Issues](https://github.com/aiexplorations/praval/issues).

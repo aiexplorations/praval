@@ -2,10 +2,8 @@
 
 import hashlib
 import importlib.util
-import io
 import json
 import sys
-import tarfile
 import zipfile
 from pathlib import Path
 
@@ -27,87 +25,35 @@ def _load_script(name):
     return module
 
 
-normalize_sdist = _load_script("normalize_sdist").normalize_sdist
 validation = _load_script("validate_distribution")
 _forbidden_entries = validation._forbidden_entries
 _package_version = validation._package_version
 _project_version = validation._project_version
-_sdist_text = validation._sdist_text
+validate_distribution = validation.validate
 write_manifest = _load_script("write_build_manifest").write_manifest
+validate_pypi_payload = _load_script("verify_pypi_wheel").validate_pypi_payload
 type_checks = _load_script("check_types")
 release_metadata = _load_script("check_release_metadata")
 sys.modules["build_exact_wheel_docs"] = _load_script("build_exact_wheel_docs")
 stage_docs = _load_script("stage_docs_artifact")
 
 
-def _write_sdist(path, *, mtime, uid):
-    with tarfile.open(path, "w:gz") as archive:
-        root = tarfile.TarInfo("praval-0.8.0")
-        root.type = tarfile.DIRTYPE
-        root.mode = 0o755
-        root.mtime = mtime
-        root.uid = uid
-        archive.addfile(root)
-
-        content = b"release-content\n"
-        member = tarfile.TarInfo("praval-0.8.0/README.md")
-        member.size = len(content)
-        member.mode = 0o644
-        member.mtime = mtime
-        member.uid = uid
-        archive.addfile(member, io.BytesIO(content))
-
-
-def test_normalize_sdist_produces_identical_canonical_archives(tmp_path):
-    first = tmp_path / "first.tar.gz"
-    second = tmp_path / "second.tar.gz"
-    _write_sdist(first, mtime=100, uid=501)
-    _write_sdist(second, mtime=200, uid=1000)
-
-    normalize_sdist(first, epoch=1_700_000_000)
-    normalize_sdist(second, epoch=1_700_000_000)
-
-    assert first.read_bytes() == second.read_bytes()
-    with tarfile.open(first, "r:gz") as archive:
-        for member in archive.getmembers():
-            assert member.mtime == 1_700_000_000
-            assert member.uid == 0
-            assert member.gid == 0
-            assert member.uname == ""
-            assert member.gname == ""
-
-
 def test_distribution_validation_helpers_read_versions_and_reject_generated_files():
-    assert _project_version(Path("pyproject.toml")) == "0.8.0"
-    assert _package_version(Path("src/praval/__init__.py")) == "0.8.0"
+    assert _project_version(Path("pyproject.toml")) == "0.8.1"
+    assert _package_version(Path("src/praval/__init__.py")) == "0.8.1"
     assert _forbidden_entries(
         [
-            "praval-0.8.0/docs/generated/manual.pdf",
-            "praval-0.8.0/docs/logo.png",
+            "praval-0.8.1/docs/generated/manual.pdf",
+            "praval-0.8.1/docs/logo.png",
             "praval/__pycache__/module.pyc",
             "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
         ]
     ) == [
-        "praval-0.8.0/docs/generated/manual.pdf",
-        "praval-0.8.0/docs/logo.png",
+        "praval-0.8.1/docs/generated/manual.pdf",
+        "praval-0.8.1/docs/logo.png",
         "praval/__pycache__/module.pyc",
         "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
     ]
-
-
-def test_sdist_text_reads_one_matching_member(tmp_path):
-    sdist = tmp_path / "praval-0.8.0.tar.gz"
-    content = b"schema_version = 2\n"
-    with tarfile.open(sdist, "w:gz") as archive:
-        member = tarfile.TarInfo("praval-0.8.0/examples/notebooks/manifest.toml")
-        member.size = len(content)
-        archive.addfile(member, io.BytesIO(content))
-
-    assert (
-        _sdist_text(sdist, "/examples/notebooks/manifest.toml")
-        == "schema_version = 2\n"
-    )
-    assert _sdist_text(sdist, "/missing.toml") is None
 
 
 def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
@@ -115,7 +61,6 @@ def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
     evidence_dir = tmp_path / "evidence"
     dist_dir.mkdir()
     (dist_dir / "praval.whl").write_bytes(b"wheel")
-    (dist_dir / "praval.tar.gz").write_bytes(b"sdist")
     monkeypatch.setenv("GITHUB_SHA", "abc123")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
 
@@ -127,11 +72,71 @@ def test_write_build_manifest_records_exact_artifacts(tmp_path, monkeypatch):
     assert written == manifest
     checksums = (evidence_dir / "SHA256SUMS").read_text()
     assert hashlib.sha256(b"wheel").hexdigest() in checksums
-    assert hashlib.sha256(b"sdist").hexdigest() in checksums
-    assert sorted(path.name for path in dist_dir.iterdir()) == [
-        "praval.tar.gz",
-        "praval.whl",
-    ]
+    assert sorted(path.name for path in dist_dir.iterdir()) == ["praval.whl"]
+    assert [item["filename"] for item in manifest["artifacts"]] == ["praval.whl"]
+
+
+@pytest.mark.parametrize("extra_name", ["praval.tar.gz", "build-manifest.json"])
+def test_wheel_only_release_helpers_reject_extra_files(
+    tmp_path, monkeypatch, extra_name
+):
+    dist_dir = tmp_path / "dist"
+    evidence_dir = tmp_path / "evidence"
+    dist_dir.mkdir()
+    (dist_dir / "praval-0.8.1-py3-none-any.whl").write_bytes(b"wheel")
+    (dist_dir / extra_name).write_bytes(b"extra")
+    monkeypatch.setenv("GITHUB_SHA", "abc123")
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+
+    assert "expected one distribution file, found 2" in validate_distribution(dist_dir)
+    with pytest.raises(ValueError, match="exactly one wheel"):
+        write_manifest(dist_dir, evidence_dir)
+
+
+def test_pypi_verifier_accepts_the_exact_single_wheel():
+    manifest = {
+        "artifacts": [
+            {"filename": "praval-0.8.1-py3-none-any.whl", "sha256": "abc", "size": 9}
+        ]
+    }
+    payload = {
+        "info": {"version": "0.8.1"},
+        "urls": [
+            {
+                "filename": "praval-0.8.1-py3-none-any.whl",
+                "packagetype": "bdist_wheel",
+                "digests": {"sha256": "abc"},
+                "size": 9,
+            }
+        ],
+    }
+
+    assert validate_pypi_payload(manifest, payload, "0.8.1") == []
+
+
+def test_pypi_verifier_rejects_extra_files_and_hash_mismatch():
+    manifest = {
+        "artifacts": [
+            {"filename": "praval-0.8.1-py3-none-any.whl", "sha256": "abc", "size": 9}
+        ]
+    }
+    payload = {
+        "info": {"version": "0.8.1"},
+        "urls": [
+            {
+                "filename": "praval-0.8.1-py3-none-any.whl",
+                "packagetype": "bdist_wheel",
+                "digests": {"sha256": "wrong"},
+                "size": 9,
+            },
+            {"filename": "praval-0.8.1.tar.gz", "packagetype": "sdist"},
+        ],
+    }
+
+    errors = validate_pypi_payload(manifest, payload, "0.8.1")
+
+    assert "PyPI release must contain exactly one file, found 2" in errors
+    assert "PyPI wheel SHA-256 does not match the exact CI build manifest" in errors
 
 
 def test_type_checks_cover_current_and_minimum_python_versions():
@@ -159,14 +164,14 @@ def test_python39_s3_extras_constrain_cohere_request_stubs():
         assert expected in project["optional-dependencies"][extra]
 
 
-def _write_version_wheel(path: Path, version: str = "0.8.0") -> None:
+def _write_version_wheel(path: Path, version: str = "0.8.1") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(f"praval-{version}.dist-info/METADATA", metadata)
 
 
 def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
-    _write_version_wheel(tmp_path / "praval-0.8.0-py3-none-any.whl")
+    _write_version_wheel(tmp_path / "praval-0.8.1-py3-none-any.whl")
 
     def not_installed(_name):
         raise release_metadata.importlib.metadata.PackageNotFoundError
@@ -183,8 +188,8 @@ def _write_docs_artifact(root: Path, *, commit: str) -> None:
     manifest = {
         "schema_version": 1,
         "commit": commit,
-        "version": "0.8.0",
-        "wheel": "praval-0.8.0-py3-none-any.whl",
+        "version": "0.8.1",
+        "wheel": "praval-0.8.1-py3-none-any.whl",
         "wheel_sha256": "a" * 64,
         "documentation_tree_sha256": stage_docs.tree_sha256(site),
         "file_count": 1,
@@ -226,8 +231,8 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
 
     manifest = stage_docs.stage_docs(artifact, website)
 
-    assert manifest["version"] == "0.8.0"
-    versioned = website / "docs/v0.8.0"
+    assert manifest["version"] == "0.8.1"
+    versioned = website / "docs/v0.8.1"
     latest = website / "docs/latest"
     expected_files = [Path("documentation-manifest.json"), Path("index.html")]
     assert (
@@ -248,4 +253,4 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
         if path.is_file()
     }
     versions = json.loads((website / "docs/versions.json").read_text())
-    assert versions["current"] == versions["latest"] == "0.8.0"
+    assert versions["current"] == versions["latest"] == "0.8.1"

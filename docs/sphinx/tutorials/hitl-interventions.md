@@ -78,5 +78,5 @@ If a tool requires approval while HITL is disabled, Praval raises
 MCP tools use the same approval flow but are async-only in this release. Resume
 those runs with the async Agent API.
 
-The protected live certification verifies a real provider-generated call,
-persistent interruption, argument editing or approval, and resume.
+The optional protected live certification verifies a real provider-generated
+call, persistent interruption, argument editing or approval, and resume.

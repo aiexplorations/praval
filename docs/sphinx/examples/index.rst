@@ -85,7 +85,7 @@ Gemini Multimodal File Input
 Shows how to pass a URI returned by the Gemini Files API as a
 ``ContentPart.file_url``. The example accepts PDF, audio, video, and other MIME
 types supported by the selected Gemini model. Uploading local files is outside
-the Praval 0.8.0 adapter.
+the Praval 0.8 adapter.
 
 **Run it**:
 
