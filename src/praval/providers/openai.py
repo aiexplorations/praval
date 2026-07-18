@@ -764,7 +764,7 @@ class OpenAIProvider:
             "temperature": request.temperature,
             "max_output_tokens": request.max_output_tokens or self._max_output_tokens(),
         }
-        formatted_tools = self._format_tool_specs_for_openai(request.tools)
+        formatted_tools = self._format_tool_specs_for_responses(request.tools)
         formatted_tools.extend(self._experimental_tools(request))
         if formatted_tools:
             call_params["tools"] = formatted_tools
@@ -990,6 +990,23 @@ class OpenAIProvider:
             if spec.strict:
                 function_def["strict"] = True
             formatted_tools.append({"type": "function", "function": function_def})
+        return formatted_tools
+
+    def _format_tool_specs_for_responses(
+        self, tool_specs: List[ToolSpec]
+    ) -> List[Dict[str, Any]]:
+        """Format client functions for the OpenAI Responses API."""
+        formatted_tools = []
+        for spec in tool_specs:
+            function_def: Dict[str, Any] = {
+                "type": "function",
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters,
+            }
+            if spec.strict:
+                function_def["strict"] = True
+            formatted_tools.append(function_def)
         return formatted_tools
 
     def _openai_response_format(self, config: Any) -> Dict[str, Any]:

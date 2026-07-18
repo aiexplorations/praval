@@ -246,13 +246,17 @@ def validate_wav(data: bytes) -> Dict[str, Any]:
     import io
 
     with wave.open(io.BytesIO(data), "rb") as handle:
-        frames = handle.getnframes()
+        declared_frames = handle.getnframes()
         rate = handle.getframerate()
         channels = handle.getnchannels()
         width = handle.getsampwidth()
-        payload = handle.readframes(frames)
+        payload = handle.readframes(declared_frames)
+    frame_size = channels * width
+    frames = len(payload) // frame_size if frame_size > 0 else 0
     if frames <= 0 or rate <= 0 or channels <= 0 or width <= 0:
         raise AssertionError("WAV contains no decodable audio frames")
+    if len(payload) % frame_size:
+        raise AssertionError("WAV contains an incomplete PCM frame")
     if not payload or all(byte == 0 for byte in payload):
         raise AssertionError("WAV contains only silence")
     return {

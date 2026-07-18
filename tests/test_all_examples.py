@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
+import hashlib
 import importlib.util
 import sys
 from pathlib import Path
@@ -18,6 +21,14 @@ run_demos = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = run_demos
 SPEC.loader.exec_module(run_demos)
 
+SUPPORT_SPEC = importlib.util.spec_from_file_location(
+    "praval_certification_support",
+    ROOT / "examples" / "certification" / "support.py",
+)
+assert SUPPORT_SPEC is not None and SUPPORT_SPEC.loader is not None
+certification_support = importlib.util.module_from_spec(SUPPORT_SPEC)
+SUPPORT_SPEC.loader.exec_module(certification_support)
+
 Demo = run_demos.Demo
 DemoManifest = run_demos.DemoManifest
 ManifestError = run_demos.ManifestError
@@ -31,6 +42,7 @@ is_transient_failure = run_demos.is_transient_failure
 load_manifest = run_demos.load_manifest
 sanitize_text = run_demos.sanitize_text
 _provider_matrix = run_demos._provider_matrix
+validate_wav = certification_support.validate_wav
 
 
 def test_repository_manifest_registers_every_python_example():
@@ -58,6 +70,24 @@ def test_every_stable_feature_has_executable_certification():
     assert set(manifest.stable_features) <= covered
     assert {"offline", "services", "live"} == {
         mode for demo in manifest.demos for mode in demo.modes
+    }
+
+
+def test_live_voice_fixture_is_complete_and_has_accurate_wav_metadata():
+    assets = ROOT / "examples" / "certification" / "assets"
+    encoded = (assets / "voice_input.wav.gz.base64").read_text(encoding="ascii")
+    audio = gzip.decompress(base64.b64decode(encoded))
+
+    assert hashlib.sha256(audio).hexdigest() == (
+        "31623eb9d325a8f488a185ac4669fa0c46e9a3134d3fa6d7405edc3686d995a2"
+    )
+    metadata = validate_wav(audio)
+    assert metadata == {
+        "frames": 81600,
+        "sample_rate": 24000,
+        "channels": 1,
+        "sample_width": 2,
+        "duration_seconds": 3.4,
     }
 
 

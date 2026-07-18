@@ -20,8 +20,9 @@ from praval import Agent
 PHRASE_PATH = Path(__file__).with_name("assets") / "voice_phrase.txt"
 VOICE_FIXTURE_PATH = Path(__file__).with_name("assets") / "voice_input.wav.gz.base64"
 VOICE_FIXTURE_SHA256 = (
-    "041f5f356daec0d916580e31cc7913ba4837fc29a5fb3a0b2a3e8f5ac926648b"
+    "31623eb9d325a8f488a185ac4669fa0c46e9a3134d3fa6d7405edc3686d995a2"
 )
+TRANSCRIPTION_PROMPT = "The product name is Praval."
 
 
 def normalized_words(value: str) -> set[str]:
@@ -68,6 +69,7 @@ def main() -> None:
             input_path,
             model=values["PRAVAL_OPENAI_TRANSCRIPTION_MODEL"],
             language="en",
+            prompt=TRANSCRIPTION_PROMPT,
             timeout=60,
         )
         require_words(
@@ -97,6 +99,7 @@ def main() -> None:
             reply_path,
             model=values["PRAVAL_OPENAI_TRANSCRIPTION_MODEL"],
             language="en",
+            prompt=TRANSCRIPTION_PROMPT,
             timeout=60,
         )
         require_words(roundtrip, {"praval", "voice", "succeeded"}, "round trip")

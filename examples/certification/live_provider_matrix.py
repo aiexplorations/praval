@@ -217,7 +217,7 @@ def certify_multimodal() -> Dict[str, Any]:
             base64.b64encode(
                 committed_fixture(
                     "voice_input.wav.gz.base64",
-                    "041f5f356daec0d916580e31cc7913ba4837fc29a5fb3a0b2a3e8f5ac926648b",
+                    "31623eb9d325a8f488a185ac4669fa0c46e9a3134d3fa6d7405edc3686d995a2",
                     compressed=True,
                 )
             ).decode("ascii"),

@@ -19,6 +19,7 @@ from praval.models import (
     ReasoningConfig,
     SpeechRequest,
     StructuredOutputConfig,
+    ToolSpec,
     TranscriptionRequest,
 )
 from praval.providers.anthropic import AnthropicProvider
@@ -499,6 +500,65 @@ class TestOpenAIProvider:
         assert call_kwargs["tools"] == [{"type": "web_search"}]
         assert "experimental_tools" not in call_kwargs
         assert "allow_experimental_tools" not in call_kwargs
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
+    @patch("openai.OpenAI")
+    def test_openai_responses_uses_top_level_function_tool_schema(
+        self, mock_openai_class
+    ):
+        """Responses functions use a different shape from Chat Completions."""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.id = "resp-tool"
+        mock_response.output_text = ""
+        mock_response.output = []
+        mock_response.usage = None
+        mock_openai_class.return_value = mock_client
+        mock_client.responses.create.return_value = mock_response
+
+        provider = OpenAIProvider(AgentConfig(model="gpt-5.4-mini"))
+        request = ModelRequest(
+            provider="openai",
+            model="gpt-5.4-mini",
+            messages=[ModelMessage(role="user", content="multiply")],
+            tools=[
+                ToolSpec(
+                    name="multiply",
+                    description="Multiply two integers.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "integer"},
+                            "b": {"type": "integer"},
+                        },
+                        "required": ["a", "b"],
+                        "additionalProperties": False,
+                    },
+                    strict=True,
+                )
+            ],
+            provider_options={"endpoint": "responses"},
+        )
+
+        provider.invoke(request)
+
+        assert mock_client.responses.create.call_args.kwargs["tools"] == [
+            {
+                "type": "function",
+                "name": "multiply",
+                "description": "Multiply two integers.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "integer"},
+                        "b": {"type": "integer"},
+                    },
+                    "required": ["a", "b"],
+                    "additionalProperties": False,
+                },
+                "strict": True,
+            }
+        ]
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "fake-test-key"})
     @patch("openai.OpenAI")
