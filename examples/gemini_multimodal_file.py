@@ -2,7 +2,7 @@
 
 Upload the input with Gemini's Files API first, then pass the returned file URI
 to this example. Praval serializes the reference as Gemini ``fileData``; it does
-not upload local files in 0.8.0.
+not upload local files in the 0.8 line.
 """
 
 import argparse

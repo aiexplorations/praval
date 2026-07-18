@@ -373,7 +373,7 @@ def test_secret_redaction_applies_to_logs_and_notebook_outputs() -> None:
 
 
 def test_install_target_validates_notebook_extras(tmp_path: Path) -> None:
-    wheel = tmp_path / "praval-0.8.0-py3-none-any.whl"
+    wheel = tmp_path / "praval-0.8.1-py3-none-any.whl"
 
     assert _install_target(wheel, ["mcp", "secure", "mcp"]).endswith("[mcp,secure]")
     with pytest.raises(ValueError, match="invalid wheel extra"):

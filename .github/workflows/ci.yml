@@ -161,9 +161,8 @@ jobs:
         shell: bash
         run: |
           export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
-          python -m build
-          python scripts/normalize_sdist.py dist/praval-*.tar.gz
-          twine check dist/*.whl dist/*.tar.gz
+          python -m build --wheel
+          twine check dist/*.whl
           python scripts/validate_distribution.py dist
           python scripts/write_build_manifest.py dist --evidence-dir evidence
           python scripts/check_release_metadata.py --dist dist
@@ -173,7 +172,6 @@ jobs:
           name: praval-${{ github.sha }}
           path: |
             dist/*.whl
-            dist/*.tar.gz
             evidence/SHA256SUMS
             evidence/build-manifest.json
           if-no-files-found: error

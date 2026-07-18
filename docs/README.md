@@ -38,7 +38,7 @@ python scripts/build_exact_wheel_docs.py \
 
 The release artifact records the wheel hash, installed version, commit, and
 HTML tree hash. Generated HTML, doctrees, caches, backups, and PDFs do not
-belong in the source distribution. The isolated builder installs the
+belong in the source repository. The isolated builder installs the
 documentation, MCP, and secure-transport extras so autodoc can resolve the
 supported public type annotations.
 

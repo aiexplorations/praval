@@ -216,10 +216,11 @@ pytest tests/ -m integration                # Only integration tests
 `praval.__version__` comes from installed distribution metadata. Validate the
 contract with `python scripts/check_release_metadata.py`.
 
-Releases reuse the successful `main` CI wheel and sdist. After protected live
-certification, create the version tag on that exact commit. The tag workflow
-verifies the artifact, pauses at the protected `pypi` environment, and uses
-trusted publishing. Do not rebuild or upload a local artifact manually.
+Releases reuse the sole wheel from a successful `main` CI run. Optional live
+certification can add real-provider evidence. Upload the named CI wheel with
+Twine, verify it on PyPI, and then create the version tag on that exact commit.
+The tag workflow verifies the PyPI hash and creates the GitHub release. Do not
+rebuild or upload a different local artifact.
 
 Keep distributions in `dist/` and JSON/checksum/certification files in
 `evidence/`. Prepare the `praval-ai` documentation PR from the exact-wheel docs

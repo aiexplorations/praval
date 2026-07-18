@@ -8,7 +8,7 @@ recursive-include examples *.py
 recursive-include scripts *.py *.sh
 include examples/manifest.toml
 recursive-include examples/certification/assets *.txt *.base64 *.md
-recursive-include examples/notebooks *.ipynb *.toml *.md *.py *.json *.txt *.base64 *.svg
+recursive-include examples/notebooks *.ipynb *.toml *.md *.py *.json *.base64 *.svg
 include examples/notebooks/fixtures/SHA256SUMS
 recursive-include docs *.md
 recursive-include docs *.png
@@ -21,11 +21,5 @@ recursive-exclude docs/archive *
 recursive-exclude docs/sphinx/api/generated *
 exclude docs/logo.png
 exclude docs/sphinx/_static/praval-logo.png
-recursive-exclude examples/venv *
-recursive-exclude examples/downloaded_papers *
 prune examples/notebooks/course/.ipynb_checkpoints
 prune examples/notebooks/case_studies/.ipynb_checkpoints
-global-exclude *-checkpoint.ipynb
-recursive-exclude * __pycache__
-recursive-exclude * *.py[co]
-global-exclude .DS_Store

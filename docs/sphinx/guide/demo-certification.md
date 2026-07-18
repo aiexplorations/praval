@@ -1,9 +1,9 @@
 # Exact-wheel demo certification
 
-Praval's release confidence comes from running the examples against the wheel
-that CI built, rather than importing the checkout. The manifest at
-`examples/manifest.toml` maps every Python example to its feature coverage,
-execution mode, optional extras, services, timeout, and expected artifacts.
+Praval runs examples against the installed wheel rather than importing the
+source checkout. The manifest at `examples/manifest.toml` maps every Python
+example to its features, execution mode, extras, services, timeout, and output
+artifacts.
 
 ## Offline and service checks
 
@@ -12,41 +12,77 @@ Run deterministic checks locally or in normal CI with a built wheel:
 ```bash
 python scripts/run_demos.py \
   --manifest examples/manifest.toml \
-  --wheel dist/praval-0.8.0-py3-none-any.whl \
+  --wheel dist/praval-0.8.1-py3-none-any.whl \
   --mode offline \
   --report-dir /tmp/praval-demo-results
 ```
 
-The runner creates a temporary virtual environment, installs the supplied wheel
-and the extras used by the selected demos, clears `PYTHONPATH`, and executes
-from outside the checkout. It verifies the installed version and wheel hash.
-Service mode expects the ephemeral PostgreSQL, Redis, RabbitMQ, MinIO, Qdrant,
-and OTLP endpoints supplied by CI.
+The runner creates a temporary virtual environment, installs the supplied
+wheel and selected extras, clears `PYTHONPATH`, and executes outside the
+checkout. It verifies the installed version and wheel hash. Service mode
+expects the PostgreSQL, Redis, RabbitMQ, MinIO, Qdrant, and OTLP endpoints that
+normal CI starts for the job.
 
-Tutorial files remain registered and are compiled on every applicable run.
-Focused certification examples execute deterministic behavior for agents,
-Reef and Spores, tools, memory, PDF extraction, storage, observability, MCP,
-and packaging. A required demo cannot report `SKIP` or silently succeed because
-credentials are missing.
+Tutorial files are registered and compiled on every applicable run. Focused
+certification examples execute deterministic paths for agents, Reef and
+Spores, tools, memory, PDF extraction, storage, observability, MCP, and
+packaging. A required demo cannot report `SKIP` or silently pass because a
+credential is missing.
 
-## Protected live certification
+## Optional real OpenAI checks
 
-Paid provider and speech calls run only from the manually dispatched
-`live-demos.yml` workflow on trusted `main`, behind the protected `live-demo`
-environment. The workflow retrieves the successful CI artifact for the exact
-commit and never rebuilds it. It certifies all five provider families, real
-HITL tool calls, and the request-based voice path:
+Developers can supply their own OpenAI key and model names. These checks call
+paid APIs and can incur charges. They are not required to install or use the
+framework.
 
-```text
-committed WAV -> OpenAI STT -> Praval agent -> OpenAI TTS (WAV) -> OpenAI STT
+```bash
+export OPENAI_API_KEY="your-key"
+export PRAVAL_OPENAI_MODEL="your-model"
+export PRAVAL_OPENAI_TRANSCRIPTION_MODEL="your-transcription-model"
+export PRAVAL_OPENAI_TTS_MODEL="your-tts-model"
+export PRAVAL_OPENAI_TTS_VOICE="your-voice"
+export PRAVAL_DEMO_REPORT_DIR="$PWD/evidence/live-openai"
+
+python examples/certification/live_hitl.py
+python examples/certification/live_voice_roundtrip.py
 ```
 
-The report records the commit, wheel digest, installed version, provider/model
-matrix, demo durations and usage, sanitized failures, and hashes for generated
-artifacts. Secrets, static headers, commands, and environment values are
-redacted from logs and reports. Two retries are allowed only for transient
-network, rate-limit, or provider 5xx failures.
+The HITL check requires a real model to call an approval-protected tool. It
+tests approve, edit, reject, SQLite persistence, and resume from another
+process. The voice check runs this request-based path:
 
-The live certificate is a release prerequisite. Praval Research can consume the
-same wheel afterward as optional downstream integration evidence; its status is
-not a framework publication gate.
+```text
+committed WAV -> OpenAI STT -> Praval agent -> OpenAI TTS -> OpenAI STT
+```
+
+The voice check validates the input and output WAV files, transcript keywords,
+model response, and round-trip speech. It writes media and sanitized JSON
+evidence to `PRAVAL_DEMO_REPORT_DIR`. It is not a persistent realtime audio
+session.
+
+## Optional all-provider workflow
+
+The `live-demos.yml` workflow has `workflow_dispatch` as its only trigger. It
+runs from trusted `main` and uses the `live-demo` GitHub Environment. Configure
+these environment secrets:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `COHERE_API_KEY`
+- `GEMINI_API_KEY`
+- `OPENAI_COMPATIBLE_BASE_URL`
+- `OPENAI_COMPATIBLE_API_KEY`
+
+Configure the matching `PRAVAL_<PROVIDER>_MODEL` environment variables plus
+the OpenAI and Gemini embedding models, OpenAI transcription model, OpenAI TTS
+model, and TTS voice listed in the workflow. The workflow retrieves the
+successful CI wheel for the selected commit and never rebuilds it.
+
+The report records the commit, wheel digest, installed version, provider and
+model matrix, durations, usage, sanitized failures, and hashes for generated
+artifacts. Secrets and configured endpoints are redacted. Two retries are
+allowed only for transient network, rate-limit, or provider 5xx failures.
+
+Live results are useful compatibility evidence, but they are not a publication
+gate for this framework patch release. Praval Research can consume the same
+wheel as optional downstream integration evidence.

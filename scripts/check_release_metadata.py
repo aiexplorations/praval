@@ -100,14 +100,31 @@ def validate(
         errors.append(
             "praval.__version__ must come from installed distribution metadata"
         )
+    version_literal = re.compile(r"(?<![\w.])\d+\.\d+\.\d+(?![\w.])")
     for relative in (
         "src/praval/observability/__init__.py",
         "src/praval/observability/export/otlp_exporter.py",
         "docs/sphinx/conf.py",
     ):
         text = (root / relative).read_text(encoding="utf-8")
-        if re.search(r"(?<![\w.])0\.8\.0(?![\w.])", text):
+        if version_literal.search(text):
             errors.append(f"{relative} contains a hard-coded package version")
+
+    release_notes = root / "docs/releases" / f"RELEASE_NOTES_{expected}.md"
+    if not release_notes.is_file():
+        errors.append(f"release notes are missing for {expected}")
+    elif not release_notes.read_text(encoding="utf-8").startswith(
+        f"# Praval {expected}\n"
+    ):
+        errors.append(f"release notes title does not match {expected}")
+
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    if f"## [{expected}]" not in changelog:
+        errors.append(f"CHANGELOG.md has no section for {expected}")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    expected_notes_link = f"docs/releases/RELEASE_NOTES_{expected}.md"
+    if expected_notes_link not in readme:
+        errors.append(f"README.md does not link to release notes for {expected}")
 
     stale_pattern = re.compile(r"(?<![\w.])0\.7\.(?:11|16|18|20|22)(?![\w.])")
     stale: List[str] = []

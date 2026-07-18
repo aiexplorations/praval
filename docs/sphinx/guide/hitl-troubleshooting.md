@@ -1,6 +1,6 @@
 # HITL Troubleshooting
 
-Common issues for Human-in-the-Loop (HITL) interventions in Praval 0.8.0.
+Common issues for Human-in-the-Loop (HITL) interventions in Praval 0.8.
 
 ## `HITLConfigurationError`
 

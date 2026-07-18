@@ -34,7 +34,7 @@ help:
 	@echo ""
 	@echo "📦 Build & Release:"
 	@echo "  build        - Build package (requires 90% test coverage)"
-	@echo "  package-check - Validate existing wheel and sdist"
+	@echo "  package-check - Validate the existing release wheel"
 	@echo "  reproducible-build - Build twice and compare artifacts"
 	@echo "  release      - Interactive release wizard (patch/minor/major)"
 	@echo "  clean        - Clean build artifacts"
@@ -61,7 +61,7 @@ build:
 	./scripts/build.sh
 
 package-check:
-	./venv/bin/twine check dist/*.whl dist/*.tar.gz
+	./venv/bin/twine check dist/*.whl
 	./venv/bin/python scripts/validate_distribution.py dist
 	./venv/bin/python scripts/check_release_metadata.py --dist dist
 
@@ -95,12 +95,11 @@ coverage-check:
 	./venv/bin/python scripts/check_coverage_floors.py coverage.json
 	@echo "✅ Coverage requirement met!"
 
-# Releases are produced and published by protected GitHub workflows.
+# Release wheels are produced by CI, uploaded with Twine, and verified on tags.
 release:
-	@echo "Direct local publication is disabled."
-	@echo "Run 'make build', merge the candidate to main, then manually certify"
-	@echo "that exact CI wheel in the protected live-demo GitHub environment."
-	@echo "Tagging and trusted publishing reuse that exact certified artifact."
+	@echo "Run 'make build', merge the candidate to main, and download its exact wheel."
+	@echo "Upload only that wheel with Twine, verify it on PyPI, and then create the tag."
+	@echo "The tag workflow verifies the PyPI hash and creates the GitHub release."
 	@exit 1
 
 # Documentation targets

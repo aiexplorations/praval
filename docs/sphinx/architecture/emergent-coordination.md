@@ -1,6 +1,6 @@
 # Emergent Coordination Architecture
 
-This page connects the 0.8.0 runtime work with Praval's original
+This page connects the 0.8 runtime work with Praval's original
 architecture. It synthesizes the current package code and the maintained source
 material in `~/Github/praval-ai`, especially the architecture, framework
 comparison, scaling, and whitepaper drafts. Generated website output and PDFs
@@ -18,7 +18,7 @@ typed interactions:
 - Memory, tools, HITL, storage, and observability support the agent network
   without forcing all behavior through a single orchestrator.
 
-The model runtime added in 0.8.0 makes provider execution more explicit.
+The model runtime added in the 0.8 line makes provider execution more explicit.
 It validates capabilities, normalizes streaming events, handles structured
 outputs, supports local OpenAI-compatible servers, and owns tool/HITL runtime
 policy. It sits inside the agent boundary; it does not replace Reef or Spore
@@ -103,13 +103,13 @@ context, but release docs should treat those numbers as illustrative unless
 the benchmark harness, model versions, hardware, prompts, and provider settings
 are captured in this repository and run in CI or a documented benchmark job.
 
-For 0.8.0, the maintained documentation should state architectural
+For the 0.8 line, the maintained documentation should state architectural
 tradeoffs and provide reproducible examples. It should not overstate speed or
 quality claims without a versioned benchmark artifact.
 
 ## Documentation Policy
 
 Sphinx source under `docs/sphinx` is the canonical documentation surface for
-0.8.0. Content from `~/Github/praval-ai` should be ported into Sphinx as
+the 0.8 line. Content from `~/Github/praval-ai` should be ported into Sphinx as
 maintained pages, examples, and ADRs. Generated website output, generated API
 pages, and PDFs should remain build artifacts or legacy background.
