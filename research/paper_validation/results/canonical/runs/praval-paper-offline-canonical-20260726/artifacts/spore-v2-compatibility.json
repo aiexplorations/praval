@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "legacy_and_v2_json_roundtrip": true,
+    "raw_binary_rejected": true,
+    "v2_amqp_roundtrip": true
+  },
+  "details": {
+    "amqp_roundtrips": 30,
+    "json_roundtrips": 60
+  },
+  "limitations": [],
+  "metrics": {
+    "json_roundtrip_seconds": {
+      "count": 30.0,
+      "maximum": 3.5042e-05,
+      "mean": 1.89819e-05,
+      "mean_bootstrap_95_ci": [
+        1.781689e-05,
+        2.0364844999999995e-05
+      ],
+      "median": 1.8729499999999997e-05,
+      "minimum": 1.2791e-05,
+      "p50": 1.8729499999999997e-05,
+      "p95": 2.3052049999999992e-05,
+      "p99": 3.186389000000001e-05,
+      "standard_deviation": 3.749850933588952e-06
+    }
+  },
+  "sample_count": 30,
+  "status": "passed"
+}

@@ -1,0 +1,139 @@
+{
+  "checks": {
+    "approve_and_edit_exactly_once": true,
+    "cancelled_run_is_durable": true,
+    "edit_preserves_original_and_edited_args": true,
+    "expiration_is_durable": true,
+    "protected_tool_not_run_before_decision": true,
+    "reject_does_not_execute": true,
+    "suspension_crosses_process_boundary": true
+  },
+  "details": {
+    "cancelled_intervention_status": "PENDING",
+    "cancelled_run_status": "cancelled",
+    "cases": [
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "approve",
+        "edited_args": null,
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "4"
+      },
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "edit",
+        "edited_args": {
+          "value": 7
+        },
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "14"
+      },
+      {
+        "after_execution_count": 0,
+        "before_execution_count": 0,
+        "decision": "reject",
+        "edited_args": null,
+        "expected_execution_count": 0,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "Rejected by human reviewer: negative control"
+      },
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "approve",
+        "edited_args": null,
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "4"
+      },
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "edit",
+        "edited_args": {
+          "value": 7
+        },
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "14"
+      },
+      {
+        "after_execution_count": 0,
+        "before_execution_count": 0,
+        "decision": "reject",
+        "edited_args": null,
+        "expected_execution_count": 0,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "Rejected by human reviewer: negative control"
+      },
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "approve",
+        "edited_args": null,
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "4"
+      },
+      {
+        "after_execution_count": 1,
+        "before_execution_count": 0,
+        "decision": "edit",
+        "edited_args": {
+          "value": 7
+        },
+        "expected_execution_count": 1,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "14"
+      },
+      {
+        "after_execution_count": 0,
+        "before_execution_count": 0,
+        "decision": "reject",
+        "edited_args": null,
+        "expected_execution_count": 0,
+        "interrupted": true,
+        "original_args": {
+          "value": 2
+        },
+        "result": "Rejected by human reviewer: negative control"
+      }
+    ],
+    "expired_status": "EXPIRED"
+  },
+  "limitations": [
+    "Cancelling a suspended run does not change its pending intervention to CANCELLED in Praval 0.8.1.",
+    "The probe validates durable tool decisions and continuation records, not recovery of arbitrary application-local state."
+  ],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

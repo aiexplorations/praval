@@ -1,0 +1,37 @@
+{
+  "runs": [
+    {
+      "curation_sha256": "81f2671200001eeedeb92fb5609028a7cc631b4ac297ca08fa1bf8fe8e50ec47",
+      "path": "praval-paper-comparative-canonical-v2b-20260726",
+      "run_id": "praval-paper-comparative-canonical-v2b-20260726",
+      "run_sha256": "4b7842861d25efa5c5ece5b6e5fc5f84ab535b182c4c1518cfc322cb3c73df26",
+      "status": "passed",
+      "tier": "comparative"
+    },
+    {
+      "curation_sha256": "156dcfb2cbc16c775c13b125bec921fc32815df64bfe7c8b1ad25fd340bb0df3",
+      "path": "praval-paper-live-canonical-20260726",
+      "run_id": "praval-paper-live-canonical-20260726",
+      "run_sha256": "ee9d7522479e0e6580878dfa6384c01ca23bbe953933dc9c76560d83432612d9",
+      "status": "not_run",
+      "tier": "live"
+    },
+    {
+      "curation_sha256": "5818dff9d6a5162596e794d5b49ec3fff3037b16aa7763f32db962c923f35e4c",
+      "path": "praval-paper-offline-canonical-20260726",
+      "run_id": "praval-paper-offline-canonical-20260726",
+      "run_sha256": "6a07fee09f4d83eba437bb4ab1541738fb020961a448ed6f5099c94b717f7405",
+      "status": "passed",
+      "tier": "offline"
+    },
+    {
+      "curation_sha256": "5ddf11586f64efb49f1e7cdc13d7bad5c3cff0f0789d6f8272c1f571655f6d5c",
+      "path": "praval-paper-services-canonical-v2-20260726",
+      "run_id": "praval-paper-services-canonical-v2-20260726",
+      "run_sha256": "058039f6264dadef0ebda55cb06bdee51ddae8cfd31cf06c6bf7f6c1f3309b03",
+      "status": "passed",
+      "tier": "services"
+    }
+  ],
+  "schema_version": 1
+}

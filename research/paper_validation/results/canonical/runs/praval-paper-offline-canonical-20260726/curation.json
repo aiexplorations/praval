@@ -1,0 +1,158 @@
+{
+  "artifact_count": 24,
+  "artifacts": [
+    {
+      "experiment": "abstraction-overhead",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/abstraction-overhead.json",
+      "sha256": "2b294af0d53db54311306b13a671fc33d8424ea743feef26e1e3d5fa101ee69c",
+      "size": 4248
+    },
+    {
+      "experiment": "abstraction-overhead",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/abstraction-overhead.samples.jsonl",
+      "sha256": "8a9948172e6ad56252020f16e95390d3a98f9b12c4d5c947d1006f8ee86f9b7c",
+      "size": 687440
+    },
+    {
+      "experiment": "capability-resolution",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/capability-resolution.json",
+      "sha256": "37fc0073cd52cb8417079fecfbc11d804053d7b5a00bc6cd0bde4223c9a04ecf",
+      "size": 714
+    },
+    {
+      "experiment": "capability-resolution",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/capability-resolution.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "experiment": "choreography-critical-path",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/choreography-critical-path.json",
+      "sha256": "ea1637660f63013d2ff33371ed9533a7e2c4cb1551c42218de39584ad97e429a",
+      "size": 4924
+    },
+    {
+      "experiment": "choreography-critical-path",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/choreography-critical-path.samples.jsonl",
+      "sha256": "47901cc818a90724db92c663d6512ce12a9404461ebedcdc1fbc13d775f13327",
+      "size": 155904
+    },
+    {
+      "experiment": "data-observability-contracts",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/data-observability-contracts.json",
+      "sha256": "e38f0d80fc9db3836b0467c60d819642f4ac9ccf13967b149771d4780be38d50",
+      "size": 825
+    },
+    {
+      "experiment": "data-observability-contracts",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/data-observability-contracts.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "experiment": "exact-wheel-identity",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/exact-wheel-identity.json",
+      "sha256": "41ff20c84cf15c938fcf9acc3d69da716b4bd8f07891ed30cf4226e166fe19f1",
+      "size": 498
+    },
+    {
+      "experiment": "exact-wheel-identity",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/exact-wheel-identity.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "experiment": "hitl-process-recovery",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/hitl-process-recovery.json",
+      "sha256": "7dc76c8449ae01c1b92e3fdd77ad4304446e29a8487767abbc4f320610f7210e",
+      "size": 3700
+    },
+    {
+      "experiment": "hitl-process-recovery",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/hitl-process-recovery.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "experiment": "lifecycle-failure",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/lifecycle-failure.json",
+      "sha256": "58a97ed16852f78c8dc663fd5a8694a36642769c8314afa816491b9db17faf09",
+      "size": 7656
+    },
+    {
+      "experiment": "lifecycle-failure",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/lifecycle-failure.samples.jsonl",
+      "sha256": "0c854df7da045eb823148580942cd5bd93772bb221fe39d7eefeac0ab6aa4b31",
+      "size": 1795
+    },
+    {
+      "experiment": "mcp-safety",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/mcp-safety.json",
+      "sha256": "1f7849414adc856fd435ec1749c72996f7b3689c97d06ddf72f940bec6998cc4",
+      "size": 952
+    },
+    {
+      "experiment": "mcp-safety",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/mcp-safety.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "experiment": "reef-scaling-inmemory",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/reef-scaling-inmemory.json",
+      "sha256": "830908bbb90fab89b157714d182447da46f0fd9980488e92e4c75de32e97f31d",
+      "size": 22209
+    },
+    {
+      "experiment": "reef-scaling-inmemory",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/reef-scaling-inmemory.samples.jsonl",
+      "sha256": "9cffced60afb4bc97cdffface176cb2e3794e17c34bcb32177f8752933f88c6d",
+      "size": 5309973
+    },
+    {
+      "experiment": "runtime-contracts",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/runtime-contracts.json",
+      "sha256": "1bc55b03cd7326fb988aa327e0d97f35919328627706d8e872c28072a4c0a125",
+      "size": 875
+    },
+    {
+      "experiment": "runtime-contracts",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/runtime-contracts.samples.jsonl",
+      "sha256": "4246430e30bb77ec42cd6d471d32f9b8c4105326d7e83fcbb2160dc12c8f4b3f",
+      "size": 1675
+    },
+    {
+      "experiment": "secure-spore-behavior",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/secure-spore-behavior.json",
+      "sha256": "274ec496fbca96cfbcffdf243c9d4cd0a2d6222ff329b82eea6d6fe1e5664e9f",
+      "size": 2221
+    },
+    {
+      "experiment": "secure-spore-behavior",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/secure-spore-behavior.samples.jsonl",
+      "sha256": "7688ecbc83645e0604a25fa59df048459a60083ef827939bb16e232f535932c5",
+      "size": 38017
+    },
+    {
+      "experiment": "spore-v2-compatibility",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/spore-v2-compatibility.json",
+      "sha256": "91e91b4b8c45526531286ba169bfa2772fc6df87389213d7fd80e1b82f57ab77",
+      "size": 723
+    },
+    {
+      "experiment": "spore-v2-compatibility",
+      "path": "praval-paper-offline-canonical-20260726/artifacts/spore-v2-compatibility.samples.jsonl",
+      "sha256": "c1fe4fbbc8e413f35f22b215d8461a156682ed7dae52f5c4fa48b6a6e6f04fe0",
+      "size": 2242
+    }
+  ],
+  "excluded": [
+    "install and worker logs",
+    "service databases and container volumes",
+    "unregistered files",
+    "private or large media"
+  ],
+  "run_id": "praval-paper-offline-canonical-20260726",
+  "schema_version": 1,
+  "source_run_sha256": "6a07fee09f4d83eba437bb4ab1541738fb020961a448ed6f5099c94b717f7405"
+}

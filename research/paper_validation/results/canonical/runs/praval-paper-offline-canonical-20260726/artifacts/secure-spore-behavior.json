@@ -1,0 +1,78 @@
+{
+  "checks": {
+    "expiration_is_enforced_by_object": true,
+    "roundtrips": true,
+    "tampering_rejected": true,
+    "wrong_key_rejected": true
+  },
+  "details": {},
+  "limitations": [
+    "Behavioral tests are not a cryptographic proof.",
+    "Praval 0.8.1 uses long-lived Box keys; this does not validate perfect forward secrecy.",
+    "The rotate_keys helper has no production key-distribution or grace-period protocol."
+  ],
+  "metrics": {
+    "decryption_seconds": {
+      "count": 120.0,
+      "maximum": 0.003264042,
+      "mean": 0.0014124308666666667,
+      "mean_bootstrap_95_ci": [
+        0.0012414516147916668,
+        0.0015707770395833333
+      ],
+      "median": 0.0009740625,
+      "minimum": 0.000769083,
+      "p50": 0.0009740625,
+      "p95": 0.0030236985500000004,
+      "p99": 0.0031666104200000003,
+      "standard_deviation": 0.0009251926587808975
+    },
+    "deserialization_seconds": {
+      "count": 120.0,
+      "maximum": 1.3e-05,
+      "mean": 3.5208833333333333e-06,
+      "mean_bootstrap_95_ci": [
+        3.196143958333333e-06,
+        3.8896979166666665e-06
+      ],
+      "median": 2.7085e-06,
+      "minimum": 1.958e-06,
+      "p50": 2.7085e-06,
+      "p95": 7.539599999999998e-06,
+      "p99": 1.1346500000000002e-05,
+      "standard_deviation": 2.0617724453796086e-06
+    },
+    "encryption_seconds": {
+      "count": 120.0,
+      "maximum": 0.003995417,
+      "mean": 0.0014118726333333333,
+      "mean_bootstrap_95_ci": [
+        0.0011578809556250002,
+        0.0016463235547916665
+      ],
+      "median": 0.0007095415,
+      "minimum": 0.000491,
+      "p50": 0.0007095415,
+      "p95": 0.0037990104499999997,
+      "p99": 0.0038714877099999996,
+      "standard_deviation": 0.00137435450951305
+    },
+    "serialization_seconds": {
+      "count": 120.0,
+      "maximum": 0.000309375,
+      "mean": 5.532283333333334e-06,
+      "mean_bootstrap_95_ci": [
+        2.7355675e-06,
+        1.3048910625000001e-05
+      ],
+      "median": 1.958e-06,
+      "minimum": 1.375e-06,
+      "p50": 1.958e-06,
+      "p95": 7.802399999999998e-06,
+      "p99": 9.311480000000004e-06,
+      "standard_deviation": 2.803727552821597e-05
+    }
+  },
+  "sample_count": 480,
+  "status": "passed"
+}

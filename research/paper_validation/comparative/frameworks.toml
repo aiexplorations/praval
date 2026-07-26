@@ -1,0 +1,28 @@
+schema_version = 1
+
+[framework.praval]
+distribution = "praval"
+version = "0.8.1"
+source = "dist/praval-0.8.1-py3-none-any.whl"
+wheel_sha256 = "70b0220a2ced6c0bd066423566c4e1811caa9015b128604d2bc5b3c8d57379c5"
+lock = "locks/praval.txt"
+lock_sha256 = "ecb56b3cc3ee006704c9efb0075973f2bb1268b3bfbad43c90a239f19a3564a1"
+python = ">=3.10,<3.14"
+
+[framework.langgraph]
+distribution = "langgraph"
+version = "1.2.9"
+source = "pypi"
+wheel_sha256 = "c2d98ad94333937922ba04148641c1da2bfe45b5b8e55d7b6dcb0bb2df809e76"
+lock = "locks/langgraph.txt"
+lock_sha256 = "d17aaa63d3bf1195c9ea6e6b4ab3abf5907858805673fa0501a66ac5d9b891a3"
+python = ">=3.10,<3.14"
+
+[framework.crewai]
+distribution = "crewai"
+version = "1.15.6"
+source = "pypi"
+wheel_sha256 = "966183d71ceb855672e3ea7c99abadeb1d574df7a5657489f1ae6901cb51e919"
+lock = "locks/crewai.txt"
+lock_sha256 = "197a3ebd7c38b79641866a4e12c653fa632ece5cb2572248ed7f885c5732ab29"
+python = ">=3.10,<3.14"

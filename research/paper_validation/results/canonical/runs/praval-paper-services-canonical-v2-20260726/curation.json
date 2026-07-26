@@ -1,0 +1,38 @@
+{
+  "artifact_count": 4,
+  "artifacts": [
+    {
+      "experiment": "reef-scaling-rabbitmq",
+      "path": "praval-paper-services-canonical-v2-20260726/artifacts/reef-scaling-rabbitmq.json",
+      "sha256": "1b2aa067aaf3490117f64838865e1945a8adb32bbf058286ffe272efdb65dfd7",
+      "size": 25577
+    },
+    {
+      "experiment": "reef-scaling-rabbitmq",
+      "path": "praval-paper-services-canonical-v2-20260726/artifacts/reef-scaling-rabbitmq.samples.jsonl",
+      "sha256": "46cfd8a0903bb626a2b710398bebdc078cfc8c47710d88c5a33ca8948715cc96",
+      "size": 5832833
+    },
+    {
+      "experiment": "service-integrations",
+      "path": "praval-paper-services-canonical-v2-20260726/artifacts/service-integrations.json",
+      "sha256": "629e472f91038097fe6c5d9a7df2929d28cb884837d032b231ee0712bed2f4dd",
+      "size": 954
+    },
+    {
+      "experiment": "service-integrations",
+      "path": "praval-paper-services-canonical-v2-20260726/artifacts/service-integrations.samples.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    }
+  ],
+  "excluded": [
+    "install and worker logs",
+    "service databases and container volumes",
+    "unregistered files",
+    "private or large media"
+  ],
+  "run_id": "praval-paper-services-canonical-v2-20260726",
+  "schema_version": 1,
+  "source_run_sha256": "058039f6264dadef0ebda55cb06bdee51ddae8cfd31cf06c6bf7f6c1f3309b03"
+}

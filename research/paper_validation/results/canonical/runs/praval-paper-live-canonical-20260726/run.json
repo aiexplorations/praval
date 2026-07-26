@@ -1,0 +1,64 @@
+{
+  "canonical": true,
+  "environment": {
+    "platform": {
+      "machine": "arm64",
+      "processor": "arm",
+      "release": "25.5.0",
+      "system": "Darwin"
+    },
+    "python": {
+      "executable": "/Users/rajesh/Github/praval/venv/bin/python",
+      "implementation": "CPython",
+      "version": "3.13.13"
+    },
+    "repository": {
+      "commit": "c6a99413e7aa8327bd9dd35fca0814b28e34742c",
+      "dirty": true,
+      "expected_v0.8.1_commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c",
+      "v0.8.1_commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
+    }
+  },
+  "experiments": [
+    {
+      "id": "live-capability-matrix",
+      "reason": "missing required configuration",
+      "status": "not_run"
+    }
+  ],
+  "finished_at": "2026-07-26T07:50:12.235338+00:00",
+  "limitations": [
+    "Required configuration was absent; no experiment was executed."
+  ],
+  "missing_requirements": [
+    "ANTHROPIC_API_KEY",
+    "COHERE_API_KEY",
+    "GEMINI_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENAI_COMPATIBLE_API_KEY",
+    "OPENAI_COMPATIBLE_BASE_URL",
+    "PRAVAL_ANTHROPIC_MODEL",
+    "PRAVAL_COHERE_MODEL",
+    "PRAVAL_GEMINI_EMBEDDING_MODEL",
+    "PRAVAL_GEMINI_MODEL",
+    "PRAVAL_OPENAI_COMPATIBLE_MODEL",
+    "PRAVAL_OPENAI_EMBEDDING_MODEL",
+    "PRAVAL_OPENAI_MODEL",
+    "PRAVAL_OPENAI_TRANSCRIPTION_MODEL",
+    "PRAVAL_OPENAI_TTS_MODEL",
+    "PRAVAL_OPENAI_TTS_VOICE"
+  ],
+  "run_dir": "/private/tmp/praval-paper-live-canonical-20260726",
+  "run_id": "praval-paper-live-canonical-20260726",
+  "schema_version": 1,
+  "seed": 20260726,
+  "started_at": "2026-07-26T07:50:12.168024+00:00",
+  "status": "not_run",
+  "tier": "live",
+  "wheel": {
+    "filename": "praval-0.8.1-py3-none-any.whl",
+    "provenance_commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c",
+    "sha256": "70b0220a2ced6c0bd066423566c4e1811caa9015b128604d2bc5b3c8d57379c5",
+    "version": "0.8.1"
+  }
+}

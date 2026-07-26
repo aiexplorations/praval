@@ -1,0 +1,38 @@
+{
+  "artifact_count": 4,
+  "artifacts": [
+    {
+      "experiment": "controlled-framework-comparison",
+      "path": "praval-paper-comparative-canonical-v2b-20260726/artifacts/controlled-framework-comparison.dependency-locks.json",
+      "sha256": "07ed0b74517b499755a9615d3a4af6666db89b83d098bcbfa4b93ee97661dece",
+      "size": 1759
+    },
+    {
+      "experiment": "controlled-framework-comparison",
+      "path": "praval-paper-comparative-canonical-v2b-20260726/artifacts/controlled-framework-comparison.json",
+      "sha256": "c74a4e995a14341d8be7b8da4ea70cb92911f43110c8f13f0fbd19e5d9fdcf93",
+      "size": 312924
+    },
+    {
+      "experiment": "controlled-framework-comparison",
+      "path": "praval-paper-comparative-canonical-v2b-20260726/artifacts/controlled-framework-comparison.proxy-events.jsonl",
+      "sha256": "e2dcca0234a74690b5e4aa252720ce46f4b342f15064080b9f201d4d987eaf24",
+      "size": 164216
+    },
+    {
+      "experiment": "controlled-framework-comparison",
+      "path": "praval-paper-comparative-canonical-v2b-20260726/artifacts/controlled-framework-comparison.samples.jsonl",
+      "sha256": "974c19fb791cdd1ddd99995b5cc20538f5437b7dbe1bebcfccfbd3309039c7fe",
+      "size": 364131
+    }
+  ],
+  "excluded": [
+    "install and worker logs",
+    "service databases and container volumes",
+    "unregistered files",
+    "private or large media"
+  ],
+  "run_id": "praval-paper-comparative-canonical-v2b-20260726",
+  "schema_version": 1,
+  "source_run_sha256": "4b7842861d25efa5c5ece5b6e5fc5f84ab535b182c4c1518cfc322cb3c73df26"
+}

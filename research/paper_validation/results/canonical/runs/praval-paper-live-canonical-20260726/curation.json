@@ -1,0 +1,13 @@
+{
+  "artifact_count": 0,
+  "artifacts": [],
+  "excluded": [
+    "install and worker logs",
+    "service databases and container volumes",
+    "unregistered files",
+    "private or large media"
+  ],
+  "run_id": "praval-paper-live-canonical-20260726",
+  "schema_version": 1,
+  "source_run_sha256": "ee9d7522479e0e6580878dfa6384c01ca23bbe953933dc9c76560d83432612d9"
+}

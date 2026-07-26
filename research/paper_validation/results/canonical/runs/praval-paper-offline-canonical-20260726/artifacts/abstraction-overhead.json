@@ -1,0 +1,156 @@
+{
+  "checks": {
+    "all_equivalent_paths_measured": true,
+    "external_model_time_absent": true,
+    "five_fresh_processes": true,
+    "sample_count_per_metric": true
+  },
+  "details": {
+    "process_count": 5,
+    "repetitions_per_process": 200,
+    "warmups_per_process": 20
+  },
+  "limitations": [
+    "MCP measurements use a local loopback server and small echo payloads.",
+    "Overhead values are specific to the recorded host and dependency versions."
+  ],
+  "metrics": {
+    "direct_adapter_seconds": {
+      "count": 1000.0,
+      "maximum": 1.2542e-05,
+      "mean": 1.4755059999999998e-06,
+      "mean_bootstrap_95_ci": [
+        1.4325900750000002e-06,
+        1.524087825e-06
+      ],
+      "median": 1.292e-06,
+      "minimum": 9.58e-07,
+      "p50": 1.292e-06,
+      "p95": 2.336049999999998e-06,
+      "p99": 4.292669999999998e-06,
+      "standard_deviation": 7.3610235473108e-07
+    },
+    "direct_function_seconds": {
+      "count": 1000.0,
+      "maximum": 3.33e-07,
+      "mean": 6.0686e-08,
+      "mean_bootstrap_95_ci": [
+        5.878545e-08,
+        6.264215e-08
+      ],
+      "median": 4.2e-08,
+      "minimum": 0.0,
+      "p50": 4.2e-08,
+      "p95": 8.399999999999998e-08,
+      "p99": 2.0801000000000002e-07,
+      "standard_deviation": 3.023030392297231e-08
+    },
+    "mcp_http_seconds": {
+      "count": 1000.0,
+      "maximum": 0.003748167,
+      "mean": 0.002342756125,
+      "mean_bootstrap_95_ci": [
+        0.0023299118645,
+        0.002356783504475
+      ],
+      "median": 0.002308104,
+      "minimum": 0.001998958,
+      "p50": 0.002308104,
+      "p95": 0.00268844375,
+      "p99": 0.0030695074999999997,
+      "standard_deviation": 0.00020407359079420594
+    },
+    "mcp_stdio_seconds": {
+      "count": 1000.0,
+      "maximum": 0.009027083,
+      "mean": 0.001532858912,
+      "mean_bootstrap_95_ci": [
+        0.00151700097185,
+        0.001556258598825
+      ],
+      "median": 0.0014904165,
+      "minimum": 0.001331958,
+      "p50": 0.0014904165,
+      "p95": 0.0017189021,
+      "p99": 0.0020560889899999984,
+      "standard_deviation": 0.00030139210879871157
+    },
+    "model_runtime_seconds": {
+      "count": 1000.0,
+      "maximum": 0.002143959,
+      "mean": 0.000470551901,
+      "mean_bootstrap_95_ci": [
+        0.00046282567635000003,
+        0.000478783220325
+      ],
+      "median": 0.000438917,
+      "minimum": 0.000336208,
+      "p50": 0.000438917,
+      "p95": 0.0006558506499999999,
+      "p99": 0.0011799849999999995,
+      "standard_deviation": 0.00014125824254120192
+    },
+    "observability_off_seconds": {
+      "count": 1000.0,
+      "maximum": 0.000166,
+      "mean": 4.312665e-06,
+      "mean_bootstrap_95_ci": [
+        3.694727425e-06,
+        4.992910975e-06
+      ],
+      "median": 3.416e-06,
+      "minimum": 2.875e-06,
+      "p50": 3.416e-06,
+      "p95": 4.75e-06,
+      "p99": 7.4168399999999984e-06,
+      "standard_deviation": 1.0693781030744388e-05
+    },
+    "observability_on_seconds": {
+      "count": 1000.0,
+      "maximum": 0.002034209,
+      "mean": 0.000361084263,
+      "mean_bootstrap_95_ci": [
+        0.00034996891325,
+        0.00037422363667499996
+      ],
+      "median": 0.0003237705,
+      "minimum": 0.000268167,
+      "p50": 0.0003237705,
+      "p95": 0.00046561424999999964,
+      "p99": 0.0016249687499999992,
+      "standard_deviation": 0.00019586376937659052
+    },
+    "plain_spore_seconds": {
+      "count": 1000.0,
+      "maximum": 5.5709e-05,
+      "mean": 7.580207e-06,
+      "mean_bootstrap_95_ci": [
+        7.449575425e-06,
+        7.741207575e-06
+      ],
+      "median": 7.083e-06,
+      "minimum": 5.583e-06,
+      "p50": 7.083e-06,
+      "p95": 1.1e-05,
+      "p99": 1.5127089999999999e-05,
+      "standard_deviation": 2.3938203115177285e-06
+    },
+    "secure_spore_seconds": {
+      "count": 1000.0,
+      "maximum": 0.000872542,
+      "mean": 0.0005518590289999999,
+      "mean_bootstrap_95_ci": [
+        0.0005497518467000001,
+        0.000554082689875
+      ],
+      "median": 0.000548104,
+      "minimum": 0.000507833,
+      "p50": 0.000548104,
+      "p95": 0.00060441605,
+      "p99": 0.0006368208299999999,
+      "standard_deviation": 3.5606438592976896e-05
+    }
+  },
+  "sample_count": 9000,
+  "status": "passed"
+}

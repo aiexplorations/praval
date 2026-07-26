@@ -1,0 +1,170 @@
+{
+  "artifacts": {
+    "claims_json": {
+      "path": "claim-report.json",
+      "sha256": "8556b3dc3c66d1b878ea73c87c1d9da9f9ebd04f40056d24e7e3cdb766087bd9",
+      "size": 55917
+    },
+    "claims_markdown": {
+      "path": "claim-report.md",
+      "sha256": "1b4e858cecca42f3c3829dec33133dda933e3ed2b01addb6e8f1835bb6bbe7bf",
+      "size": 3124
+    },
+    "metrics_csv": {
+      "path": "metric-summary.csv",
+      "sha256": "e2ec59deae1348247ba965e2253c2d3429c314497c7e1d74734f588683309327",
+      "size": 47258
+    },
+    "metrics_json": {
+      "path": "metric-summary.json",
+      "sha256": "62ce23b0909d2f983ea0cbf952bfcca54c7a4d30d1fe9663ca41b229647eaa1c",
+      "size": 127735
+    },
+    "paper_values": {
+      "path": "paper-values.json",
+      "sha256": "e9037896f7f36e4f65f88a72bf86346352a3536c0a29e607d493504614264783",
+      "size": 2485
+    },
+    "rq1-claim-evidence_latex": {
+      "path": "rq1-claim-evidence.tex",
+      "sha256": "9b9aad62c2084aa8dbeaca2c8739d2c71666623dbf06da6d8c7e597db9c0dff2",
+      "size": 693
+    },
+    "rq1-claim-evidence_markdown": {
+      "path": "rq1-claim-evidence.md",
+      "sha256": "aa1cdc897de0310bba3f3bd841a5d7aadff30220c88823badbfb042f252a9d68",
+      "size": 663
+    },
+    "rq1-rq3-abstraction-overhead_latex": {
+      "path": "rq1-rq3-abstraction-overhead.tex",
+      "sha256": "2bb6ca640c369fda73be80ffe998d39c5a799a4408b634b2dc5a58b120c0abad",
+      "size": 400
+    },
+    "rq1-rq3-abstraction-overhead_markdown": {
+      "path": "rq1-rq3-abstraction-overhead.md",
+      "sha256": "3ad0974a39f7e504155f205b1c6c84c7ba0bb3a8a7b706be922520e62819d8cc",
+      "size": 374
+    },
+    "rq1-rq3-abstraction-overhead_png": {
+      "path": "rq1-rq3-abstraction-overhead.png",
+      "sha256": "b2a7ff1376940f33c455e9874c01f8542d3deb5fc8e1481eed475ddda8b55c8a",
+      "size": 75177
+    },
+    "rq1-rq3-abstraction-overhead_svg": {
+      "path": "rq1-rq3-abstraction-overhead.svg",
+      "sha256": "166b6d181e04ef622f1f21cdad491965b454d24aac70b23b5182f1e64a062980",
+      "size": 42227
+    },
+    "rq2-choreography-critical-path_latex": {
+      "path": "rq2-choreography-critical-path.tex",
+      "sha256": "93f94e0e5d0846ecf8561e885931bdee10c52790488806087f737b3c204e1d8a",
+      "size": 568
+    },
+    "rq2-choreography-critical-path_markdown": {
+      "path": "rq2-choreography-critical-path.md",
+      "sha256": "5daac72abef396f598fd7c04a85f7daae472b4629409444899cea244c5b2e32e",
+      "size": 552
+    },
+    "rq2-choreography-speedup_png": {
+      "path": "rq2-choreography-speedup.png",
+      "sha256": "4d4acae1c0fafe792061ef1b92684b360977141bc6d4fa3f85e6a1dd535c8d4f",
+      "size": 116048
+    },
+    "rq2-choreography-speedup_svg": {
+      "path": "rq2-choreography-speedup.svg",
+      "sha256": "bc2243bb404d01d097618d7298da1fa2ce5999844d48aad7b4de7d839f12465d",
+      "size": 33617
+    },
+    "rq2-claim-evidence_latex": {
+      "path": "rq2-claim-evidence.tex",
+      "sha256": "4eba7eb35e809bfc948ec1eb9a576311a071b489d59b0582dace020e165058c5",
+      "size": 780
+    },
+    "rq2-claim-evidence_markdown": {
+      "path": "rq2-claim-evidence.md",
+      "sha256": "664494f5fee53ec9070a0649dc40947c866cec4d48996b02d4bed397284a5f1e",
+      "size": 753
+    },
+    "rq2-reef-scaling-inmemory_latex": {
+      "path": "rq2-reef-scaling-inmemory.tex",
+      "sha256": "0442a6c3542a7052cf60c6743a9d6755aaa825f83a8f86bd685695c81de57e76",
+      "size": 636
+    },
+    "rq2-reef-scaling-inmemory_markdown": {
+      "path": "rq2-reef-scaling-inmemory.md",
+      "sha256": "a4c74ed3be89ee0fd226af92dd9dbd110e65dc363faa81f565617c644758a653",
+      "size": 625
+    },
+    "rq2-reef-scaling-rabbitmq_latex": {
+      "path": "rq2-reef-scaling-rabbitmq.tex",
+      "sha256": "40b51424cfd7998e8cdc1da7de56038b978073d483e0db75ea5643d758f0b5cc",
+      "size": 618
+    },
+    "rq2-reef-scaling-rabbitmq_markdown": {
+      "path": "rq2-reef-scaling-rabbitmq.md",
+      "sha256": "1bae7f4a39552b9064ef62d00c0832f5e4697b994da195e04689d670077d5142",
+      "size": 607
+    },
+    "rq2-reef-scaling_latex": {
+      "path": "rq2-reef-scaling.tex",
+      "sha256": "89cac09c3a07781c93845f56267f20ab40a0442ceba723d776d0e89c6689bd9c",
+      "size": 1377
+    },
+    "rq2-reef-scaling_markdown": {
+      "path": "rq2-reef-scaling.md",
+      "sha256": "840dcdd2f9331ee2eab6b24b3b1ef866929eabbe2b7ba2c6b438f2e20c3043c0",
+      "size": 1380
+    },
+    "rq2-reef-scaling_png": {
+      "path": "rq2-reef-scaling.png",
+      "sha256": "7c3175d0c51db61b0786f7dd6c4f52fec622dfbe97f9ccbaa777805edfa66a65",
+      "size": 135695
+    },
+    "rq2-reef-scaling_svg": {
+      "path": "rq2-reef-scaling.svg",
+      "sha256": "adf8e4899162d0dc09d87eda1b06e3c38e390008ef5e2a4232cf892ae9037f6a",
+      "size": 49683
+    },
+    "rq3-claim-evidence_latex": {
+      "path": "rq3-claim-evidence.tex",
+      "sha256": "71a12d152c9c58016b9fff482d5bc95f2a3e2940eee9ff1a85c8f823bac6088a",
+      "size": 1737
+    },
+    "rq3-claim-evidence_markdown": {
+      "path": "rq3-claim-evidence.md",
+      "sha256": "9accca5855639811ea9319fb1eb18511af211bc909b0f76599440aa325ce086a",
+      "size": 1706
+    },
+    "rq4-claim-evidence_latex": {
+      "path": "rq4-claim-evidence.tex",
+      "sha256": "97a4e54b87213b506b34994c9201851c398da1cc2dd68463eb298299cfe42236",
+      "size": 415
+    },
+    "rq4-claim-evidence_markdown": {
+      "path": "rq4-claim-evidence.md",
+      "sha256": "1d08ec92c1fb7fb08d145eebd01604401ff331c85e373aed5856dc6e436de352",
+      "size": 386
+    },
+    "rq4-controlled-comparison_latex": {
+      "path": "rq4-controlled-comparison.tex",
+      "sha256": "3ad642c6eb949b7f834a52ace2da7d91a2e452739e1dda521624de368ed5c041",
+      "size": 339
+    },
+    "rq4-controlled-comparison_markdown": {
+      "path": "rq4-controlled-comparison.md",
+      "sha256": "930381df4cf786737d6ffbacd806dbea073f842a47fc1c9b20bef0acbe5df1b1",
+      "size": 322
+    },
+    "rq4-controlled-comparison_png": {
+      "path": "rq4-controlled-comparison.png",
+      "sha256": "8d33f5724cef61f15bdd13759d29f5ecbfa15378f8659e7a60d8b7e2b031d915",
+      "size": 45491
+    },
+    "rq4-controlled-comparison_svg": {
+      "path": "rq4-controlled-comparison.svg",
+      "sha256": "4ed2b8c46119dd5a8267a0cf7029230c5dd195d24942e15c8c678ded2968534a",
+      "size": 22387
+    }
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,39 @@
+{
+  "frameworks": {
+    "crewai": {
+      "distribution": "crewai",
+      "frozen_constraint": "locks/crewai.txt",
+      "frozen_constraint_sha256": "197a3ebd7c38b79641866a4e12c653fa632ece5cb2572248ed7f885c5732ab29",
+      "frozen_dependencies_verified": true,
+      "observed_lock_path": "locks/crewai.txt",
+      "observed_lock_sha256": "fc483e6f122ebf8b659c862d26a0175418f9cfa5b8cf2d261ab67446600cf37a",
+      "version": "1.15.6",
+      "wheel": "crewai-1.15.6-py3-none-any.whl",
+      "wheel_sha256": "966183d71ceb855672e3ea7c99abadeb1d574df7a5657489f1ae6901cb51e919"
+    },
+    "langgraph": {
+      "distribution": "langgraph",
+      "frozen_constraint": "locks/langgraph.txt",
+      "frozen_constraint_sha256": "d17aaa63d3bf1195c9ea6e6b4ab3abf5907858805673fa0501a66ac5d9b891a3",
+      "frozen_dependencies_verified": true,
+      "observed_lock_path": "locks/langgraph.txt",
+      "observed_lock_sha256": "b9692322af58e6b27ac79ef199a0f29a14155593dad481fc1ed502d698960639",
+      "version": "1.2.9",
+      "wheel": "langgraph-1.2.9-py3-none-any.whl",
+      "wheel_sha256": "c2d98ad94333937922ba04148641c1da2bfe45b5b8e55d7b6dcb0bb2df809e76"
+    },
+    "praval": {
+      "distribution": "praval",
+      "frozen_constraint": "locks/praval.txt",
+      "frozen_constraint_sha256": "ecb56b3cc3ee006704c9efb0075973f2bb1268b3bfbad43c90a239f19a3564a1",
+      "frozen_dependencies_verified": true,
+      "observed_lock_path": "locks/praval.txt",
+      "observed_lock_sha256": "34962df572933ae282c6dfa45bbef47081cf21358be4a950a140440d858de685",
+      "version": "0.8.1",
+      "wheel": "praval-0.8.1-py3-none-any.whl",
+      "wheel_sha256": "70b0220a2ced6c0bd066423566c4e1811caa9015b128604d2bc5b3c8d57379c5"
+    }
+  },
+  "python": "3.13.13",
+  "schema_version": 1
+}

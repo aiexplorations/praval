@@ -1,0 +1,362 @@
+schema_version = 1
+
+[[reference]]
+id = "grasse1959stigmergy"
+type = "article"
+title = "La reconstruction du nid et les coordinations interindividuelles chez Bellicositermes natalensis et Cubitermes sp.: La théorie de la stigmergie"
+authors = ["Pierre-Paul Grassé"]
+year = 1959
+url = "https://doi.org/10.1007/BF02223791"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1007/BF02223791"
+venue = "Insectes Sociaux 6, 41–80"
+
+[[reference]]
+id = "hewitt1973actor"
+type = "inproceedings"
+title = "A Universal Modular ACTOR Formalism for Artificial Intelligence"
+authors = ["Carl Hewitt", "Peter Bishop", "Richard Steiger"]
+year = 1973
+url = "https://www.ijcai.org/Proceedings/73/Papers/027B.pdf"
+accessed = "2026-07-26"
+primary = true
+venue = "Proceedings of the 3rd International Joint Conference on Artificial Intelligence, 235–245"
+
+[[reference]]
+id = "agha1986actors"
+type = "book"
+title = "Actors: A Model of Concurrent Computation in Distributed Systems"
+authors = ["Gul Agha"]
+year = 1986
+url = "https://mitpress.mit.edu/9780262511414/actors/"
+accessed = "2026-07-26"
+primary = true
+venue = "MIT Press"
+notes = "ISBN 9780262511414"
+
+[[reference]]
+id = "eugster2003publish_subscribe"
+type = "article"
+title = "The Many Faces of Publish/Subscribe"
+authors = ["Patrick Th. Eugster", "Pascal A. Felber", "Rachid Guerraoui", "Anne-Marie Kermarrec"]
+year = 2003
+url = "https://doi.org/10.1145/857076.857078"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1145/857076.857078"
+venue = "ACM Computing Surveys 35(2), 114–131"
+
+[[reference]]
+id = "amershi2019human_ai"
+type = "inproceedings"
+title = "Guidelines for Human-AI Interaction"
+authors = ["Saleema Amershi", "Dan Weld", "Mihaela Vorvoreanu", "Adam Fourney", "Besmira Nushi", "Penny Collisson", "Jina Suh", "Shamsi Iqbal", "Paul N. Bennett", "Kori Inkpen", "Jaime Teevan", "Ruth Kikin-Gil", "Eric Horvitz"]
+year = 2019
+url = "https://doi.org/10.1145/3290605.3300233"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1145/3290605.3300233"
+venue = "Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems"
+
+[[reference]]
+id = "yao2023react"
+type = "inproceedings"
+title = "ReAct: Synergizing Reasoning and Acting in Language Models"
+authors = ["Shunyu Yao", "Jeffrey Zhao", "Dian Yu", "Nan Du", "Izhak Shafran", "Karthik Narasimhan", "Yuan Cao"]
+year = 2023
+url = "https://openreview.net/forum?id=WE_vluYUL-X"
+accessed = "2026-07-26"
+primary = true
+venue = "International Conference on Learning Representations"
+
+[[reference]]
+id = "schick2023toolformer"
+type = "inproceedings"
+title = "Toolformer: Language Models Can Teach Themselves to Use Tools"
+authors = ["Timo Schick", "Jane Dwivedi-Yu", "Roberto Dessì", "Roberta Raileanu", "Maria Lomeli", "Luke Zettlemoyer", "Nicola Cancedda", "Thomas Scialom"]
+year = 2023
+url = "https://proceedings.neurips.cc/paper_files/paper/2023/hash/d842425e4bf79ba039352da0f658a906-Abstract-Conference.html"
+accessed = "2026-07-26"
+primary = true
+venue = "Advances in Neural Information Processing Systems 36"
+
+[[reference]]
+id = "xi2023agents_survey"
+type = "report"
+title = "The Rise and Potential of Large Language Model Based Agents: A Survey"
+authors = ["Zhiheng Xi", "Wenxiang Chen", "Xin Guo", "Wei He", "Yiwen Ding", "Boyang Hong", "Ming Zhang", "Junzhe Wang", "Senjie Jin", "Enyu Zhou"]
+year = 2023
+url = "https://arxiv.org/abs/2309.07864"
+accessed = "2026-07-26"
+primary = true
+venue = "arXiv:2309.07864"
+
+[[reference]]
+id = "wang2024autonomous_agents_survey"
+type = "article"
+title = "A Survey on Large Language Model based Autonomous Agents"
+authors = ["Lei Wang", "Chen Ma", "Xueyang Feng", "Zeyu Zhang", "Hao Yang", "Jingsen Zhang", "Zhiyuan Chen", "Jiakai Tang", "Xu Chen", "Yankai Lin"]
+year = 2024
+url = "https://doi.org/10.1007/s11704-024-40231-1"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1007/s11704-024-40231-1"
+venue = "Frontiers of Computer Science 18"
+
+[[reference]]
+id = "kalibera_jones2013"
+type = "inproceedings"
+title = "Rigorous Benchmarking in Reasonable Time"
+authors = ["Tomas Kalibera", "Richard Jones"]
+year = 2013
+url = "https://kar.kent.ac.uk/33611/"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1145/2464157.2464160"
+venue = "Proceedings of the 2013 International Symposium on Memory Management, 63–74"
+notes = "Corrected author manuscript"
+
+[[reference]]
+id = "mcp_spec_2025_11_25"
+type = "specification"
+title = "Model Context Protocol Specification: Transports"
+authors = ["Model Context Protocol contributors"]
+year = 2025
+url = "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports"
+accessed = "2026-07-26"
+primary = true
+version = "2025-11-25"
+
+[[reference]]
+id = "json_schema_2020_12"
+type = "specification"
+title = "JSON Schema Validation: A Vocabulary for Structural Validation of JSON"
+authors = ["Austin Wright", "Henry Andrews", "Ben Hutton", "Greg Dennis"]
+year = 2022
+url = "https://json-schema.org/draft/2020-12/json-schema-validation"
+accessed = "2026-07-26"
+primary = true
+version = "Draft 2020-12"
+
+[[reference]]
+id = "amqp2012"
+type = "specification"
+title = "OASIS Advanced Message Queuing Protocol Version 1.0"
+authors = ["OASIS AMQP Technical Committee"]
+year = 2012
+url = "https://docs.oasis-open.org/amqp/core/v1.0/amqp-core-overview-v1.0.html"
+accessed = "2026-07-26"
+primary = true
+version = "1.0"
+
+[[reference]]
+id = "rabbitmq2024"
+type = "software"
+title = "RabbitMQ 3.13 Documentation"
+authors = ["Broadcom"]
+year = 2024
+url = "https://www.rabbitmq.com/docs/3.13"
+accessed = "2026-07-26"
+primary = true
+version = "3.13.7"
+notes = "The service experiment pins rabbitmq:3.13.7-management."
+
+[[reference]]
+id = "opentelemetry2024"
+type = "specification"
+title = "OpenTelemetry Specification and OpenTelemetry Protocol"
+authors = ["OpenTelemetry Authors"]
+year = 2026
+url = "https://opentelemetry.io/docs/specs/"
+accessed = "2026-07-26"
+primary = true
+version = "OpenTelemetry 1.59.0; OTLP 1.11.0"
+
+[[reference]]
+id = "curve25519"
+type = "inproceedings"
+title = "Curve25519: New Diffie-Hellman Speed Records"
+authors = ["Daniel J. Bernstein"]
+year = 2006
+url = "https://www.iacr.org/cryptodb/archive/2006/PKC/3351/3351.pdf"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1007/11745853_14"
+venue = "Public Key Cryptography – PKC 2006"
+
+[[reference]]
+id = "ed255192012"
+type = "article"
+title = "High-speed high-security signatures"
+authors = ["Daniel J. Bernstein", "Niels Duif", "Tanja Lange", "Peter Schwabe", "Bo-Yin Yang"]
+year = 2012
+url = "https://doi.org/10.1007/s13389-012-0027-1"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1007/s13389-012-0027-1"
+venue = "Journal of Cryptographic Engineering 2, 77–89"
+
+[[reference]]
+id = "salsa2020"
+type = "report"
+title = "The Salsa20 Family of Stream Ciphers"
+authors = ["Daniel J. Bernstein"]
+year = 2007
+url = "https://cr.yp.to/snuffle/salsafamily-20071225.pdf"
+accessed = "2026-07-26"
+primary = true
+
+[[reference]]
+id = "poly1305aes2005"
+type = "inproceedings"
+title = "The Poly1305-AES Message-Authentication Code"
+authors = ["Daniel J. Bernstein"]
+year = 2005
+url = "https://cr.yp.to/mac/poly1305-20050329.pdf"
+accessed = "2026-07-26"
+primary = true
+doi = "10.1007/11502760_3"
+venue = "Fast Software Encryption 2005"
+
+[[reference]]
+id = "nacl2012"
+type = "report"
+title = "The Security Impact of a New Cryptographic Library"
+authors = ["Daniel J. Bernstein", "Tanja Lange", "Peter Schwabe"]
+year = 2011
+url = "https://eprint.iacr.org/2011/646"
+accessed = "2026-07-26"
+primary = true
+venue = "IACR Cryptology ePrint Archive, Report 2011/646"
+
+[[reference]]
+id = "praval_pypi_0_8_1"
+type = "software"
+title = "Praval 0.8.1"
+authors = ["Rajesh Sampathkumar"]
+year = 2026
+url = "https://pypi.org/project/praval/0.8.1/"
+accessed = "2026-07-26"
+primary = true
+version = "0.8.1"
+commit = "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
+notes = "Wheel SHA-256 70b0220a2ced6c0bd066423566c4e1811caa9015b128604d2bc5b3c8d57379c5"
+
+[[reference]]
+id = "praval_release_0_8_1"
+type = "software"
+title = "Praval 0.8.1 release notes and source tag"
+authors = ["Rajesh Sampathkumar"]
+year = 2026
+url = "https://github.com/aiexplorations/praval/releases/tag/v0.8.1"
+accessed = "2026-07-26"
+primary = true
+version = "0.8.1"
+commit = "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
+
+[[reference]]
+id = "langgraph_pypi_1_2_9"
+type = "software"
+title = "LangGraph 1.2.9"
+authors = ["LangChain, Inc."]
+year = 2026
+url = "https://pypi.org/project/langgraph/1.2.9/"
+accessed = "2026-07-26"
+primary = true
+version = "1.2.9"
+notes = "Comparison wheel SHA-256 c2d98ad94333937922ba04148641c1da2bfe45b5b8e55d7b6dcb0bb2df809e76"
+
+[[reference]]
+id = "crewai_pypi_1_15_6"
+type = "software"
+title = "CrewAI 1.15.6"
+authors = ["CrewAI, Inc."]
+year = 2026
+url = "https://pypi.org/project/crewai/1.15.6/"
+accessed = "2026-07-26"
+primary = true
+version = "1.15.6"
+notes = "Comparison wheel SHA-256 966183d71ceb855672e3ea7c99abadeb1d574df7a5657489f1ae6901cb51e919"
+
+[[reference]]
+id = "autogen_pypi_0_14_1"
+type = "software"
+title = "AutoGen (classic) 0.14.1"
+authors = ["AG2 community"]
+year = 2026
+url = "https://pypi.org/project/autogen/0.14.1/"
+accessed = "2026-07-26"
+primary = true
+version = "0.14.1"
+commit = "ea6f8a980ada5c79a4b724de97e8510e3a390514"
+notes = "The package states that classic AutoGen is in maintenance mode."
+
+[[reference]]
+id = "semantic_kernel_pypi_1_44_0"
+type = "software"
+title = "Semantic Kernel 1.44.0"
+authors = ["Microsoft"]
+year = 2026
+url = "https://pypi.org/project/semantic-kernel/1.44.0/"
+accessed = "2026-07-26"
+primary = true
+version = "1.44.0"
+
+[[reference]]
+id = "autogen_microsoft_0_7_5"
+type = "software"
+title = "Microsoft AutoGen Python 0.7.5"
+authors = ["Microsoft"]
+year = 2025
+url = "https://github.com/microsoft/autogen/releases/tag/python-v0.7.5"
+accessed = "2026-07-26"
+primary = true
+version = "0.7.5"
+commit = "83afbf5"
+notes = "The official repository now describes AutoGen as maintenance mode."
+
+[[reference]]
+id = "agno_2_6_19"
+type = "software"
+title = "Agno 2.6.19"
+authors = ["Agno"]
+year = 2026
+url = "https://www.agno.com/changelog"
+accessed = "2026-07-26"
+primary = true
+version = "2.6.19"
+
+[[reference]]
+id = "strands_agents_1_36_0"
+type = "software"
+title = "Strands Agents SDK for Python 1.36.0"
+authors = ["Strands Agents contributors"]
+year = 2026
+url = "https://github.com/strands-agents/sdk-python/releases/tag/v1.36.0"
+accessed = "2026-07-26"
+primary = true
+version = "1.36.0"
+commit = "4e3ad44"
+
+[[reference]]
+id = "metagpt_pypi_0_8_2"
+type = "software"
+title = "MetaGPT 0.8.2"
+authors = ["DeepWisdom"]
+year = 2025
+url = "https://pypi.org/project/metagpt/0.8.2/"
+accessed = "2026-07-26"
+primary = true
+version = "0.8.2"
+
+[[reference]]
+id = "praval_comparison_historical"
+type = "web"
+title = "Framework Comparison: Praval vs LangGraph vs CrewAI"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=framework-comparison"
+accessed = "2026-07-26"
+primary = false
+notes = "Historical project material; not independent evidence and not used for new performance claims."

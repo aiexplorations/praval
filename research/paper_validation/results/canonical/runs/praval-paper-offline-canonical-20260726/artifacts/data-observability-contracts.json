@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "data_reference_roundtrip": true,
+    "deterministic_local_embedding": true,
+    "dimension_mismatch_has_reindex_guidance": true,
+    "embedding_shape_and_dimension": true,
+    "filesystem_roundtrip": true,
+    "span_stored_once": true,
+    "unsupported_embedding_provider_is_explicit": true
+  },
+  "details": {
+    "dimension_mismatch_error": "Qdrant collection 'paper-existing' has vector size 4, but the configured embedding uses 8. Use a new collection name or re-index the existing collection before changing embedding dimensions.",
+    "unsupported_embedding_error": "Unsupported embedding provider: unsupported"
+  },
+  "limitations": [
+    "PostgreSQL, Redis, S3-compatible, Qdrant, and OTLP endpoints belong to the services tier."
+  ],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

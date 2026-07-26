@@ -1,0 +1,242 @@
+schema_version = 1
+
+[[experiment]]
+id = "exact-wheel-identity"
+title = "Exact published wheel identity"
+tier = "offline"
+scenario = "exact_wheel_identity"
+claim_ids = ["exact-wheel-provenance"]
+repetitions = 1
+warmups = 0
+timeout_seconds = 60
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["exact-wheel-identity.json"]
+validity_checks = ["Wheel hash, version, tag commit, and import path match."]
+
+[[experiment]]
+id = "runtime-contracts"
+title = "Provider-neutral runtime contract conformance"
+tier = "offline"
+scenario = "runtime_contracts"
+claim_ids = ["two-plane-architecture", "runtime-provider-neutral-contract"]
+repetitions = 30
+warmups = 5
+timeout_seconds = 120
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["runtime-contracts.json", "runtime-contracts.samples.jsonl"]
+validity_checks = ["Every response and stream preserves the common contract.", "Every trial emits one final state."]
+
+[[experiment]]
+id = "capability-resolution"
+title = "Capability resolution and fail-fast matrix"
+tier = "offline"
+scenario = "capability_resolution"
+claim_ids = ["runtime-provider-neutral-contract", "runtime-capability-fail-fast"]
+repetitions = 10
+warmups = 1
+timeout_seconds = 120
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["capability-resolution.json"]
+validity_checks = ["Unsupported requests fail before provider execution.", "Explicit supported overrides reach the provider."]
+
+[[experiment]]
+id = "hitl-process-recovery"
+title = "Durable HITL process recovery"
+tier = "offline"
+scenario = "hitl_process_recovery"
+claim_ids = ["durable-hitl-resume"]
+repetitions = 3
+warmups = 0
+timeout_seconds = 180
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["hitl-process-recovery.json", "hitl-process-recovery.samples.jsonl"]
+validity_checks = ["Approve, edit, reject, expire, and cancel outcomes remain distinct.", "No protected tool call executes more than once."]
+
+[[experiment]]
+id = "mcp-safety"
+title = "MCP transport and safety contract"
+tier = "offline"
+scenario = "mcp_safety"
+claim_ids = ["mcp-tools-bounded-scope"]
+repetitions = 3
+warmups = 0
+timeout_seconds = 180
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["mcp-safety.json"]
+validity_checks = ["Stdio and Streamable HTTP preserve registered tool schemas.", "Timeout, size, and lifecycle failures are explicit."]
+
+[[experiment]]
+id = "spore-v2-compatibility"
+title = "Spore V2 compatibility and reference round trips"
+tier = "offline"
+scenario = "spore_v2_compatibility"
+claim_ids = ["two-plane-architecture", "spore-v2-compatibility"]
+repetitions = 30
+warmups = 5
+timeout_seconds = 120
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["spore-v2-compatibility.json", "spore-v2-compatibility.samples.jsonl"]
+validity_checks = ["Legacy and V2 payloads round-trip.", "Raw binary content is rejected."]
+
+[[experiment]]
+id = "lifecycle-failure"
+title = "Lifecycle, completion, and failure boundaries"
+tier = "offline"
+scenario = "lifecycle_failure"
+claim_ids = ["reef-completion-lifecycle"]
+repetitions = 30
+warmups = 3
+timeout_seconds = 180
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["lifecycle-failure.json", "lifecycle-failure.samples.jsonl"]
+validity_checks = ["Completion waits observe handler completion.", "Repeated shutdown does not double-close resources."]
+
+[[experiment]]
+id = "data-observability-contracts"
+title = "Embedding, local storage, and observability contracts"
+tier = "offline"
+scenario = "data_observability_contracts"
+claim_ids = ["embedding-compatibility", "observability-once", "storage-service-roundtrips"]
+repetitions = 10
+warmups = 1
+timeout_seconds = 180
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["data-observability-contracts.json"]
+validity_checks = ["Embedding mismatches remain explicit.", "Completed spans are stored once."]
+
+[[experiment]]
+id = "service-integrations"
+title = "Pinned storage, RabbitMQ, and OTLP service interoperability"
+tier = "services"
+scenario = "service_integrations"
+claim_ids = ["embedding-compatibility", "observability-once", "storage-service-roundtrips"]
+repetitions = 3
+warmups = 0
+timeout_seconds = 900
+fixtures = []
+services = ["postgres:16.6-alpine", "redis:7.4.1-alpine", "minio/minio:RELEASE.2024-11-07T00-52-20Z", "qdrant/qdrant:v1.18.0", "rabbitmq:3.13.7-management-alpine", "otel/opentelemetry-collector-contrib:0.113.0"]
+required_secrets = ["POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "REDIS_HOST", "REDIS_PORT", "MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "QDRANT_URL", "RABBITMQ_URL", "OTLP_HTTP_ENDPOINT"]
+expected_artifacts = ["service-integrations.json"]
+validity_checks = ["Every storage provider completes a real round trip.", "RabbitMQ preserves the native Spore body.", "The OTLP collector accepts a completed span."]
+
+[[experiment]]
+id = "secure-spore-behavior"
+title = "Secure Spore integrity and payload scaling"
+tier = "offline"
+scenario = "secure_spore_behavior"
+claim_ids = ["secure-spore-bounded-claim"]
+repetitions = 30
+warmups = 5
+timeout_seconds = 180
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["secure-spore-behavior.json", "secure-spore-behavior.samples.jsonl"]
+validity_checks = ["Valid peers decrypt signed payloads.", "Tampered payloads and wrong keys fail."]
+
+[[experiment]]
+id = "choreography-critical-path"
+title = "Sequential and fan-out critical paths"
+tier = "offline"
+scenario = "choreography_critical_path"
+claim_ids = ["reef-choreography-scope", "choreography-critical-path"]
+repetitions = 30
+warmups = 3
+timeout_seconds = 900
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["choreography-critical-path.json", "choreography-critical-path.samples.jsonl"]
+validity_checks = ["Every branch completes.", "Sequential and fan-out paths execute the same branch work."]
+
+[[experiment]]
+id = "reef-scaling-inmemory"
+title = "In-memory Reef scaling matrix"
+tier = "offline"
+scenario = "reef_scaling_inmemory"
+claim_ids = ["reef-choreography-scope", "reef-scaling-bounded"]
+repetitions = 5
+warmups = 1
+timeout_seconds = 900
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["reef-scaling-inmemory.json", "reef-scaling-inmemory.samples.jsonl"]
+validity_checks = ["Every accepted delivery is counted.", "Every matrix cell records payload and agent count."]
+
+[[experiment]]
+id = "reef-scaling-rabbitmq"
+title = "RabbitMQ Reef scaling matrix"
+tier = "services"
+scenario = "reef_scaling_rabbitmq"
+claim_ids = ["reef-choreography-scope", "reef-scaling-bounded"]
+repetitions = 5
+warmups = 1
+timeout_seconds = 1800
+fixtures = []
+services = ["rabbitmq:3.13.7-management-alpine"]
+required_secrets = ["RABBITMQ_URL", "RABBITMQ_MANAGEMENT_URL"]
+expected_artifacts = ["reef-scaling-rabbitmq.json", "reef-scaling-rabbitmq.samples.jsonl"]
+validity_checks = ["Every accepted delivery is counted.", "Service and host metadata are recorded.", "The constrained slow consumer produces a positive broker queue depth.", "A near-limit Spore is accepted and an over-limit Spore is rejected before transport."]
+
+[[experiment]]
+id = "abstraction-overhead"
+title = "Runtime, observability, MCP, and Secure Spore overhead"
+tier = "offline"
+scenario = "abstraction_overhead"
+claim_ids = ["observability-once", "secure-spore-bounded-claim", "abstraction-costs-measured"]
+repetitions = 200
+warmups = 20
+timeout_seconds = 900
+fixtures = []
+services = []
+required_secrets = []
+expected_artifacts = ["abstraction-overhead.json", "abstraction-overhead.samples.jsonl"]
+validity_checks = ["Direct and wrapped paths execute equivalent deterministic work.", "External model time is absent."]
+
+[[experiment]]
+id = "controlled-framework-comparison"
+title = "Controlled Praval, LangGraph, and CrewAI comparison"
+tier = "comparative"
+scenario = "controlled_framework_comparison"
+claim_ids = ["historical-comparison-not-evidence", "controlled-comparison-bounded"]
+repetitions = 5
+warmups = 1
+timeout_seconds = 7200
+fixtures = ["research/paper_validation/comparative/dataset.jsonl", "research/paper_validation/comparative/frameworks.toml", "research/paper_validation/comparative/locks/praval.txt", "research/paper_validation/comparative/locks/langgraph.txt", "research/paper_validation/comparative/locks/crewai.txt"]
+services = ["delayed-model-proxy"]
+required_secrets = []
+optional_secrets = ["OPENAI_API_KEY", "PRAVAL_COMPARISON_OPENAI_MODEL", "OPENAI_BASE_URL"]
+expected_artifacts = ["controlled-framework-comparison.json", "controlled-framework-comparison.samples.jsonl", "controlled-framework-comparison.proxy-events.jsonl", "controlled-framework-comparison.dependency-locks.json"]
+validity_checks = ["Frameworks use the same task fixture and call budget.", "Correctness and model time are reported with latency."]
+
+[[experiment]]
+id = "live-capability-matrix"
+title = "Live provider capability matrix"
+tier = "live"
+scenario = "live_capability_matrix"
+claim_ids = ["runtime-provider-neutral-contract", "durable-hitl-resume", "mcp-tools-bounded-scope", "embedding-compatibility", "request-voice-bounded"]
+repetitions = 3
+warmups = 0
+timeout_seconds = 3600
+fixtures = ["examples/certification/assets/voice_phrase.txt"]
+services = []
+required_secrets = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "COHERE_API_KEY", "GEMINI_API_KEY", "OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "PRAVAL_OPENAI_MODEL", "PRAVAL_ANTHROPIC_MODEL", "PRAVAL_COHERE_MODEL", "PRAVAL_GEMINI_MODEL", "PRAVAL_OPENAI_COMPATIBLE_MODEL", "PRAVAL_OPENAI_EMBEDDING_MODEL", "PRAVAL_GEMINI_EMBEDDING_MODEL", "PRAVAL_OPENAI_TRANSCRIPTION_MODEL", "PRAVAL_OPENAI_TTS_MODEL", "PRAVAL_OPENAI_TTS_VOICE"]
+expected_artifacts = ["live-capability-matrix.json", "live-capability-matrix.samples.jsonl"]
+validity_checks = ["Provider and returned model identifiers are recorded.", "Unsupported capability cells are reported rather than skipped as passes."]

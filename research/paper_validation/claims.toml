@@ -1,0 +1,267 @@
+schema_version = 1
+
+[[claim]]
+id = "two-plane-architecture"
+statement = "Praval separates agent coordination from provider-neutral model execution."
+category = "architectural"
+scope = "Praval 0.8.1 public Agent, Reef, Spore, ModelRuntime, and provider adapter boundaries."
+paper_sections = ["Abstract", "System architecture", "Contributions"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py", "src/praval/model_runtime.py", "src/praval/providers/registry.py"]
+citations = ["hewitt1973actor", "eugster2003publish_subscribe"]
+experiments = ["runtime-contracts", "spore-v2-compatibility"]
+acceptance_rule = "Runtime and Spore experiments preserve their separate contracts without introducing a second agent-to-agent layer."
+permitted_wording = "Praval 0.8.1 separates its coordination plane from its model execution plane."
+limitations = ["The separation is an implementation boundary, not a formal proof of architectural independence."]
+
+[[claim]]
+id = "runtime-provider-neutral-contract"
+statement = "Model execution uses common request, response, streaming, tool, usage, and error contracts."
+category = "behavioral"
+scope = "Capabilities declared by supported provider and model profiles."
+paper_sections = ["Execution plane", "Results RQ1"]
+status = "proposed"
+implementation_evidence = ["src/praval/model_runtime.py", "src/praval/models/__init__.py", "tests/test_model_runtime_contracts.py"]
+citations = []
+experiments = ["runtime-contracts", "capability-resolution", "live-capability-matrix"]
+acceptance_rule = "All common invariants pass and unsupported capabilities fail before provider invocation."
+permitted_wording = "Praval normalizes model execution for capabilities declared by the selected provider profile."
+limitations = ["Provider and model behavior remains different outside the normalized contract."]
+
+[[claim]]
+id = "runtime-capability-fail-fast"
+statement = "Unsupported provider capabilities fail before a provider request is sent."
+category = "behavioral"
+scope = "Declared profiles, local presets, explicit overrides, and validated content parts."
+paper_sections = ["Execution plane", "Results RQ1"]
+status = "proposed"
+implementation_evidence = ["src/praval/model_runtime.py", "tests/test_model_runtime_contracts.py"]
+citations = []
+experiments = ["capability-resolution"]
+acceptance_rule = "Every negative-control request raises a capability or configuration error while the provider call counter remains zero."
+permitted_wording = "The runtime rejects unsupported declared capabilities before provider execution."
+limitations = ["An inaccurate custom profile can still overstate an endpoint's capabilities."]
+
+[[claim]]
+id = "reef-choreography-scope"
+statement = "Reef enables application-level choreography without a workflow orchestrator."
+category = "architectural"
+scope = "In-process Reef and the RabbitMQ Reef backend. Shared broker infrastructure is not excluded."
+paper_sections = ["Coordination plane", "Results RQ2"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py", "src/praval/core/reef_backend.py"]
+citations = ["eugster2003publish_subscribe"]
+experiments = ["choreography-critical-path", "reef-scaling-inmemory", "reef-scaling-rabbitmq"]
+acceptance_rule = "Registered topologies complete through typed Spore delivery and measured results state the workload conditions."
+permitted_wording = "Praval does not require an application-level workflow orchestrator for registered Reef topologies."
+limitations = ["The Reef and its broker remain coordination infrastructure.", "Strict sequential workflows may be clearer in an explicit graph."]
+
+[[claim]]
+id = "spore-v2-compatibility"
+statement = "Spore V2 adds JSON-safe content and references without breaking the legacy knowledge-only wire body."
+category = "compatibility"
+scope = "JSON and AMQP serialization implemented in Praval 0.8.1."
+paper_sections = ["Coordination plane", "Compatibility"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py", "tests/test_spore_v2_compatibility.py", "tests/test_spore_amqp_serialization.py"]
+citations = []
+experiments = ["spore-v2-compatibility"]
+acceptance_rule = "Legacy and V2 fixtures round-trip, reference fields are preserved, and raw binary input is rejected."
+permitted_wording = "Spore V2 preserves the legacy knowledge-only transport body while adding JSON-safe references and content parts."
+limitations = ["Raw binary attachments are not supported."]
+
+[[claim]]
+id = "durable-hitl-resume"
+statement = "Approval-protected tool calls can resume after a process boundary."
+category = "behavioral"
+scope = "SQLite HITL store with approve, edit, reject, and expiry outcomes, plus suspended-run cancellation."
+paper_sections = ["Governance", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/hitl/store.py", "src/praval/model_runtime.py", "tests/test_hitl_provider_parity.py"]
+citations = ["amershi2019human_ai"]
+experiments = ["hitl-process-recovery", "live-capability-matrix"]
+acceptance_rule = "A new process restores the stored call identity and produces the decision-specific outcome without duplicate tool execution."
+permitted_wording = "Praval can persist and resume approval-protected tool continuations across a process boundary."
+limitations = ["The application must keep the tool definition and continuation-compatible provider configuration available.", "Cancelling a suspended run does not change its pending intervention to CANCELLED in 0.8.1."]
+
+[[claim]]
+id = "mcp-tools-bounded-scope"
+statement = "Praval consumes approval-gated MCP tools over stdio and Streamable HTTP."
+category = "behavioral"
+scope = "Tools-only, async MCP client behavior in Praval 0.8.1."
+paper_sections = ["Interoperability", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/mcp/client.py", "tests/mcp/test_contracts.py"]
+citations = ["mcp_spec_2025_11_25"]
+experiments = ["mcp-safety", "live-capability-matrix"]
+acceptance_rule = "Discovery and calls preserve names, schemas, structured results, approval policy, timeouts, size limits, and lifecycle behavior."
+permitted_wording = "Praval 0.8.1 provides an async tools-only MCP client for stdio and Streamable HTTP."
+limitations = ["Resources, prompts, server hosting, managed OAuth, sampling, elicitation, and tasks are not supported."]
+
+[[claim]]
+id = "reef-completion-lifecycle"
+statement = "Reef completion waits and idempotent shutdown support bounded workflows without timing sleeps."
+category = "behavioral"
+scope = "In-process sync and async handlers and repeated cleanup in Praval 0.8.1."
+paper_sections = ["Operations", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py", "src/praval/app.py", "tests/test_reef_shutdown.py"]
+citations = []
+experiments = ["lifecycle-failure"]
+acceptance_rule = "Repeated start, completion wait, and shutdown cycles finish without live task, thread, or double-close failures."
+permitted_wording = "Praval provides completion waits and idempotent cleanup for bounded Reef workflows."
+limitations = ["This does not add durable delivery or a universal retry policy."]
+
+[[claim]]
+id = "embedding-compatibility"
+statement = "Embedding configuration is separate from chat configuration and incompatible dimensions are rejected."
+category = "behavioral"
+scope = "EmbeddingRuntime and supported vector collection integrations."
+paper_sections = ["Data and operations", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/embeddings.py", "src/praval/memory/long_term_memory.py", "tests/test_embedding_runtime.py"]
+citations = []
+experiments = ["data-observability-contracts", "service-integrations", "live-capability-matrix"]
+acceptance_rule = "Matching configurations round-trip and mismatched model or dimensions return explicit re-index guidance."
+permitted_wording = "Praval separates embedding configuration and rejects known model or dimension mismatches."
+limitations = ["Applications must rebuild collections after changing an incompatible embedding configuration."]
+
+[[claim]]
+id = "observability-once"
+statement = "Each completed span is finalized before one-time storage and can be exported through supported paths."
+category = "behavioral"
+scope = "Console, SQLite, and OTLP HTTP paths in Praval 0.8.1."
+paper_sections = ["Data and operations", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/observability/tracing/tracer.py", "src/praval/observability/export/otlp_exporter.py", "tests/observability/test_instrumentation.py"]
+citations = ["opentelemetry2024"]
+experiments = ["data-observability-contracts", "service-integrations", "abstraction-overhead"]
+acceptance_rule = "Sync and async spans have one stored final record and exported trace identifiers remain correlated."
+permitted_wording = "Praval stores finalized spans once and supports console, SQLite, and OTLP inspection paths."
+limitations = ["Backend availability and retention remain deployment concerns."]
+
+[[claim]]
+id = "storage-service-roundtrips"
+statement = "Praval storage providers preserve their documented async round-trip contracts."
+category = "behavioral"
+scope = "Filesystem offline, and pinned PostgreSQL, Redis, S3-compatible MinIO, and Qdrant service environments."
+paper_sections = ["Data and operations", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/storage/data_manager.py", "src/praval/storage/providers", "examples/certification/services.py"]
+citations = []
+experiments = ["data-observability-contracts", "service-integrations"]
+acceptance_rule = "Every configured backend completes create or connect, store, retrieve or search, cleanup, and disconnect without substituting a mock."
+permitted_wording = "Praval 0.8.1 completed round trips against the pinned storage services in the recorded environment."
+limitations = ["The experiment validates functional interoperability, not durability, failover, or production throughput."]
+
+[[claim]]
+id = "secure-spore-bounded-claim"
+statement = "Secure Spores provide authenticated encryption and tamper detection for configured peers."
+category = "security"
+scope = "PyNaCl Box and Ed25519 behavior implemented by Praval 0.8.1."
+paper_sections = ["Security", "Results RQ3", "Limitations"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/secure_spore.py", "tests/test_secure_spore.py"]
+citations = ["nacl2012", "ed255192012", "curve25519"]
+experiments = ["secure-spore-behavior", "abstraction-overhead"]
+acceptance_rule = "Valid peers decrypt signed payloads, while tampering and wrong keys fail, with measured overhead reported by payload size."
+permitted_wording = "Secure Spores use authenticated public-key encryption and signatures for configured peers."
+limitations = ["The implementation does not provide a production key distribution protocol.", "The use of long-lived box keys does not establish perfect forward secrecy.", "The tests are not a cryptographic proof."]
+
+[[claim]]
+id = "exact-wheel-provenance"
+statement = "Paper evidence executes against the exact published Praval 0.8.1 wheel."
+category = "behavioral"
+scope = "Published universal wheel and commit-tag identity."
+paper_sections = ["Methodology", "Artifact availability"]
+status = "proposed"
+implementation_evidence = ["scripts/run_demos.py", "scripts/verify_demo_certification.py", "dist/praval-0.8.1-py3-none-any.whl"]
+citations = ["praval_pypi_0_8_1"]
+experiments = ["exact-wheel-identity"]
+acceptance_rule = "The wheel hash, METADATA version, installed import path, and v0.8.1 tag commit match the registered constants."
+permitted_wording = "All canonical experiments use the published Praval 0.8.1 wheel identified by its SHA-256 digest."
+limitations = ["Live provider behavior can still change after the framework artifact is fixed."]
+
+[[claim]]
+id = "choreography-critical-path"
+statement = "Independent Reef branches can shorten a workload's critical path relative to sequential execution."
+category = "performance"
+scope = "Deterministic independent branches at the registered work durations and fan-out sizes."
+paper_sections = ["Results RQ2", "Discussion"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py"]
+citations = ["kalibera_jones2013"]
+experiments = ["choreography-critical-path"]
+acceptance_rule = "Measured parallel completion follows the registered critical path and results report confidence intervals for every cell."
+permitted_wording = "For independent branches in the tested workloads, Reef fan-out reduced the critical path relative to a sequential baseline."
+limitations = ["The result does not apply to dependent or shared-state work.", "Coordination and scheduling overhead limit speedup for short tasks."]
+
+[[claim]]
+id = "reef-scaling-bounded"
+statement = "Reef throughput and latency can be measured across agent counts, payloads, and backends."
+category = "performance"
+scope = "Registered in-memory and RabbitMQ matrices on recorded hardware."
+paper_sections = ["Results RQ2", "Threats to validity"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/reef.py", "src/praval/core/reef_backend.py"]
+citations = ["kalibera_jones2013", "rabbitmq2024"]
+experiments = ["reef-scaling-inmemory", "reef-scaling-rabbitmq"]
+acceptance_rule = "Every matrix cell records raw samples, delivery counts, percentiles, environment, and failures."
+permitted_wording = "The paper reports measured Reef scaling only for the registered hardware, payloads, agent counts, and backends."
+limitations = ["Results are not universal broker capacity claims."]
+
+[[claim]]
+id = "abstraction-costs-measured"
+statement = "Runtime, observability, MCP, and Secure Spore overheads are reported separately from model time."
+category = "performance"
+scope = "Deterministic fake adapters and local transports."
+paper_sections = ["Methodology", "Results RQ1", "Results RQ3"]
+status = "proposed"
+implementation_evidence = ["src/praval/model_runtime.py", "src/praval/mcp/client.py", "src/praval/core/secure_spore.py"]
+citations = ["kalibera_jones2013"]
+experiments = ["abstraction-overhead"]
+acceptance_rule = "Fresh-process repeated samples report raw direct and wrapped durations without model network time."
+permitted_wording = "The paper separates measured framework abstraction costs from external model latency."
+limitations = ["Microbenchmarks do not predict full application latency."]
+
+[[claim]]
+id = "historical-comparison-not-evidence"
+statement = "The historical 3.23, 5.47, and 33.56 second figures are not evidence for Praval 0.8.1."
+category = "performance"
+scope = "The December 2025 four-question comparison with unequal call counts and unpinned dependency ranges."
+paper_sections = ["Prior version note", "Methodology", "Limitations"]
+status = "unsupported"
+implementation_evidence = ["CHANGELOG.md", "docs/releases/RELEASE_NOTES_0.8.1.md"]
+citations = ["praval_comparison_historical"]
+experiments = ["controlled-framework-comparison"]
+acceptance_rule = "The old figures are removed from conclusions and replaced only if the controlled protocol completes."
+permitted_wording = "Earlier comparison figures are historical and are not used as evidence for Praval 0.8.1."
+limitations = ["A new comparison may produce different rankings or inconclusive results."]
+
+[[claim]]
+id = "controlled-comparison-bounded"
+statement = "Praval, LangGraph, and CrewAI can be compared under one pinned two-stage task, model-call budget, measurement proxy, and deterministic scoring rule."
+category = "performance"
+scope = "The registered 12-question fixture, Praval 0.8.1, LangGraph 1.2.9, CrewAI 1.15.6, and recorded execution environments."
+paper_sections = ["Methodology", "Results RQ4", "Threats to validity"]
+status = "proposed"
+implementation_evidence = ["research/paper_validation/comparative/controller.py", "research/paper_validation/comparative/adapter.py", "research/paper_validation/comparative/dataset.jsonl", "research/paper_validation/comparative/frameworks.toml"]
+citations = ["langgraph_pypi_1_2_9", "crewai_pypi_1_15_6", "kalibera_jones2013"]
+experiments = ["controlled-framework-comparison"]
+acceptance_rule = "Every framework uses the same 12 questions, two model calls, randomized question order, counterbalanced framework order, exact scoring, and separately reported setup, model, and framework time."
+permitted_wording = "For the registered controlled workload, the paper reports each framework's latency distribution, correctness, failures, model calls, token use, and cost without attributing differences to architecture alone."
+limitations = ["The adapters exercise one explicit two-stage workflow, not every framework design.", "Deterministic proxy results do not measure model quality.", "Live model results remain externally variable."]
+
+[[claim]]
+id = "request-voice-bounded"
+statement = "OpenAI-backed agents can perform bounded transcription and speech generation requests."
+category = "behavioral"
+scope = "Configured OpenAI models and valid audio requests."
+paper_sections = ["Execution plane", "Live capability results"]
+status = "proposed"
+implementation_evidence = ["src/praval/core/agent.py", "examples/certification/live_voice_roundtrip.py"]
+citations = []
+experiments = ["live-capability-matrix"]
+acceptance_rule = "Generated audio validates structurally and the round-trip transcription retains the registered phrase facts."
+permitted_wording = "Praval supports request-based OpenAI transcription and speech generation."
+limitations = ["Praval 0.8.1 does not provide persistent realtime audio sessions."]

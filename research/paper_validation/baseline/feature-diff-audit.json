@@ -1,0 +1,2149 @@
+{
+  "base_commit": "ee056118f9daa444166bd09148a3ca42649ccfd3",
+  "base_tag": "v0.7.22",
+  "change_status_counts": {
+    "A": 168,
+    "D": 7,
+    "M": 144,
+    "R": 1
+  },
+  "changed_file_count": 320,
+  "changed_files": [
+    {
+      "path": ".bumpversion.cfg",
+      "status": "D"
+    },
+    {
+      "path": ".github/otel-collector-config.yaml",
+      "status": "A"
+    },
+    {
+      "path": ".github/workflows/auto-version-bump.yml.disabled",
+      "status": "D"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "status": "A"
+    },
+    {
+      "path": ".github/workflows/live-demos.yml",
+      "status": "A"
+    },
+    {
+      "path": ".github/workflows/publish.yml",
+      "status": "A"
+    },
+    {
+      "path": ".gitignore",
+      "status": "M"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "status": "M"
+    },
+    {
+      "path": "CLAUDE.md",
+      "status": "M"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "status": "M"
+    },
+    {
+      "path": "MANIFEST.in",
+      "status": "M"
+    },
+    {
+      "path": "Makefile",
+      "status": "M"
+    },
+    {
+      "path": "README.md",
+      "status": "M"
+    },
+    {
+      "path": "RELEASE.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/CONTRIBUTING.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/DEPLOYMENT.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/README.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/api-surface.toml",
+      "status": "A"
+    },
+    {
+      "old_path": "docs/praval-complete-guide.md",
+      "path": "docs/archive/praval-complete-guide.md",
+      "status": "R100"
+    },
+    {
+      "path": "docs/feature-claims.toml",
+      "status": "A"
+    },
+    {
+      "path": "docs/memory-system.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/plans/2026-07-13-visual-notebook-course-design.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/plans/2026-07-14-agent-team-showcase-capstones-design.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/plans/2026-07-14-notebook-learning-experience-redesign.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/plans/2026-07-18-praval-081-quality-release-design.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/plans/2026-07-18-readme-changelog-learning-design.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/reef-communication-specification.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/releases/RELEASE_NOTES_0.8.1.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.app.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.composition.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.core.agent.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.core.exceptions.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.core.reef.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.core.registry.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.core.tool_registry.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.decorators.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.embeddings.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.hitl.models.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.hitl.policy.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.hitl.runtime.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.hitl.service.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.hitl.store.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.mcp.client.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.episodic_memory.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.long_term_memory.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.memory_manager.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.memory_types.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.semantic_memory.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.memory.short_term_memory.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.model_runtime.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.models.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.config.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.export.console_viewer.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.export.otlp_exporter.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.instrumentation.manager.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.storage.sqlite_store.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.tracing.context.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.observability.tracing.tracer.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.anthropic.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.cohere.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.factory.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.gemini.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.openai.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.openai_compatible.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.providers.registry.rst",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.base_provider.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.data_manager.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.decorators.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.filesystem.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.postgresql.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.qdrant_provider.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.redis_provider.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.rst",
+      "status": "D"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.providers.s3_provider.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.storage.storage_registry.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/generated/praval.tools.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/api/index.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/architecture/emergent-coordination.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/architecture/runtime-adr.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/conf.py",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/contributing.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/examples/index.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/guide/application-lifecycle.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/core-concepts.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/guide/demo-certification.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/documentation-quality.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/embeddings.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/getting-started.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/guide/hitl-troubleshooting.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/guide/local-llms.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/mcp.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/model-runtime.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/multimodal.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/observability.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/providers.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/runtime-migration.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/storage.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/guide/streaming.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/structured-outputs.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/guide/troubleshooting.md",
+      "status": "A"
+    },
+    {
+      "path": "docs/sphinx/index.rst",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/agent-communication.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/first-agent.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/hitl-interventions.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/memory-enabled-agents.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/multi-agent-systems.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/sphinx/tutorials/tool-integration.md",
+      "status": "M"
+    },
+    {
+      "path": "docs/tool-system-specification.md",
+      "status": "M"
+    },
+    {
+      "path": "examples/001_single_agent_identity.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/002_agent_communication.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/003_specialist_collaboration.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/004_registry_discovery.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/005_memory_enabled_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/006_resilient_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/007_adaptive_agent_systems.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/008_self_organizing_networks.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/009_emergent_collective_intelligence.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/015_hitl_tool_approval.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/016_hitl_mixed_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/README_Examples.md",
+      "status": "M"
+    },
+    {
+      "path": "examples/building_agents_tutorial.ipynb",
+      "status": "D"
+    },
+    {
+      "path": "examples/certification/assets/PROVENANCE.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/assets/image_input.png.base64",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/assets/knowledge_input.pdf.base64",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/assets/video_input.mp4.base64",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/assets/voice_input.wav.gz.base64",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/assets/voice_phrase.txt",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/live_hitl.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/live_provider_matrix.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/live_voice_roundtrip.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/mcp_server.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/mcp_transports.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/offline_framework.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/services.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/certification/support.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/configurable_embeddings.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/conversational_memory_agent.ipynb",
+      "status": "D"
+    },
+    {
+      "path": "examples/gemini_multimodal_file.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/gemini_tool_runtime.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/local_llm_openai_compatible.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/manifest.toml",
+      "status": "A"
+    },
+    {
+      "path": "examples/model_runtime_fake_provider.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/multimodal_input_runtime.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/README.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/__init__.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/case_studies/customer_support_resolution_center.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/case_studies/marketing_studio.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/case_studies/research_intelligence_desk.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/case_studies/software_release_readiness.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/00_architecture.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/01_hello_world.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/02_research_pipeline.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/03_feedback_loop.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/04_parallel_agents.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/05_tool_use.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/06_agent_memory.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/07_qdrant_integration.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/08_production_features.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/09_model_runtime.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/10_human_in_the_loop.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/11_mcp_tools.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/course/12_voice_and_multimodal.ipynb",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/PROVENANCE.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/SHA256SUMS",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/approved_facts.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/brand_guide.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/campaign_signals.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/channel_constraints.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/customer_interviews.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/product_brief.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/product_screenshot.png.base64",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/marketing/product_screenshot.svg",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/release_candidate/CHANGELOG.md",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/release_candidate/pyproject.toml",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/release_candidate/src/ledger.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/release_candidate/tests/test_ledger.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/research_sources.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/fixtures/support_case.json",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/manifest.toml",
+      "status": "A"
+    },
+    {
+      "path": "examples/notebooks/support.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/observability/001_basic_tracing_demo.py",
+      "status": "M"
+    },
+    {
+      "path": "examples/request_based_voice_agent.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/streaming_events.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/structured_output_runtime.py",
+      "status": "A"
+    },
+    {
+      "path": "examples/student_analytics.ipynb",
+      "status": "D"
+    },
+    {
+      "path": "examples/student_analytics_ai.ipynb",
+      "status": "D"
+    },
+    {
+      "path": "plans/multimodal_support_plan.md",
+      "status": "M"
+    },
+    {
+      "path": "plans/praval_model_runtime_rearchitecture.md",
+      "status": "A"
+    },
+    {
+      "path": "pyproject.toml",
+      "status": "M"
+    },
+    {
+      "path": "requirements.txt",
+      "status": "M"
+    },
+    {
+      "path": "scripts/__init__.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/build.sh",
+      "status": "M"
+    },
+    {
+      "path": "scripts/build_exact_wheel_docs.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/check_api_surface.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/check_coverage_floors.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/check_release_metadata.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/check_reproducible_build.sh",
+      "status": "A"
+    },
+    {
+      "path": "scripts/check_types.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/deploy-docs.sh",
+      "status": "M"
+    },
+    {
+      "path": "scripts/run_demos.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/run_notebooks.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/smoke_install.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/stage_docs_artifact.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/validate_distribution.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/verify_demo_certification.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/verify_pypi_wheel.py",
+      "status": "A"
+    },
+    {
+      "path": "scripts/write_build_manifest.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/__init__.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/app.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/cli.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/agent.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/agent_runner.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/exceptions.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/reef.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/reef_backend.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/core/secure_reef.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/decorators.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/embeddings.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/hitl/models.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/hitl/runtime.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/hitl/store.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/mcp/__init__.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/mcp/client.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/memory/embedded_store.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/memory/long_term_memory.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/memory/memory_manager.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/memory/semantic_memory.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/memory/short_term_memory.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/model_runtime.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/models/__init__.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/observability/__init__.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/observability/export/console_viewer.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/observability/export/otlp_exporter.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/observability/instrumentation/manager.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/observability/instrumentation/utils.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/observability/tracing/tracer.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/providers/anthropic.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/providers/cohere.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/providers/factory.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/providers/gemini.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/providers/openai.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/providers/openai_compatible.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/providers/registry.py",
+      "status": "A"
+    },
+    {
+      "path": "src/praval/storage/base_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/storage/providers/postgresql.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/storage/providers/qdrant_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/storage/providers/redis_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/storage/providers/s3_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "src/praval/storage/storage_registry.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/conftest.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/integration/test_rabbitmq_distributed_workflow.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/mcp/contract_server.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/mcp/test_client.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/mcp/test_contracts.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/mcp/test_provider_parity.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/observability/test_exporters.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/observability/test_instrumentation.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/observability/test_instrumentation_manager.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/conftest.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_base_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_data_manager.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_optional_providers.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_postgresql_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_redis_provider.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/storage/test_storage_registry.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_agent_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_agent_external_tools.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_agent_reef_integration.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_agent_runner_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_agent_runner_unit.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_agent_runtime_compatibility.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_all_examples.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_anthropic_provider_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_async_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_cli_diagnostics.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_cohere_provider_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_coverage_floors.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_decorator_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_demo_certification.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_distributed_agent_startup.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_documentation_contracts.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_embedded_store.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_embedded_store_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_embedding_runtime.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_gemini_provider_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_hitl_agent.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_hitl_cli.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_hitl_runtime_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_init_exports.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_knowledge_base_benchmark.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_local_and_gemini_providers.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_local_provider_security.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_long_term_memory.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_memory_enabled_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_memory_manager.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_model_runtime_contracts.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_model_runtime_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_notebook_course.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_openai_provider_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_pdf_integration.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_pdf_knowledge_base.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_pdf_simple.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_praval_app.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_provider_streaming.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_providers.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_reef_backend_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_reef_backend_unit.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_reef_edges_more.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_reef_registry_integration.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_reef_shutdown.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_release_scripts.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_secure_reef.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_secure_reef_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_self_organizing_agents.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_short_term_memory.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_small_contract_edges.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_spore_amqp_serialization.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_spore_v2_compatibility.py",
+      "status": "A"
+    },
+    {
+      "path": "tests/test_storage_decorators.py",
+      "status": "M"
+    },
+    {
+      "path": "tests/test_transport_edges.py",
+      "status": "A"
+    }
+  ],
+  "changed_public_source_count": 42,
+  "classification_counts": {
+    "compatibility": 1,
+    "experimental": 1,
+    "optional": 8,
+    "stable": 18,
+    "unsupported": 2
+  },
+  "commit_count": 47,
+  "commits": [
+    {
+      "commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c",
+      "subject": "build: prepare Praval 0.8.1 as the first supported 0.8 release (#20)"
+    },
+    {
+      "commit": "095b1836ead81c0e12fdf73c98366254ebe4e23c",
+      "subject": "docs: freeze the Praval 0.8.1 release date"
+    },
+    {
+      "commit": "9ed46ecd0b4192e5a1b41c2e81570b48da9148f3",
+      "subject": "build: prepare the exact-wheel Praval 0.8.1 release"
+    },
+    {
+      "commit": "6efc4e15fd0ea264a187cba682c137017e11f5a0",
+      "subject": "fix: harden diagnostics and Reef demo lifecycle"
+    },
+    {
+      "commit": "59faa632be852cf204418c83f9f88effe1a28d91",
+      "subject": "docs: design the Praval 0.8.1 quality release"
+    },
+    {
+      "commit": "5536530c45792fe5a5101e8cccb16ccb4f7cfd4e",
+      "subject": "Merge pull request #19 from aiexplorations/codex/praval-080-live-cert-fixes"
+    },
+    {
+      "commit": "a390fd4c20072854473c1957b56c51f77daa1724",
+      "subject": "fix: allow audited HITL continuation output"
+    },
+    {
+      "commit": "99fbc956c6becb84bb0b504a3a958e5c4902f058",
+      "subject": "Merge pull request #18 from aiexplorations/codex/praval-model-runtime-rearchitecture"
+    },
+    {
+      "commit": "e9a80b6c9cb1a4fe809ae73ebb8bcf2df3bad6e5",
+      "subject": "chore: freeze Praval 0.8.0 release metadata"
+    },
+    {
+      "commit": "2429911e6e4d8735f7f95f59cc4adfa8c01ef9ef",
+      "subject": "fix: certify OpenAI tools and voice"
+    },
+    {
+      "commit": "090d88ab2eb935804b0e3152f49cb2ed3b47295d",
+      "subject": "docs: expand release learning guides"
+    },
+    {
+      "commit": "8276e8d585f5122227739c526dd01387b73bf9d5",
+      "subject": "docs: design layered README and changelog"
+    },
+    {
+      "commit": "dcd4235490f73ffd8997d84af33b3035d0c55c79",
+      "subject": "fix: make documentation artifacts portable"
+    },
+    {
+      "commit": "ed2832b888d81b9345091c987aed16dc3be2e67f",
+      "subject": "ci: certify and publish exact 0.8 artifacts"
+    },
+    {
+      "commit": "61b7de0e5124a98a10335452dc936674a2ed2b1a",
+      "subject": "docs: rebuild the 0.8 framework reference"
+    },
+    {
+      "commit": "8112a873c2fd54453174bba5c14543dc37a51222",
+      "subject": "docs: define the 0.8 public API and version contract"
+    },
+    {
+      "commit": "4598f3dba22ec8615cac33317278d78ba3c72f72",
+      "subject": "fix: remove obsolete storage test import"
+    },
+    {
+      "commit": "34a28e540a967519502c408422951be58dbee4b1",
+      "subject": "fix: defer async primitives until runtime"
+    },
+    {
+      "commit": "f75d3f2ba7530fef227951778ee3297abf5f0ff6",
+      "subject": "fix: stop Python 3.9 storage dependency backtracking"
+    },
+    {
+      "commit": "a2e0d11cc886c71aeb0d3dcb43c2b52c824779e1",
+      "subject": "fix: pin release quality tool versions"
+    },
+    {
+      "commit": "3c3058c89284652d13fb97ecfcc1c1f10e51d7bb",
+      "subject": "fix: split strict and minimum-version typing"
+    },
+    {
+      "commit": "3e87afd2899f77f1502f1a9e124f8fac568c815e",
+      "subject": "fix: constrain Click for Python 3.9 typing"
+    },
+    {
+      "commit": "10a6239794ef01ecde3895c4c7679ac7d15dba83",
+      "subject": "fix: constrain NumPy stubs for Python 3.9 typing"
+    },
+    {
+      "commit": "423d7d96c213ecd06991839e4ce103b58e22ac93",
+      "subject": "fix: isolate optional dependency stubs in mypy"
+    },
+    {
+      "commit": "23a4675788f8d31f4006d869efe001b62167d7e9",
+      "subject": "fix: constrain mypy for Python 3.9 checks"
+    },
+    {
+      "commit": "9b50805d19bce5732a4b28175f1a60e3413a4889",
+      "subject": "fix: keep MCP lifecycle in one async task"
+    },
+    {
+      "commit": "460c5c4829681a2881f9ad85d03b0f49c9388505",
+      "subject": "fix: install ChromaDB for the full test suite"
+    },
+    {
+      "commit": "bb019fc9de50c3b2a3b9f9061484fd5eaa4c3332",
+      "subject": "fix: restore clean CI test execution"
+    },
+    {
+      "commit": "0a111f6bcb1af47acffdd36d50d1ce1801bd5ba9",
+      "subject": "docs: finalize 0.8 release candidate evidence"
+    },
+    {
+      "commit": "8b5cb751b8077cad903f76ef1de1efa577a3cb3c",
+      "subject": "docs: document showcase capstone portfolio"
+    },
+    {
+      "commit": "54f40c1275d76da9b49f83a2c57badfdc53eede9",
+      "subject": "feat: add agent-team showcase capstones"
+    },
+    {
+      "commit": "356c0cda264ab88b2a8ee3f2b43ced1e1b9994e5",
+      "subject": "docs: design agent-team showcase capstones"
+    },
+    {
+      "commit": "0ce67044bb3ca498df8f24ab54dd0b05bfb4007b",
+      "subject": "ci: certify and package the notebook curriculum"
+    },
+    {
+      "commit": "0f62475357048184c35ac15e197647b4990e483d",
+      "subject": "docs: rebuild the Praval notebook learning experience"
+    },
+    {
+      "commit": "f8332dcb82518cb6df59e590475d9dd95af5ee69",
+      "subject": "fix: harden service-backed runtime contracts"
+    },
+    {
+      "commit": "4dce391c98d57c9481ffd7bd6dfa31ec5b4a22b1",
+      "subject": "docs: design notebook learning experience redesign"
+    },
+    {
+      "commit": "e393f37e6dd4441ca0034d6f762b9bf7a298d0b3",
+      "subject": "feat: add visual notebook course certification"
+    },
+    {
+      "commit": "afd3bc464b21925fb46af064242b4be8430adf65",
+      "subject": "fix: encode OTLP JSON identifiers as hex"
+    },
+    {
+      "commit": "a8e77cbb980345e849f2cb421b8341105e4ddab0",
+      "subject": "docs: design visual notebook course"
+    },
+    {
+      "commit": "1e6752e92b303f6a976d139f40dced9a45780316",
+      "subject": "feat: add exact-wheel demo certification gates"
+    },
+    {
+      "commit": "ee92f11f1dd7d5baee32273b6074bffc2d6f97d7",
+      "subject": "fix: derive reproducible build epoch locally"
+    },
+    {
+      "commit": "cda3624230332f0fd19f3ce60dc8213292994c3c",
+      "subject": "docs: document Praval 0.8 MCP and release architecture"
+    },
+    {
+      "commit": "7a7188a494f243e5566aaec85a9d3e38aad8ce80",
+      "subject": "build: add reproducible CI and trusted publishing"
+    },
+    {
+      "commit": "0483aa218b105d1cc1340d55ee4163ebe9dc8c7e",
+      "subject": "test: enforce honest complete-package coverage floors"
+    },
+    {
+      "commit": "62b5e0500f2f51f73d832cf64448b980f6848a3f",
+      "subject": "feat: add first-class MCP tool clients"
+    },
+    {
+      "commit": "96c785e80a520757ce2228a507a76ee842acc709",
+      "subject": "fix: harden 0.8 storage observability and Reef behavior"
+    },
+    {
+      "commit": "686bb7755704ad81fa5492dd394f071f2fcec98a",
+      "subject": "feat: add provider-neutral model runtime for 0.8.0"
+    }
+  ],
+  "comparison": "v0.7.22..v0.8.1",
+  "diff_numstat_sha256": "ff71e9f2eaac0667db3d845c5e2f91a5d05bd0ad435d17d174cc05ef4e6e6472",
+  "expected_release_commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c",
+  "feature_count": 30,
+  "features": [
+    {
+      "changed_sources": [
+        "src/praval/app.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/application-lifecycle.md"
+      ],
+      "evidence": [
+        "tests/test_praval_app.py",
+        "tests/test_reef_shutdown.py"
+      ],
+      "id": "application-lifecycle",
+      "source": [
+        "src/praval/app.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/hitl/runtime.py",
+        "src/praval/hitl/store.py",
+        "src/praval/model_runtime.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/tutorials/hitl-interventions.md"
+      ],
+      "evidence": [
+        "tests/test_hitl_agent.py",
+        "tests/test_hitl_provider_parity.py"
+      ],
+      "id": "durable-hitl",
+      "source": [
+        "src/praval/hitl/runtime.py",
+        "src/praval/hitl/store.py",
+        "src/praval/model_runtime.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/embeddings.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/guide/embeddings.md"
+      ],
+      "evidence": [
+        "tests/test_embedding_runtime.py",
+        "tests/test_long_term_memory.py"
+      ],
+      "id": "embedding-runtime",
+      "source": [
+        "src/praval/embeddings.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "scripts/run_demos.py",
+        "scripts/verify_demo_certification.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/demo-certification.md"
+      ],
+      "evidence": [
+        "tests/test_all_examples.py",
+        "tests/test_demo_certification.py"
+      ],
+      "id": "exact-wheel-certification",
+      "source": [
+        "scripts/run_demos.py",
+        "scripts/verify_demo_certification.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/agent.py"
+      ],
+      "classification": "compatibility",
+      "documentation": [
+        "docs/sphinx/guide/runtime-migration.md"
+      ],
+      "evidence": [
+        "tests/test_agent_runtime_compatibility.py"
+      ],
+      "id": "legacy-chat-api",
+      "source": [
+        "src/praval/core/agent.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "docs/sphinx/guide/mcp.md"
+      ],
+      "classification": "unsupported",
+      "documentation": [
+        "docs/sphinx/guide/mcp.md"
+      ],
+      "evidence": [],
+      "id": "mcp-non-tool-capabilities",
+      "source": [
+        "docs/sphinx/guide/mcp.md"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/mcp/client.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/guide/mcp.md"
+      ],
+      "evidence": [
+        "tests/mcp/test_contracts.py",
+        "tests/mcp/test_client.py"
+      ],
+      "id": "mcp-tools-client",
+      "source": [
+        "src/praval/mcp/client.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/memory/memory_manager.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/tutorials/memory-enabled-agents.md"
+      ],
+      "evidence": [
+        "tests/test_memory_manager.py",
+        "tests/test_long_term_memory.py"
+      ],
+      "id": "memory-system",
+      "source": [
+        "src/praval/memory/memory_manager.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/model-runtime.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "id": "model-runtime",
+      "source": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/observability/export/otlp_exporter.py",
+        "src/praval/observability/instrumentation/manager.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/guide/observability.md"
+      ],
+      "evidence": [
+        "tests/observability/test_instrumentation.py",
+        "tests/observability/test_exporters.py"
+      ],
+      "id": "observability",
+      "source": [
+        "src/praval/observability/instrumentation/manager.py",
+        "src/praval/observability/export/otlp_exporter.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/providers/anthropic.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/providers.md"
+      ],
+      "evidence": [
+        "tests/test_providers.py",
+        "tests/test_anthropic_provider_edges.py"
+      ],
+      "id": "provider-anthropic",
+      "source": [
+        "src/praval/providers/anthropic.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/providers/cohere.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/providers.md"
+      ],
+      "evidence": [
+        "tests/test_providers.py",
+        "tests/test_cohere_provider_edges.py"
+      ],
+      "id": "provider-cohere",
+      "source": [
+        "src/praval/providers/cohere.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/providers/gemini.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/providers.md"
+      ],
+      "evidence": [
+        "tests/test_providers.py",
+        "tests/test_gemini_provider_edges.py"
+      ],
+      "id": "provider-gemini",
+      "source": [
+        "src/praval/providers/gemini.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "experimental",
+      "documentation": [
+        "docs/sphinx/guide/model-runtime.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "id": "provider-hosted-descriptors",
+      "source": [
+        "src/praval/models/__init__.py",
+        "src/praval/model_runtime.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/providers/openai.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/providers.md"
+      ],
+      "evidence": [
+        "tests/test_providers.py",
+        "tests/test_openai_provider_edges.py"
+      ],
+      "id": "provider-openai",
+      "source": [
+        "src/praval/providers/openai.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/providers/openai_compatible.py",
+        "src/praval/providers/registry.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/local-llms.md"
+      ],
+      "evidence": [
+        "tests/test_local_and_gemini_providers.py",
+        "tests/test_local_provider_security.py"
+      ],
+      "id": "provider-openai-compatible",
+      "source": [
+        "src/praval/providers/openai_compatible.py",
+        "src/praval/providers/registry.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "docs/sphinx/architecture/runtime-adr.md"
+      ],
+      "classification": "unsupported",
+      "documentation": [
+        "docs/sphinx/architecture/runtime-adr.md"
+      ],
+      "evidence": [],
+      "id": "realtime-model-sessions",
+      "source": [
+        "docs/sphinx/architecture/runtime-adr.md"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/tutorials/agent-communication.md"
+      ],
+      "evidence": [
+        "tests/test_async_agents.py",
+        "tests/test_reef_shutdown.py"
+      ],
+      "id": "reef-async-completion",
+      "source": [
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/reef.py",
+        "src/praval/core/reef_backend.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/core-concepts.md"
+      ],
+      "evidence": [
+        "tests/test_reef.py",
+        "tests/integration/test_rabbitmq_distributed_workflow.py"
+      ],
+      "id": "reef-coordination",
+      "source": [
+        "src/praval/core/reef.py",
+        "src/praval/core/reef_backend.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/agent.py",
+        "src/praval/providers/openai.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/guide/multimodal.md"
+      ],
+      "evidence": [
+        "tests/test_agent_edges.py",
+        "examples/certification/live_voice_roundtrip.py"
+      ],
+      "id": "request-voice",
+      "source": [
+        "src/praval/core/agent.py",
+        "src/praval/providers/openai.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/multimodal.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py",
+        "tests/test_local_and_gemini_providers.py"
+      ],
+      "id": "runtime-multimodal",
+      "source": [
+        "src/praval/models/__init__.py",
+        "src/praval/model_runtime.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/model-runtime.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py",
+        "tests/test_providers.py"
+      ],
+      "id": "runtime-reasoning",
+      "source": [
+        "src/praval/models/__init__.py",
+        "src/praval/model_runtime.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/streaming.md"
+      ],
+      "evidence": [
+        "tests/test_provider_streaming.py",
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "id": "runtime-streaming",
+      "source": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/structured-outputs.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py",
+        "tests/test_providers.py"
+      ],
+      "id": "runtime-structured-output",
+      "source": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/agent.py",
+        "src/praval/model_runtime.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/model-runtime.md"
+      ],
+      "evidence": [
+        "tests/test_agent_runtime_compatibility.py",
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "id": "runtime-sync-async",
+      "source": [
+        "src/praval/core/agent.py",
+        "src/praval/model_runtime.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/model_runtime.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/tool-system.md"
+      ],
+      "evidence": [
+        "tests/test_model_runtime_contracts.py",
+        "tests/test_agent_external_tools.py"
+      ],
+      "id": "runtime-tools",
+      "source": [
+        "src/praval/model_runtime.py",
+        "src/praval/core/tool_registry.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/exceptions.py",
+        "src/praval/models/__init__.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/model-runtime.md"
+      ],
+      "evidence": [
+        "tests/test_provider_streaming.py",
+        "tests/test_agent_edges.py"
+      ],
+      "id": "runtime-usage-errors",
+      "source": [
+        "src/praval/models/__init__.py",
+        "src/praval/core/exceptions.py"
+      ]
+    },
+    {
+      "changed_sources": [],
+      "classification": "optional",
+      "documentation": [
+        "docs/secure_spores_architecture.md"
+      ],
+      "evidence": [
+        "tests/test_secure_spore.py",
+        "tests/test_transport.py"
+      ],
+      "id": "secure-transports",
+      "source": [
+        "src/praval/core/secure_spore.py",
+        "src/praval/core/transport.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/core/reef.py"
+      ],
+      "classification": "stable",
+      "documentation": [
+        "docs/sphinx/guide/core-concepts.md"
+      ],
+      "evidence": [
+        "tests/test_spore_v2_compatibility.py",
+        "tests/test_spore_amqp_serialization.py"
+      ],
+      "id": "spore-v2",
+      "source": [
+        "src/praval/core/reef.py"
+      ]
+    },
+    {
+      "changed_sources": [
+        "src/praval/storage/storage_registry.py"
+      ],
+      "classification": "optional",
+      "documentation": [
+        "docs/sphinx/guide/storage.md"
+      ],
+      "evidence": [
+        "tests/storage/test_optional_providers.py",
+        "tests/storage/test_postgresql_provider.py"
+      ],
+      "id": "storage-system",
+      "source": [
+        "src/praval/storage/data_manager.py",
+        "src/praval/storage/storage_registry.py"
+      ]
+    }
+  ],
+  "interpretation": "Unmatched source files are implementation support surfaces, not automatically missing user-facing capabilities. Every inventory entry independently records source, executable evidence, and documentation.",
+  "mapped_public_source_count": 22,
+  "mapped_public_sources": {
+    "src/praval/app.py": [
+      "application-lifecycle"
+    ],
+    "src/praval/core/agent.py": [
+      "legacy-chat-api",
+      "request-voice",
+      "runtime-sync-async"
+    ],
+    "src/praval/core/exceptions.py": [
+      "runtime-usage-errors"
+    ],
+    "src/praval/core/reef.py": [
+      "reef-async-completion",
+      "reef-coordination",
+      "spore-v2"
+    ],
+    "src/praval/core/reef_backend.py": [
+      "reef-coordination"
+    ],
+    "src/praval/decorators.py": [
+      "reef-async-completion"
+    ],
+    "src/praval/embeddings.py": [
+      "embedding-runtime"
+    ],
+    "src/praval/hitl/runtime.py": [
+      "durable-hitl"
+    ],
+    "src/praval/hitl/store.py": [
+      "durable-hitl"
+    ],
+    "src/praval/mcp/client.py": [
+      "mcp-tools-client"
+    ],
+    "src/praval/memory/memory_manager.py": [
+      "memory-system"
+    ],
+    "src/praval/model_runtime.py": [
+      "durable-hitl",
+      "model-runtime",
+      "provider-hosted-descriptors",
+      "runtime-multimodal",
+      "runtime-reasoning",
+      "runtime-streaming",
+      "runtime-structured-output",
+      "runtime-sync-async",
+      "runtime-tools"
+    ],
+    "src/praval/models/__init__.py": [
+      "model-runtime",
+      "provider-hosted-descriptors",
+      "runtime-multimodal",
+      "runtime-reasoning",
+      "runtime-streaming",
+      "runtime-structured-output",
+      "runtime-usage-errors"
+    ],
+    "src/praval/observability/export/otlp_exporter.py": [
+      "observability"
+    ],
+    "src/praval/observability/instrumentation/manager.py": [
+      "observability"
+    ],
+    "src/praval/providers/anthropic.py": [
+      "provider-anthropic"
+    ],
+    "src/praval/providers/cohere.py": [
+      "provider-cohere"
+    ],
+    "src/praval/providers/gemini.py": [
+      "provider-gemini"
+    ],
+    "src/praval/providers/openai.py": [
+      "provider-openai",
+      "request-voice"
+    ],
+    "src/praval/providers/openai_compatible.py": [
+      "provider-openai-compatible"
+    ],
+    "src/praval/providers/registry.py": [
+      "provider-openai-compatible"
+    ],
+    "src/praval/storage/storage_registry.py": [
+      "storage-system"
+    ]
+  },
+  "release_commit": "fa20513e7cc982fd8d94b81c19e55a9427a6f48c",
+  "release_commit_matches_expected": true,
+  "release_tag": "v0.8.1",
+  "schema_version": 1,
+  "status": "passed",
+  "unmatched_public_sources": [
+    "src/praval/__init__.py",
+    "src/praval/cli.py",
+    "src/praval/core/agent_runner.py",
+    "src/praval/core/secure_reef.py",
+    "src/praval/hitl/models.py",
+    "src/praval/mcp/__init__.py",
+    "src/praval/memory/embedded_store.py",
+    "src/praval/memory/long_term_memory.py",
+    "src/praval/memory/semantic_memory.py",
+    "src/praval/memory/short_term_memory.py",
+    "src/praval/observability/__init__.py",
+    "src/praval/observability/export/console_viewer.py",
+    "src/praval/observability/instrumentation/utils.py",
+    "src/praval/observability/tracing/tracer.py",
+    "src/praval/providers/factory.py",
+    "src/praval/storage/base_provider.py",
+    "src/praval/storage/providers/postgresql.py",
+    "src/praval/storage/providers/qdrant_provider.py",
+    "src/praval/storage/providers/redis_provider.py",
+    "src/praval/storage/providers/s3_provider.py"
+  ]
+}

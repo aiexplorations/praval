@@ -1,0 +1,271 @@
+schema_version = 1
+
+[[feature]]
+id = "model-runtime"
+classification = "stable"
+statement = "ModelRuntime owns provider-neutral request, response, event, tool, usage, and error contracts."
+source = ["src/praval/model_runtime.py", "src/praval/models/__init__.py"]
+evidence = ["tests/test_model_runtime_contracts.py"]
+documentation = ["docs/sphinx/guide/model-runtime.md"]
+notes = ["Provider and model profiles still constrain individual capabilities."]
+
+[[feature]]
+id = "runtime-sync-async"
+classification = "stable"
+statement = "Agents support synchronous and asynchronous model execution."
+source = ["src/praval/core/agent.py", "src/praval/model_runtime.py"]
+evidence = ["tests/test_agent_runtime_compatibility.py", "tests/test_model_runtime_contracts.py"]
+documentation = ["docs/sphinx/guide/model-runtime.md"]
+notes = ["Legacy providers may use an executor fallback for async calls."]
+
+[[feature]]
+id = "runtime-streaming"
+classification = "stable"
+statement = "The runtime emits normalized synchronous and asynchronous stream events."
+source = ["src/praval/model_runtime.py", "src/praval/models/__init__.py"]
+evidence = ["tests/test_provider_streaming.py", "tests/test_model_runtime_contracts.py"]
+documentation = ["docs/sphinx/guide/streaming.md"]
+notes = ["Native streaming is required when a profile declares native streaming."]
+
+[[feature]]
+id = "runtime-structured-output"
+classification = "stable"
+statement = "The runtime carries provider-constrained structured output through a neutral request."
+source = ["src/praval/model_runtime.py", "src/praval/models/__init__.py"]
+evidence = ["tests/test_model_runtime_contracts.py", "tests/test_providers.py"]
+documentation = ["docs/sphinx/guide/structured-outputs.md"]
+notes = ["Applications remain responsible for parsing and validating returned JSON text."]
+
+[[feature]]
+id = "runtime-reasoning"
+classification = "stable"
+statement = "Reasoning configuration is represented in the provider-neutral request contract."
+source = ["src/praval/models/__init__.py", "src/praval/model_runtime.py"]
+evidence = ["tests/test_model_runtime_contracts.py", "tests/test_providers.py"]
+documentation = ["docs/sphinx/guide/model-runtime.md"]
+notes = ["Reasoning support depends on the selected provider and model."]
+
+[[feature]]
+id = "runtime-multimodal"
+classification = "stable"
+statement = "The runtime validates text, image, file, audio, and video content parts before provider execution."
+source = ["src/praval/models/__init__.py", "src/praval/model_runtime.py"]
+evidence = ["tests/test_model_runtime_contracts.py", "tests/test_local_and_gemini_providers.py"]
+documentation = ["docs/sphinx/guide/multimodal.md"]
+notes = ["Each provider profile declares its supported content types."]
+
+[[feature]]
+id = "runtime-tools"
+classification = "stable"
+statement = "ModelRuntime owns bounded tool loops for registered tools."
+source = ["src/praval/model_runtime.py", "src/praval/core/tool_registry.py"]
+evidence = ["tests/test_model_runtime_contracts.py", "tests/test_agent_external_tools.py"]
+documentation = ["docs/sphinx/guide/tool-system.md"]
+notes = ["External JSON Schema tools use the same registry through Agent.add_tool_spec()."]
+
+[[feature]]
+id = "runtime-usage-errors"
+classification = "stable"
+statement = "Responses expose normalized usage and provider errors use shared error types."
+source = ["src/praval/models/__init__.py", "src/praval/core/exceptions.py"]
+evidence = ["tests/test_provider_streaming.py", "tests/test_agent_edges.py"]
+documentation = ["docs/sphinx/guide/model-runtime.md"]
+notes = ["Provider metadata remains available for provider-specific detail."]
+
+[[feature]]
+id = "provider-openai"
+classification = "stable"
+statement = "Praval provides an OpenAI adapter with Responses and Chat Completions routing."
+source = ["src/praval/providers/openai.py"]
+evidence = ["tests/test_providers.py", "tests/test_openai_provider_edges.py"]
+documentation = ["docs/sphinx/guide/providers.md"]
+notes = ["The selected model profile controls available capabilities."]
+
+[[feature]]
+id = "provider-anthropic"
+classification = "stable"
+statement = "Praval provides an Anthropic adapter."
+source = ["src/praval/providers/anthropic.py"]
+evidence = ["tests/test_providers.py", "tests/test_anthropic_provider_edges.py"]
+documentation = ["docs/sphinx/guide/providers.md"]
+notes = ["Live behavior depends on the configured model."]
+
+[[feature]]
+id = "provider-cohere"
+classification = "stable"
+statement = "Praval provides a Cohere adapter."
+source = ["src/praval/providers/cohere.py"]
+evidence = ["tests/test_providers.py", "tests/test_cohere_provider_edges.py"]
+documentation = ["docs/sphinx/guide/providers.md"]
+notes = ["Live behavior depends on the configured model."]
+
+[[feature]]
+id = "provider-gemini"
+classification = "stable"
+statement = "Praval provides a Gemini adapter with tools, streaming, structured output, and media translation."
+source = ["src/praval/providers/gemini.py"]
+evidence = ["tests/test_providers.py", "tests/test_gemini_provider_edges.py"]
+documentation = ["docs/sphinx/guide/providers.md"]
+notes = ["Capability support depends on the selected Gemini model."]
+
+[[feature]]
+id = "provider-openai-compatible"
+classification = "stable"
+statement = "Praval provides conservative presets for OpenAI-compatible local servers."
+source = ["src/praval/providers/openai_compatible.py", "src/praval/providers/registry.py"]
+evidence = ["tests/test_local_and_gemini_providers.py", "tests/test_local_provider_security.py"]
+documentation = ["docs/sphinx/guide/local-llms.md"]
+notes = ["Tools, structured output, media, and embeddings require explicit capability opt-in."]
+
+[[feature]]
+id = "embedding-runtime"
+classification = "optional"
+statement = "EmbeddingRuntime separates embedding provider, model, and dimensions from chat configuration."
+source = ["src/praval/embeddings.py"]
+evidence = ["tests/test_embedding_runtime.py", "tests/test_long_term_memory.py"]
+documentation = ["docs/sphinx/guide/embeddings.md"]
+notes = ["Collections must be rebuilt when model or dimension compatibility changes."]
+
+[[feature]]
+id = "reef-coordination"
+classification = "stable"
+statement = "Reef provides in-process agent delivery and an optional RabbitMQ distributed backend."
+source = ["src/praval/core/reef.py", "src/praval/core/reef_backend.py"]
+evidence = ["tests/test_reef.py", "tests/integration/test_rabbitmq_distributed_workflow.py"]
+documentation = ["docs/sphinx/guide/core-concepts.md"]
+notes = ["RabbitMQ is the distributed Reef backend in 0.8.1."]
+
+[[feature]]
+id = "spore-v2"
+classification = "stable"
+statement = "Spore V2 adds JSON-safe content and reference fields while preserving the legacy knowledge-only wire body."
+source = ["src/praval/core/reef.py"]
+evidence = ["tests/test_spore_v2_compatibility.py", "tests/test_spore_amqp_serialization.py"]
+documentation = ["docs/sphinx/guide/core-concepts.md"]
+notes = ["Raw binary attachments are rejected."]
+
+[[feature]]
+id = "reef-async-completion"
+classification = "stable"
+statement = "Reef supports async handlers and explicit completion waiting."
+source = ["src/praval/core/reef.py", "src/praval/decorators.py"]
+evidence = ["tests/test_async_agents.py", "tests/test_reef_shutdown.py"]
+documentation = ["docs/sphinx/tutorials/agent-communication.md"]
+notes = ["Completion waiting replaces timing sleeps in maintained workflows."]
+
+[[feature]]
+id = "application-lifecycle"
+classification = "stable"
+statement = "PravalApp owns Agent and Reef cleanup."
+source = ["src/praval/app.py"]
+evidence = ["tests/test_praval_app.py", "tests/test_reef_shutdown.py"]
+documentation = ["docs/sphinx/guide/application-lifecycle.md"]
+notes = ["PravalApp is not a dependency injection container."]
+
+[[feature]]
+id = "durable-hitl"
+classification = "optional"
+statement = "Approval-protected tool calls can be persisted, reviewed, and resumed."
+source = ["src/praval/hitl/runtime.py", "src/praval/hitl/store.py", "src/praval/model_runtime.py"]
+evidence = ["tests/test_hitl_agent.py", "tests/test_hitl_provider_parity.py"]
+documentation = ["docs/sphinx/tutorials/hitl-interventions.md"]
+notes = ["Approval, argument edit, rejection, and expiry have distinct intervention outcomes.", "Cancellation applies to the suspended run; in 0.8.1 its pending intervention remains pending."]
+
+[[feature]]
+id = "mcp-tools-client"
+classification = "optional"
+statement = "Praval consumes MCP tools over stdio and Streamable HTTP."
+source = ["src/praval/mcp/client.py"]
+evidence = ["tests/mcp/test_contracts.py", "tests/mcp/test_client.py"]
+documentation = ["docs/sphinx/guide/mcp.md"]
+notes = ["The client is async-only and tools-only in 0.8.1."]
+
+[[feature]]
+id = "memory-system"
+classification = "optional"
+statement = "Praval exposes short-term, episodic, semantic, and long-term memory paths."
+source = ["src/praval/memory/memory_manager.py"]
+evidence = ["tests/test_memory_manager.py", "tests/test_long_term_memory.py"]
+documentation = ["docs/sphinx/tutorials/memory-enabled-agents.md"]
+notes = ["Backends and persistence depend on installed extras and configuration."]
+
+[[feature]]
+id = "storage-system"
+classification = "optional"
+statement = "The async storage API covers filesystem, PostgreSQL, Redis, S3-compatible, and Qdrant providers."
+source = ["src/praval/storage/data_manager.py", "src/praval/storage/storage_registry.py"]
+evidence = ["tests/storage/test_optional_providers.py", "tests/storage/test_postgresql_provider.py"]
+documentation = ["docs/sphinx/guide/storage.md"]
+notes = ["External service behavior is certified separately from offline behavior."]
+
+[[feature]]
+id = "observability"
+classification = "optional"
+statement = "Praval provides console, SQLite, and OTLP trace paths."
+source = ["src/praval/observability/instrumentation/manager.py", "src/praval/observability/export/otlp_exporter.py"]
+evidence = ["tests/observability/test_instrumentation.py", "tests/observability/test_exporters.py"]
+documentation = ["docs/sphinx/guide/observability.md"]
+notes = ["Instrumentation initialization and reset are idempotent."]
+
+[[feature]]
+id = "secure-transports"
+classification = "optional"
+statement = "The optional secure layer includes Secure Spore behavior and AMQP, MQTT, and STOMP transport adapters."
+source = ["src/praval/core/secure_spore.py", "src/praval/core/transport.py"]
+evidence = ["tests/test_secure_spore.py", "tests/test_transport.py"]
+documentation = ["docs/secure_spores_architecture.md"]
+notes = ["The implementation does not establish production key distribution or perfect forward secrecy."]
+
+[[feature]]
+id = "request-voice"
+classification = "optional"
+statement = "OpenAI-backed agents support request-based transcription and speech generation."
+source = ["src/praval/core/agent.py", "src/praval/providers/openai.py"]
+evidence = ["tests/test_agent_edges.py", "examples/certification/live_voice_roundtrip.py"]
+documentation = ["docs/sphinx/guide/multimodal.md"]
+notes = ["This is not a persistent realtime audio session."]
+
+[[feature]]
+id = "exact-wheel-certification"
+classification = "stable"
+statement = "Release certification installs and exercises the exact universal wheel outside the source tree."
+source = ["scripts/run_demos.py", "scripts/verify_demo_certification.py"]
+evidence = ["tests/test_all_examples.py", "tests/test_demo_certification.py"]
+documentation = ["docs/sphinx/guide/demo-certification.md"]
+notes = ["Build evidence is stored outside dist/."]
+
+[[feature]]
+id = "legacy-chat-api"
+classification = "compatibility"
+statement = "Agent.chat() remains a plain-string compatibility API."
+source = ["src/praval/core/agent.py"]
+evidence = ["tests/test_agent_runtime_compatibility.py"]
+documentation = ["docs/sphinx/guide/runtime-migration.md"]
+notes = ["New code should use generate or agenerate when it needs response metadata."]
+
+[[feature]]
+id = "provider-hosted-descriptors"
+classification = "experimental"
+statement = "Provider-hosted tools, MCP descriptors, and computer-use descriptors are explicit pass-through options."
+source = ["src/praval/models/__init__.py", "src/praval/model_runtime.py"]
+evidence = ["tests/test_model_runtime_contracts.py"]
+documentation = ["docs/sphinx/guide/model-runtime.md"]
+notes = ["These descriptors are not stable cross-provider capabilities."]
+
+[[feature]]
+id = "realtime-model-sessions"
+classification = "unsupported"
+statement = "Persistent WebRTC or WebSocket model sessions are outside the 0.8.1 scope."
+source = ["docs/sphinx/architecture/runtime-adr.md"]
+evidence = []
+documentation = ["docs/sphinx/architecture/runtime-adr.md"]
+notes = ["Request-based text and voice calls remain supported."]
+
+[[feature]]
+id = "mcp-non-tool-capabilities"
+classification = "unsupported"
+statement = "MCP resources, prompts, server hosting, managed OAuth, sampling, elicitation, and tasks are outside the 0.8.1 scope."
+source = ["docs/sphinx/guide/mcp.md"]
+evidence = []
+documentation = ["docs/sphinx/guide/mcp.md"]
+notes = ["Praval 0.8.1 is a tools-only MCP client."]
