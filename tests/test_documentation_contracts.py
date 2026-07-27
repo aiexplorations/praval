@@ -53,6 +53,14 @@ def _assert_repository_links_resolve(text):
         assert (ROOT / path).exists(), f"missing repository link: {target}"
 
 
+def _current_docs_text():
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "docs/sphinx").rglob("*"))
+        if path.is_file() and path.suffix in {".md", ".rst"}
+    )
+
+
 def test_every_top_level_export_is_classified_and_documented():
     report = api_surface.validate_api_surface(ROOT)
 
@@ -157,11 +165,7 @@ def test_release_changelog_is_substantial_and_linked():
 
 
 def test_current_docs_reject_known_false_or_private_examples():
-    current = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "docs/sphinx").rglob("*"))
-        if path.is_file() and path.suffix in {".md", ".rst"}
-    )
+    current = _current_docs_text()
 
     forbidden = [
         "from praval import configure",
@@ -174,6 +178,18 @@ def test_current_docs_reject_known_false_or_private_examples():
     ]
     for value in forbidden:
         assert value not in current
+
+
+def test_public_docs_do_not_expose_local_or_publishing_paths():
+    current = _current_docs_text()
+
+    forbidden = [
+        r"(?<!\w)~/",
+        r"/(?:Users|home)/[^/\s`]+/",
+        r"\b(?:aiexplorations/)?praval-ai\b",
+    ]
+    for pattern in forbidden:
+        assert re.search(pattern, current, flags=re.IGNORECASE) is None
 
 
 def test_release_metadata_has_one_authoritative_version():

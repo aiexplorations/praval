@@ -28,10 +28,9 @@ Before publishing a package, verify every documented default and every
 `ProviderProfile` model name against provider docs. Remove placeholder names,
 record endpoint assumptions, and add tests for new profiles.
 
-Source material from `~/Github/praval-ai` should be treated as product and
-architecture input. Port durable content into Sphinx pages, examples, or ADRs;
-do not point users at generated website output as the authoritative docs for a
-package release.
+Treat product and architecture research as input. Move durable content into
+Sphinx pages, examples, or ADRs, and cite the original evidence for performance
+or quality claims.
 
 ## API Coverage
 

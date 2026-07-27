@@ -1,10 +1,8 @@
 # Emergent Coordination Architecture
 
-This page connects the 0.8 runtime work with Praval's original
-architecture. It synthesizes the current package code and the maintained source
-material in `~/Github/praval-ai`, especially the architecture, framework
-comparison, scaling, and whitepaper drafts. Generated website output and PDFs
-are not the source of truth for this release.
+Praval uses decentralized agents that coordinate through typed messages. This
+page explains how the 0.8 model runtime fits that architecture and when
+message-driven coordination is a good choice.
 
 ## Architectural Thesis
 
@@ -98,18 +96,11 @@ coordinate, and Reef transports knowledge.
 
 ## Benchmarks And Claims
 
-The benchmark material in `~/Github/praval-ai` is useful product and research
-context, but release docs should treat those numbers as illustrative unless
-the benchmark harness, model versions, hardware, prompts, and provider settings
-are captured in this repository and run in CI or a documented benchmark job.
+Treat performance and quality numbers as illustrative unless the supporting
+benchmark records the harness, model versions, hardware, prompts, and provider
+settings. A reproducible benchmark should run in CI or a documented benchmark
+job.
 
-For the 0.8 line, the maintained documentation should state architectural
-tradeoffs and provide reproducible examples. It should not overstate speed or
-quality claims without a versioned benchmark artifact.
-
-## Documentation Policy
-
-Sphinx source under `docs/sphinx` is the canonical documentation surface for
-the 0.8 line. Content from `~/Github/praval-ai` should be ported into Sphinx as
-maintained pages, examples, and ADRs. Generated website output, generated API
-pages, and PDFs should remain build artifacts or legacy background.
+Documentation for the 0.8 line focuses on architectural tradeoffs and
+reproducible examples. Claims about speed or quality require a versioned
+benchmark artifact.
