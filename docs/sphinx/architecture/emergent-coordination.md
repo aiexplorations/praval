@@ -104,3 +104,9 @@ job.
 Documentation for the 0.8 line focuses on architectural tradeoffs and
 reproducible examples. Claims about speed or quality require a versioned
 benchmark artifact.
+
+## Documentation Policy
+
+Praval documents architecture decisions and examples alongside the code so
+readers can match guidance to a released version. Performance and quality
+claims require the evidence described above.
