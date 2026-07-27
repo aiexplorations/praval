@@ -231,6 +231,19 @@ primary = true
 venue = "IACR Cryptology ePrint Archive, Report 2011/646"
 
 [[reference]]
+id = "praval_release_0_7_22"
+type = "software"
+title = "Praval 0.7.22 release notes and source tag"
+authors = ["Rajesh Sampathkumar"]
+year = 2026
+url = "https://github.com/aiexplorations/praval/releases/tag/v0.7.22"
+accessed = "2026-07-27"
+primary = true
+version = "0.7.22"
+commit = "ee056118f9daa444166bd09148a3ca42649ccfd3"
+notes = "Last stable 0.7 release, published on February 21, 2026. Local implementation evidence is recorded in CHANGELOG.md and docs/releases/RELEASE_NOTES_0.7.22.md."
+
+[[reference]]
 id = "praval_pypi_0_8_1"
 type = "software"
 title = "Praval 0.8.1"

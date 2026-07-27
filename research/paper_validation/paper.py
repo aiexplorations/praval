@@ -30,6 +30,18 @@ VALUE_RE = re.compile(
 IMAGE_RE = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)(?:\s+[^)]*)?\)")
 UNRESOLVED_RE = re.compile(r"\{\{PRAVAL_(?:INCLUDE|VALUE):")
 WARNING_RE = re.compile(r"\bwarning\b", re.IGNORECASE)
+PROTECTED_INTRODUCTION_BASELINE_SHA256 = (
+    "9b05ec8c76e7197334559b3cde50d6fd065fa353584bb739790e7a79655e4ca5"
+)
+PROTECTED_INTRODUCTION = (
+    "AI agents as of 2026 combine large language model calls with tools, memory, "
+    "communication, and human decisions. A multi-agent framework must therefore "
+    "address two different problems. First, it must coordinate work among agents, "
+    "and second, it must translate model requests across providers whose APIs "
+    "expose different capabilities. Treating both problems as one workflow "
+    "abstraction can obscure the details of where control, failure, and "
+    "provider-specific behavior reside."
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +59,13 @@ def _inside(root: Path, value: Path) -> bool:
     resolved_root = root.resolve()
     resolved = value.resolve()
     return resolved == resolved_root or resolved_root in resolved.parents
+
+
+def protected_introduction_is_present(source: str) -> bool:
+    """Return whether the author's protected opening paragraph is unchanged."""
+    normalized_source = " ".join(source.split())
+    normalized_protected = " ".join(PROTECTED_INTRODUCTION.split())
+    return normalized_protected in normalized_source
 
 
 def expand_evidence_includes(
@@ -121,6 +140,12 @@ def validate_paper(
     warnings: List[str] = []
     used_experiments: List[str] = []
     audit = audit_paper(root)
+
+    if not protected_introduction_is_present(source):
+        errors.append(
+            "the user-edited introductory paragraph changed; "
+            "baseline Markdown SHA-256 was " + PROTECTED_INTRODUCTION_BASELINE_SHA256
+        )
 
     citations = audit["citations"]
     if citations["missing"]:
@@ -226,6 +251,9 @@ def build_paper(
     root = paper_root.resolve()
     destination = output_dir.resolve()
     destination.mkdir(parents=True, exist_ok=True)
+    canonical_bibliography = root / "arxiv" / "references.bib"
+    canonical_bibliography.parent.mkdir(parents=True, exist_ok=True)
+    write_bibtex(references, canonical_bibliography)
     validation = validate_paper(root, registry=registry, references=references)
     validation_path = destination / "paper-validation.json"
     validation_path.write_text(
@@ -293,7 +321,6 @@ def build_paper(
     ]
     if warning_lines:
         raise RuntimeError("paper build emitted warnings; see paper-build.log")
-    canonical_bibliography = root / "arxiv" / "references.bib"
     canonical_latex = root / "arxiv" / "praval.tex"
     canonical_pdf = root / "report" / "praval_technical_report_300dpi.pdf"
     canonical_bibliography.parent.mkdir(parents=True, exist_ok=True)

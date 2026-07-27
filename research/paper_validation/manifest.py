@@ -53,6 +53,7 @@ class Claim:
     category: str
     scope: str
     paper_sections: Tuple[str, ...]
+    book_sections: Tuple[str, ...]
     status: str
     implementation_evidence: Tuple[str, ...]
     citations: Tuple[str, ...]
@@ -188,12 +189,18 @@ def _load_claims(path: Path, repository_root: Path) -> Dict[str, Claim]:
         citations = _string_tuple(item, "citations", claim_id)
         experiments = _string_tuple(item, "experiments", claim_id)
         sections = _string_tuple(item, "paper_sections", claim_id)
+        book_sections = tuple(
+            _string_tuple(item, "book_sections", claim_id)
+            if "book_sections" in item
+            else ()
+        )
         limitations = _string_tuple(item, "limitations", claim_id)
         for field, values in (
             ("implementation_evidence", evidence),
             ("citations", citations),
             ("experiments", experiments),
             ("paper_sections", sections),
+            ("book_sections", book_sections),
             ("limitations", limitations),
         ):
             _unique(values, field, claim_id)
@@ -217,6 +224,7 @@ def _load_claims(path: Path, repository_root: Path) -> Dict[str, Claim]:
             category=category,
             scope=_require_string(item, "scope", claim_id),
             paper_sections=sections,
+            book_sections=book_sections,
             status=status,
             implementation_evidence=evidence,
             citations=citations,

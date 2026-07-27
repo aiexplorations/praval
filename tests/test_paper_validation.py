@@ -12,6 +12,11 @@ import pytest
 
 from research.paper_validation.analysis import bootstrap_mean_ci, describe_samples
 from research.paper_validation.audit import audit_paper
+from research.paper_validation.book import (
+    audit_book,
+    parse_book_examples,
+    validate_book,
+)
 from research.paper_validation.cli import build_parser
 from research.paper_validation.comparative.adapter import _load_praval
 from research.paper_validation.comparative.controller import (
@@ -37,7 +42,11 @@ from research.paper_validation.manifest import (
     load_feature_inventory,
     load_registry,
 )
-from research.paper_validation.paper import expand_evidence_includes
+from research.paper_validation.paper import (
+    PROTECTED_INTRODUCTION,
+    expand_evidence_includes,
+    protected_introduction_is_present,
+)
 from research.paper_validation.probes import _max_rss_kib
 from research.paper_validation.provenance import (
     EXPECTED_PRAVAL_VERSION,
@@ -137,7 +146,175 @@ def test_registry_loads_linked_claims_and_experiments(tmp_path: Path) -> None:
     registry = load_registry(claims, experiments, repository_root=Path.cwd())
 
     assert registry.claims["runtime-contract"].status == "proposed"
+    assert registry.claims["runtime-contract"].book_sections == ()
     assert registry.experiments["runtime-contracts"].tier == "offline"
+
+
+def test_registry_loads_optional_book_sections(tmp_path: Path) -> None:
+    claims, experiments = _write_manifests(tmp_path)
+    source = claims.read_text(encoding="utf-8")
+    claims.write_text(
+        source.replace(
+            'paper_sections = ["Architecture"]',
+            'paper_sections = ["Architecture"]\n'
+            'book_sections = ["Provider-neutral execution"]',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    registry = load_registry(claims, experiments, repository_root=Path.cwd())
+
+    assert registry.claims["runtime-contract"].book_sections == (
+        "Provider-neutral execution",
+    )
+
+
+def _write_test_book(
+    root: Path,
+    *,
+    block: str,
+    extra: str = "",
+) -> Path:
+    book = root / "book.md"
+    book.write_text(
+        """---
+title: "Praval: Building Agent Systems with Praval 0.8.1"
+subtitle: "Building Agent Systems with Praval 0.8.1"
+date: "July 2026"
+---
+
+Book Edition 1.1
+
+# Introduction
+
+This reference covers the exact Praval release [@praval_pypi_0_8_1].
+
+"""
+        + block
+        + "\n"
+        + extra,
+        encoding="utf-8",
+    )
+    return book
+
+
+def test_book_examples_require_adjacent_unique_markers() -> None:
+    source = """<!-- PRAVAL_BOOK_EXAMPLE id=first mode=run -->
+```python
+import praval
+```
+
+```python
+print("missing")
+```
+
+<!-- PRAVAL_BOOK_EXAMPLE id=first mode=compile -->
+```python
+x = 1
+```
+"""
+
+    examples, errors = parse_book_examples(source)
+
+    assert [example.id for example in examples] == ["first", "first"]
+    assert any("no valid adjacent marker" in error for error in errors)
+    assert any("duplicate example id" in error for error in errors)
+
+
+def test_book_display_examples_require_a_reason() -> None:
+    source = """<!-- PRAVAL_BOOK_EXAMPLE id=partial mode=display -->
+```python
+value = ...
+```
+"""
+
+    _, errors = parse_book_examples(source)
+
+    assert errors == ("line 2: display example partial needs a reason",)
+
+
+def test_book_audit_rejects_obsolete_apis_links_and_strong_claims(
+    tmp_path: Path,
+) -> None:
+    book = _write_test_book(
+        tmp_path,
+        block="""<!-- PRAVAL_BOOK_EXAMPLE id=first mode=compile -->
+```python
+from praval.observability import PravalLogger
+```
+""",
+        extra=("Praval is production-ready.\n\n" "[Missing local file](missing.md)\n"),
+    )
+    references = load_references(Path("research/paper_validation/references.toml"))
+
+    audit = audit_book(
+        book,
+        repository_root=tmp_path,
+        references=references,
+    )
+
+    assert audit.status == "failed"
+    assert any("PravalLogger" in error for error in audit.errors)
+    assert any("production-ready" in error for error in audit.errors)
+    assert any("local link does not exist" in error for error in audit.errors)
+
+
+def test_book_audit_allows_explicit_security_limitations(tmp_path: Path) -> None:
+    book = _write_test_book(
+        tmp_path,
+        block="""<!-- PRAVAL_BOOK_EXAMPLE id=first mode=compile -->
+```python
+from praval import Agent
+```
+""",
+        extra=(
+            "Praval does not claim perfect forward secrecy, and this limitation "
+            "must be handled by a deployment protocol.\n"
+        ),
+    )
+    references = load_references(Path("research/paper_validation/references.toml"))
+
+    audit = audit_book(
+        book,
+        repository_root=tmp_path,
+        references=references,
+    )
+
+    assert audit.status == "passed"
+
+
+def test_book_validation_runs_registered_example_against_exact_wheel(
+    tmp_path: Path,
+) -> None:
+    wheel = Path("dist/praval-0.8.1-py3-none-any.whl")
+    if not wheel.exists():
+        pytest.skip("the exact 0.8.1 wheel is not present")
+    book = _write_test_book(
+        tmp_path,
+        block="""<!-- PRAVAL_BOOK_EXAMPLE id=wheel-identity mode=run -->
+```python
+import praval
+
+assert praval.__version__ == "0.8.1"
+```
+""",
+    )
+    references = load_references(Path("research/paper_validation/references.toml"))
+
+    validation = validate_book(
+        book,
+        wheel=wheel,
+        repository_root=Path.cwd(),
+        references=references,
+    )
+
+    assert validation.status == "passed"
+    assert validation.installed_package["version"] == "0.8.1"
+    assert Path(validation.installed_package["path"]).resolve() != Path.cwd()
+    assert validation.examples == (
+        {"id": "wheel-identity", "mode": "run", "status": "passed"},
+    )
 
 
 def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
@@ -162,12 +339,20 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
     assert len(registry.claims) >= 12
     assert len(registry.experiments) >= 13
     assert len(references) >= 20
-    assert {"hewitt1973actor", "mcp_spec_2025_11_25", "nacl2012"} <= set(references)
+    assert {
+        "hewitt1973actor",
+        "mcp_spec_2025_11_25",
+        "nacl2012",
+        "praval_release_0_7_22",
+    } <= set(references)
     assert {
         "runtime-provider-neutral-contract",
         "reef-choreography-scope",
         "secure-spore-bounded-claim",
         "historical-comparison-not-evidence",
+        "pre-0-8-coordination-foundation",
+        "praval-0-7-22-hitl-boundary",
+        "praval-0-8-1-execution-transition",
     } <= set(registry.claims)
 
 
@@ -480,6 +665,17 @@ def test_paper_include_requires_registered_experiment_and_exact_hash(
 
     assert "| pass | 1 |" in expanded
     assert used == ("runtime-contracts",)
+
+
+def test_protected_paper_introduction_allows_only_line_wrapping() -> None:
+    wrapped = PROTECTED_INTRODUCTION.replace(
+        "large language model calls", "large language\nmodel calls"
+    )
+
+    assert protected_introduction_is_present(wrapped)
+    assert not protected_introduction_is_present(
+        wrapped.replace("must coordinate", "coordinates")
+    )
 
 
 def test_paper_value_requires_hash_pinned_generated_index(

@@ -32,11 +32,27 @@ python -m research.paper_validation paper-validate \
   --paper-root ../praval_paper
 python -m research.paper_validation build-paper \
   --paper-root ../praval_paper --output-dir <build-directory>
+python -m research.paper_validation book-audit \
+  --book docs/archive/praval-book.md
+python -m research.paper_validation book-validate \
+  --book docs/archive/praval-book.md \
+  --wheel dist/praval-0.8.1-py3-none-any.whl
+python -m research.paper_validation build-book \
+  --book docs/archive/praval-book.md \
+  --output docs/archive/praval-book.pdf
 ```
 
 Use `--quick` only for harness development. Quick runs are marked
 `canonical = false`; their claim statuses are `provisional_smoke_result`, never
 `validated`.
+
+Every Python block in the book has an adjacent
+`PRAVAL_BOOK_EXAMPLE` marker. A `run` example executes against the exact wheel,
+a `compile` example must be a self-contained compilable fragment, and a
+`display` example must state why it is intentionally partial. Book validation
+also checks citations, local links, obsolete APIs, unsupported version claims,
+and source-tree imports. The book build uses a temporary directory outside the
+repository and writes only the requested PDF.
 
 ## Evidence layout
 
@@ -44,6 +60,7 @@ Use `--quick` only for harness development. Quick runs are marked
 - `claims.toml` states the wording that evidence may permit.
 - `experiments.toml` freezes the experiment and artifact contract.
 - `references.toml` is the versioned citation registry and BibTeX source.
+- `book.py` audits, validates, and builds the maintained 0.8.1 book.
 - `comparative/locks/` freezes every comparison dependency.
 - `baseline/` records hashes and the citation state of the paper before edits.
 - `results/runs/` is ignored transient output.

@@ -71,6 +71,42 @@ def build_parser() -> argparse.ArgumentParser:
     paper_build.add_argument("--paper-root", type=Path, default=DEFAULT_PAPER_ROOT)
     paper_build.add_argument("--output-dir", type=Path, required=True)
 
+    book_audit = subparsers.add_parser(
+        "book-audit",
+        help="audit the maintained Praval book and its registered examples",
+    )
+    book_audit.add_argument(
+        "--book",
+        type=Path,
+        default=REPOSITORY_ROOT / "docs" / "archive" / "praval-book.md",
+    )
+
+    book_validate = subparsers.add_parser(
+        "book-validate",
+        help="validate registered book examples against the exact wheel",
+    )
+    book_validate.add_argument(
+        "--book",
+        type=Path,
+        default=REPOSITORY_ROOT / "docs" / "archive" / "praval-book.md",
+    )
+    book_validate.add_argument(
+        "--wheel",
+        type=Path,
+        default=REPOSITORY_ROOT / "dist" / "praval-0.8.1-py3-none-any.whl",
+    )
+
+    book_build = subparsers.add_parser(
+        "build-book",
+        help="build the maintained Praval book from Markdown",
+    )
+    book_build.add_argument(
+        "--book",
+        type=Path,
+        default=REPOSITORY_ROOT / "docs" / "archive" / "praval-book.md",
+    )
+    book_build.add_argument("--output", type=Path, required=True)
+
     curate = subparsers.add_parser(
         "curate", help="copy sanitized canonical evidence for version control"
     )
@@ -187,7 +223,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 validate_paper,
                 validation_to_dict,
             )
-            from .references import load_references
 
             registry = load_registry(
                 VALIDATION_ROOT / "claims.toml",
@@ -213,6 +248,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 stable_json({name: str(path) for name, path in paths.items()}),
                 end="",
             )
+            return 0
+        if args.command in {"book-audit", "book-validate", "build-book"}:
+            from .book import (
+                audit_book,
+                audit_to_dict,
+                build_book,
+                validate_book,
+                validation_to_dict,
+            )
+
+            references = load_references(VALIDATION_ROOT / "references.toml")
+            if args.command == "book-audit":
+                result = audit_book(
+                    args.book,
+                    repository_root=REPOSITORY_ROOT,
+                    references=references,
+                )
+                print(stable_json(audit_to_dict(result)), end="")
+                return 0 if result.status == "passed" else 1
+            if args.command == "book-validate":
+                result = validate_book(
+                    args.book,
+                    wheel=args.wheel,
+                    repository_root=REPOSITORY_ROOT,
+                    references=references,
+                )
+                print(stable_json(validation_to_dict(result)), end="")
+                return 0 if result.status == "passed" else 1
+            paths = build_book(
+                args.book,
+                output=args.output,
+                repository_root=REPOSITORY_ROOT,
+                references=references,
+            )
+            print(stable_json(paths), end="")
             return 0
         if args.command == "curate":
             from .curation import curate_runs
