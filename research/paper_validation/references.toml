@@ -231,6 +231,19 @@ primary = true
 venue = "IACR Cryptology ePrint Archive, Report 2011/646"
 
 [[reference]]
+id = "praval_source_history"
+type = "software"
+title = "Praval source history and changelog through 0.8.1"
+authors = ["Rajesh Sampathkumar"]
+year = 2026
+url = "https://github.com/aiexplorations/praval/blob/fa20513e7cc982fd8d94b81c19e55a9427a6f48c/CHANGELOG.md"
+accessed = "2026-07-29"
+primary = true
+version = "0.1.0 through 0.8.1"
+commit = "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
+notes = "The paper validation harness records tag, commit, documentation, withdrawal, and support status separately because the retained release records contain gaps and inconsistencies."
+
+[[reference]]
 id = "praval_release_0_7_22"
 type = "software"
 title = "Praval 0.7.22 release notes and source tag"
@@ -362,14 +375,3 @@ url = "https://pypi.org/project/metagpt/0.8.2/"
 accessed = "2026-07-26"
 primary = true
 version = "0.8.2"
-
-[[reference]]
-id = "praval_comparison_historical"
-type = "web"
-title = "Framework Comparison: Praval vs LangGraph vs CrewAI"
-authors = ["Rajesh Sampathkumar"]
-year = 2025
-url = "https://pravalagents.com/blog/index.html?post=framework-comparison"
-accessed = "2026-07-26"
-primary = false
-notes = "Historical project material; not independent evidence and not used for new performance claims."

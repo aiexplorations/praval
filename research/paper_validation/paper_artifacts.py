@@ -12,7 +12,7 @@ from .evidence import (
     metric_evidence_report,
     write_evidence_bundle,
 )
-from .manifest import Registry
+from .manifest import HistoryEntry, Registry, load_history
 from .provenance import sha256_file, stable_json
 
 COMPARISON_METRIC_RE = re.compile(
@@ -87,7 +87,7 @@ def _groups_for(
 
 def _claim_tables(report: Mapping[str, Any], output_dir: Path) -> Dict[str, Path]:
     paths: Dict[str, Path] = {}
-    for rq in ("RQ1", "RQ2", "RQ3", "RQ4"):
+    for rq in ("RQ1", "RQ2", "RQ3", "RQ4", "RQ5"):
         rows = []
         for claim in report["claims"]:
             if not any(rq in section for section in claim["paper_sections"]):
@@ -117,6 +117,56 @@ def _claim_tables(report: Mapping[str, Any], output_dir: Path) -> Dict[str, Path
                     output_dir=output_dir,
                 )
             )
+    return paths
+
+
+def _history_tables(
+    history: Mapping[str, HistoryEntry], output_dir: Path
+) -> Dict[str, Path]:
+    paths = _write_table(
+        "praval-version-history",
+        headers=("Version", "Status", "Date", "Main change"),
+        rows=[
+            (
+                entry.version,
+                entry.status.replace("_", " "),
+                entry.date.isoformat(),
+                entry.summary,
+            )
+            for entry in history.values()
+        ],
+        output_dir=output_dir,
+    )
+    grouped: Dict[str, List[HistoryEntry]] = {}
+    for entry in history.values():
+        if entry.status == "excluded_transient_state":
+            continue
+        grouped.setdefault(entry.era, []).append(entry)
+    era_rows = []
+    for era, entries in grouped.items():
+        first = entries[0]
+        last = entries[-1]
+        period = (
+            first.version
+            if first.version == last.version
+            else f"{first.version} to {last.version}"
+        )
+        era_rows.append(
+            (
+                era,
+                period,
+                last.summary,
+                last.motivation,
+            )
+        )
+    paths.update(
+        _write_table(
+            "praval-evolution-eras",
+            headers=("Era", "Versions", "Resulting capability", "Reason for change"),
+            rows=era_rows,
+            output_dir=output_dir,
+        )
+    )
     return paths
 
 
@@ -158,7 +208,7 @@ def _choreography_table(
         return {}, values
     return (
         _write_table(
-            "rq2-choreography-critical-path",
+            "rq3-choreography-critical-path",
             headers=(
                 "Branches",
                 "Work per branch",
@@ -196,7 +246,7 @@ def _overhead_table(
         return {}, values
     return (
         _write_table(
-            "rq1-rq3-abstraction-overhead",
+            "rq2-rq4-abstraction-overhead",
             headers=("Path", "Median", "Samples"),
             rows=rows,
             output_dir=output_dir,
@@ -244,7 +294,7 @@ def _comparison_table(
         return {}, values
     return (
         _write_table(
-            "rq4-controlled-comparison",
+            "rq5-controlled-comparison",
             headers=(
                 "Framework",
                 "Process ready (one run)",
@@ -325,7 +375,7 @@ def _scaling_table(
     if not rows:
         return {}, cells
     paths = _write_table(
-        "rq2-reef-scaling",
+        "rq3-reef-scaling",
         headers=(
             "Backend",
             "Agents",
@@ -339,8 +389,8 @@ def _scaling_table(
         output_dir=output_dir,
     )
     for backend, stem in (
-        ("in-memory", "rq2-reef-scaling-inmemory"),
-        ("RabbitMQ", "rq2-reef-scaling-rabbitmq"),
+        ("in-memory", "rq3-reef-scaling-inmemory"),
+        ("RabbitMQ", "rq3-reef-scaling-rabbitmq"),
     ):
         backend_rows = [row[1:] for row in rows if row[0] == backend]
         paths.update(
@@ -384,8 +434,7 @@ def _save_figure(figure: Any, stem: Path) -> Dict[str, Path]:
     )
     svg.write_text(
         "\n".join(
-            line.rstrip()
-            for line in svg.read_text(encoding="utf-8").splitlines()
+            line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines()
         )
         + "\n",
         encoding="utf-8",
@@ -427,7 +476,7 @@ def _figures(
         axis.set_ylabel("Sequential / fan-out median")
         axis.legend(frameon=False)
         axis.grid(axis="y", alpha=0.2)
-        paths.update(_save_figure(figure, output_dir / "rq2-choreography-speedup"))
+        paths.update(_save_figure(figure, output_dir / "rq3-choreography-speedup"))
         pyplot.close(figure)
     if overhead:
         figure, axis = pyplot.subplots(figsize=(7.2, 4.2))
@@ -439,7 +488,7 @@ def _figures(
         axis.set_xlabel("Median duration (µs, log scale)")
         axis.set_xscale("log")
         axis.grid(axis="x", alpha=0.2)
-        paths.update(_save_figure(figure, output_dir / "rq1-rq3-abstraction-overhead"))
+        paths.update(_save_figure(figure, output_dir / "rq2-rq4-abstraction-overhead"))
         pyplot.close(figure)
     comparison_rows = [
         (name, values["elapsed_seconds"])
@@ -455,7 +504,7 @@ def _figures(
         )
         axis.set_ylabel("Median elapsed time (ms)")
         axis.grid(axis="y", alpha=0.2)
-        paths.update(_save_figure(figure, output_dir / "rq4-controlled-comparison"))
+        paths.update(_save_figure(figure, output_dir / "rq5-controlled-comparison"))
         pyplot.close(figure)
     if scaling:
         figure, axes = pyplot.subplots(1, 2, figsize=(9.0, 3.5))
@@ -483,7 +532,7 @@ def _figures(
             axis.grid(axis="y", alpha=0.2)
             axis.legend(frameon=False)
         axes[0].set_ylabel("Median deliveries/s")
-        paths.update(_save_figure(figure, output_dir / "rq2-reef-scaling"))
+        paths.update(_save_figure(figure, output_dir / "rq3-reef-scaling"))
         pyplot.close(figure)
     return paths
 
@@ -502,7 +551,7 @@ def _paper_values(
         values["choreography_speedup_range"] = {
             "experiment": "choreography-critical-path",
             "value": [min(speedups), max(speedups)],
-            "rendered": f"{min(speedups):.2f}×–{max(speedups):.2f}×",
+            "rendered": f"{min(speedups):.2f}× to {max(speedups):.2f}×",
         }
     for metric, median in overhead:
         values[f"overhead_{metric.removesuffix('_seconds')}"] = {
@@ -531,7 +580,9 @@ def _paper_values(
                 else "reef-scaling-rabbitmq"
             ),
             "value": [min(throughputs), max(throughputs)],
-            "rendered": f"{min(throughputs):.1f}–{max(throughputs):.1f} deliveries/s",
+            "rendered": (
+                f"{min(throughputs):.1f} to " f"{max(throughputs):.1f} deliveries/s"
+            ),
         }
     path = output_dir / "paper-values.json"
     path.write_text(
@@ -551,6 +602,11 @@ def write_paper_artifact_bundle(
     destination = output_dir.resolve()
     destination.mkdir(parents=True, exist_ok=True)
     paths = write_evidence_bundle(runs, registry=registry, output_dir=destination)
+    history = load_history(
+        Path(__file__).with_name("history.toml"),
+        repository_root=Path(__file__).resolve().parents[2],
+    )
+    paths.update(_history_tables(history, destination))
     claim_report = claim_evidence_report(runs, registry)
     metric_report = metric_evidence_report(runs)
     paths.update(_claim_tables(claim_report, destination))

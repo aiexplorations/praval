@@ -470,8 +470,13 @@ def audit_paper(paper_root: Path) -> Dict[str, Any]:
     hashes = {name: _sha256(root / name) for name in PAPER_FILES}
     bibliography_keys_in_order = BIB_KEY_RE.findall(texts["arxiv/references.bib"])
     bibliography_keys = set(bibliography_keys_in_order)
-    citations = _latex_citations(texts["arxiv/praval.tex"])
-    citations.update(_pandoc_citations(texts["report/praval_technical_report.md"]))
+    latex_is_generated = (
+        texts["arxiv/praval.tex"].startswith("% Options for packages loaded elsewhere")
+        and r"\NewDocumentCommand\citeproc" in texts["arxiv/praval.tex"]
+    )
+    citations = _pandoc_citations(texts["report/praval_technical_report.md"])
+    if not latex_is_generated:
+        citations.update(_latex_citations(texts["arxiv/praval.tex"]))
 
     legacy_claims: List[Dict[str, Any]] = []
     strong_claims: List[Dict[str, Any]] = []
@@ -489,10 +494,6 @@ def audit_paper(paper_root: Path) -> Dict[str, Any]:
         "report/praval_technical_report.md",
     )
     claim_inventory.extend(_latex_claims(texts["arxiv/praval.tex"], "arxiv/praval.tex"))
-    latex_is_generated = (
-        texts["arxiv/praval.tex"].startswith("% Options for packages loaded elsewhere")
-        and r"\NewDocumentCommand\citeproc" in texts["arxiv/praval.tex"]
-    )
     for index, claim in enumerate(claim_inventory, 1):
         claim["id"] = f"baseline-paper-claim-{index:04d}"
         claim["support_missing"] = bool(

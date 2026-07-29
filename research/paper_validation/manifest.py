@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
@@ -38,6 +40,15 @@ FEATURE_CLASSIFICATIONS = {
     "compatibility",
     "unsupported",
 }
+HISTORY_STATUSES = {
+    "development",
+    "tagged_release",
+    "documented_release",
+    "withdrawn",
+    "supported",
+    "excluded_transient_state",
+}
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 class ManifestError(ValueError):
@@ -104,6 +115,23 @@ class Feature:
     notes: Tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class HistoryEntry:
+    """One source-backed state in Praval's version history."""
+
+    version: str
+    status: str
+    date: date
+    commit: str
+    tag: str
+    era: str
+    summary: str
+    motivation: str
+    evidence: Tuple[str, ...]
+    successor: str
+    notes: Tuple[str, ...]
+
+
 def _load_toml(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         raise ManifestError(f"manifest does not exist: {path}")
@@ -118,6 +146,13 @@ def _require_string(item: Mapping[str, Any], field: str, owner: str) -> str:
     value = item.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ManifestError(f"{owner}: {field} must be a non-empty string")
+    return value.strip()
+
+
+def _optional_string(item: Mapping[str, Any], field: str, owner: str) -> str:
+    value = item.get(field, "")
+    if not isinstance(value, str):
+        raise ManifestError(f"{owner}: {field} must be a string")
     return value.strip()
 
 
@@ -407,3 +442,86 @@ def load_feature_inventory(
             notes=notes,
         )
     return features
+
+
+def load_history(path: Path, *, repository_root: Path) -> Mapping[str, HistoryEntry]:
+    """Load Praval's release and development history in chronological order."""
+    raw = _load_toml(path)
+    entries: Dict[str, HistoryEntry] = {}
+    tags: set[str] = set()
+    previous_date: date | None = None
+    ordered_versions: list[str] = []
+    for item in _raw_tables(raw, "version", path):
+        version = _require_string(item, "version", str(path))
+        if version in entries:
+            raise ManifestError(f"duplicate history version: {version}")
+        status = _require_string(item, "status", version)
+        if status not in HISTORY_STATUSES:
+            raise ManifestError(
+                f"{version}: status must use {sorted(HISTORY_STATUSES)}"
+            )
+        raw_date = _require_string(item, "date", version)
+        try:
+            released_on = date.fromisoformat(raw_date)
+        except ValueError as exc:
+            raise ManifestError(f"{version}: date must use YYYY-MM-DD") from exc
+        if previous_date is not None and released_on < previous_date:
+            raise ManifestError(
+                f"{version}: history dates must be in chronological order"
+            )
+        previous_date = released_on
+        commit = _require_string(item, "commit", version)
+        if not COMMIT_RE.fullmatch(commit):
+            raise ManifestError(f"{version}: commit must be a full Git object id")
+        tag = _optional_string(item, "tag", version)
+        if status in {"tagged_release", "supported"} and not tag:
+            raise ManifestError(f"{version}: {status} entries require a tag")
+        if tag:
+            if tag in tags:
+                raise ManifestError(f"duplicate history tag: {tag}")
+            tags.add(tag)
+        evidence = _string_tuple(item, "evidence", version)
+        notes = _string_tuple(item, "notes", version)
+        if not evidence:
+            raise ManifestError(f"{version}: evidence must not be empty")
+        _unique(evidence, "evidence", version)
+        _unique(notes, "notes", version)
+        for evidence_path in evidence:
+            _safe_repository_path(
+                evidence_path,
+                repository_root=repository_root,
+                field="evidence",
+                owner=version,
+                must_exist=True,
+            )
+        entries[version] = HistoryEntry(
+            version=version,
+            status=status,
+            date=released_on,
+            commit=commit,
+            tag=tag,
+            era=_require_string(item, "era", version),
+            summary=_require_string(item, "summary", version),
+            motivation=_require_string(item, "motivation", version),
+            evidence=evidence,
+            successor=_optional_string(item, "successor", version),
+            notes=notes,
+        )
+        ordered_versions.append(version)
+    for index, version in enumerate(ordered_versions):
+        successor = entries[version].successor
+        if not successor:
+            continue
+        if successor not in entries:
+            raise ManifestError(f"{version}: unknown successor: {successor}")
+        if ordered_versions.index(successor) <= index:
+            raise ManifestError(f"{version}: successor must occur later in history")
+    supported = [
+        entry.version for entry in entries.values() if entry.status == "supported"
+    ]
+    if len(supported) != 1:
+        raise ManifestError(
+            "history must identify exactly one supported release, found "
+            + str(supported)
+        )
+    return entries

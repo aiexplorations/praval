@@ -40,6 +40,7 @@ from research.paper_validation.feature_audit import (
 from research.paper_validation.manifest import (
     ManifestError,
     load_feature_inventory,
+    load_history,
     load_registry,
 )
 from research.paper_validation.paper import (
@@ -330,6 +331,7 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
         repository_root=root,
     )
     references = load_references(validation_root / "references.toml")
+    history = load_history(validation_root / "history.toml", repository_root=root)
     validate_claim_citations(registry.claims, references)
 
     assert len(features) >= 25
@@ -339,11 +341,13 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
     assert len(registry.claims) >= 12
     assert len(registry.experiments) >= 13
     assert len(references) >= 20
+    assert len(history) >= 30
     assert {
         "hewitt1973actor",
         "mcp_spec_2025_11_25",
         "nacl2012",
         "praval_release_0_7_22",
+        "praval_source_history",
     } <= set(references)
     assert {
         "runtime-provider-neutral-contract",
@@ -353,7 +357,52 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
         "pre-0-8-coordination-foundation",
         "praval-0-7-22-hitl-boundary",
         "praval-0-8-1-execution-transition",
+        "initial-agent-coordination-foundation",
+        "memory-data-transport-expansion",
+        "coordination-operations-maturity",
     } <= set(registry.claims)
+    assert history["0.8.0"].status == "withdrawn"
+    assert history["0.8.1"].status == "supported"
+    assert history["1.0.0"].status == "excluded_transient_state"
+
+
+def test_history_rejects_impossible_chronology(tmp_path: Path) -> None:
+    history = tmp_path / "history.toml"
+    history.write_text(
+        """
+schema_version = 1
+
+[[version]]
+version = "0.1.0"
+status = "development"
+date = "2026-01-02"
+commit = "1111111111111111111111111111111111111111"
+tag = ""
+era = "Initial"
+summary = "Initial source state."
+motivation = "Start the framework."
+evidence = ["pyproject.toml"]
+successor = "0.2.0"
+notes = []
+
+[[version]]
+version = "0.2.0"
+status = "supported"
+date = "2026-01-01"
+commit = "2222222222222222222222222222222222222222"
+tag = "v0.2.0"
+era = "Initial"
+summary = "Supported source state."
+motivation = "Publish the framework."
+evidence = ["pyproject.toml"]
+successor = ""
+notes = []
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="chronological order"):
+        load_history(history, repository_root=Path.cwd())
 
 
 def test_feature_inventory_is_mapped_to_the_release_diff() -> None:
@@ -588,6 +637,7 @@ def test_module_validate_command_accepts_repository_manifests() -> None:
     assert payload["claims"] >= 12
     assert payload["experiments"] >= 13
     assert payload["features"] >= 25
+    assert payload["history_versions"] >= 30
 
 
 def test_tier_selection_uses_only_registered_experiments() -> None:
@@ -665,6 +715,31 @@ def test_paper_include_requires_registered_experiment_and_exact_hash(
 
     assert "| pass | 1 |" in expanded
     assert used == ("runtime-contracts",)
+
+
+def test_paper_history_include_requires_an_exact_hash(tmp_path: Path) -> None:
+    claims, experiments = _write_manifests(tmp_path)
+    registry = load_registry(claims, experiments, repository_root=Path.cwd())
+    generated = tmp_path / "generated"
+    generated.mkdir()
+    fragment = generated / "praval-version-history.md"
+    fragment.write_text(
+        "| Version | Status |\n| --- | --- |\n| 0.8.1 | supported |\n",
+        encoding="utf-8",
+    )
+    from research.paper_validation.provenance import sha256_file
+
+    directive = (
+        "{{PRAVAL_HISTORY_INCLUDE:praval-version-history.md:"
+        f"{sha256_file(fragment)}}}}}"
+    )
+
+    expanded, used = expand_evidence_includes(
+        directive, paper_root=tmp_path, registry=registry
+    )
+
+    assert "| 0.8.1 | supported |" in expanded
+    assert used == ()
 
 
 def test_protected_paper_introduction_allows_only_line_wrapping() -> None:

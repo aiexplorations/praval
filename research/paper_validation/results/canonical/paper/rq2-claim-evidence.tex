@@ -2,8 +2,8 @@
 \hline
 Claim & Status & Experiment evidence & Permitted wording \\
 \hline
-reef-choreography-scope & validated & choreography-critical-path (passed), reef-scaling-inmemory (passed), reef-scaling-rabbitmq (passed) & Praval does not require an application-level workflow orchestrator for registered Reef topologies. \\
-choreography-critical-path & validated & choreography-critical-path (passed) & For independent branches in the tested workloads, Reef fan-out reduced the critical path relative to a sequential baseline. \\
-reef-scaling-bounded & validated & reef-scaling-inmemory (passed), reef-scaling-rabbitmq (passed) & The paper reports measured Reef scaling only for the registered hardware, payloads, agent counts, and backends. \\
+runtime-provider-neutral-contract & validated\_with\_scope & runtime-contracts (passed), capability-resolution (passed), live-capability-matrix (not\_run) & Praval normalizes model execution for capabilities declared by the selected provider profile. \\
+runtime-capability-fail-fast & validated & capability-resolution (passed) & The runtime rejects unsupported declared capabilities before provider execution. \\
+abstraction-costs-measured & validated & abstraction-overhead (passed) & The paper separates measured framework abstraction costs from external model latency. \\
 \hline
 \end{tabular}

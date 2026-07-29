@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 
 from .audit import audit_paper, audit_summary
 from .feature_audit import audit_feature_diff, write_feature_diff_bundle
-from .manifest import load_feature_inventory, load_registry
+from .manifest import load_feature_inventory, load_history, load_registry
 from .provenance import stable_json
 from .references import load_references, validate_claim_citations
 
@@ -129,6 +129,9 @@ def _validate() -> dict:
         repository_root=REPOSITORY_ROOT,
     )
     references = load_references(VALIDATION_ROOT / "references.toml")
+    history = load_history(
+        VALIDATION_ROOT / "history.toml", repository_root=REPOSITORY_ROOT
+    )
     validate_claim_citations(registry.claims, references)
     return {
         "schema_version": 1,
@@ -137,6 +140,7 @@ def _validate() -> dict:
         "claims": len(registry.claims),
         "experiments": len(registry.experiments),
         "references": len(references),
+        "history_versions": len(history),
     }
 
 

@@ -1,0 +1,430 @@
+schema_version = 1
+
+[[version]]
+version = "0.1.0"
+status = "development"
+date = "2025-08-03"
+commit = "f36985ba2d9ff8b230f744c6fdfdd073a52ed52a"
+tag = ""
+era = "Initial agent foundation"
+summary = "Established the package, direct Agent abstraction, provider integrations, state, prompts, tools, memory interfaces, and the first multi-agent components."
+motivation = "Create a Python package in which model-backed agents and their supporting facilities could be composed."
+evidence = ["pyproject.toml", "src/praval/core/agent.py"]
+successor = "0.2.0"
+notes = ["This source state was versioned in package metadata but has no matching Git tag."]
+
+[[version]]
+version = "0.2.0"
+status = "development"
+date = "2025-08-08"
+commit = "7b7c4972855ad9a2ca35a16c613bbff2bbe194c1"
+tag = ""
+era = "Initial coordination model"
+summary = "Introduced the decorator-based agent API and made Reef and Spore message exchange the main multi-agent coordination path."
+motivation = "Reduce the amount of application code needed to define specialist agents and connect their message handlers."
+evidence = ["pyproject.toml", "src/praval/decorators.py", "src/praval/core/reef.py"]
+successor = "0.5.0"
+notes = ["This source state was versioned in package metadata but has no matching Git tag.", "Claims from its contemporary README are treated as design intent unless current source or experiments support them."]
+
+[[version]]
+version = "0.5.0"
+status = "tagged_release"
+date = "2025-08-09"
+commit = "4de282f34a961f89575480ca44cb2bd8e9b964f4"
+tag = "v0.5.0"
+era = "Memory and application foundation"
+summary = "Added the layered memory system, knowledge-base integration, progressive examples, and reorganized package and test infrastructure."
+motivation = "Give coordinated agents a maintained way to retain working, episodic, semantic, and long-term information."
+evidence = ["CHANGELOG.md", "src/praval/memory/memory_manager.py"]
+successor = "0.5.1"
+notes = ["The release notes used production language that this paper does not repeat without deployment evidence."]
+
+[[version]]
+version = "0.5.1"
+status = "tagged_release"
+date = "2025-08-18"
+commit = "c8c69fee7b274de57b8dfc04140755c3cf24b2b5"
+tag = "v0.5.1"
+era = "Memory and application foundation"
+summary = "Corrected multi-agent communication behavior and updated examples."
+motivation = "Repair coordination failures found after the 0.5.0 release."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py"]
+successor = "0.6.0"
+notes = ["The current changelog does not contain a separate 0.5.1 section; the tag and source commit are the primary record."]
+
+[[version]]
+version = "0.6.0"
+status = "tagged_release"
+date = "2025-08-19"
+commit = "338db76763578a39634d0fb4ab5b18a76489c2a2"
+tag = "v0.6.0"
+era = "Data, transport, and security expansion"
+summary = "Added Secure Spore behavior and AMQP, MQTT, and STOMP transport adapters."
+motivation = "Allow configured peers to protect Spore payloads and move messages through external transport systems."
+evidence = ["CHANGELOG.md", "src/praval/core/secure_spore.py", "src/praval/core/transport.py"]
+successor = "0.6.1"
+notes = ["The implementation does not establish perfect forward secrecy or a production key-distribution protocol."]
+
+[[version]]
+version = "0.6.1"
+status = "documented_release"
+date = "2025-08-20"
+commit = "2472b6a115724012a5ade2a1a60aadf85a91ab9d"
+tag = ""
+era = "Data, transport, and security expansion"
+summary = "Documented the async storage provider layer, storage registry, DataReference, and memory-to-storage integration."
+motivation = "Keep large or durable data outside Spore payloads while allowing agents to exchange references."
+evidence = ["CHANGELOG.md", "src/praval/storage/data_manager.py", "src/praval/storage/base_provider.py"]
+successor = "0.6.2"
+notes = ["No distinct 0.6.1 tag or package-state commit is present in the retained history; the 0.6.2 commit contains the 0.6.1 changelog record."]
+
+[[version]]
+version = "0.6.2"
+status = "tagged_release"
+date = "2025-08-22"
+commit = "2472b6a115724012a5ade2a1a60aadf85a91ab9d"
+tag = "v0.6.2"
+era = "Data, transport, and security expansion"
+summary = "Added containerized examples for memory and storage services and corrected their service setup."
+motivation = "Make optional data integrations easier to exercise in a repeatable local environment."
+evidence = ["CHANGELOG.md", "examples"]
+successor = "0.7.0"
+notes = ["The changelog labels this release 2025-08-21, while the tagged commit is dated 2025-08-22; the ledger uses the tagged commit date."]
+
+[[version]]
+version = "0.7.0"
+status = "tagged_release"
+date = "2025-09-01"
+commit = "0af44f736cf2fd00e0b04dcfd3162e142e144138"
+tag = "v0.7.0"
+era = "Coordination and operations maturity"
+summary = "Added PDF ingestion support to the knowledge-base path."
+motivation = "Extend document indexing beyond the text formats handled by earlier releases."
+evidence = ["CHANGELOG.md", "tests/test_pdf_knowledge_base.py"]
+successor = "0.7.1"
+notes = ["PDF support was optional and depended on the installed document library."]
+
+[[version]]
+version = "0.7.1"
+status = "tagged_release"
+date = "2025-09-01"
+commit = "4d0525ae798d181e6d5bc5855e7f3a76101f914e"
+tag = "v0.7.1"
+era = "Coordination and operations maturity"
+summary = "Corrected a ChromaDB query path used by the knowledge base."
+motivation = "Repair retrieval behavior introduced or exposed by the 0.7.0 knowledge-base path."
+evidence = ["CHANGELOG.md", "tests/test_knowledge_base_benchmark.py"]
+successor = "0.7.2"
+notes = []
+
+[[version]]
+version = "0.7.2"
+status = "development"
+date = "2025-09-02"
+commit = "bf27f807ab973f3dfd43afd38473c6b65506bd34"
+tag = ""
+era = "Coordination and operations maturity"
+summary = "Introduced the registered tool system and its Python decorator."
+motivation = "Give agents typed, discoverable functions instead of relying only on provider-specific function declarations."
+evidence = ["CHANGELOG.md", "src/praval/core/tool_registry.py", "src/praval/decorators.py"]
+successor = "0.7.3"
+notes = ["The package briefly used 0.7.2 in source, but the tool release was tagged as 0.7.3."]
+
+[[version]]
+version = "0.7.3"
+status = "tagged_release"
+date = "2025-09-02"
+commit = "5ccb8551b7ef947cd1ddff38ee6cd30fc34bb56b"
+tag = "v0.7.3"
+era = "Coordination and operations maturity"
+summary = "Released the registered tool system and synchronized package version metadata."
+motivation = "Publish the typed tool facilities prepared in the 0.7.2 development state."
+evidence = ["CHANGELOG.md", "src/praval/core/tool_registry.py", "src/praval/decorators.py"]
+successor = "0.7.4"
+notes = []
+
+[[version]]
+version = "0.7.4"
+status = "tagged_release"
+date = "2025-09-03"
+commit = "3314cff09ef69df26c1f31a3937a8f8cd6a527ce"
+tag = "v0.7.4"
+era = "Coordination and operations maturity"
+summary = "Improved knowledge-base behavior and added focused tests."
+motivation = "Correct retrieval and indexing behavior and make regressions easier to detect."
+evidence = ["CHANGELOG.md", "tests"]
+successor = "0.7.5"
+notes = ["Dates for 0.7.4 through 0.7.6 in the current changelog are stale; the ledger uses the tagged Git dates."]
+
+[[version]]
+version = "0.7.5"
+status = "tagged_release"
+date = "2025-09-03"
+commit = "69c1dbf10174725918fdf4c8ee59364faede9624"
+tag = "v0.7.5"
+era = "Coordination and operations maturity"
+summary = "Corrected ChromaDB collection initialization and knowledge-base integration."
+motivation = "Prevent collection setup from breaking configured knowledge retrieval."
+evidence = ["CHANGELOG.md", "tests/test_knowledge_base_benchmark.py"]
+successor = "0.7.6"
+notes = []
+
+[[version]]
+version = "0.7.6"
+status = "tagged_release"
+date = "2025-09-03"
+commit = "46a97dcd50da1c9f7d488668f772c62167512583"
+tag = "v0.7.6"
+era = "Coordination and operations maturity"
+summary = "Separated knowledge-base collections from conversational-memory collections."
+motivation = "Prevent unrelated retrieval workloads from sharing one vector collection and configuration."
+evidence = ["CHANGELOG.md", "src/praval/memory"]
+successor = "0.7.7"
+notes = []
+
+[[version]]
+version = "1.0.0"
+status = "excluded_transient_state"
+date = "2025-10-23"
+commit = "92ad4b7b9192516d1d30a284b0a63ad29f74bf37"
+tag = ""
+era = "Coordination and operations maturity"
+summary = "Package metadata was changed to 1.0.0 and immediately reverted."
+motivation = "Record an internal release-automation state so it is not mistaken for a published Praval line."
+evidence = ["pyproject.toml", "CHANGELOG.md"]
+successor = "0.7.7"
+notes = ["This state was not retained as a Praval release and is excluded from capability claims."]
+
+[[version]]
+version = "0.7.7"
+status = "tagged_release"
+date = "2025-10-23"
+commit = "ff90c0e553b65b9a40268e4f0843da0dda290275"
+tag = "v0.7.7"
+era = "Coordination and operations maturity"
+summary = "Restored the 0.7 release line and revised the release workflow."
+motivation = "Correct the reverted 1.0.0 version state and make package publishing explicit."
+evidence = ["CHANGELOG.md", "pyproject.toml"]
+successor = "0.7.8"
+notes = []
+
+[[version]]
+version = "0.7.8"
+status = "tagged_release"
+date = "2025-10-23"
+commit = "d49eb65a1c774bb153349155c2a292f3a64791b6"
+tag = "v0.7.8"
+era = "Coordination and operations maturity"
+summary = "Prepared a wheel-only release workflow and cleaned package artifacts."
+motivation = "Reduce ambiguity in the artifacts uploaded for a release."
+evidence = ["CHANGELOG.md", "pyproject.toml"]
+successor = "0.7.9"
+notes = ["PyPI currently retains public artifacts from 0.7.8 onward."]
+
+[[version]]
+version = "0.7.9"
+status = "tagged_release"
+date = "2025-10-24"
+commit = "2fc44783d89a8c444a6a7ac9c7b6b47ec82b25b0"
+tag = "v0.7.9"
+era = "Coordination and operations maturity"
+summary = "Added minimal, memory, and all optional installation groups."
+motivation = "Let applications install only the integrations they use."
+evidence = ["CHANGELOG.md", "pyproject.toml"]
+successor = "0.7.10"
+notes = []
+
+[[version]]
+version = "0.7.10"
+status = "documented_release"
+date = "2025-10-29"
+commit = "5bce2989c8bba59e1c2ac00a056edc663c25bde1"
+tag = "v0.7.10"
+era = "Coordination and operations maturity"
+summary = "Synchronized package metadata after fixes for notebook execution and dependency organization."
+motivation = "Keep repeated notebook runs and optional installation paths from producing duplicate or inconsistent behavior."
+evidence = ["CHANGELOG.md", "pyproject.toml"]
+successor = "0.7.11"
+notes = ["The v0.7.10 tag points to the same commit as v0.7.9; the ledger records the later package-state commit and treats the release record as inconsistent."]
+
+[[version]]
+version = "0.7.11"
+status = "tagged_release"
+date = "2025-11-05"
+commit = "3d4a3f53721251a02c498b4994cfe058c934fd06"
+tag = "v0.7.11"
+era = "Coordination and operations maturity"
+summary = "Added built-in tracing, console inspection, SQLite trace storage, and OTLP export."
+motivation = "Make agent and message activity observable across local and service-backed runs."
+evidence = ["CHANGELOG.md", "src/praval/observability"]
+successor = "0.7.12"
+notes = ["Observability backends remained optional and required their own configuration."]
+
+[[version]]
+version = "0.7.12"
+status = "tagged_release"
+date = "2025-11-07"
+commit = "a00d4daa4c6adc51290715c385b24ead23f3ca20"
+tag = "v0.7.12"
+era = "Coordination and operations maturity"
+summary = "Corrected Reef broadcast delivery to registered agent handlers."
+motivation = "Repair a coordination path in which broadcasts could fail to invoke agents."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py"]
+successor = "0.7.13"
+notes = ["The changelog date and tag date differ by one day; the ledger uses the tag date."]
+
+[[version]]
+version = "0.7.13"
+status = "tagged_release"
+date = "2025-11-07"
+commit = "4d220a4e5210e63192f44c6f250a3d9cb86a1d29"
+tag = "v0.7.13"
+era = "Coordination and operations maturity"
+summary = "Added native Spore AMQP serialization and pluggable Reef backends."
+motivation = "Let the Reef API use an external message service without replacing the Spore contract."
+evidence = ["CHANGELOG.md", "src/praval/core/reef_backend.py"]
+successor = "0.7.14"
+notes = []
+
+[[version]]
+version = "0.7.14"
+status = "tagged_release"
+date = "2025-11-08"
+commit = "1ec8a822247ebf745b24230df7e6888cbbec14f4"
+tag = "v0.7.14"
+era = "Coordination and operations maturity"
+summary = "Corrected RabbitMQ-backed distributed agent consumption."
+motivation = "Repair delivery between agents running through the external Reef backend."
+evidence = ["CHANGELOG.md", "src/praval/core/reef_backend.py"]
+successor = "0.7.15"
+notes = []
+
+[[version]]
+version = "0.7.15"
+status = "tagged_release"
+date = "2025-11-08"
+commit = "dff7eee0c0bbe7656147806e9f2d9b92ab89f55b"
+tag = "v0.7.15"
+era = "Coordination and operations maturity"
+summary = "Added RabbitMQ queue consumption with channel-to-queue mapping."
+motivation = "Make distributed Reef subscriptions explicit at the broker queue boundary."
+evidence = ["CHANGELOG.md", "src/praval/core/reef_backend.py"]
+successor = "0.7.16"
+notes = []
+
+[[version]]
+version = "0.7.16"
+status = "tagged_release"
+date = "2025-11-08"
+commit = "b5980002d0b1c3557e1203c22aeab65013332d41"
+tag = "v0.7.16"
+era = "Coordination and operations maturity"
+summary = "Corrected default-channel resolution for chained broadcasts."
+motivation = "Keep follow-up messages on the Reef channel used to start the agent set."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py"]
+successor = "0.7.17"
+notes = []
+
+[[version]]
+version = "0.7.17"
+status = "tagged_release"
+date = "2025-12-07"
+commit = "bbd15e8198470f93392885fad3bc25755e7caf65"
+tag = "v0.7.17"
+era = "Coordination and operations maturity"
+summary = "Expanded storage tests and improved test isolation."
+motivation = "Increase confidence that optional storage providers preserve their documented contracts."
+evidence = ["CHANGELOG.md", "tests/storage"]
+successor = "0.7.18"
+notes = []
+
+[[version]]
+version = "0.7.18"
+status = "tagged_release"
+date = "2025-12-08"
+commit = "f9a51d621bfe2d237d8a6d21644a759e9f839438"
+tag = "v0.7.18"
+era = "Coordination and operations maturity"
+summary = "Added explicit completion waiting and corrected broadcast channel resolution."
+motivation = "Replace fixed timing sleeps with bounded knowledge that scheduled agent handlers have finished."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py"]
+successor = "0.7.19"
+notes = ["Completion tracking is process-local and is not a durable workflow state."]
+
+[[version]]
+version = "0.7.19"
+status = "tagged_release"
+date = "2025-12-09"
+commit = "811d66cf669ab03a16da1d5c8429f310f57f08b4"
+tag = "v0.7.19"
+era = "Coordination and operations maturity"
+summary = "Routed distributed messages through the configured backend and improved error and lifecycle handling."
+motivation = "Make the distributed Reef path use the same explicit backend boundary as local coordination."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py", "src/praval/core/reef_backend.py"]
+successor = "0.7.20"
+notes = []
+
+[[version]]
+version = "0.7.20"
+status = "tagged_release"
+date = "2025-12-09"
+commit = "27f0800b06bf1ab2190fddf1abbdcbe16aba05bb"
+tag = "v0.7.20"
+era = "Coordination and operations maturity"
+summary = "Corrected the RabbitMQ backend send argument order."
+motivation = "Repair a release-blocking broker delivery regression."
+evidence = ["CHANGELOG.md", "src/praval/core/reef_backend.py"]
+successor = "0.7.21"
+notes = []
+
+[[version]]
+version = "0.7.21"
+status = "tagged_release"
+date = "2026-02-09"
+commit = "9226fa46bbc18fc5a31f47ac760f0608c19f2a6c"
+tag = "v0.7.21"
+era = "Coordination and operations maturity"
+summary = "Stabilized Reef, Spore, tools, lifecycle cleanup, payload validation, authorization, rate limits, and observability behavior."
+motivation = "Consolidate the 0.7 coordination and operations surface before adding durable human intervention."
+evidence = ["CHANGELOG.md", "src/praval/core/reef.py", "src/praval/core/agent.py"]
+successor = "0.7.22"
+notes = ["This release collected several reliability and security-boundary corrections made after 0.7.20."]
+
+[[version]]
+version = "0.7.22"
+status = "tagged_release"
+date = "2026-02-21"
+commit = "ee056118f9daa444166bd09148a3ca42649ccfd3"
+tag = "v0.7.22"
+era = "Coordination and operations maturity"
+summary = "Added agent-gated human intervention for protected tools, with SQLite-backed approval, editing, rejection, suspension, restart, and resume."
+motivation = "Place a durable decision boundary around tool calls that should not execute without a person."
+evidence = ["CHANGELOG.md", "docs/releases/RELEASE_NOTES_0.7.22.md", "src/praval/hitl/store.py"]
+successor = "0.8.0"
+notes = ["This was the last stable 0.7 release.", "The provider-neutral continuation path was expanded in the 0.8 line."]
+
+[[version]]
+version = "0.8.0"
+status = "withdrawn"
+date = "2026-07-18"
+commit = "e9a80b6c9cb1a4fe809ae73ebb8bcf2df3bad6e5"
+tag = ""
+era = "Provider-neutral execution transition"
+summary = "Prepared the provider-neutral runtime release candidate, then withdrew the uploaded package before creating a matching tag and release."
+motivation = "Avoid treating an artifact without a matching source tag, release record, and certification chain as the supported 0.8 release."
+evidence = ["docs/releases/RELEASE_NOTES_0.8.1.md", "pyproject.toml"]
+successor = "0.8.1"
+notes = ["There is no supported user migration from 0.8.0 because the candidate was withdrawn."]
+
+[[version]]
+version = "0.8.1"
+status = "supported"
+date = "2026-07-18"
+commit = "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
+tag = "v0.8.1"
+era = "Provider-neutral execution transition"
+summary = "Retained the Agent, Reef, and Spore coordination model and added ModelRuntime, EmbeddingRuntime, provider profiles, normalized contracts, Spore V2, MCP tools, and PravalApp lifecycle ownership."
+motivation = "Separate model execution and provider capability handling from inter-agent message coordination."
+evidence = ["CHANGELOG.md", "docs/releases/RELEASE_NOTES_0.8.1.md", "src/praval/model_runtime.py"]
+successor = ""
+notes = ["This paper evaluates the exact published 0.8.1 wheel.", "Provider-neutral means one contract across declared capabilities, not identical behavior from every provider or model."]

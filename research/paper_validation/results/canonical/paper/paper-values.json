@@ -3,7 +3,7 @@
   "values": {
     "choreography_speedup_range": {
       "experiment": "choreography-critical-path",
-      "rendered": "1.89\u00d7\u20137.95\u00d7",
+      "rendered": "1.89\u00d7 to 7.95\u00d7",
       "value": [
         1.8864340184909059,
         7.949916760873264
@@ -26,7 +26,7 @@
     },
     "in_memory_throughput_range": {
       "experiment": "reef-scaling-inmemory",
-      "rendered": "1087.1\u201362327.6 deliveries/s",
+      "rendered": "1087.1 to 62327.6 deliveries/s",
       "value": [
         1087.0895519598134,
         62327.62516166228
@@ -79,7 +79,7 @@
     },
     "rabbitmq_throughput_range": {
       "experiment": "reef-scaling-rabbitmq",
-      "rendered": "234.6\u20131006.7 deliveries/s",
+      "rendered": "234.6 to 1006.7 deliveries/s",
       "value": [
         234.64319902797047,
         1006.7083267739994

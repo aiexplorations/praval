@@ -27,9 +27,29 @@ RESULT_MARKER_RE = re.compile(
 VALUE_RE = re.compile(
     r"\{\{PRAVAL_VALUE:" r"(?P<key>[a-z0-9][a-z0-9_]*):" r"(?P<sha256>[0-9a-f]{64})\}\}"
 )
+HISTORY_INCLUDE_RE = re.compile(
+    r"\{\{PRAVAL_HISTORY_INCLUDE:"
+    r"(?P<filename>praval-(?:version-history|evolution-eras)\.md):"
+    r"(?P<sha256>[0-9a-f]{64})\}\}"
+)
 IMAGE_RE = re.compile(r"!\[[^\]]*\]\((?P<target>[^)\s]+)(?:\s+[^)]*)?\)")
-UNRESOLVED_RE = re.compile(r"\{\{PRAVAL_(?:INCLUDE|VALUE):")
+UNRESOLVED_RE = re.compile(r"\{\{PRAVAL_(?:INCLUDE|VALUE|HISTORY_INCLUDE):")
 WARNING_RE = re.compile(r"\bwarning\b", re.IGNORECASE)
+FORBIDDEN_UNPUBLISHED_REFERENCES = (
+    "earlier paper",
+    "previous paper",
+    "prior paper",
+    "earlier report",
+    "previous report",
+    "unpublished manuscript",
+    "praval_comparison_historical",
+)
+STALE_RQ_PATTERNS = (
+    re.compile(r"RQ1:\s+execution", re.IGNORECASE),
+    re.compile(r"RQ2:\s+(?:choreography|critical path)", re.IGNORECASE),
+    re.compile(r"RQ3:\s+(?:interruption|adverse conditions)", re.IGNORECASE),
+    re.compile(r"RQ4:\s+controlled framework comparison", re.IGNORECASE),
+)
 PROTECTED_INTRODUCTION_BASELINE_SHA256 = (
     "9b05ec8c76e7197334559b3cde50d6fd065fa353584bb739790e7a79655e4ca5"
 )
@@ -94,6 +114,20 @@ def expand_evidence_includes(
         return fragment.read_text(encoding="utf-8").rstrip()
 
     expanded = INCLUDE_RE.sub(replace, source)
+
+    def replace_history(match: re.Match[str]) -> str:
+        generated_root = paper_root.resolve() / "generated"
+        fragment = generated_root / match.group("filename")
+        if not _inside(generated_root, fragment) or not fragment.is_file():
+            raise ValueError(f"paper history include is absent or unsafe: {fragment}")
+        observed = sha256_file(fragment)
+        if observed != match.group("sha256"):
+            raise ValueError(
+                f"paper history include hash differs for {fragment.name}: {observed}"
+            )
+        return fragment.read_text(encoding="utf-8").rstrip()
+
+    expanded = HISTORY_INCLUDE_RE.sub(replace_history, expanded)
     values_cache: Dict[str, Any] = {}
 
     def replace_value(match: re.Match[str]) -> str:
@@ -169,6 +203,16 @@ def validate_paper(
     for token in LEGACY_TOKENS:
         if token.casefold() in source.casefold():
             errors.append(f"legacy result remains in Markdown: {token}")
+    for token in FORBIDDEN_UNPUBLISHED_REFERENCES:
+        if token.casefold() in source.casefold():
+            errors.append(
+                "paper refers to excluded unpublished or historical material: " + token
+            )
+    for pattern in STALE_RQ_PATTERNS:
+        if pattern.search(source):
+            errors.append(
+                "paper contains a stale research-question label: " + pattern.pattern
+            )
 
     try:
         expanded, included = expand_evidence_includes(

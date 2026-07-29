@@ -100,7 +100,9 @@ def claim_evidence_report(
             for run, result in evaluated.values()
         )
 
-        if claim.status in {"unsupported", "contradicted", "future_work"}:
+        if not claim.experiments:
+            observed = claim.status
+        elif claim.status in {"unsupported", "contradicted", "future_work"}:
             observed = claim.status
         elif failures:
             observed = "unsupported"
