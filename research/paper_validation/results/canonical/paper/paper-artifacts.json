@@ -2,13 +2,13 @@
   "artifacts": {
     "claims_json": {
       "path": "claim-report.json",
-      "sha256": "744ced6e459e76c034b58b42831f1ef89f2366715732473a199f406b6aa11dc7",
-      "size": 64537
+      "sha256": "ae13e65691359cd330b066c703637af2c7e256eeedde214a188e3558ebccd949",
+      "size": 66737
     },
     "claims_markdown": {
       "path": "claim-report.md",
-      "sha256": "ca3bf67d43057e26c864243b32c163ab01da336d959369dc55d341d3bea9fb27",
-      "size": 4485
+      "sha256": "8bcf5d8d04cc4229490cc8341d610a5fb92298ab28984bc134ab71d606d26bda",
+      "size": 4787
     },
     "metrics_csv": {
       "path": "metric-summary.csv",
@@ -27,13 +27,13 @@
     },
     "praval-evolution-eras_latex": {
       "path": "praval-evolution-eras.tex",
-      "sha256": "51d8781db9cabf7c0524c5898a4cac75bbe63323f3ffc74d75be771fcb17869b",
-      "size": 1769
+      "sha256": "d8d40015cad4c3572cece5a249cd9092f6a825ee77d9c22a8b0c81431728c337",
+      "size": 1905
     },
     "praval-evolution-eras_markdown": {
       "path": "praval-evolution-eras.md",
-      "sha256": "24b402b24236e6019bfb11d1729143e1fd6be34c6b7331340d11dbd45b73fc8c",
-      "size": 1745
+      "sha256": "9e93e496455af882a5c263351749890f972e1236da9fe0e92fe8263636ce4f21",
+      "size": 1881
     },
     "praval-version-history_latex": {
       "path": "praval-version-history.tex",
@@ -47,13 +47,13 @@
     },
     "rq1-claim-evidence_latex": {
       "path": "rq1-claim-evidence.tex",
-      "sha256": "abbd31df5e3c9fe66eb65ba5c9650ecc85272f33cc34927c90b209380549c8d4",
-      "size": 1359
+      "sha256": "7865121af4638f88f5e5f4a4ccff69b14b1c809592983029aab8d4e08eb1a064",
+      "size": 1643
     },
     "rq1-claim-evidence_markdown": {
       "path": "rq1-claim-evidence.md",
-      "sha256": "3763f29e0a0f2538b0595f6ebced322a4edbb2f0cca08fe4fb406fa6f3a56546",
-      "size": 1323
+      "sha256": "87d05d151013e4a713e70bd72ccbd06f5f9a2893c7f11edf8510fa54daad7f0e",
+      "size": 1607
     },
     "rq2-claim-evidence_latex": {
       "path": "rq2-claim-evidence.tex",
@@ -82,7 +82,7 @@
     },
     "rq2-rq4-abstraction-overhead_svg": {
       "path": "rq2-rq4-abstraction-overhead.svg",
-      "sha256": "6a341c2c697de83acb1ae5c57d38cb79f18079eed8fddc2933ea18ab5b74f279",
+      "sha256": "4eaffbf6e288598b0d98654dfa5aa765e86e7910f291145dc7869e931d561600",
       "size": 42227
     },
     "rq3-choreography-critical-path_latex": {
@@ -102,7 +102,7 @@
     },
     "rq3-choreography-speedup_svg": {
       "path": "rq3-choreography-speedup.svg",
-      "sha256": "6efd7ffbfa3ec6aca4bdfe6a285362ce562d05e71644314b4815d5eb5c5e1284",
+      "sha256": "2f091e6417539fe231381a6921ddaf8b9f18bddac2987eedf6821e3de35a858a",
       "size": 33617
     },
     "rq3-claim-evidence_latex": {
@@ -152,7 +152,7 @@
     },
     "rq3-reef-scaling_svg": {
       "path": "rq3-reef-scaling.svg",
-      "sha256": "2e52157401196cd2f66ee5ecd90961e0c635ee09558a72fddf12ea2fcfca4292",
+      "sha256": "2c7515e58bbe5fb722b604cca1fe138d4d17448ecd8b702ab8607546473ddad0",
       "size": 49683
     },
     "rq4-claim-evidence_latex": {
@@ -192,7 +192,7 @@
     },
     "rq5-controlled-comparison_svg": {
       "path": "rq5-controlled-comparison.svg",
-      "sha256": "7139c53b0a846e2b658a6201f2703a4298ae424925fef9211e24b9edd7eaa70a",
+      "sha256": "032a27051a27b2868f9cf471ca3cd0a7a952ea89c51838090592ac58cf8eb229",
       "size": 22387
     }
   },

@@ -102,6 +102,44 @@
       "statement": "Praval 0.1.0 and 0.2.0 established direct agents, decorated agents, Reef, Spores, and message-driven specialist coordination."
     },
     {
+      "acceptance_rule": "The paper connects the influences to concrete Praval interfaces, distinguishes the algorithms from one another, and does not claim that Praval is a biological simulation, an optimization algorithm, or a formal stigmergic system.",
+      "category": "architectural",
+      "citations": [
+        "holland1992_adaptation",
+        "kirkpatrick1983_simulated_annealing",
+        "kennedy_eberhart1995_pso",
+        "bonabeau1999_swarm_intelligence",
+        "grasse1959stigmergy",
+        "hatcher1997_coral_systems",
+        "sampathkumar2010_wing_optimization"
+      ],
+      "declared_status": "descriptive_only",
+      "experiments": [],
+      "id": "intellectual-origins",
+      "implementation_evidence": [
+        "docs/plans/2026-07-30-praval-intellectual-origins-design.md",
+        "docs/claude-code-prompt.md",
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ],
+      "limitations": [
+        "The account records design provenance, not experimental evidence that Praval reproduces biological emergence.",
+        "Simulated annealing is a single-trajectory stochastic search method, not a swarm method.",
+        "Reef uses explicit software messages rather than persistent environmental traces."
+      ],
+      "observed_status": "descriptive_only",
+      "paper_sections": [
+        "Introduction",
+        "Intellectual origins and development",
+        "Related work",
+        "Results RQ1",
+        "Conclusion"
+      ],
+      "permitted_wording": "Praval's message-driven coordination model drew on the author's work with dynamical systems and population-based optimization, practical agent-framework experience, and ideas from swarm intelligence, stigmergy, and coral reef systems.",
+      "scope": "Intellectual provenance for the specialist Agent, Reef, and Spore design, stated separately from claims about implemented semantics or measured behavior.",
+      "statement": "Praval's coordination design was informed by the author's earlier work on dynamical systems and population-based optimization, later experience with agent frameworks, and concepts from swarm intelligence, stigmergy, and coral reef systems."
+    },
+    {
       "acceptance_rule": "The paper presents these facilities as versioned and optional, and it states their configuration and security limits.",
       "category": "architectural",
       "citations": [
@@ -1417,17 +1455,17 @@
     },
     {
       "canonical": true,
-      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
-      "run_id": "praval-paper-live-canonical-20260726",
-      "status": "not_run",
-      "tier": "live"
-    },
-    {
-      "canonical": true,
       "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-comparative-canonical-v2b-20260726",
       "run_id": "praval-paper-comparative-canonical-v2b-20260726",
       "status": "passed",
       "tier": "comparative"
+    },
+    {
+      "canonical": true,
+      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+      "run_id": "praval-paper-live-canonical-20260726",
+      "status": "not_run",
+      "tier": "live"
     }
   ],
   "schema_version": 1

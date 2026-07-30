@@ -15,6 +15,39 @@ from .evidence import (
 from .manifest import HistoryEntry, Registry, load_history
 from .provenance import sha256_file, stable_json
 
+ERA_DESCRIPTIONS = {
+    "Initial agent foundation": (
+        "0.1.0",
+        "Established the package, direct Agent abstraction, provider integrations, state, prompts, tools, memory interfaces, and the first multi-agent components.",
+        "Create a Python package in which model-backed agents and their supporting facilities could be composed.",
+    ),
+    "Initial coordination model": (
+        "0.2.0",
+        "Introduced the decorator-based agent API and made Reef and Spore message exchange the main multi-agent coordination path.",
+        "Reduce the application code needed to define specialist agents and connect their message handlers.",
+    ),
+    "Memory and application foundation": (
+        "0.5.0 to 0.5.1",
+        "Added layered memory, knowledge-base integration, a fuller application structure, and corrections to early multi-agent communication.",
+        "Give coordinated agents maintained working, episodic, semantic, and long-term information paths.",
+    ),
+    "Data, transport, and security expansion": (
+        "0.6.0 to 0.6.2",
+        "Added Secure Spore behavior, external transports, async storage, DataReference, memory-to-storage integration, and service-backed examples.",
+        "Separate large or durable data from messages and integrate configured storage, protection, and transport systems.",
+    ),
+    "Coordination and operations maturity": (
+        "0.7.0 to 0.7.22",
+        "Added document ingestion, registered tools, observability, RabbitMQ Reef delivery, completion tracking, lifecycle controls, and durable human intervention.",
+        "Make the coordination model easier to operate, inspect, govern, and extend while preserving Agent, Reef, and Spore.",
+    ),
+    "Provider-neutral execution transition": (
+        "0.8.1",
+        "Added ModelRuntime, EmbeddingRuntime, provider profiles, normalized contracts, Spore V2, MCP tools, and PravalApp lifecycle ownership.",
+        "Separate provider capability handling and model execution from inter-agent message coordination.",
+    ),
+}
+
 COMPARISON_METRIC_RE = re.compile(
     r"^comparison_delayed_(?P<framework>praval|langgraph|crewai)_"
     r"measured_(?P<metric>.+)$"
@@ -143,20 +176,16 @@ def _history_tables(
             continue
         grouped.setdefault(entry.era, []).append(entry)
     era_rows = []
-    for era, entries in grouped.items():
-        first = entries[0]
-        last = entries[-1]
-        period = (
-            first.version
-            if first.version == last.version
-            else f"{first.version} to {last.version}"
-        )
+    for era in grouped:
+        if era not in ERA_DESCRIPTIONS:
+            raise ValueError(f"history era has no paper description: {era}")
+        period, capability, motivation = ERA_DESCRIPTIONS[era]
         era_rows.append(
             (
                 era,
                 period,
-                last.summary,
-                last.motivation,
+                capability,
+                motivation,
             )
         )
     paths.update(

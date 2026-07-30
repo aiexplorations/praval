@@ -31,6 +31,21 @@ permitted_wording = "Praval began with a direct Agent abstraction, then made dec
 limitations = ["The early version records establish implementation history, not performance, emergence, or production-readiness claims.", "Versions 0.1.0 and 0.2.0 do not have matching retained Git tags."]
 
 [[claim]]
+id = "intellectual-origins"
+statement = "Praval's coordination design was informed by the author's earlier work on dynamical systems and population-based optimization, later experience with agent frameworks, and concepts from swarm intelligence, stigmergy, and coral reef systems."
+category = "architectural"
+scope = "Intellectual provenance for the specialist Agent, Reef, and Spore design, stated separately from claims about implemented semantics or measured behavior."
+paper_sections = ["Introduction", "Intellectual origins and development", "Related work", "Results RQ1", "Conclusion"]
+book_sections = ["Why specialist agents", "Agent, Reef, and Spore"]
+status = "descriptive_only"
+implementation_evidence = ["docs/plans/2026-07-30-praval-intellectual-origins-design.md", "docs/claude-code-prompt.md", "src/praval/core/reef.py", "src/praval/decorators.py"]
+citations = ["holland1992_adaptation", "kirkpatrick1983_simulated_annealing", "kennedy_eberhart1995_pso", "bonabeau1999_swarm_intelligence", "grasse1959stigmergy", "hatcher1997_coral_systems", "sampathkumar2010_wing_optimization"]
+experiments = []
+acceptance_rule = "The paper connects the influences to concrete Praval interfaces, distinguishes the algorithms from one another, and does not claim that Praval is a biological simulation, an optimization algorithm, or a formal stigmergic system."
+permitted_wording = "Praval's message-driven coordination model drew on the author's work with dynamical systems and population-based optimization, practical agent-framework experience, and ideas from swarm intelligence, stigmergy, and coral reef systems."
+limitations = ["The account records design provenance, not experimental evidence that Praval reproduces biological emergence.", "Simulated annealing is a single-trajectory stochastic search method, not a swarm method.", "Reef uses explicit software messages rather than persistent environmental traces."]
+
+[[claim]]
 id = "memory-data-transport-expansion"
 statement = "The 0.5 and 0.6 series expanded the coordination foundation with memory, storage, DataReference, secure message behavior, external transports, and service examples."
 category = "architectural"

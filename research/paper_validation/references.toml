@@ -13,6 +13,79 @@ doi = "10.1007/BF02223791"
 venue = "Insectes Sociaux 6, 41–80"
 
 [[reference]]
+id = "kirkpatrick1983_simulated_annealing"
+type = "article"
+title = "Optimization by Simulated Annealing"
+authors = ["Scott Kirkpatrick", "C. Daniel Gelatt, Jr.", "Mario P. Vecchi"]
+year = 1983
+url = "https://pubmed.ncbi.nlm.nih.gov/17813860/"
+accessed = "2026-07-30"
+primary = true
+doi = "10.1126/science.220.4598.671"
+venue = "Science 220(4598), 671–680"
+
+[[reference]]
+id = "holland1992_adaptation"
+type = "book"
+title = "Adaptation in Natural and Artificial Systems: An Introductory Analysis with Applications to Biology, Control, and Artificial Intelligence"
+authors = ["John H. Holland"]
+year = 1992
+url = "https://mitpress.mit.edu/9780262581110/adaptation-in-natural-and-artificial-systems/"
+accessed = "2026-07-30"
+primary = true
+venue = "MIT Press"
+notes = "Second edition of the work first published by the University of Michigan Press in 1975. ISBN 9780262581110."
+
+[[reference]]
+id = "kennedy_eberhart1995_pso"
+type = "inproceedings"
+title = "Particle Swarm Optimization"
+authors = ["James Kennedy", "Russell Eberhart"]
+year = 1995
+url = "https://doi.org/10.1109/ICNN.1995.488968"
+accessed = "2026-07-30"
+primary = true
+doi = "10.1109/ICNN.1995.488968"
+venue = "Proceedings of ICNN'95, International Conference on Neural Networks, volume 4, 1942–1948"
+
+[[reference]]
+id = "hatcher1997_coral_systems"
+type = "article"
+title = "Coral Reef Ecosystems: How Much Greater Is the Whole than the Sum of the Parts?"
+authors = ["Bruce G. Hatcher"]
+year = 1997
+url = "https://doi.org/10.1007/s003380050244"
+accessed = "2026-07-30"
+primary = true
+doi = "10.1007/s003380050244"
+venue = "Coral Reefs 16, S77–S91"
+
+[[reference]]
+id = "bonabeau1999_swarm_intelligence"
+type = "book"
+title = "Swarm Intelligence: From Natural to Artificial Systems"
+authors = ["Eric Bonabeau", "Marco Dorigo", "Guy Theraulaz"]
+year = 1999
+url = "https://doi.org/10.1093/oso/9780195131581.001.0001"
+accessed = "2026-07-30"
+primary = true
+doi = "10.1093/oso/9780195131581.001.0001"
+venue = "Oxford University Press"
+notes = "ISBN 9780195131581."
+
+[[reference]]
+id = "sampathkumar2010_wing_optimization"
+type = "inproceedings"
+title = "Implementation of Genetic Algorithm for Wing Shape Optimization"
+authors = ["Rajesh Sampathkumar"]
+year = 2010
+url = "https://www.rajeshrs.in/"
+accessed = "2026-07-30"
+primary = true
+venue = "International Conference on Advances in Mechanical Engineering"
+notes = "The author's publication record dates the conference paper to January 4, 2010. The public author site identifies the associated wing optimization work."
+
+[[reference]]
 id = "hewitt1973actor"
 type = "inproceedings"
 title = "A Universal Modular ACTOR Formalism for Artificial Intelligence"

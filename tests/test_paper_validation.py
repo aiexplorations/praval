@@ -48,6 +48,7 @@ from research.paper_validation.paper import (
     expand_evidence_includes,
     protected_introduction_is_present,
 )
+from research.paper_validation.paper_artifacts import ERA_DESCRIPTIONS
 from research.paper_validation.probes import _max_rss_kib
 from research.paper_validation.provenance import (
     EXPECTED_PRAVAL_VERSION,
@@ -343,13 +344,19 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
     assert len(references) >= 20
     assert len(history) >= 30
     assert {
+        "bonabeau1999_swarm_intelligence",
         "hewitt1973actor",
+        "hatcher1997_coral_systems",
+        "kennedy_eberhart1995_pso",
+        "kirkpatrick1983_simulated_annealing",
         "mcp_spec_2025_11_25",
         "nacl2012",
         "praval_release_0_7_22",
         "praval_source_history",
+        "sampathkumar2010_wing_optimization",
     } <= set(references)
     assert {
+        "intellectual-origins",
         "runtime-provider-neutral-contract",
         "reef-choreography-scope",
         "secure-spore-bounded-claim",
@@ -364,6 +371,12 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
     assert history["0.8.0"].status == "withdrawn"
     assert history["0.8.1"].status == "supported"
     assert history["1.0.0"].status == "excluded_transient_state"
+    assert set(ERA_DESCRIPTIONS) == {
+        entry.era
+        for entry in history.values()
+        if entry.status != "excluded_transient_state"
+    }
+    assert ERA_DESCRIPTIONS["Provider-neutral execution transition"][0] == "0.8.1"
 
 
 def test_history_rejects_impossible_chronology(tmp_path: Path) -> None:
