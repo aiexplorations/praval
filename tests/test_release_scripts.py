@@ -39,18 +39,18 @@ stage_docs = _load_script("stage_docs_artifact")
 
 
 def test_distribution_validation_helpers_read_versions_and_reject_generated_files():
-    assert _project_version(Path("pyproject.toml")) == "0.8.1"
-    assert _package_version(Path("src/praval/__init__.py")) == "0.8.1"
+    assert _project_version(Path("pyproject.toml")) == "0.8.2"
+    assert _package_version(Path("src/praval/__init__.py")) == "0.8.2"
     assert _forbidden_entries(
         [
-            "praval-0.8.1/docs/generated/manual.pdf",
-            "praval-0.8.1/docs/logo.png",
+            "praval-0.8.2/docs/generated/manual.pdf",
+            "praval-0.8.2/docs/logo.png",
             "praval/__pycache__/module.pyc",
             "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
         ]
     ) == [
-        "praval-0.8.1/docs/generated/manual.pdf",
-        "praval-0.8.1/docs/logo.png",
+        "praval-0.8.2/docs/generated/manual.pdf",
+        "praval-0.8.2/docs/logo.png",
         "praval/__pycache__/module.pyc",
         "praval/examples/notebooks/.ipynb_checkpoints/lesson.ipynb",
     ]
@@ -83,7 +83,7 @@ def test_wheel_only_release_helpers_reject_extra_files(
     dist_dir = tmp_path / "dist"
     evidence_dir = tmp_path / "evidence"
     dist_dir.mkdir()
-    (dist_dir / "praval-0.8.1-py3-none-any.whl").write_bytes(b"wheel")
+    (dist_dir / "praval-0.8.2-py3-none-any.whl").write_bytes(b"wheel")
     (dist_dir / extra_name).write_bytes(b"extra")
     monkeypatch.setenv("GITHUB_SHA", "abc123")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
@@ -96,14 +96,14 @@ def test_wheel_only_release_helpers_reject_extra_files(
 def test_pypi_verifier_accepts_the_exact_single_wheel():
     manifest = {
         "artifacts": [
-            {"filename": "praval-0.8.1-py3-none-any.whl", "sha256": "abc", "size": 9}
+            {"filename": "praval-0.8.2-py3-none-any.whl", "sha256": "abc", "size": 9}
         ]
     }
     payload = {
-        "info": {"version": "0.8.1"},
+        "info": {"version": "0.8.2"},
         "urls": [
             {
-                "filename": "praval-0.8.1-py3-none-any.whl",
+                "filename": "praval-0.8.2-py3-none-any.whl",
                 "packagetype": "bdist_wheel",
                 "digests": {"sha256": "abc"},
                 "size": 9,
@@ -111,29 +111,29 @@ def test_pypi_verifier_accepts_the_exact_single_wheel():
         ],
     }
 
-    assert validate_pypi_payload(manifest, payload, "0.8.1") == []
+    assert validate_pypi_payload(manifest, payload, "0.8.2") == []
 
 
 def test_pypi_verifier_rejects_extra_files_and_hash_mismatch():
     manifest = {
         "artifacts": [
-            {"filename": "praval-0.8.1-py3-none-any.whl", "sha256": "abc", "size": 9}
+            {"filename": "praval-0.8.2-py3-none-any.whl", "sha256": "abc", "size": 9}
         ]
     }
     payload = {
-        "info": {"version": "0.8.1"},
+        "info": {"version": "0.8.2"},
         "urls": [
             {
-                "filename": "praval-0.8.1-py3-none-any.whl",
+                "filename": "praval-0.8.2-py3-none-any.whl",
                 "packagetype": "bdist_wheel",
                 "digests": {"sha256": "wrong"},
                 "size": 9,
             },
-            {"filename": "praval-0.8.1.tar.gz", "packagetype": "sdist"},
+            {"filename": "praval-0.8.2.tar.gz", "packagetype": "sdist"},
         ],
     }
 
-    errors = validate_pypi_payload(manifest, payload, "0.8.1")
+    errors = validate_pypi_payload(manifest, payload, "0.8.2")
 
     assert "PyPI release must contain exactly one file, found 2" in errors
     assert "PyPI wheel SHA-256 does not match the exact CI build manifest" in errors
@@ -164,14 +164,14 @@ def test_python39_s3_extras_constrain_cohere_request_stubs():
         assert expected in project["optional-dependencies"][extra]
 
 
-def _write_version_wheel(path: Path, version: str = "0.8.1") -> None:
+def _write_version_wheel(path: Path, version: str = "0.8.2") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(f"praval-{version}.dist-info/METADATA", metadata)
 
 
 def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
-    _write_version_wheel(tmp_path / "praval-0.8.1-py3-none-any.whl")
+    _write_version_wheel(tmp_path / "praval-0.8.2-py3-none-any.whl")
 
     def not_installed(_name):
         raise release_metadata.importlib.metadata.PackageNotFoundError
@@ -188,8 +188,8 @@ def _write_docs_artifact(root: Path, *, commit: str) -> None:
     manifest = {
         "schema_version": 1,
         "commit": commit,
-        "version": "0.8.1",
-        "wheel": "praval-0.8.1-py3-none-any.whl",
+        "version": "0.8.2",
+        "wheel": "praval-0.8.2-py3-none-any.whl",
         "wheel_sha256": "a" * 64,
         "documentation_tree_sha256": stage_docs.tree_sha256(site),
         "file_count": 1,
@@ -231,8 +231,8 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
 
     manifest = stage_docs.stage_docs(artifact, website)
 
-    assert manifest["version"] == "0.8.1"
-    versioned = website / "docs/v0.8.1"
+    assert manifest["version"] == "0.8.2"
+    versioned = website / "docs/v0.8.2"
     latest = website / "docs/latest"
     expected_files = [Path("documentation-manifest.json"), Path("index.html")]
     assert (
@@ -253,4 +253,4 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
         if path.is_file()
     }
     versions = json.loads((website / "docs/versions.json").read_text())
-    assert versions["current"] == versions["latest"] == "0.8.1"
+    assert versions["current"] == versions["latest"] == "0.8.2"

@@ -153,7 +153,7 @@ async def certify_agent_runtime() -> dict:
     }
 
 
-def certify_reef_and_spores() -> dict:
+async def certify_reef_and_spores() -> dict:
     """Exercise direct, broadcast, request/reply, async handlers and Spore V2."""
     reef = Reef()
     received = []
@@ -170,6 +170,41 @@ def certify_reef_and_spores() -> dict:
     assert reef.wait_for_completion(timeout=5)
     assert direct_id and broadcast_id and request_id and reply_id
     assert any(item.knowledge.get("kind") == "direct" for item in received)
+
+    def service(request: Spore) -> None:
+        reef.notify_request(request, {"progress": 50})
+        reef.reply_to_request(request, {"answer": request.knowledge["question"]})
+
+    reef.subscribe("service", service)
+    async_notifications = []
+    correlated = await reef.arequest_and_wait(
+        "async-requester",
+        "service",
+        {"question": "correlated"},
+        timeout=5,
+        correlation_id="certification-async-request",
+        on_notification=lambda item: async_notifications.append(
+            item.knowledge["progress"]
+        ),
+    )
+    sync_notifications = []
+    sync_correlated = await asyncio.to_thread(
+        reef.request_and_wait,
+        "sync-requester",
+        "service",
+        {"question": "thread-safe"},
+        None,
+        300,
+        5,
+        on_notification=lambda item: sync_notifications.append(
+            item.knowledge["progress"]
+        ),
+        correlation_id="certification-sync-request",
+    )
+    assert correlated.knowledge == {"answer": "correlated"}
+    assert sync_correlated.knowledge == {"answer": "thread-safe"}
+    assert async_notifications == [50]
+    assert sync_notifications == [50]
 
     spore = Spore(
         id="certification-spore-v2",
@@ -191,6 +226,8 @@ def certify_reef_and_spores() -> dict:
         "direct": True,
         "broadcast": True,
         "request_reply": True,
+        "correlation_safe_wait": True,
+        "progress_notifications": True,
         "async_handler": True,
         "spore_v2": True,
     }
@@ -294,7 +331,7 @@ async def main() -> None:
     """Run the complete offline certificate and write structured evidence."""
     evidence = {
         "agent_runtime": await certify_agent_runtime(),
-        "reef_and_spores": certify_reef_and_spores(),
+        "reef_and_spores": await certify_reef_and_spores(),
         "storage_memory_pdf_observability": (
             await certify_storage_memory_pdf_observability()
         ),

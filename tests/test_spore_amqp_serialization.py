@@ -285,6 +285,42 @@ class TestSporeFromAmqpMessage:
         # Timestamps should be close (within microseconds)
         assert abs((restored.created_at - original.created_at).total_seconds()) < 0.001
 
+    def test_from_amqp_preserves_v2_envelope_and_lifecycle_fields(self):
+        """Arbitrary metadata and envelope fields survive native AMQP routing."""
+        original = Spore(
+            id="v2-full-spore",
+            spore_type=SporeType.REQUEST,
+            from_agent="requester",
+            to_agent="responder",
+            knowledge={"question": "ready"},
+            created_at=datetime(2025, 11, 7, 12, 30, 45),
+            metadata={"tenant": "reef", "nested": {"attempt": 1}},
+            payload={"input": {"question": "ready"}},
+            content_parts=[{"type": "text", "text": "ready"}],
+            knowledge_references=["memory://request/1"],
+            data_references=["filesystem://request/1"],
+            schema_version="2.0",
+            correlation_id="correlation-1",
+            causation_id="cause-1",
+            trace_id="trace-1",
+            run_id="run-1",
+            idempotency_key="idempotency-1",
+        )
+
+        restored = Spore.from_amqp_message(original.to_amqp_message())
+
+        assert restored.metadata == original.metadata
+        assert restored.payload == original.payload
+        assert restored.content_parts == original.content_parts
+        assert restored.knowledge_references == original.knowledge_references
+        assert restored.data_references == original.data_references
+        assert restored.schema_version == "2.0"
+        assert restored.correlation_id == "correlation-1"
+        assert restored.causation_id == "cause-1"
+        assert restored.trace_id == "trace-1"
+        assert restored.run_id == "run-1"
+        assert restored.idempotency_key == "idempotency-1"
+
     def test_from_amqp_broadcast_spore(self):
         """Test conversion of broadcast spore (to_agent = None)."""
         original = Spore(

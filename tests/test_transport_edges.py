@@ -70,6 +70,64 @@ async def test_amqp_initialize_and_subscribe_wrap_dependency_errors(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_amqp_precise_consumer_cleanup_respects_queue_ownership():
+    temporary_queue = SimpleNamespace(
+        bind=AsyncMock(),
+        consume=AsyncMock(return_value="temporary-consumer"),
+        cancel=AsyncMock(),
+        delete=AsyncMock(),
+    )
+    configured_queue = SimpleNamespace(
+        consume=AsyncMock(return_value="configured-consumer"),
+        cancel=AsyncMock(),
+        delete=AsyncMock(),
+    )
+    channel = SimpleNamespace(
+        declare_queue=AsyncMock(return_value=temporary_queue),
+        get_queue=AsyncMock(return_value=configured_queue),
+    )
+    transport = AMQPTransport()
+    transport.connected = True
+    transport.channel = channel
+    transport.exchange = object()
+
+    temporary = await transport.subscribe("agent.client.*", AsyncMock())
+    configured = await transport.subscribe_to_queue("configured.client", AsyncMock())
+
+    await transport.unsubscribe_handler(temporary)
+    await transport.unsubscribe_handler(configured)
+
+    temporary_queue.cancel.assert_awaited_once_with("temporary-consumer")
+    temporary_queue.delete.assert_awaited_once_with(if_unused=False, if_empty=False)
+    configured_queue.cancel.assert_awaited_once_with("configured-consumer")
+    configured_queue.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_amqp_shutdown_cancels_remaining_consumers():
+    queue = SimpleNamespace(
+        bind=AsyncMock(),
+        consume=AsyncMock(return_value="consumer-1"),
+        cancel=AsyncMock(),
+        delete=AsyncMock(),
+    )
+    connection = SimpleNamespace(is_closed=False, close=AsyncMock())
+    transport = AMQPTransport()
+    transport.connected = True
+    transport.channel = SimpleNamespace(declare_queue=AsyncMock(return_value=queue))
+    transport.exchange = object()
+    transport.connection = connection
+
+    await transport.subscribe("agent.client.*", AsyncMock())
+    await transport.close()
+
+    queue.cancel.assert_awaited_once_with("consumer-1")
+    queue.delete.assert_awaited_once()
+    connection.close.assert_awaited_once()
+    assert transport._subscription_handles == {}
+
+
+@pytest.mark.asyncio
 async def test_mqtt_failure_and_cleanup_paths():
     transport = MQTTTransport()
     with pytest.raises(PublishError, match="not connected"):

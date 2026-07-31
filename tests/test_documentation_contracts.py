@@ -56,8 +56,8 @@ def _assert_repository_links_resolve(text):
 def test_every_top_level_export_is_classified_and_documented():
     report = api_surface.validate_api_surface(ROOT)
 
-    assert report["exported"] == 88
-    assert report["documented"] == 88
+    assert report["exported"] == 89
+    assert report["documented"] == 89
     assert report["coverage_percent"] == 100.0
     assert report["errors"] == []
 
@@ -213,12 +213,24 @@ def test_release_notes_delegate_volatile_values_to_evidence():
     assert "documentation manifest" in notes.lower()
 
 
+def test_current_release_notes_cover_correlation_safe_reef():
+    notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.2.md").read_text()
+
+    assert notes.splitlines()[0] == "# Praval 0.8.2"
+    assert "request_and_wait()" in notes
+    assert "arequest_and_wait()" in notes
+    assert "0.7.22 and 0.8.1" in notes
+    assert not re.search(r"\b\d{3,5} passed\b", notes)
+    assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
+    assert "build-manifest.json" in notes
+
+
 def test_dist_policy_is_documented_as_distributions_only():
     release = (ROOT / "RELEASE.md").read_text()
 
     assert "`dist/` contains exactly one `.whl` file" in release
     assert "`evidence/` contains checksums" in release
-    assert "twine upload dist/praval-0.8.1-py3-none-any.whl" in release
+    assert "twine upload dist/praval-0.8.2-py3-none-any.whl" in release
     assert "Do not use a wildcard" in release
 
 

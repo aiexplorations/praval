@@ -14,6 +14,7 @@ Design:
 import asyncio
 import inspect
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
@@ -96,6 +97,18 @@ class ReefBackend(ABC):
             channel: Channel/queue name
         """
         pass
+
+    async def subscribe_handler(self, channel: str, handler: Callable) -> Any:
+        """Subscribe one handler and return an opaque cleanup handle."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support precise subscriptions"
+        )
+
+    async def unsubscribe_handler(self, handle: Any) -> None:
+        """Remove the one subscription represented by ``handle``."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support precise subscriptions"
+        )
 
     def get_stats(self) -> Dict[str, Any]:
         """Get backend statistics."""
@@ -252,6 +265,28 @@ class InMemoryBackend(ReefBackend):
         except Exception as e:
             logger.error(f"InMemoryBackend unsubscribe error: {e}")
 
+    async def subscribe_handler(self, channel: str, handler: Callable) -> Any:
+        """Subscribe one in-memory handler and return its exact identity."""
+        if not self.connected:
+            raise RuntimeError("InMemoryBackend not connected")
+        async with self._get_lock():
+            if channel not in self.channels:
+                self.channels[channel] = ReefChannel(channel)
+            agent_name = (
+                channel.replace("agent.", "")
+                if channel.startswith("agent.")
+                else "subscriber"
+            )
+            self.channels[channel].subscribe(agent_name, handler, replace=False)
+        return (channel, agent_name, handler)
+
+    async def unsubscribe_handler(self, handle: Any) -> None:
+        """Remove one in-memory handler without changing its peers."""
+        channel, agent_name, handler = handle
+        async with self._get_lock():
+            if channel in self.channels:
+                self.channels[channel].unsubscribe(agent_name, handler)
+
 
 class RabbitMQBackend(ReefBackend):
     """
@@ -293,6 +328,7 @@ class RabbitMQBackend(ReefBackend):
             channel_queue_map or {}
         )  # channel -> pre-configured queue name mapping
         self.queue_consumers: Dict[str, Any] = {}  # queue_name -> consumer task
+        self.handler_subscriptions: Dict[str, Any] = {}
 
     async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -341,6 +377,9 @@ class RabbitMQBackend(ReefBackend):
         try:
             if self.transport:
                 await self.transport.close()
+            self.handler_subscriptions.clear()
+            self.subscriptions.clear()
+            self.queue_consumers.clear()
             self.connected = False
             logger.info("RabbitMQBackend shutdown")
         except Exception as e:
@@ -462,6 +501,46 @@ class RabbitMQBackend(ReefBackend):
 
         except Exception as e:
             logger.error(f"RabbitMQBackend unsubscribe error: {e}")
+
+    async def subscribe_handler(self, channel: str, handler: Callable) -> Any:
+        """Subscribe one handler and return a handle that removes only it."""
+        if not self.connected:
+            raise RuntimeError("RabbitMQ backend not connected")
+        if not hasattr(self.transport, "unsubscribe_handler"):
+            raise RuntimeError(
+                "The configured RabbitMQ transport does not support precise "
+                "subscription cleanup"
+            )
+
+        async def spore_handler(spore: Spore):
+            if self._spore_matches_channel(spore, channel):
+                result = handler(spore)
+                if inspect.isawaitable(result):
+                    await result
+
+        if channel in self.channel_queue_map:
+            queue_name = self.channel_queue_map[channel]
+            transport_handle = await self.transport.subscribe_to_queue(
+                queue_name, spore_handler
+            )
+        else:
+            transport_handle = await self.transport.subscribe(
+                self._generate_topic(channel), spore_handler
+            )
+        if transport_handle is None:
+            raise RuntimeError(
+                "The configured RabbitMQ transport does not support precise "
+                "subscription cleanup"
+            )
+        handle_id = f"reef-subscription-{uuid.uuid4()}"
+        self.handler_subscriptions[handle_id] = transport_handle
+        return handle_id
+
+    async def unsubscribe_handler(self, handle: Any) -> None:
+        """Cancel only the consumer associated with an opaque handler handle."""
+        transport_handle = self.handler_subscriptions.pop(str(handle), None)
+        if transport_handle is not None:
+            await self.transport.unsubscribe_handler(transport_handle)
 
     def _generate_routing_key(self, spore: Spore, channel: str) -> str:
         """

@@ -343,8 +343,9 @@ extras, services, timeouts, and expected artifacts for release certification.
 | API details | [API reference](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/api/index.rst) |
 | Common failures | [Troubleshooting](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/troubleshooting.md) |
 | Detailed learning course | [Notebook catalog](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/README.md) |
+| Correlated Reef requests | [Reef and Spores](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/reef-protocol.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
-| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.1.md) |
+| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.2.md) |
 
 Build the reference documentation locally with warnings treated as errors:
 
@@ -365,11 +366,14 @@ make docs-html
   continuous audio and event exchange are realtime sessions and are deferred.
 - Structured output is constrained by a capable provider. Praval does not claim
   universal local JSON Schema validation of provider text.
+- Reef matches waited replies by request ID, participants, and lifecycle fields.
+  Applications still own durable workflow state, retry policy, and business
+  idempotency.
 - Retries are explicit and provider-specific. Praval does not promise a hidden
   universal circuit breaker, storage fallback, or automatic reconnect layer.
 - `PravalApp` owns cleanup. It is not an isolated service container.
 
-See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.1.md)
+See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.2.md)
 for the stable scope, compatibility details, limitations, and deferred work.
 
 ## Development and release validation

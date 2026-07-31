@@ -27,7 +27,7 @@ from .core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
 )
-from .core.reef import Spore, SporeType, get_reef
+from .core.reef import ReefLifecycleError, Spore, SporeType, get_reef
 from .core.registry import get_registry, register_agent
 
 # Enhanced agent decorator with memory support (v0.7.0+)
@@ -202,6 +202,7 @@ __all__ = [
     "get_reef",
     "Spore",
     "SporeType",
+    "ReefLifecycleError",
     # Enhanced decorator (now with memory support)
     "agent",
     # Communication and composition
