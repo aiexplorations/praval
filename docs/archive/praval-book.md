@@ -231,6 +231,27 @@ The two-plane description records this version boundary. It does not mean that
 coordination and model execution never interact. A handler can call a model,
 and `ModelRuntime` can pause a tool call through HITL.
 
+## First-party development accounts
+
+The Praval project journal records how the framework was described during its
+development. Its posts cover the initial framework, the architecture, an early
+framework comparison, the 0.7 distributed-agent work, the Praval Deep Research
+application, and the 0.8.1 runtime [@praval_blog_introduction_2025;
+@praval_blog_architecture_2025; @praval_blog_framework_comparison_2025;
+@praval_blog_distributed_2025; @praval_blog_deep_research_2025;
+@praval_blog_0_8_1_2026].
+
+The author's AI Explorations site also contains posts about the initial
+framework, Praval Analytics, Praval Deep Research, and the move from 0.7.22 to
+0.8.1 [@rajeshrs_praval_introduction_2025;
+@rajeshrs_praval_analytics_2025; @rajeshrs_praval_deep_research_2025;
+@rajeshrs_praval_0_8_1_2026]. Some of these posts repeat material published in
+the project journal.
+
+Use these posts for design rationale, development history, and application
+context. They are first-party sources. Do not use their benchmark, production,
+or reliability claims without separate source or experimental evidence.
+
 ## Verify the installed artifact
 
 The published Praval 0.8.1 wheel has SHA-256

@@ -352,11 +352,16 @@ def test_repository_manifests_cover_the_0_8_1_research_scope() -> None:
         "mcp_spec_2025_11_25",
         "nacl2012",
         "praval_release_0_7_22",
+        "praval_blog_0_8_1_2026",
+        "praval_blog_architecture_2025",
+        "rajeshrs_praval_0_8_1_2026",
+        "rajeshrs_praval_analytics_2025",
         "praval_source_history",
         "sampathkumar2010_wing_optimization",
     } <= set(references)
     assert {
         "intellectual-origins",
+        "first-party-development-accounts",
         "runtime-provider-neutral-contract",
         "reef-choreography-scope",
         "secure-spore-bounded-claim",

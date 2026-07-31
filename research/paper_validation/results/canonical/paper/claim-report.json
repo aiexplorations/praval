@@ -140,6 +140,41 @@
       "statement": "Praval's coordination design was informed by the author's earlier work on dynamical systems and population-based optimization, later experience with agent frameworks, and concepts from swarm intelligence, stigmergy, and coral reef systems."
     },
     {
+      "acceptance_rule": "The paper identifies the posts as first-party historical and design context, cites each public URL, and does not use their performance or production claims as independent evidence.",
+      "category": "architectural",
+      "citations": [
+        "praval_blog_introduction_2025",
+        "praval_blog_architecture_2025",
+        "praval_blog_framework_comparison_2025",
+        "praval_blog_distributed_2025",
+        "praval_blog_deep_research_2025",
+        "praval_blog_0_8_1_2026",
+        "rajeshrs_praval_introduction_2025",
+        "rajeshrs_praval_analytics_2025",
+        "rajeshrs_praval_deep_research_2025",
+        "rajeshrs_praval_0_8_1_2026"
+      ],
+      "declared_status": "descriptive_only",
+      "experiments": [],
+      "id": "first-party-development-accounts",
+      "implementation_evidence": [
+        "research/paper_validation/references.toml",
+        "research/paper_validation/history.toml"
+      ],
+      "limitations": [
+        "The posts are not peer-reviewed or independent sources.",
+        "Cross-posted articles overlap in content.",
+        "Current source, release records, and registered experiments supersede conflicting blog claims."
+      ],
+      "observed_status": "descriptive_only",
+      "paper_sections": [
+        "Intellectual origins and development"
+      ],
+      "permitted_wording": "Contemporaneous first-party posts document how Praval's design, distributed coordination, applications, comparisons, and 0.8.1 transition were described during development.",
+      "scope": "Ten Praval-specific posts published on pravalagents.com and rajeshrs.in between November 2025 and July 2026.",
+      "statement": "Public posts on the Praval project blog and the author's AI Explorations site record the framework's design intent, development experience, application case studies, and the 0.8.1 transition."
+    },
+    {
       "acceptance_rule": "The paper presents these facilities as versioned and optional, and it states their configuration and security limits.",
       "category": "architectural",
       "citations": [
@@ -1277,7 +1312,9 @@
     {
       "acceptance_rule": "Uncontrolled values are absent from the paper, and only the registered comparison protocol supplies comparative results.",
       "category": "performance",
-      "citations": [],
+      "citations": [
+        "praval_blog_framework_comparison_2025"
+      ],
       "declared_status": "unsupported",
       "experiments": [
         {

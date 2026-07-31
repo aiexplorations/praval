@@ -46,6 +46,21 @@ permitted_wording = "Praval's message-driven coordination model drew on the auth
 limitations = ["The account records design provenance, not experimental evidence that Praval reproduces biological emergence.", "Simulated annealing is a single-trajectory stochastic search method, not a swarm method.", "Reef uses explicit software messages rather than persistent environmental traces."]
 
 [[claim]]
+id = "first-party-development-accounts"
+statement = "Public posts on the Praval project blog and the author's AI Explorations site record the framework's design intent, development experience, application case studies, and the 0.8.1 transition."
+category = "architectural"
+scope = "Ten Praval-specific posts published on pravalagents.com and rajeshrs.in between November 2025 and July 2026."
+paper_sections = ["Intellectual origins and development"]
+book_sections = ["Praval through 0.7.22", "Transition to 0.8.1", "Case studies"]
+status = "descriptive_only"
+implementation_evidence = ["research/paper_validation/references.toml", "research/paper_validation/history.toml"]
+citations = ["praval_blog_introduction_2025", "praval_blog_architecture_2025", "praval_blog_framework_comparison_2025", "praval_blog_distributed_2025", "praval_blog_deep_research_2025", "praval_blog_0_8_1_2026", "rajeshrs_praval_introduction_2025", "rajeshrs_praval_analytics_2025", "rajeshrs_praval_deep_research_2025", "rajeshrs_praval_0_8_1_2026"]
+experiments = []
+acceptance_rule = "The paper identifies the posts as first-party historical and design context, cites each public URL, and does not use their performance or production claims as independent evidence."
+permitted_wording = "Contemporaneous first-party posts document how Praval's design, distributed coordination, applications, comparisons, and 0.8.1 transition were described during development."
+limitations = ["The posts are not peer-reviewed or independent sources.", "Cross-posted articles overlap in content.", "Current source, release records, and registered experiments supersede conflicting blog claims."]
+
+[[claim]]
 id = "memory-data-transport-expansion"
 statement = "The 0.5 and 0.6 series expanded the coordination foundation with memory, storage, DataReference, secure message behavior, external transports, and service examples."
 category = "architectural"
@@ -354,7 +369,7 @@ paper_sections = ["Methodology", "Limitations"]
 book_sections = ["Version history", "Comparison limits"]
 status = "unsupported"
 implementation_evidence = ["CHANGELOG.md", "docs/releases/RELEASE_NOTES_0.8.1.md"]
-citations = []
+citations = ["praval_blog_framework_comparison_2025"]
 experiments = ["controlled-framework-comparison"]
 acceptance_rule = "Uncontrolled values are absent from the paper, and only the registered comparison protocol supplies comparative results."
 permitted_wording = "The paper excludes comparison values that do not satisfy its controlled protocol."

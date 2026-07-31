@@ -355,6 +355,126 @@ version = "0.8.1"
 commit = "fa20513e7cc982fd8d94b81c19e55a9427a6f48c"
 
 [[reference]]
+id = "praval_blog_introduction_2025"
+type = "web"
+title = "Praval - Agentic AI Framework in Python"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=praval-introduction"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party development account. It records design intent and is not independent implementation or performance evidence."
+
+[[reference]]
+id = "praval_blog_architecture_2025"
+type = "web"
+title = "Praval Architecture Deep Dive"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=praval-architecture"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party architecture account. Current source and experiments determine the claims permitted in this paper."
+
+[[reference]]
+id = "praval_blog_framework_comparison_2025"
+type = "web"
+title = "Praval vs LangGraph vs CrewAI: Real Benchmarks from Building the Same System Three Times"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=framework-comparison"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party historical comparison. Its benchmark values are not evidence for the controlled 0.8.1 comparison in this paper."
+
+[[reference]]
+id = "praval_blog_distributed_2025"
+type = "web"
+title = "From Local to Distributed: What Changed in Praval 0.7.11 to 0.7.20"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=praval-0.7-distributed-agents"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party retrospective on the 0.7 distributed-agent work. Source history remains the implementation record."
+
+[[reference]]
+id = "praval_blog_deep_research_2025"
+type = "web"
+title = "Building Praval Deep Research: When Agents Learn to Think About Papers"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://pravalagents.com/blog/index.html?post=praval-deep-research"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party application account. It supplies design context, not independent validation of framework behavior."
+
+[[reference]]
+id = "praval_blog_0_8_1_2026"
+type = "web"
+title = "Praval 0.8.1: A complete runtime for agents and agent teams"
+authors = ["Praval Project"]
+year = 2026
+url = "https://pravalagents.com/blog/index.html?post=praval-0.8.1"
+accessed = "2026-07-31"
+primary = false
+venue = "Praval project blog"
+notes = "First-party release overview. The exact wheel, release tag, source, and registered experiments supply the implementation evidence."
+
+[[reference]]
+id = "rajeshrs_praval_introduction_2025"
+type = "web"
+title = "Praval - Agentic AI Framework in Python"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://www.rajeshrs.in/blog/ai-explorations/2025-11-14-praval-agentic-ai-framework"
+accessed = "2026-07-31"
+primary = false
+venue = "AI Explorations"
+notes = "First-party development account on the author's site. It overlaps the Praval project blog introduction."
+
+[[reference]]
+id = "rajeshrs_praval_analytics_2025"
+type = "web"
+title = "Praval Analytics - Reimagining Business Intelligence Through AI Agents"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://www.rajeshrs.in/blog/ai-explorations/2025-11-25-praval-analytics"
+accessed = "2026-07-31"
+primary = false
+venue = "AI Explorations"
+notes = "First-party application case study. Its reported behavior and performance are not reused as experimental evidence in this paper."
+
+[[reference]]
+id = "rajeshrs_praval_deep_research_2025"
+type = "web"
+title = "Praval Deep Research - Local-First AI Research Assistant"
+authors = ["Rajesh Sampathkumar"]
+year = 2025
+url = "https://www.rajeshrs.in/blog/ai-explorations/2025-11-25-praval-deep-research"
+accessed = "2026-07-31"
+primary = false
+venue = "AI Explorations"
+notes = "First-party application case study on the author's site. It overlaps the Praval project blog account."
+
+[[reference]]
+id = "rajeshrs_praval_0_8_1_2026"
+type = "web"
+title = "What changed in Praval between 0.7.22 and 0.8.1"
+authors = ["Rajesh Sampathkumar"]
+year = 2026
+url = "https://www.rajeshrs.in/blog/ai-explorations/2026-07-19-praval-0.8.1"
+accessed = "2026-07-31"
+primary = false
+venue = "AI Explorations"
+notes = "First-party transition account on the author's site. Release and exact-wheel evidence determine the supported 0.8.1 claims."
+
+[[reference]]
 id = "langgraph_pypi_1_2_9"
 type = "software"
 title = "LangGraph 1.2.9"
