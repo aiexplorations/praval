@@ -294,7 +294,9 @@ class AnthropicProvider:
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         reserved = {
+            "api",
             "capabilities",
+            "endpoint",
             "allow_experimental_tools",
             "experimental_tools",
         }

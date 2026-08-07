@@ -11,6 +11,8 @@
     --praval-bg-dark: #1e1e1e;
     --praval-bg-darker: #161616;
     --praval-bg-light: #2d2d2d;
+    --praval-table-stripe: #252525;
+    --praval-table-border: #454545;
     --praval-text: #e0e0e0;
     --praval-text-dim: #b0b0b0;
 }
@@ -223,11 +225,33 @@ table.docutils thead {
     color: var(--praval-bg-darker);
 }
 
-table.docutils tbody tr {
-    background-color: var(--praval-bg-dark);
+/*
+ * The Read the Docs base theme applies its zebra stripe directly to odd-row
+ * cells. Set the Praval backgrounds at the same level so table text retains
+ * sufficient contrast.
+ */
+.rst-content table.docutils:not(.field-list):not(.footnote):not(.citation) thead th {
+    background-color: var(--praval-orange);
+    color: var(--praval-bg-darker);
+    border-color: var(--praval-orange-light);
 }
 
-table.docutils tbody tr:hover {
+.rst-content table.docutils:not(.field-list):not(.footnote):not(.citation)
+    tbody tr:nth-child(odd) td {
+    background-color: var(--praval-bg-dark);
+    color: var(--praval-text);
+    border-color: var(--praval-table-border);
+}
+
+.rst-content table.docutils:not(.field-list):not(.footnote):not(.citation)
+    tbody tr:nth-child(even) td {
+    background-color: var(--praval-table-stripe);
+    color: var(--praval-text);
+    border-color: var(--praval-table-border);
+}
+
+.rst-content table.docutils:not(.field-list):not(.footnote):not(.citation)
+    tbody tr:hover td {
     background-color: var(--praval-bg-light);
 }
 
