@@ -189,8 +189,20 @@ def _safe_repository_path(
         raise ManifestError(
             f"{owner}: {field} must stay inside the repository: {value}"
         )
-    if must_exist and not resolved.exists():
+    if must_exist and not resolved.exists() and not _is_build_output(relative):
         raise ManifestError(f"{owner}: {field} does not exist: {value}")
+
+
+def _is_build_output(relative: Path) -> bool:
+    """Report whether a manifest path names a gitignored build artifact.
+
+    Evidence such as ``dist/praval-<version>-py3-none-any.whl`` only exists
+    after a local build. ``dist/`` and ``build/`` are gitignored, so a clean
+    checkout can never satisfy an existence check against them and the claim
+    would fail everywhere except on a machine that happens to have built the
+    wheel. Path containment is still enforced for these entries.
+    """
+    return relative.parts[:1] in {("dist",), ("build",)}
 
 
 def _raw_tables(
