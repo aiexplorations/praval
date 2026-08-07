@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "certificate_artifact_present": true,
+    "certificate_exit_zero": true
+  },
+  "details": {
+    "certificate": {
+      "approval_and_timeout": {
+        "approval_resume": true,
+        "timeout": true
+      },
+      "stdio": {
+        "closed": true,
+        "discovery": true,
+        "structured": true,
+        "text": true
+      },
+      "streamable_http": {
+        "closed": true,
+        "discovery": true,
+        "structured": true
+      }
+    },
+    "stderr": "Processing request of type ListToolsRequest\nProcessing request of type CallToolRequest\nProcessing request of type CallToolRequest\nProcessing request of type ListToolsRequest\nProcessing request of type CallToolRequest\nProcessing request of type ListToolsRequest\nProcessing request of type CallToolRequest\n",
+    "stdout": "CERTIFIED: MCP stdio and Streamable HTTP\n"
+  },
+  "limitations": [],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

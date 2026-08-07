@@ -43,6 +43,7 @@ exports = [
   "get_reef",
   "Spore",
   "SporeType",
+  "ReefLifecycleError",
   "agent",
   "broadcast",
   "agent_pipeline",

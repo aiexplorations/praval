@@ -1,0 +1,47 @@
+{
+  "checks": {
+    "certificate_artifact_present": true,
+    "certificate_exit_zero": true
+  },
+  "details": {
+    "certificate": {
+      "filesystem": {
+        "retrieved": true,
+        "stored": true
+      },
+      "minio": {
+        "retrieved": true,
+        "stored": true
+      },
+      "otlp": {
+        "endpoint_configured": true,
+        "exported": true
+      },
+      "postgresql": {
+        "created": true,
+        "queried": true,
+        "stored": true
+      },
+      "qdrant": {
+        "retrieved": true,
+        "searched": true,
+        "stored": true
+      },
+      "rabbitmq": {
+        "consumed": true,
+        "native_spore": true,
+        "published": true
+      },
+      "redis": {
+        "retrieved": true,
+        "stored": true
+      }
+    },
+    "stderr": "",
+    "stdout": "CERTIFIED: real storage, transport, and OTLP services\n"
+  },
+  "limitations": [],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

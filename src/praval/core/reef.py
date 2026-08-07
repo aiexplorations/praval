@@ -26,7 +26,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, List, Optional
 
 from ..models import ContentPart
 
@@ -63,6 +63,10 @@ class SporeValidationError(Exception):
     """Raised when spore validation fails."""
 
     pass
+
+
+class ReefLifecycleError(RuntimeError):
+    """Raised when an active Reef operation is interrupted by its lifecycle."""
 
 
 class SporeType(Enum):
@@ -210,7 +214,8 @@ class Spore:
     def _transport_body_payload(self) -> Any:
         """Build the backward-compatible JSON body used for size and AMQP wire data."""
         if not (
-            self.content_parts
+            self.metadata
+            or self.content_parts
             or self.data_references
             or self.knowledge_references
             or self.payload != self.knowledge
@@ -220,6 +225,7 @@ class Spore:
             "_praval_spore_envelope": "2.0",
             "knowledge": self.knowledge,
             "payload": self.payload,
+            "metadata": dict(self.metadata),
             "content_parts": list(self.content_parts),
             "knowledge_references": list(self.knowledge_references),
             "data_references": list(self.data_references),
@@ -464,12 +470,14 @@ class Spore:
         if is_envelope:
             knowledge = decoded_body.get("knowledge")
             payload = decoded_body.get("payload")
+            metadata = decoded_body.get("metadata") or {}
             content_parts = decoded_body.get("content_parts") or []
             knowledge_references = decoded_body.get("knowledge_references") or []
             data_references = decoded_body.get("data_references") or []
         else:
             knowledge = decoded_body
             payload = knowledge if isinstance(knowledge, dict) else None
+            metadata = {}
             content_parts = []
             knowledge_references = []
             data_references = []
@@ -503,8 +511,7 @@ class Spore:
             expires_at=expires_at,
             priority=int(headers.get("priority", 5)),
             reply_to=(headers.get("reply_to") or None),
-            # Metadata not serialized in AMQP headers to keep headers small.
-            metadata={},
+            metadata=metadata,
             knowledge_references=knowledge_references,
             data_references=data_references,
             schema_version=headers.get("version", "1.0"),
@@ -516,6 +523,61 @@ class Spore:
             run_id=(headers.get("run_id") or None),
             idempotency_key=(headers.get("idempotency_key") or None),
         )
+
+
+class _ResponseWaiter:
+    """Thread-safe state shared by synchronous and asynchronous response waits."""
+
+    def __init__(
+        self,
+        request: Spore,
+        channel: str,
+        handler: Callable[[Spore], None],
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ):
+        self.request = request
+        self.channel = channel
+        self.handler = handler
+        self.messages: Deque[Spore] = deque()
+        self.condition = threading.Condition()
+        self.error: Optional[BaseException] = None
+        self.active = True
+        self.backend_handle: Any = None
+        self.loop = loop
+        self.async_event = asyncio.Event() if loop is not None else None
+
+    def deliver(self, spore: Spore) -> None:
+        """Queue a matched spore and wake the owning waiter."""
+        with self.condition:
+            if not self.active:
+                return
+            self.messages.append(spore)
+            self.condition.notify_all()
+        self._wake_async()
+
+    def fail(self, error: BaseException) -> None:
+        """Wake the waiter with an error."""
+        with self.condition:
+            if not self.active:
+                return
+            self.error = error
+            self.condition.notify_all()
+        self._wake_async()
+
+    def close(self) -> None:
+        """Prevent any later delivery to this waiter."""
+        with self.condition:
+            self.active = False
+            self.condition.notify_all()
+        self._wake_async()
+
+    def _wake_async(self) -> None:
+        if (
+            self.loop is not None
+            and self.async_event is not None
+            and not self.loop.is_closed()
+        ):
+            self.loop.call_soon_threadsafe(self.async_event.set)
 
 
 class SubscriptionManager:
@@ -536,6 +598,18 @@ class SubscriptionManager:
     def remove_agent(self, agent_name: str) -> None:
         with self._lock:
             if agent_name in self._subscribers:
+                del self._subscribers[agent_name]
+
+    def remove_handler(self, agent_name: str, handler: Callable) -> None:
+        """Remove one handler without disturbing the agent's other subscribers."""
+        with self._lock:
+            handlers = self._subscribers.get(agent_name)
+            if not handlers:
+                return
+            self._subscribers[agent_name] = [
+                existing for existing in handlers if existing is not handler
+            ]
+            if not self._subscribers[agent_name]:
                 del self._subscribers[agent_name]
 
     def get_handlers(self, agent_name: str) -> List[Callable]:
@@ -775,6 +849,14 @@ class ReefChannel:
         """Execute handler asynchronously, supporting both sync and async handlers."""
         if self._shutdown:
             return None
+        if getattr(handler, "_praval_response_waiter", False):
+            future: Future = Future()
+            try:
+                future.set_result(handler(spore))
+                self.stats["spores_delivered"] += 1
+            except BaseException as exc:
+                future.set_exception(exc)
+            return future
 
         def safe_handler_wrapper():
             try:
@@ -831,9 +913,14 @@ class ReefChannel:
         else:
             self._subscriptions.add_handler(agent_name, handler)
 
-    def unsubscribe(self, agent_name: str) -> None:
-        """Unsubscribe an agent from this channel."""
-        self._subscriptions.remove_agent(agent_name)
+    def unsubscribe(
+        self, agent_name: str, handler: Optional[Callable[[Spore], None]] = None
+    ) -> None:
+        """Unsubscribe an agent or one specific handler from this channel."""
+        if handler is None:
+            self._subscriptions.remove_agent(agent_name)
+        else:
+            self._subscriptions.remove_handler(agent_name, handler)
 
     def get_spores_for_agent(self, agent_name: str, limit: int = 10) -> List[Spore]:
         """Get recent spores for a specific agent (polling interface)."""
@@ -1079,6 +1166,8 @@ class ReefCore:
         self._shutdown = False
         self._shutdown_result: Optional[bool] = None
         self.auth_provider = auth_provider
+        self._response_waiters: Dict[str, _ResponseWaiter] = {}
+        self._response_waiters_lock = threading.RLock()
 
         # Async loop for running backend coroutines from sync context
         self._async_loop = None
@@ -1220,6 +1309,97 @@ class ReefCore:
             self._backend_initialized = False
             logger.info(f"Reef backend shutdown: {self.backend.__class__.__name__}")
 
+    @staticmethod
+    def _expiration_time(
+        expires_in_seconds: Optional[float],
+        expires_at: Optional[datetime],
+    ) -> Optional[datetime]:
+        if expires_at is not None:
+            return expires_at
+        if not expires_in_seconds:
+            return None
+        return datetime.now() + timedelta(seconds=expires_in_seconds)
+
+    def _create_spore(
+        self,
+        from_agent: str,
+        to_agent: Optional[str],
+        knowledge: Optional[Dict[str, Any]],
+        spore_type: SporeType,
+        *,
+        priority: int = 5,
+        expires_in_seconds: Optional[float] = None,
+        expires_at: Optional[datetime] = None,
+        reply_to: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Spore:
+        return Spore(
+            id=str(uuid.uuid4()),
+            spore_type=spore_type,
+            from_agent=from_agent,
+            to_agent=to_agent,
+            knowledge=knowledge,
+            created_at=datetime.now(),
+            expires_at=self._expiration_time(expires_in_seconds, expires_at),
+            priority=priority,
+            reply_to=reply_to,
+            metadata=metadata,
+            knowledge_references=list(knowledge_references or []),
+            data_references=list(data_references or []),
+            schema_version=schema_version,
+            payload=payload,
+            content_parts=list(content_parts or []),
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
+        )
+
+    def send_spore(self, spore: Spore, channel: str = None) -> str:
+        """Route an existing spore through authorization and the active backend."""
+        if spore.is_expired():
+            raise ValueError(f"Spore '{spore.id}' is already expired")
+
+        if channel is None:
+            channel = self.default_channel
+
+        self._authorize(
+            "send",
+            {
+                "from_agent": spore.from_agent,
+                "to_agent": spore.to_agent,
+                "channel": channel,
+                "spore_type": spore.spore_type.value,
+            },
+        )
+
+        reef_channel = self.get_channel(channel)
+        if not reef_channel:
+            raise ValueError(f"Reef channel '{channel}' not found")
+
+        if self._is_distributed_backend():
+            logger.debug(
+                (
+                    f"Routing spore {spore.id} through distributed backend to "
+                    f"channel: {channel}"
+                )
+            )
+            self._run_async(self.backend.send(spore, channel))
+        else:
+            reef_channel.send_spore(spore)
+        return spore.id
+
     def send(
         self,
         from_agent: str,
@@ -1232,35 +1412,23 @@ class ReefCore:
         reply_to: Optional[str] = None,
         knowledge_references: Optional[List[str]] = None,
         auto_reference_large_knowledge: bool = True,
+        *,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> str:
         """Send a spore through the reef."""
 
-        # Use default channel if none specified
         if channel is None:
             channel = self.default_channel
-
-        self._authorize(
-            "send",
-            {
-                "from_agent": from_agent,
-                "to_agent": to_agent,
-                "channel": channel,
-                "spore_type": spore_type.value,
-            },
-        )
-
-        reef_channel = self.get_channel(channel)
-        if not reef_channel:
-            raise ValueError(f"Reef channel '{channel}' not found")
-
-        # Create expiration time if specified
-        expires_at = None
-        if expires_in_seconds:
-            expires_at = datetime.now() + timedelta(seconds=expires_in_seconds)
-
-        # Handle knowledge references for lightweight spores
-        final_knowledge = knowledge
-        final_references = knowledge_references or []
 
         # Auto-reference large knowledge if enabled
         if auto_reference_large_knowledge and knowledge:
@@ -1275,35 +1443,28 @@ class ReefCore:
                     )
                 )
 
-        # Create spore
-        spore = Spore(
-            id=str(uuid.uuid4()),
-            spore_type=spore_type,
-            from_agent=from_agent,
-            to_agent=to_agent,
-            knowledge=final_knowledge,
-            created_at=datetime.now(),
-            expires_at=expires_at,
+        spore = self._create_spore(
+            from_agent,
+            to_agent,
+            knowledge,
+            spore_type,
             priority=priority,
+            expires_in_seconds=expires_in_seconds,
+            expires_at=expires_at,
             reply_to=reply_to,
-            knowledge_references=final_references,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
         )
-
-        # Route through backend for distributed systems, or local channel for in-memory
-        if self._is_distributed_backend():
-            # Use distributed backend (RabbitMQ, etc.)
-            logger.debug(
-                (
-                    f"Routing spore {spore.id} through distributed backend to "
-                    f"channel: {channel}"
-                )
-            )
-            self._run_async(self.backend.send(spore, channel))
-        else:
-            # Use local in-memory channel
-            reef_channel.send_spore(spore)
-
-        return spore.id
+        return self.send_spore(spore, channel)
 
     def _check_broadcast_rate_limit(self, from_agent: str) -> None:
         if not self.broadcast_rate_limit_per_sec:
@@ -1348,6 +1509,20 @@ class ReefCore:
         request: Dict[str, Any],
         channel: str = None,
         expires_in_seconds: int = 300,
+        *,
+        priority: int = 5,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> str:
         """Send a knowledge request to another agent."""
         return self.send(
@@ -1356,7 +1531,20 @@ class ReefCore:
             knowledge=request,
             spore_type=SporeType.REQUEST,
             channel=channel,
+            priority=priority,
             expires_in_seconds=expires_in_seconds,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
+            expires_at=expires_at,
         )
 
     def reply(
@@ -1366,6 +1554,21 @@ class ReefCore:
         response: Dict[str, Any],
         reply_to_spore_id: str,
         channel: str = None,
+        *,
+        priority: int = 5,
+        expires_in_seconds: Optional[float] = None,
+        expires_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> str:
         """Reply to a knowledge request."""
         return self.send(
@@ -1374,8 +1577,491 @@ class ReefCore:
             knowledge=response,
             spore_type=SporeType.RESPONSE,
             channel=channel,
+            priority=priority,
+            expires_in_seconds=expires_in_seconds,
+            expires_at=expires_at,
             reply_to=reply_to_spore_id,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
         )
+
+    @staticmethod
+    def _response_matches(request: Spore, candidate: Spore) -> bool:
+        if request.is_expired() or candidate.is_expired():
+            return False
+        if candidate.spore_type not in (
+            SporeType.RESPONSE,
+            SporeType.NOTIFICATION,
+        ):
+            return False
+        if candidate.reply_to != request.id:
+            return False
+        if candidate.from_agent != request.to_agent:
+            return False
+        if candidate.to_agent != request.from_agent:
+            return False
+        exact_fields = (
+            "correlation_id",
+            "trace_id",
+            "run_id",
+            "idempotency_key",
+        )
+        if any(
+            getattr(candidate, field) != getattr(request, field)
+            for field in exact_fields
+        ):
+            return False
+        return candidate.causation_id in (None, request.id)
+
+    def _new_response_waiter(
+        self,
+        request: Spore,
+        channel: str,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> _ResponseWaiter:
+        waiter: _ResponseWaiter
+
+        def response_handler(candidate: Spore) -> None:
+            with self._response_waiters_lock:
+                is_active = self._response_waiters.get(request.id) is waiter
+            if is_active and self._response_matches(request, candidate):
+                waiter.deliver(candidate)
+
+        response_handler._praval_response_waiter = True  # type: ignore[attr-defined]
+        waiter = _ResponseWaiter(request, channel, response_handler, loop=loop)
+        with self._response_waiters_lock:
+            self._response_waiters[request.id] = waiter
+        return waiter
+
+    def _register_response_waiter(self, waiter: _ResponseWaiter) -> None:
+        self._authorize(
+            "subscribe",
+            {"agent_name": waiter.request.from_agent, "channel": waiter.channel},
+        )
+        try:
+            if self._is_distributed_backend():
+                subscribe_handler = getattr(self.backend, "subscribe_handler", None)
+                if subscribe_handler is None:
+                    raise RuntimeError(
+                        "The configured Reef backend does not support precise "
+                        "response subscriptions required by request_and_wait()"
+                    )
+                waiter.backend_handle = self._run_async(
+                    subscribe_handler(
+                        f"agent.{waiter.request.from_agent}", waiter.handler
+                    )
+                )
+            else:
+                reef_channel = self.get_channel(waiter.channel)
+                if not reef_channel:
+                    raise ValueError(f"Reef channel '{waiter.channel}' not found")
+                reef_channel.subscribe(
+                    waiter.request.from_agent, waiter.handler, replace=False
+                )
+        except BaseException:
+            self._discard_response_waiter(waiter)
+            raise
+
+    async def _aregister_response_waiter(self, waiter: _ResponseWaiter) -> None:
+        self._authorize(
+            "subscribe",
+            {"agent_name": waiter.request.from_agent, "channel": waiter.channel},
+        )
+        try:
+            if self._is_distributed_backend():
+                subscribe_handler = getattr(self.backend, "subscribe_handler", None)
+                if subscribe_handler is None:
+                    raise RuntimeError(
+                        "The configured Reef backend does not support precise "
+                        "response subscriptions required by arequest_and_wait()"
+                    )
+                waiter.backend_handle = await subscribe_handler(
+                    f"agent.{waiter.request.from_agent}", waiter.handler
+                )
+            else:
+                reef_channel = self.get_channel(waiter.channel)
+                if not reef_channel:
+                    raise ValueError(f"Reef channel '{waiter.channel}' not found")
+                reef_channel.subscribe(
+                    waiter.request.from_agent, waiter.handler, replace=False
+                )
+        except BaseException:
+            await self._adiscard_response_waiter(waiter)
+            raise
+
+    def _discard_response_waiter(self, waiter: _ResponseWaiter) -> None:
+        with self._response_waiters_lock:
+            if self._response_waiters.get(waiter.request.id) is waiter:
+                del self._response_waiters[waiter.request.id]
+        waiter.close()
+        if waiter.backend_handle is not None:
+            unsubscribe_handler = getattr(self.backend, "unsubscribe_handler", None)
+            if unsubscribe_handler is not None:
+                self._run_async(unsubscribe_handler(waiter.backend_handle))
+        else:
+            reef_channel = self.get_channel(waiter.channel)
+            if reef_channel:
+                reef_channel.unsubscribe(waiter.request.from_agent, waiter.handler)
+
+    async def _adiscard_response_waiter(self, waiter: _ResponseWaiter) -> None:
+        with self._response_waiters_lock:
+            if self._response_waiters.get(waiter.request.id) is waiter:
+                del self._response_waiters[waiter.request.id]
+        waiter.close()
+        if waiter.backend_handle is not None:
+            unsubscribe_handler = getattr(self.backend, "unsubscribe_handler", None)
+            if unsubscribe_handler is not None:
+                await unsubscribe_handler(waiter.backend_handle)
+        else:
+            reef_channel = self.get_channel(waiter.channel)
+            if reef_channel:
+                reef_channel.unsubscribe(waiter.request.from_agent, waiter.handler)
+
+    def _waiter_next(self, waiter: _ResponseWaiter, deadline: Optional[float]) -> Spore:
+        with waiter.condition:
+            while not waiter.messages:
+                if waiter.error is not None:
+                    raise waiter.error
+                remaining = (
+                    None if deadline is None else max(0.0, deadline - time.monotonic())
+                )
+                if remaining == 0.0:
+                    raise TimeoutError(f"Reef request {waiter.request.id} timed out")
+                waiter.condition.wait(remaining)
+            return waiter.messages.popleft()
+
+    async def _await_waiter_next(
+        self, waiter: _ResponseWaiter, deadline: Optional[float]
+    ) -> Spore:
+        if waiter.async_event is None:
+            raise RuntimeError("Async waiter event is not available")
+        while True:
+            with waiter.condition:
+                if waiter.messages:
+                    return waiter.messages.popleft()
+                if waiter.error is not None:
+                    raise waiter.error
+                waiter.async_event.clear()
+            remaining = (
+                None if deadline is None else max(0.0, deadline - time.monotonic())
+            )
+            if remaining == 0.0:
+                raise TimeoutError(f"Reef request {waiter.request.id} timed out")
+            try:
+                if remaining is None:
+                    await waiter.async_event.wait()
+                else:
+                    await asyncio.wait_for(waiter.async_event.wait(), remaining)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(
+                    f"Reef request {waiter.request.id} timed out"
+                ) from exc
+
+    @staticmethod
+    def _wait_deadline(timeout: Optional[float], request: Spore) -> Optional[float]:
+        durations: List[float] = []
+        if timeout is not None:
+            durations.append(max(0.0, timeout))
+        if request.expires_at is not None:
+            durations.append(
+                max(0.0, (request.expires_at - datetime.now()).total_seconds())
+            )
+        if not durations:
+            return None
+        return time.monotonic() + min(durations)
+
+    def request_and_wait(
+        self,
+        from_agent: str,
+        to_agent: str,
+        request: Dict[str, Any],
+        channel: str = None,
+        expires_in_seconds: int = 300,
+        timeout: Optional[float] = 30.0,
+        *,
+        on_notification: Optional[Callable[[Spore], Any]] = None,
+        priority: int = 5,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
+    ) -> Spore:
+        """Send a request and block for its strictly matched final response."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            raise RuntimeError(
+                "request_and_wait() cannot run inside an active event loop; "
+                "use arequest_and_wait() instead"
+            )
+
+        channel = channel or self.default_channel
+        request_spore = self._create_spore(
+            from_agent,
+            to_agent,
+            request,
+            SporeType.REQUEST,
+            priority=priority,
+            expires_in_seconds=expires_in_seconds,
+            expires_at=expires_at,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
+        )
+        waiter = self._new_response_waiter(request_spore, channel)
+        try:
+            self._register_response_waiter(waiter)
+            self.send_spore(request_spore, channel)
+            deadline = self._wait_deadline(timeout, request_spore)
+            while True:
+                candidate = self._waiter_next(waiter, deadline)
+                if candidate.spore_type is SporeType.NOTIFICATION:
+                    if on_notification is not None:
+                        result = on_notification(candidate)
+                        if inspect.isawaitable(result):
+                            self._run_async(result)
+                    continue
+                return candidate
+        finally:
+            self._discard_response_waiter(waiter)
+
+    async def arequest_and_wait(
+        self,
+        from_agent: str,
+        to_agent: str,
+        request: Dict[str, Any],
+        channel: str = None,
+        expires_in_seconds: int = 300,
+        timeout: Optional[float] = 30.0,
+        *,
+        on_notification: Optional[Callable[[Spore], Any]] = None,
+        priority: int = 5,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: str = "1.0",
+        correlation_id: Optional[str] = None,
+        causation_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
+    ) -> Spore:
+        """Asynchronously send a request and await its matched final response."""
+        channel = channel or self.default_channel
+        request_spore = self._create_spore(
+            from_agent,
+            to_agent,
+            request,
+            SporeType.REQUEST,
+            priority=priority,
+            expires_in_seconds=expires_in_seconds,
+            expires_at=expires_at,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            idempotency_key=idempotency_key,
+        )
+        loop = asyncio.get_running_loop()
+        waiter = self._new_response_waiter(request_spore, channel, loop=loop)
+        try:
+            await self._aregister_response_waiter(waiter)
+            if self._is_distributed_backend():
+                if request_spore.is_expired():
+                    raise ValueError(f"Spore '{request_spore.id}' is already expired")
+                self._authorize(
+                    "send",
+                    {
+                        "from_agent": request_spore.from_agent,
+                        "to_agent": request_spore.to_agent,
+                        "channel": channel,
+                        "spore_type": request_spore.spore_type.value,
+                    },
+                )
+                await self.backend.send(request_spore, channel)
+            else:
+                self.send_spore(request_spore, channel)
+            deadline = self._wait_deadline(timeout, request_spore)
+            while True:
+                candidate = await self._await_waiter_next(waiter, deadline)
+                if candidate.spore_type is SporeType.NOTIFICATION:
+                    if on_notification is not None:
+                        result = on_notification(candidate)
+                        if inspect.isawaitable(result):
+                            await result
+                    continue
+                return candidate
+        finally:
+            await self._adiscard_response_waiter(waiter)
+
+    @staticmethod
+    def _bounded_expiry(
+        request: Spore,
+        expires_in_seconds: Optional[float] = None,
+        expires_at: Optional[datetime] = None,
+    ) -> Optional[datetime]:
+        candidate = expires_at
+        if candidate is None and expires_in_seconds is not None:
+            candidate = datetime.now() + timedelta(seconds=expires_in_seconds)
+        if request.expires_at is None:
+            return candidate
+        if candidate is None:
+            return request.expires_at
+        return min(candidate, request.expires_at)
+
+    def _send_derived_response(
+        self,
+        request_spore: Spore,
+        knowledge: Dict[str, Any],
+        spore_type: SporeType,
+        *,
+        channel: str = None,
+        priority: Optional[int] = None,
+        expires_in_seconds: Optional[float] = None,
+        expires_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: Optional[str] = None,
+    ) -> str:
+        if request_spore.to_agent is None:
+            raise ValueError("Cannot derive a direct response from a broadcast")
+        response_spore = self._create_spore(
+            request_spore.to_agent,
+            request_spore.from_agent,
+            knowledge,
+            spore_type,
+            priority=request_spore.priority if priority is None else priority,
+            expires_at=self._bounded_expiry(
+                request_spore, expires_in_seconds, expires_at
+            ),
+            reply_to=request_spore.id,
+            metadata=metadata,
+            payload=payload,
+            content_parts=content_parts,
+            knowledge_references=knowledge_references,
+            data_references=data_references,
+            schema_version=schema_version or request_spore.schema_version,
+            correlation_id=request_spore.correlation_id,
+            causation_id=request_spore.id,
+            trace_id=request_spore.trace_id,
+            run_id=request_spore.run_id,
+            idempotency_key=request_spore.idempotency_key,
+        )
+        return self.send_spore(response_spore, channel)
+
+    def reply_to_request(
+        self,
+        request_spore: Spore,
+        response: Dict[str, Any],
+        **options: Any,
+    ) -> str:
+        """Reply with lifecycle fields derived from the originating request."""
+        return self._send_derived_response(
+            request_spore, response, SporeType.RESPONSE, **options
+        )
+
+    def notify_request(
+        self,
+        request_spore: Spore,
+        notification: Dict[str, Any],
+        **options: Any,
+    ) -> str:
+        """Send a correlated progress notification for an active request."""
+        return self._send_derived_response(
+            request_spore, notification, SporeType.NOTIFICATION, **options
+        )
+
+    def forward_request(
+        self,
+        request_spore: Spore,
+        to_agent: str,
+        request: Optional[Dict[str, Any]] = None,
+        *,
+        channel: str = None,
+        priority: Optional[int] = None,
+        expires_in_seconds: Optional[float] = None,
+        expires_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        content_parts: Optional[List[Dict[str, Any]]] = None,
+        knowledge_references: Optional[List[str]] = None,
+        data_references: Optional[List[str]] = None,
+        schema_version: Optional[str] = None,
+    ) -> str:
+        """Forward a request without extending its lifecycle."""
+        if request_spore.to_agent is None:
+            raise ValueError("Cannot forward a broadcast request")
+        forwarded = self._create_spore(
+            request_spore.to_agent,
+            to_agent,
+            request_spore.knowledge if request is None else request,
+            SporeType.REQUEST,
+            priority=request_spore.priority if priority is None else priority,
+            expires_at=self._bounded_expiry(
+                request_spore, expires_in_seconds, expires_at
+            ),
+            metadata=request_spore.metadata if metadata is None else metadata,
+            payload=request_spore.payload if payload is None else payload,
+            content_parts=(
+                request_spore.content_parts if content_parts is None else content_parts
+            ),
+            knowledge_references=(
+                request_spore.knowledge_references
+                if knowledge_references is None
+                else knowledge_references
+            ),
+            data_references=(
+                request_spore.data_references
+                if data_references is None
+                else data_references
+            ),
+            schema_version=schema_version or request_spore.schema_version,
+            correlation_id=request_spore.correlation_id,
+            causation_id=request_spore.id,
+            trace_id=request_spore.trace_id,
+            run_id=request_spore.run_id,
+            idempotency_key=request_spore.idempotency_key,
+        )
+        return self.send_spore(forwarded, channel)
 
     def subscribe(
         self,
@@ -1471,6 +2157,19 @@ class ReefCore:
 
         return True
 
+    def _cancel_response_waiters(self, reason: str) -> None:
+        """Wake and remove all active response waiters."""
+        with self._response_waiters_lock:
+            waiters = list(self._response_waiters.values())
+        for waiter in waiters:
+            waiter.fail(ReefLifecycleError(reason))
+            try:
+                self._discard_response_waiter(waiter)
+            except Exception as exc:
+                logger.warning(
+                    f"Error cleaning response waiter {waiter.request.id}: {exc}"
+                )
+
     def shutdown(self, wait: bool = True, timeout: float = 30.0) -> bool:
         """
         Shutdown the reef and all its channels.
@@ -1486,6 +2185,7 @@ class ReefCore:
             return bool(self._shutdown_result)
 
         self._shutdown = True
+        self._cancel_response_waiters("Reef shut down while waiting for a response")
 
         all_clean = True
         remaining_timeout = timeout
@@ -1656,11 +2356,9 @@ def reset_reef() -> None:
     This is primarily used for testing to ensure test isolation.
     Clears all channels and reinitializes with just the default channel.
     """
-    with _global_reef.lock:
-        # Clear all channels
-        _global_reef.channels.clear()
-        # Recreate default channel
-        _global_reef.create_channel(_global_reef.default_channel)
-        _global_reef._shutdown = False
-        _global_reef._shutdown_result = None
-        _global_reef._backend_initialized = False
+    global _global_reef
+
+    old_reef = _global_reef
+    old_reef._cancel_response_waiters("Reef reset while waiting for a response")
+    old_reef.shutdown(wait=False)
+    _global_reef = Reef()

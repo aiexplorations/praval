@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-07-31
+
+### Added
+
+- Added `Reef.send_spore()` for routing an existing Spore through
+  authorization and the configured backend.
+- Added synchronous and asynchronous request waits with strict lifecycle
+  matching, progress callbacks, and complete Spore results.
+- Added request derived reply, notification, and forwarding helpers.
+- Added precise backend subscription handles and complete AMQP consumer and
+  queue ownership cleanup.
+- Added an offline concurrent request, progress, and forwarding example.
+
+### Changed
+
+- Extended `send()`, `request()`, and `reply()` with keyword Spore envelope and
+  lifecycle options while keeping their positional calls and string results.
+- Changed `Agent.request_knowledge()` to use the correlation safe wait while
+  keeping its `dict | None` contract.
+- Preserved arbitrary metadata, payloads, content parts, and reference lists
+  in the native AMQP envelope.
+- Reset now closes the old Reef and backend, wakes active waiters, and creates a
+  clean default Reef.
+
+### Fixed
+
+- Prevented concurrent requests between the same agents from consuming each
+  other's replies.
+- Rejected spoofed, mismatched, expired, and late responses during a wait.
+- Removed temporary waiter handlers and backend consumers after every exit
+  path without removing unrelated subscribers.
+
+See the
+[0.8.2 release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.2.md)
+for compatibility details and scope.
+
 ## [0.8.1] - 2026-07-18
 
 ### Release overview
@@ -1058,7 +1094,8 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
 - Legacy example files that were replaced with new progressive series
 - Deprecated API patterns in favor of cleaner decorator approach
 
-[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/aiexplorations/praval/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/aiexplorations/praval/compare/v0.7.22...v0.8.1
 [0.7.22]: https://github.com/aiexplorations/praval/compare/v0.7.21...v0.7.22
 [0.7.21]: https://github.com/aiexplorations/praval/compare/v0.7.20...v0.7.21

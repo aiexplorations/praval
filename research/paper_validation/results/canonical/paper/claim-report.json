@@ -1,0 +1,1509 @@
+{
+  "claims": [
+    {
+      "acceptance_rule": "Runtime and Spore experiments preserve their separate contracts without introducing a second agent-to-agent layer.",
+      "category": "architectural",
+      "citations": [
+        "hewitt1973actor",
+        "eugster2003publish_subscribe"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "runtime-contracts.json": {
+              "path": "artifacts/runtime-contracts.json",
+              "sha256": "1bc55b03cd7326fb988aa327e0d97f35919328627706d8e872c28072a4c0a125",
+              "size": 875
+            },
+            "runtime-contracts.samples.jsonl": {
+              "path": "artifacts/runtime-contracts.samples.jsonl",
+              "sha256": "4246430e30bb77ec42cd6d471d32f9b8c4105326d7e83fcbb2160dc12c8f4b3f",
+              "size": 1675
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "runtime-contracts",
+          "limitations": [
+            "This deterministic adapter tests the shared contract, not live provider conformance."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "spore-v2-compatibility.json": {
+              "path": "artifacts/spore-v2-compatibility.json",
+              "sha256": "91e91b4b8c45526531286ba169bfa2772fc6df87389213d7fd80e1b82f57ab77",
+              "size": 723
+            },
+            "spore-v2-compatibility.samples.jsonl": {
+              "path": "artifacts/spore-v2-compatibility.samples.jsonl",
+              "sha256": "c1fe4fbbc8e413f35f22b215d8461a156682ed7dae52f5c4fa48b6a6e6f04fe0",
+              "size": 2242
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "spore-v2-compatibility",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "two-plane-architecture",
+      "implementation_evidence": [
+        "src/praval/core/reef.py",
+        "src/praval/model_runtime.py",
+        "src/praval/providers/registry.py"
+      ],
+      "limitations": [
+        "The separation is an implementation boundary, not a formal proof of architectural independence."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Abstract",
+        "System architecture",
+        "Contributions"
+      ],
+      "permitted_wording": "Praval 0.8.1 separates its coordination plane from its model execution plane.",
+      "scope": "Praval 0.8.1 public Agent, Reef, Spore, ModelRuntime, and provider adapter boundaries.",
+      "statement": "Praval separates agent coordination from provider-neutral model execution."
+    },
+    {
+      "acceptance_rule": "The historical prose distinguishes source-version states from tagged releases and does not repeat unsupported contemporary marketing claims.",
+      "category": "architectural",
+      "citations": [
+        "praval_source_history"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "initial-agent-coordination-foundation",
+      "implementation_evidence": [
+        "research/paper_validation/history.toml",
+        "src/praval/core/agent.py",
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ],
+      "limitations": [
+        "The early version records establish implementation history, not performance, emergence, or production-readiness claims.",
+        "Versions 0.1.0 and 0.2.0 do not have matching retained Git tags."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Origins and development",
+        "Results RQ1"
+      ],
+      "permitted_wording": "Praval began with a direct Agent abstraction, then made decorated agents, Reef, and Spores its main coordination model in the 0.2.0 source state.",
+      "scope": "Source states recorded for Praval 0.1.0 and 0.2.0 before the first retained Git tag.",
+      "statement": "Praval 0.1.0 and 0.2.0 established direct agents, decorated agents, Reef, Spores, and message-driven specialist coordination."
+    },
+    {
+      "acceptance_rule": "The paper connects the influences to concrete Praval interfaces, distinguishes the algorithms from one another, and does not claim that Praval is a biological simulation, an optimization algorithm, or a formal stigmergic system.",
+      "category": "architectural",
+      "citations": [
+        "holland1992_adaptation",
+        "kirkpatrick1983_simulated_annealing",
+        "kennedy_eberhart1995_pso",
+        "bonabeau1999_swarm_intelligence",
+        "grasse1959stigmergy",
+        "hatcher1997_coral_systems",
+        "sampathkumar2010_wing_optimization"
+      ],
+      "declared_status": "descriptive_only",
+      "experiments": [],
+      "id": "intellectual-origins",
+      "implementation_evidence": [
+        "docs/plans/2026-07-30-praval-intellectual-origins-design.md",
+        "docs/claude-code-prompt.md",
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ],
+      "limitations": [
+        "The account records design provenance, not experimental evidence that Praval reproduces biological emergence.",
+        "Simulated annealing is a single-trajectory stochastic search method, not a swarm method.",
+        "Reef uses explicit software messages rather than persistent environmental traces."
+      ],
+      "observed_status": "descriptive_only",
+      "paper_sections": [
+        "Introduction",
+        "Intellectual origins and development",
+        "Related work",
+        "Results RQ1",
+        "Conclusion"
+      ],
+      "permitted_wording": "Praval's message-driven coordination model drew on the author's work with dynamical systems and population-based optimization, practical agent-framework experience, and ideas from swarm intelligence, stigmergy, and coral reef systems.",
+      "scope": "Intellectual provenance for the specialist Agent, Reef, and Spore design, stated separately from claims about implemented semantics or measured behavior.",
+      "statement": "Praval's coordination design was informed by the author's earlier work on dynamical systems and population-based optimization, later experience with agent frameworks, and concepts from swarm intelligence, stigmergy, and coral reef systems."
+    },
+    {
+      "acceptance_rule": "The paper identifies the posts as first-party historical and design context, cites each public URL, and does not use their performance or production claims as independent evidence.",
+      "category": "architectural",
+      "citations": [
+        "praval_blog_introduction_2025",
+        "praval_blog_architecture_2025",
+        "praval_blog_framework_comparison_2025",
+        "praval_blog_distributed_2025",
+        "praval_blog_deep_research_2025",
+        "praval_blog_0_8_1_2026",
+        "rajeshrs_praval_introduction_2025",
+        "rajeshrs_praval_analytics_2025",
+        "rajeshrs_praval_deep_research_2025",
+        "rajeshrs_praval_0_8_1_2026"
+      ],
+      "declared_status": "descriptive_only",
+      "experiments": [],
+      "id": "first-party-development-accounts",
+      "implementation_evidence": [
+        "research/paper_validation/references.toml",
+        "research/paper_validation/history.toml"
+      ],
+      "limitations": [
+        "The posts are not peer-reviewed or independent sources.",
+        "Cross-posted articles overlap in content.",
+        "Current source, release records, and registered experiments supersede conflicting blog claims."
+      ],
+      "observed_status": "descriptive_only",
+      "paper_sections": [
+        "Intellectual origins and development"
+      ],
+      "permitted_wording": "Contemporaneous first-party posts document how Praval's design, distributed coordination, applications, comparisons, and 0.8.1 transition were described during development.",
+      "scope": "Ten Praval-specific posts published on pravalagents.com and rajeshrs.in between November 2025 and July 2026.",
+      "statement": "Public posts on the Praval project blog and the author's AI Explorations site record the framework's design intent, development experience, application case studies, and the 0.8.1 transition."
+    },
+    {
+      "acceptance_rule": "The paper presents these facilities as versioned and optional, and it states their configuration and security limits.",
+      "category": "architectural",
+      "citations": [
+        "praval_source_history"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "memory-data-transport-expansion",
+      "implementation_evidence": [
+        "CHANGELOG.md",
+        "research/paper_validation/history.toml",
+        "src/praval/memory/memory_manager.py",
+        "src/praval/storage/data_manager.py",
+        "src/praval/core/secure_spore.py"
+      ],
+      "limitations": [
+        "The historical record does not prove production durability, retrieval quality, transport scale, or cryptographic protocol completeness.",
+        "Version 0.6.1 is documented but has no distinct retained tag."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Origins and development",
+        "Results RQ1"
+      ],
+      "permitted_wording": "The 0.5 and 0.6 series added memory, data, transport, and bounded security facilities around Praval's coordination model.",
+      "scope": "Tagged and documented states from 0.5.0 through 0.6.2.",
+      "statement": "The 0.5 and 0.6 series expanded the coordination foundation with memory, storage, DataReference, secure message behavior, external transports, and service examples."
+    },
+    {
+      "acceptance_rule": "Every named capability is tied to a recorded 0.7 state, and irregular tags or dates are stated rather than silently normalized.",
+      "category": "architectural",
+      "citations": [
+        "praval_source_history",
+        "praval_release_0_7_22"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "coordination-operations-maturity",
+      "implementation_evidence": [
+        "CHANGELOG.md",
+        "research/paper_validation/history.toml",
+        "docs/releases/RELEASE_NOTES_0.7.22.md",
+        "src/praval/core/tool_registry.py",
+        "src/praval/observability",
+        "src/praval/core/reef_backend.py"
+      ],
+      "limitations": [
+        "The series does not establish universal delivery guarantees or horizontal scaling.",
+        "Some release records are inconsistent and are identified in the version ledger."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Origins and development",
+        "Coordination before 0.8",
+        "Results RQ1"
+      ],
+      "permitted_wording": "The 0.7 series made the coordination model more operational through tools, observability, distributed Reef support, completion tracking, lifecycle work, and durable human intervention.",
+      "scope": "Development, tagged, and documented states from 0.7.0 through 0.7.22.",
+      "statement": "The 0.7 series added tools, optional installation groups, observability, RabbitMQ-backed Reef delivery, completion tracking, lifecycle corrections, and durable human intervention."
+    },
+    {
+      "acceptance_rule": "The paper and book name only capabilities documented by the 0.7.22 release or retained source history, and they do not attribute 0.8 runtime contracts to 0.7.22.",
+      "category": "architectural",
+      "citations": [
+        "praval_release_0_7_22"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "pre-0-8-coordination-foundation",
+      "implementation_evidence": [
+        "CHANGELOG.md",
+        "docs/releases/RELEASE_NOTES_0.7.22.md",
+        "src/praval/core/reef.py",
+        "src/praval/decorators.py"
+      ],
+      "limitations": [
+        "The claim records released API scope, not a new performance or reliability result.",
+        "Optional subsystems required separate dependencies and configuration."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Introduction",
+        "Origins and development",
+        "Results RQ1"
+      ],
+      "permitted_wording": "By version 0.7.22, Praval already provided the Agent, Reef, and Spore coordination model plus documented tools, data, transport, observability, and completion facilities.",
+      "scope": "Capabilities documented by the last stable 0.7 release and its retained source paths.",
+      "statement": "By Praval 0.7.22, Agent, Reef, and Spore provided the coordination foundation, with completion tracking, tools, optional memory and storage, observability, and transport integrations."
+    },
+    {
+      "acceptance_rule": "Historical prose states the 0.7.22 boundary as documented and distinguishes it from the expanded provider-neutral continuation state in 0.8.1.",
+      "category": "behavioral",
+      "citations": [
+        "praval_release_0_7_22"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "praval-0-7-22-hitl-boundary",
+      "implementation_evidence": [
+        "CHANGELOG.md",
+        "docs/releases/RELEASE_NOTES_0.7.22.md",
+        "src/praval/hitl/store.py",
+        "tests/test_hitl_store.py"
+      ],
+      "limitations": [
+        "Tagged release records contain historical validation counts that are not reused as current evidence.",
+        "Provider-neutral runtime continuation details were expanded in the 0.8 series."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Introduction",
+        "Origins and development",
+        "Results RQ1"
+      ],
+      "permitted_wording": "Version 0.7.22 added agent-gated HITL with SQLite-backed intervention and suspended-run state.",
+      "scope": "The approval, edit, reject, suspension, restart, and resume behavior documented for the 0.7.22 HITL release.",
+      "statement": "Praval 0.7.22 added agent-gated, SQLite-backed intervention state for approval-protected tool calls."
+    },
+    {
+      "acceptance_rule": "The transition narrative names retained 0.7 coordination concepts separately from execution features added or expanded in 0.8.1.",
+      "category": "architectural",
+      "citations": [
+        "praval_release_0_7_22",
+        "praval_release_0_8_1"
+      ],
+      "declared_status": "validated_with_scope",
+      "experiments": [],
+      "id": "praval-0-8-1-execution-transition",
+      "implementation_evidence": [
+        "docs/releases/RELEASE_NOTES_0.8.1.md",
+        "src/praval/model_runtime.py",
+        "src/praval/embeddings.py",
+        "src/praval/app.py"
+      ],
+      "limitations": [
+        "The two-plane description is an implementation account, not a proof that all concerns are independent."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Introduction",
+        "Why model execution changed",
+        "Results RQ1",
+        "System architecture"
+      ],
+      "permitted_wording": "Praval 0.8.1 extended the established coordination foundation with a provider-neutral execution plane centered on ModelRuntime.",
+      "scope": "The published 0.8.1 Agent, ModelRuntime, EmbeddingRuntime, provider profile, Spore V2, MCP, and PravalApp interfaces.",
+      "statement": "Praval 0.8.1 retained the 0.7 coordination model and added a provider-neutral execution plane centered on ModelRuntime."
+    },
+    {
+      "acceptance_rule": "All common invariants pass and unsupported capabilities fail before provider invocation.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "runtime-contracts.json": {
+              "path": "artifacts/runtime-contracts.json",
+              "sha256": "1bc55b03cd7326fb988aa327e0d97f35919328627706d8e872c28072a4c0a125",
+              "size": 875
+            },
+            "runtime-contracts.samples.jsonl": {
+              "path": "artifacts/runtime-contracts.samples.jsonl",
+              "sha256": "4246430e30bb77ec42cd6d471d32f9b8c4105326d7e83fcbb2160dc12c8f4b3f",
+              "size": 1675
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "runtime-contracts",
+          "limitations": [
+            "This deterministic adapter tests the shared contract, not live provider conformance."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "capability-resolution.json": {
+              "path": "artifacts/capability-resolution.json",
+              "sha256": "37fc0073cd52cb8417079fecfbc11d804053d7b5a00bc6cd0bde4223c9a04ecf",
+              "size": 714
+            },
+            "capability-resolution.samples.jsonl": {
+              "path": "artifacts/capability-resolution.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "capability-resolution",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {},
+          "canonical": true,
+          "failure": null,
+          "id": "live-capability-matrix",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+          "run_id": "praval-paper-live-canonical-20260726",
+          "status": "not_run"
+        }
+      ],
+      "id": "runtime-provider-neutral-contract",
+      "implementation_evidence": [
+        "src/praval/model_runtime.py",
+        "src/praval/models/__init__.py",
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "limitations": [
+        "Provider and model behavior remains different outside the normalized contract."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Execution plane",
+        "Results RQ2"
+      ],
+      "permitted_wording": "Praval normalizes model execution for capabilities declared by the selected provider profile.",
+      "scope": "Capabilities declared by supported provider and model profiles.",
+      "statement": "Model execution uses common request, response, streaming, tool, usage, and error contracts."
+    },
+    {
+      "acceptance_rule": "Every negative-control request raises a capability or configuration error while the provider call counter remains zero.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "capability-resolution.json": {
+              "path": "artifacts/capability-resolution.json",
+              "sha256": "37fc0073cd52cb8417079fecfbc11d804053d7b5a00bc6cd0bde4223c9a04ecf",
+              "size": 714
+            },
+            "capability-resolution.samples.jsonl": {
+              "path": "artifacts/capability-resolution.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "capability-resolution",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "runtime-capability-fail-fast",
+      "implementation_evidence": [
+        "src/praval/model_runtime.py",
+        "tests/test_model_runtime_contracts.py"
+      ],
+      "limitations": [
+        "An inaccurate custom profile can still overstate an endpoint's capabilities."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Execution plane",
+        "Results RQ2"
+      ],
+      "permitted_wording": "The runtime rejects unsupported declared capabilities before provider execution.",
+      "scope": "Declared profiles, local presets, explicit overrides, and validated content parts.",
+      "statement": "Unsupported provider capabilities fail before a provider request is sent."
+    },
+    {
+      "acceptance_rule": "Registered topologies complete through typed Spore delivery and measured results state the workload conditions.",
+      "category": "architectural",
+      "citations": [
+        "eugster2003publish_subscribe"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "choreography-critical-path.json": {
+              "path": "artifacts/choreography-critical-path.json",
+              "sha256": "ea1637660f63013d2ff33371ed9533a7e2c4cb1551c42218de39584ad97e429a",
+              "size": 4924
+            },
+            "choreography-critical-path.samples.jsonl": {
+              "path": "artifacts/choreography-critical-path.samples.jsonl",
+              "sha256": "47901cc818a90724db92c663d6512ce12a9404461ebedcdc1fbc13d775f13327",
+              "size": 155904
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "choreography-critical-path",
+          "limitations": [
+            "Deterministic sleep work isolates coordination critical paths; it does not model provider or tool variance.",
+            "Pipeline and sequential paths are expected to remain serial in branch work."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "reef-scaling-inmemory.json": {
+              "path": "artifacts/reef-scaling-inmemory.json",
+              "sha256": "830908bbb90fab89b157714d182447da46f0fd9980488e92e4c75de32e97f31d",
+              "size": 22209
+            },
+            "reef-scaling-inmemory.samples.jsonl": {
+              "path": "artifacts/reef-scaling-inmemory.samples.jsonl",
+              "sha256": "9cffced60afb4bc97cdffface176cb2e3794e17c34bcb32177f8752933f88c6d",
+              "size": 5309973
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "reef-scaling-inmemory",
+          "limitations": [
+            "In-memory delivery measurements are host-specific and do not imply RabbitMQ scaling.",
+            "The bounded channel retains at most 1,000 recent spores; final queue depth is not broker queue depth."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "reef-scaling-rabbitmq.json": {
+              "path": "artifacts/reef-scaling-rabbitmq.json",
+              "sha256": "1b2aa067aaf3490117f64838865e1945a8adb32bbf058286ffe272efdb65dfd7",
+              "size": 25577
+            },
+            "reef-scaling-rabbitmq.samples.jsonl": {
+              "path": "artifacts/reef-scaling-rabbitmq.samples.jsonl",
+              "sha256": "46cfd8a0903bb626a2b710398bebdc078cfc8c47710d88c5a33ca8948715cc96",
+              "size": 5832833
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "reef-scaling-rabbitmq",
+          "limitations": [
+            "RabbitMQ measurements apply only to the recorded host, broker image, and local network.",
+            "The near-10 MiB accepted and over-10 MiB rejected boundary is a framework validation limit, not a measured broker maximum.",
+            "The slow-consumer probe uses prefetch 1 and a 20 ms handler delay; it does not establish a production backpressure policy."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+          "run_id": "praval-paper-services-canonical-v2-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "reef-choreography-scope",
+      "implementation_evidence": [
+        "src/praval/core/reef.py",
+        "src/praval/core/reef_backend.py"
+      ],
+      "limitations": [
+        "The Reef and its broker remain coordination infrastructure.",
+        "Strict sequential workflows may be clearer in an explicit graph."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Coordination plane",
+        "Results RQ3"
+      ],
+      "permitted_wording": "Praval does not require an application-level workflow orchestrator for registered Reef topologies.",
+      "scope": "In-process Reef and the RabbitMQ Reef backend. Shared broker infrastructure is not excluded.",
+      "statement": "Reef enables application-level choreography without a workflow orchestrator."
+    },
+    {
+      "acceptance_rule": "Legacy and V2 fixtures round-trip, reference fields are preserved, and raw binary input is rejected.",
+      "category": "compatibility",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "spore-v2-compatibility.json": {
+              "path": "artifacts/spore-v2-compatibility.json",
+              "sha256": "91e91b4b8c45526531286ba169bfa2772fc6df87389213d7fd80e1b82f57ab77",
+              "size": 723
+            },
+            "spore-v2-compatibility.samples.jsonl": {
+              "path": "artifacts/spore-v2-compatibility.samples.jsonl",
+              "sha256": "c1fe4fbbc8e413f35f22b215d8461a156682ed7dae52f5c4fa48b6a6e6f04fe0",
+              "size": 2242
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "spore-v2-compatibility",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "spore-v2-compatibility",
+      "implementation_evidence": [
+        "src/praval/core/reef.py",
+        "tests/test_spore_v2_compatibility.py",
+        "tests/test_spore_amqp_serialization.py"
+      ],
+      "limitations": [
+        "Raw binary attachments are not supported."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Coordination plane",
+        "Compatibility"
+      ],
+      "permitted_wording": "Spore V2 preserves the legacy knowledge-only transport body while adding JSON-safe references and content parts.",
+      "scope": "JSON and AMQP serialization implemented in Praval 0.8.1.",
+      "statement": "Spore V2 adds JSON-safe content and references without breaking the legacy knowledge-only wire body."
+    },
+    {
+      "acceptance_rule": "A new process restores the stored call identity and produces the decision-specific outcome without duplicate tool execution.",
+      "category": "behavioral",
+      "citations": [
+        "amershi2019human_ai"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "hitl-process-recovery.json": {
+              "path": "artifacts/hitl-process-recovery.json",
+              "sha256": "7dc76c8449ae01c1b92e3fdd77ad4304446e29a8487767abbc4f320610f7210e",
+              "size": 3700
+            },
+            "hitl-process-recovery.samples.jsonl": {
+              "path": "artifacts/hitl-process-recovery.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "hitl-process-recovery",
+          "limitations": [
+            "Cancelling a suspended run does not change its pending intervention to CANCELLED in Praval 0.8.1.",
+            "The probe validates durable tool decisions and continuation records, not recovery of arbitrary application-local state."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {},
+          "canonical": true,
+          "failure": null,
+          "id": "live-capability-matrix",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+          "run_id": "praval-paper-live-canonical-20260726",
+          "status": "not_run"
+        }
+      ],
+      "id": "durable-hitl-resume",
+      "implementation_evidence": [
+        "src/praval/hitl/store.py",
+        "src/praval/model_runtime.py",
+        "tests/test_hitl_provider_parity.py"
+      ],
+      "limitations": [
+        "The application must keep the tool definition and continuation-compatible provider configuration available.",
+        "Cancelling a suspended run does not change its pending intervention to CANCELLED in 0.8.1."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Governance",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval can persist and resume approval-protected tool continuations across a process boundary.",
+      "scope": "SQLite HITL store with approve, edit, reject, and expiry outcomes, plus suspended-run cancellation.",
+      "statement": "Approval-protected tool calls can resume after a process boundary."
+    },
+    {
+      "acceptance_rule": "Discovery and calls preserve names, schemas, structured results, approval policy, timeouts, size limits, and lifecycle behavior.",
+      "category": "behavioral",
+      "citations": [
+        "mcp_spec_2025_11_25"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "mcp-safety.json": {
+              "path": "artifacts/mcp-safety.json",
+              "sha256": "1f7849414adc856fd435ec1749c72996f7b3689c97d06ddf72f940bec6998cc4",
+              "size": 952
+            },
+            "mcp-safety.samples.jsonl": {
+              "path": "artifacts/mcp-safety.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "mcp-safety",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {},
+          "canonical": true,
+          "failure": null,
+          "id": "live-capability-matrix",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+          "run_id": "praval-paper-live-canonical-20260726",
+          "status": "not_run"
+        }
+      ],
+      "id": "mcp-tools-bounded-scope",
+      "implementation_evidence": [
+        "src/praval/mcp/client.py",
+        "tests/mcp/test_contracts.py"
+      ],
+      "limitations": [
+        "Resources, prompts, server hosting, managed OAuth, sampling, elicitation, and tasks are not supported."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Interoperability",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval 0.8.1 provides an async tools-only MCP client for stdio and Streamable HTTP.",
+      "scope": "Tools-only, async MCP client behavior in Praval 0.8.1.",
+      "statement": "Praval consumes approval-gated MCP tools over stdio and Streamable HTTP."
+    },
+    {
+      "acceptance_rule": "Repeated start, completion wait, and shutdown cycles finish without live task, thread, or double-close failures.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "lifecycle-failure.json": {
+              "path": "artifacts/lifecycle-failure.json",
+              "sha256": "58a97ed16852f78c8dc663fd5a8694a36642769c8314afa816491b9db17faf09",
+              "size": 7656
+            },
+            "lifecycle-failure.samples.jsonl": {
+              "path": "artifacts/lifecycle-failure.samples.jsonl",
+              "sha256": "0c854df7da045eb823148580942cd5bd93772bb221fe39d7eefeac0ab6aa4b31",
+              "size": 1795
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "lifecycle-failure",
+          "limitations": [
+            "Handler exceptions are logged and swallowed; Reef 0.8.1 has no built-in retry or dead-letter guarantee for in-memory delivery."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "reef-completion-lifecycle",
+      "implementation_evidence": [
+        "src/praval/core/reef.py",
+        "src/praval/app.py",
+        "tests/test_reef_shutdown.py"
+      ],
+      "limitations": [
+        "This does not add durable delivery or a universal retry policy."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Operations",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval provides completion waits and idempotent cleanup for bounded Reef workflows.",
+      "scope": "In-process sync and async handlers and repeated cleanup in Praval 0.8.1.",
+      "statement": "Reef completion waits and idempotent shutdown support bounded workflows without timing sleeps."
+    },
+    {
+      "acceptance_rule": "Matching configurations round-trip and mismatched model or dimensions return explicit re-index guidance.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "data-observability-contracts.json": {
+              "path": "artifacts/data-observability-contracts.json",
+              "sha256": "e38f0d80fc9db3836b0467c60d819642f4ac9ccf13967b149771d4780be38d50",
+              "size": 825
+            },
+            "data-observability-contracts.samples.jsonl": {
+              "path": "artifacts/data-observability-contracts.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "data-observability-contracts",
+          "limitations": [
+            "PostgreSQL, Redis, S3-compatible, Qdrant, and OTLP endpoints belong to the services tier."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "service-integrations.json": {
+              "path": "artifacts/service-integrations.json",
+              "sha256": "629e472f91038097fe6c5d9a7df2929d28cb884837d032b231ee0712bed2f4dd",
+              "size": 954
+            },
+            "service-integrations.samples.jsonl": {
+              "path": "artifacts/service-integrations.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "service-integrations",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+          "run_id": "praval-paper-services-canonical-v2-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {},
+          "canonical": true,
+          "failure": null,
+          "id": "live-capability-matrix",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+          "run_id": "praval-paper-live-canonical-20260726",
+          "status": "not_run"
+        }
+      ],
+      "id": "embedding-compatibility",
+      "implementation_evidence": [
+        "src/praval/embeddings.py",
+        "src/praval/memory/long_term_memory.py",
+        "tests/test_embedding_runtime.py"
+      ],
+      "limitations": [
+        "Applications must rebuild collections after changing an incompatible embedding configuration."
+      ],
+      "observed_status": "validated_with_scope",
+      "paper_sections": [
+        "Data and operations",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval separates embedding configuration and rejects known model or dimension mismatches.",
+      "scope": "EmbeddingRuntime and supported vector collection integrations.",
+      "statement": "Embedding configuration is separate from chat configuration and incompatible dimensions are rejected."
+    },
+    {
+      "acceptance_rule": "Sync and async spans have one stored final record and exported trace identifiers remain correlated.",
+      "category": "behavioral",
+      "citations": [
+        "opentelemetry2024"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "data-observability-contracts.json": {
+              "path": "artifacts/data-observability-contracts.json",
+              "sha256": "e38f0d80fc9db3836b0467c60d819642f4ac9ccf13967b149771d4780be38d50",
+              "size": 825
+            },
+            "data-observability-contracts.samples.jsonl": {
+              "path": "artifacts/data-observability-contracts.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "data-observability-contracts",
+          "limitations": [
+            "PostgreSQL, Redis, S3-compatible, Qdrant, and OTLP endpoints belong to the services tier."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "service-integrations.json": {
+              "path": "artifacts/service-integrations.json",
+              "sha256": "629e472f91038097fe6c5d9a7df2929d28cb884837d032b231ee0712bed2f4dd",
+              "size": 954
+            },
+            "service-integrations.samples.jsonl": {
+              "path": "artifacts/service-integrations.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "service-integrations",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+          "run_id": "praval-paper-services-canonical-v2-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "abstraction-overhead.json": {
+              "path": "artifacts/abstraction-overhead.json",
+              "sha256": "2b294af0d53db54311306b13a671fc33d8424ea743feef26e1e3d5fa101ee69c",
+              "size": 4248
+            },
+            "abstraction-overhead.samples.jsonl": {
+              "path": "artifacts/abstraction-overhead.samples.jsonl",
+              "sha256": "8a9948172e6ad56252020f16e95390d3a98f9b12c4d5c947d1006f8ee86f9b7c",
+              "size": 687440
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "abstraction-overhead",
+          "limitations": [
+            "MCP measurements use a local loopback server and small echo payloads.",
+            "Overhead values are specific to the recorded host and dependency versions."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "observability-once",
+      "implementation_evidence": [
+        "src/praval/observability/tracing/tracer.py",
+        "src/praval/observability/export/otlp_exporter.py",
+        "tests/observability/test_instrumentation.py"
+      ],
+      "limitations": [
+        "Backend availability and retention remain deployment concerns."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Data and operations",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval stores finalized spans once and supports console, SQLite, and OTLP inspection paths.",
+      "scope": "Console, SQLite, and OTLP HTTP paths in Praval 0.8.1.",
+      "statement": "Each completed span is finalized before one-time storage and can be exported through supported paths."
+    },
+    {
+      "acceptance_rule": "Every configured backend completes create or connect, store, retrieve or search, cleanup, and disconnect without substituting a mock.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "data-observability-contracts.json": {
+              "path": "artifacts/data-observability-contracts.json",
+              "sha256": "e38f0d80fc9db3836b0467c60d819642f4ac9ccf13967b149771d4780be38d50",
+              "size": 825
+            },
+            "data-observability-contracts.samples.jsonl": {
+              "path": "artifacts/data-observability-contracts.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "data-observability-contracts",
+          "limitations": [
+            "PostgreSQL, Redis, S3-compatible, Qdrant, and OTLP endpoints belong to the services tier."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "service-integrations.json": {
+              "path": "artifacts/service-integrations.json",
+              "sha256": "629e472f91038097fe6c5d9a7df2929d28cb884837d032b231ee0712bed2f4dd",
+              "size": 954
+            },
+            "service-integrations.samples.jsonl": {
+              "path": "artifacts/service-integrations.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "service-integrations",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+          "run_id": "praval-paper-services-canonical-v2-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "storage-service-roundtrips",
+      "implementation_evidence": [
+        "src/praval/storage/data_manager.py",
+        "src/praval/storage/providers",
+        "examples/certification/services.py"
+      ],
+      "limitations": [
+        "The experiment validates functional interoperability, not durability, failover, or production throughput."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Data and operations",
+        "Results RQ4"
+      ],
+      "permitted_wording": "Praval 0.8.1 completed round trips against the pinned storage services in the recorded environment.",
+      "scope": "Filesystem offline, and pinned PostgreSQL, Redis, S3-compatible MinIO, and Qdrant service environments.",
+      "statement": "Praval storage providers preserve their documented async round-trip contracts."
+    },
+    {
+      "acceptance_rule": "Valid peers decrypt signed payloads, while tampering and wrong keys fail, with measured overhead reported by payload size.",
+      "category": "security",
+      "citations": [
+        "nacl2012",
+        "ed255192012",
+        "curve25519"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "secure-spore-behavior.json": {
+              "path": "artifacts/secure-spore-behavior.json",
+              "sha256": "274ec496fbca96cfbcffdf243c9d4cd0a2d6222ff329b82eea6d6fe1e5664e9f",
+              "size": 2221
+            },
+            "secure-spore-behavior.samples.jsonl": {
+              "path": "artifacts/secure-spore-behavior.samples.jsonl",
+              "sha256": "7688ecbc83645e0604a25fa59df048459a60083ef827939bb16e232f535932c5",
+              "size": 38017
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "secure-spore-behavior",
+          "limitations": [
+            "Behavioral tests are not a cryptographic proof.",
+            "Praval 0.8.1 uses long-lived Box keys; this does not validate perfect forward secrecy.",
+            "The rotate_keys helper has no production key-distribution or grace-period protocol."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "abstraction-overhead.json": {
+              "path": "artifacts/abstraction-overhead.json",
+              "sha256": "2b294af0d53db54311306b13a671fc33d8424ea743feef26e1e3d5fa101ee69c",
+              "size": 4248
+            },
+            "abstraction-overhead.samples.jsonl": {
+              "path": "artifacts/abstraction-overhead.samples.jsonl",
+              "sha256": "8a9948172e6ad56252020f16e95390d3a98f9b12c4d5c947d1006f8ee86f9b7c",
+              "size": 687440
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "abstraction-overhead",
+          "limitations": [
+            "MCP measurements use a local loopback server and small echo payloads.",
+            "Overhead values are specific to the recorded host and dependency versions."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "secure-spore-bounded-claim",
+      "implementation_evidence": [
+        "src/praval/core/secure_spore.py",
+        "tests/test_secure_spore.py"
+      ],
+      "limitations": [
+        "The implementation does not provide a production key distribution protocol.",
+        "The use of long-lived box keys does not establish perfect forward secrecy.",
+        "The tests are not a cryptographic proof."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Security",
+        "Results RQ4",
+        "Limitations"
+      ],
+      "permitted_wording": "Secure Spores use authenticated public-key encryption and signatures for configured peers.",
+      "scope": "PyNaCl Box and Ed25519 behavior implemented by Praval 0.8.1.",
+      "statement": "Secure Spores provide authenticated encryption and tamper detection for configured peers."
+    },
+    {
+      "acceptance_rule": "The wheel hash, METADATA version, installed import path, and v0.8.1 tag commit match the registered constants.",
+      "category": "behavioral",
+      "citations": [
+        "praval_pypi_0_8_1"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "exact-wheel-identity.json": {
+              "path": "artifacts/exact-wheel-identity.json",
+              "sha256": "41ff20c84cf15c938fcf9acc3d69da716b4bd8f07891ed30cf4226e166fe19f1",
+              "size": 498
+            },
+            "exact-wheel-identity.samples.jsonl": {
+              "path": "artifacts/exact-wheel-identity.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "exact-wheel-identity",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "exact-wheel-provenance",
+      "implementation_evidence": [
+        "scripts/run_demos.py",
+        "scripts/verify_demo_certification.py",
+        "dist/praval-0.8.1-py3-none-any.whl"
+      ],
+      "limitations": [
+        "Live provider behavior can still change after the framework artifact is fixed."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Methodology",
+        "Artifact availability"
+      ],
+      "permitted_wording": "All canonical experiments use the published Praval 0.8.1 wheel identified by its SHA-256 digest.",
+      "scope": "Published universal wheel and commit-tag identity.",
+      "statement": "Paper evidence executes against the exact published Praval 0.8.1 wheel."
+    },
+    {
+      "acceptance_rule": "Measured parallel completion follows the registered critical path and results report confidence intervals for every cell.",
+      "category": "performance",
+      "citations": [
+        "kalibera_jones2013"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "choreography-critical-path.json": {
+              "path": "artifacts/choreography-critical-path.json",
+              "sha256": "ea1637660f63013d2ff33371ed9533a7e2c4cb1551c42218de39584ad97e429a",
+              "size": 4924
+            },
+            "choreography-critical-path.samples.jsonl": {
+              "path": "artifacts/choreography-critical-path.samples.jsonl",
+              "sha256": "47901cc818a90724db92c663d6512ce12a9404461ebedcdc1fbc13d775f13327",
+              "size": 155904
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "choreography-critical-path",
+          "limitations": [
+            "Deterministic sleep work isolates coordination critical paths; it does not model provider or tool variance.",
+            "Pipeline and sequential paths are expected to remain serial in branch work."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "choreography-critical-path",
+      "implementation_evidence": [
+        "src/praval/core/reef.py"
+      ],
+      "limitations": [
+        "The result does not apply to dependent or shared-state work.",
+        "Coordination and scheduling overhead limit speedup for short tasks."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Results RQ3",
+        "Discussion"
+      ],
+      "permitted_wording": "For independent branches in the tested workloads, Reef fan-out reduced the critical path relative to a sequential baseline.",
+      "scope": "Deterministic independent branches at the registered work durations and fan-out sizes.",
+      "statement": "Independent Reef branches can shorten a workload's critical path relative to sequential execution."
+    },
+    {
+      "acceptance_rule": "Every matrix cell records raw samples, delivery counts, percentiles, environment, and failures.",
+      "category": "performance",
+      "citations": [
+        "kalibera_jones2013",
+        "rabbitmq2024"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "reef-scaling-inmemory.json": {
+              "path": "artifacts/reef-scaling-inmemory.json",
+              "sha256": "830908bbb90fab89b157714d182447da46f0fd9980488e92e4c75de32e97f31d",
+              "size": 22209
+            },
+            "reef-scaling-inmemory.samples.jsonl": {
+              "path": "artifacts/reef-scaling-inmemory.samples.jsonl",
+              "sha256": "9cffced60afb4bc97cdffface176cb2e3794e17c34bcb32177f8752933f88c6d",
+              "size": 5309973
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "reef-scaling-inmemory",
+          "limitations": [
+            "In-memory delivery measurements are host-specific and do not imply RabbitMQ scaling.",
+            "The bounded channel retains at most 1,000 recent spores; final queue depth is not broker queue depth."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "reef-scaling-rabbitmq.json": {
+              "path": "artifacts/reef-scaling-rabbitmq.json",
+              "sha256": "1b2aa067aaf3490117f64838865e1945a8adb32bbf058286ffe272efdb65dfd7",
+              "size": 25577
+            },
+            "reef-scaling-rabbitmq.samples.jsonl": {
+              "path": "artifacts/reef-scaling-rabbitmq.samples.jsonl",
+              "sha256": "46cfd8a0903bb626a2b710398bebdc078cfc8c47710d88c5a33ca8948715cc96",
+              "size": 5832833
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "reef-scaling-rabbitmq",
+          "limitations": [
+            "RabbitMQ measurements apply only to the recorded host, broker image, and local network.",
+            "The near-10 MiB accepted and over-10 MiB rejected boundary is a framework validation limit, not a measured broker maximum.",
+            "The slow-consumer probe uses prefetch 1 and a 20 ms handler delay; it does not establish a production backpressure policy."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+          "run_id": "praval-paper-services-canonical-v2-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "reef-scaling-bounded",
+      "implementation_evidence": [
+        "src/praval/core/reef.py",
+        "src/praval/core/reef_backend.py"
+      ],
+      "limitations": [
+        "Results are not universal broker capacity claims."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Results RQ3",
+        "Threats to validity"
+      ],
+      "permitted_wording": "The paper reports measured Reef scaling only for the registered hardware, payloads, agent counts, and backends.",
+      "scope": "Registered in-memory and RabbitMQ matrices on recorded hardware.",
+      "statement": "Reef throughput and latency can be measured across agent counts, payloads, and backends."
+    },
+    {
+      "acceptance_rule": "Fresh-process repeated samples report raw direct and wrapped durations without model network time.",
+      "category": "performance",
+      "citations": [
+        "kalibera_jones2013"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "abstraction-overhead.json": {
+              "path": "artifacts/abstraction-overhead.json",
+              "sha256": "2b294af0d53db54311306b13a671fc33d8424ea743feef26e1e3d5fa101ee69c",
+              "size": 4248
+            },
+            "abstraction-overhead.samples.jsonl": {
+              "path": "artifacts/abstraction-overhead.samples.jsonl",
+              "sha256": "8a9948172e6ad56252020f16e95390d3a98f9b12c4d5c947d1006f8ee86f9b7c",
+              "size": 687440
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "abstraction-overhead",
+          "limitations": [
+            "MCP measurements use a local loopback server and small echo payloads.",
+            "Overhead values are specific to the recorded host and dependency versions."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "abstraction-costs-measured",
+      "implementation_evidence": [
+        "src/praval/model_runtime.py",
+        "src/praval/mcp/client.py",
+        "src/praval/core/secure_spore.py"
+      ],
+      "limitations": [
+        "Microbenchmarks do not predict full application latency."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Methodology",
+        "Results RQ2",
+        "Results RQ4"
+      ],
+      "permitted_wording": "The paper separates measured framework abstraction costs from external model latency.",
+      "scope": "Deterministic fake adapters and local transports.",
+      "statement": "Runtime, observability, MCP, and Secure Spore overheads are reported separately from model time."
+    },
+    {
+      "acceptance_rule": "Uncontrolled values are absent from the paper, and only the registered comparison protocol supplies comparative results.",
+      "category": "performance",
+      "citations": [
+        "praval_blog_framework_comparison_2025"
+      ],
+      "declared_status": "unsupported",
+      "experiments": [
+        {
+          "artifacts": {
+            "controlled-framework-comparison.dependency-locks.json": {
+              "path": "artifacts/controlled-framework-comparison.dependency-locks.json",
+              "sha256": "07ed0b74517b499755a9615d3a4af6666db89b83d098bcbfa4b93ee97661dece",
+              "size": 1759
+            },
+            "controlled-framework-comparison.json": {
+              "path": "artifacts/controlled-framework-comparison.json",
+              "sha256": "c74a4e995a14341d8be7b8da4ea70cb92911f43110c8f13f0fbd19e5d9fdcf93",
+              "size": 312924
+            },
+            "controlled-framework-comparison.proxy-events.jsonl": {
+              "path": "artifacts/controlled-framework-comparison.proxy-events.jsonl",
+              "sha256": "e2dcca0234a74690b5e4aa252720ce46f4b342f15064080b9f201d4d987eaf24",
+              "size": 164216
+            },
+            "controlled-framework-comparison.samples.jsonl": {
+              "path": "artifacts/controlled-framework-comparison.samples.jsonl",
+              "sha256": "974c19fb791cdd1ddd99995b5cc20538f5437b7dbe1bebcfccfbd3309039c7fe",
+              "size": 364131
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "controlled-framework-comparison",
+          "limitations": [
+            "The delayed-model track isolates coordination overhead and does not measure model quality.",
+            "Framework adapters use an explicit two-stage workflow and do not represent every idiomatic application design.",
+            "Timing results apply only to the recorded host, Python, dependency locks, and configured proxy delay.",
+            "The optional live OpenAI track was not run because its key/model configuration was absent or this was a quick smoke run."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-comparative-canonical-v2b-20260726",
+          "run_id": "praval-paper-comparative-canonical-v2b-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "historical-comparison-not-evidence",
+      "implementation_evidence": [
+        "CHANGELOG.md",
+        "docs/releases/RELEASE_NOTES_0.8.1.md"
+      ],
+      "limitations": [
+        "A new comparison may produce different rankings or inconclusive results."
+      ],
+      "observed_status": "unsupported",
+      "paper_sections": [
+        "Methodology",
+        "Limitations"
+      ],
+      "permitted_wording": "The paper excludes comparison values that do not satisfy its controlled protocol.",
+      "scope": "Comparison values produced without equal call counts, pinned dependency environments, and a common scoring rule.",
+      "statement": "Uncontrolled comparison values are not evidence for Praval 0.8.1."
+    },
+    {
+      "acceptance_rule": "Every framework uses the same 12 questions, two model calls, randomized question order, counterbalanced framework order, exact scoring, and separately reported setup, model, and framework time.",
+      "category": "performance",
+      "citations": [
+        "langgraph_pypi_1_2_9",
+        "crewai_pypi_1_15_6",
+        "kalibera_jones2013"
+      ],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {
+            "controlled-framework-comparison.dependency-locks.json": {
+              "path": "artifacts/controlled-framework-comparison.dependency-locks.json",
+              "sha256": "07ed0b74517b499755a9615d3a4af6666db89b83d098bcbfa4b93ee97661dece",
+              "size": 1759
+            },
+            "controlled-framework-comparison.json": {
+              "path": "artifacts/controlled-framework-comparison.json",
+              "sha256": "c74a4e995a14341d8be7b8da4ea70cb92911f43110c8f13f0fbd19e5d9fdcf93",
+              "size": 312924
+            },
+            "controlled-framework-comparison.proxy-events.jsonl": {
+              "path": "artifacts/controlled-framework-comparison.proxy-events.jsonl",
+              "sha256": "e2dcca0234a74690b5e4aa252720ce46f4b342f15064080b9f201d4d987eaf24",
+              "size": 164216
+            },
+            "controlled-framework-comparison.samples.jsonl": {
+              "path": "artifacts/controlled-framework-comparison.samples.jsonl",
+              "sha256": "974c19fb791cdd1ddd99995b5cc20538f5437b7dbe1bebcfccfbd3309039c7fe",
+              "size": 364131
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "controlled-framework-comparison",
+          "limitations": [
+            "The delayed-model track isolates coordination overhead and does not measure model quality.",
+            "Framework adapters use an explicit two-stage workflow and do not represent every idiomatic application design.",
+            "Timing results apply only to the recorded host, Python, dependency locks, and configured proxy delay.",
+            "The optional live OpenAI track was not run because its key/model configuration was absent or this was a quick smoke run."
+          ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-comparative-canonical-v2b-20260726",
+          "run_id": "praval-paper-comparative-canonical-v2b-20260726",
+          "status": "passed"
+        }
+      ],
+      "id": "controlled-comparison-bounded",
+      "implementation_evidence": [
+        "research/paper_validation/comparative/controller.py",
+        "research/paper_validation/comparative/adapter.py",
+        "research/paper_validation/comparative/dataset.jsonl",
+        "research/paper_validation/comparative/frameworks.toml"
+      ],
+      "limitations": [
+        "The adapters exercise one explicit two-stage workflow, not every framework design.",
+        "Deterministic proxy results do not measure model quality.",
+        "Live model results remain externally variable."
+      ],
+      "observed_status": "validated",
+      "paper_sections": [
+        "Methodology",
+        "Results RQ5",
+        "Threats to validity"
+      ],
+      "permitted_wording": "For the registered controlled workload, the paper reports each framework's latency distribution, correctness, failures, model calls, token use, and cost without attributing differences to architecture alone.",
+      "scope": "The registered 12-question fixture, Praval 0.8.1, LangGraph 1.2.9, CrewAI 1.15.6, and recorded execution environments.",
+      "statement": "Praval, LangGraph, and CrewAI can be compared under one pinned two-stage task, model-call budget, measurement proxy, and deterministic scoring rule."
+    },
+    {
+      "acceptance_rule": "Generated audio validates structurally and the round-trip transcription retains the registered phrase facts.",
+      "category": "behavioral",
+      "citations": [],
+      "declared_status": "proposed",
+      "experiments": [
+        {
+          "artifacts": {},
+          "canonical": true,
+          "failure": null,
+          "id": "live-capability-matrix",
+          "limitations": [],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+          "run_id": "praval-paper-live-canonical-20260726",
+          "status": "not_run"
+        }
+      ],
+      "id": "request-voice-bounded",
+      "implementation_evidence": [
+        "src/praval/core/agent.py",
+        "examples/certification/live_voice_roundtrip.py"
+      ],
+      "limitations": [
+        "Praval 0.8.1 does not provide persistent realtime audio sessions."
+      ],
+      "observed_status": "not_evaluated",
+      "paper_sections": [
+        "Execution plane",
+        "Live capability results"
+      ],
+      "permitted_wording": "Praval supports request-based OpenAI transcription and speech generation.",
+      "scope": "Configured OpenAI models and valid audio requests.",
+      "statement": "OpenAI-backed agents can perform bounded transcription and speech generation requests."
+    }
+  ],
+  "runs": [
+    {
+      "canonical": true,
+      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+      "run_id": "praval-paper-offline-canonical-20260726",
+      "status": "passed",
+      "tier": "offline"
+    },
+    {
+      "canonical": true,
+      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-services-canonical-v2-20260726",
+      "run_id": "praval-paper-services-canonical-v2-20260726",
+      "status": "passed",
+      "tier": "services"
+    },
+    {
+      "canonical": true,
+      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-comparative-canonical-v2b-20260726",
+      "run_id": "praval-paper-comparative-canonical-v2b-20260726",
+      "status": "passed",
+      "tier": "comparative"
+    },
+    {
+      "canonical": true,
+      "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-live-canonical-20260726",
+      "run_id": "praval-paper-live-canonical-20260726",
+      "status": "not_run",
+      "tier": "live"
+    }
+  ],
+  "schema_version": 1
+}

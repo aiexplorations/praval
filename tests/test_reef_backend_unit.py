@@ -50,6 +50,7 @@ class FakeTransport:
         self.subscriptions = []
         self.handlers = {}
         self.queue_subscriptions = []
+        self.cancelled_handlers = []
         self.closed = False
 
     async def initialize(self, config=None):
@@ -61,9 +62,14 @@ class FakeTransport:
     async def subscribe(self, topic, handler):
         self.subscriptions.append(topic)
         self.handlers[topic] = handler
+        return ("topic", topic)
 
     async def subscribe_to_queue(self, queue_name, handler):
         self.queue_subscriptions.append(queue_name)
+        return ("queue", queue_name)
+
+    async def unsubscribe_handler(self, handle):
+        self.cancelled_handlers.append(handle)
 
     async def unsubscribe(self, topic):
         return None
@@ -142,3 +148,17 @@ async def test_rabbitmq_backend_accepts_sync_spore_handlers():
     await callback(spore)
 
     assert received == [spore]
+
+
+@pytest.mark.asyncio
+async def test_rabbitmq_backend_precise_handler_uses_opaque_transport_handle():
+    transport = FakeTransport()
+    backend = RabbitMQBackend(transport=transport)
+    await backend.initialize({})
+
+    handle = await backend.subscribe_handler("agent.client", lambda spore: None)
+    assert transport.subscriptions == ["agent.client.*"]
+
+    await backend.unsubscribe_handler(handle)
+    assert transport.cancelled_handlers == [("topic", "agent.client.*")]
+    assert backend.handler_subscriptions == {}

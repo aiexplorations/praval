@@ -1,0 +1,169 @@
+{
+  "checks": {
+    "all_topologies_and_cells_completed": true,
+    "parallel_critical_paths_are_shorter": true,
+    "same_branch_work_per_cell": true
+  },
+  "details": {
+    "cells": [
+      {
+        "branches": 2,
+        "fanout_median": 0.0127145205,
+        "fanout_speedup": 1.8864340184909059,
+        "pipeline_median": 0.0245105625,
+        "request_reply_median": 0.0129947295,
+        "sequential_median": 0.023985104,
+        "valid": true,
+        "work_seconds": 0.01
+      },
+      {
+        "branches": 2,
+        "fanout_median": 0.0554372915,
+        "fanout_speedup": 1.926640093879767,
+        "pipeline_median": 0.1092622495,
+        "request_reply_median": 0.055489104,
+        "sequential_median": 0.1068077085,
+        "valid": true,
+        "work_seconds": 0.05
+      },
+      {
+        "branches": 2,
+        "fanout_median": 0.2052131875,
+        "fanout_speedup": 1.9820902713671849,
+        "pipeline_median": 0.4078645415,
+        "request_reply_median": 0.20496175,
+        "sequential_median": 0.4067510625,
+        "valid": true,
+        "work_seconds": 0.2
+      },
+      {
+        "branches": 4,
+        "fanout_median": 0.012597542,
+        "fanout_speedup": 3.794391040728421,
+        "pipeline_median": 0.049579917,
+        "request_reply_median": 0.0134391245,
+        "sequential_median": 0.047800000499999995,
+        "valid": true,
+        "work_seconds": 0.01
+      },
+      {
+        "branches": 4,
+        "fanout_median": 0.055223063,
+        "fanout_speedup": 3.880104404929513,
+        "pipeline_median": 0.21487585450000002,
+        "request_reply_median": 0.054690937499999995,
+        "sequential_median": 0.21427125,
+        "valid": true,
+        "work_seconds": 0.05
+      },
+      {
+        "branches": 4,
+        "fanout_median": 0.205230562,
+        "fanout_speedup": 3.9708202255958347,
+        "pipeline_median": 0.815271021,
+        "request_reply_median": 0.2053379165,
+        "sequential_median": 0.8149336665,
+        "valid": true,
+        "work_seconds": 0.2
+      },
+      {
+        "branches": 8,
+        "fanout_median": 0.012731145499999999,
+        "fanout_speedup": 7.527959051288826,
+        "pipeline_median": 0.0974278955,
+        "request_reply_median": 0.0133499165,
+        "sequential_median": 0.095839542,
+        "valid": true,
+        "work_seconds": 0.01
+      },
+      {
+        "branches": 8,
+        "fanout_median": 0.055216354,
+        "fanout_speedup": 7.7206243914619925,
+        "pipeline_median": 0.4326087085,
+        "request_reply_median": 0.055499416499999996,
+        "sequential_median": 0.4263047295,
+        "valid": true,
+        "work_seconds": 0.05
+      },
+      {
+        "branches": 8,
+        "fanout_median": 0.2047357495,
+        "fanout_speedup": 7.949916760873264,
+        "pipeline_median": 1.6328125414999999,
+        "request_reply_median": 0.20569808350000002,
+        "sequential_median": 1.6276321665,
+        "valid": true,
+        "work_seconds": 0.2
+      }
+    ]
+  },
+  "limitations": [
+    "Deterministic sleep work isolates coordination critical paths; it does not model provider or tool variance.",
+    "Pipeline and sequential paths are expected to remain serial in branch work."
+  ],
+  "metrics": {
+    "fanout_seconds": {
+      "count": 270.0,
+      "maximum": 0.207982084,
+      "mean": 0.09060906726296296,
+      "mean_bootstrap_95_ci": [
+        0.08065730860861112,
+        0.1000089822598148
+      ],
+      "median": 0.055218604,
+      "minimum": 0.010480042,
+      "p50": 0.055218604,
+      "p95": 0.20590710815000002,
+      "p99": 0.20642121404,
+      "standard_deviation": 0.08261920660271119
+    },
+    "pipeline_seconds": {
+      "count": 270.0,
+      "maximum": 1.640880709,
+      "mean": 0.4203943023481482,
+      "mean_bootstrap_95_ci": [
+        0.36375504041490747,
+        0.47751958311842596
+      ],
+      "median": 0.21487585450000002,
+      "minimum": 0.021352375,
+      "p50": 0.21487585450000002,
+      "p95": 1.6334233686,
+      "p99": 1.63946370098,
+      "standard_deviation": 0.4911666959867585
+    },
+    "request_reply_seconds": {
+      "count": 270.0,
+      "maximum": 0.209502458,
+      "mean": 0.091024565,
+      "mean_bootstrap_95_ci": [
+        0.08010035400083333,
+        0.10074653770453704
+      ],
+      "median": 0.0553274375,
+      "minimum": 0.010921083,
+      "p50": 0.0553274375,
+      "p95": 0.20631315625,
+      "p99": 0.20764994346,
+      "standard_deviation": 0.08257799305568915
+    },
+    "sequential_seconds": {
+      "count": 270.0,
+      "maximum": 1.635978417,
+      "mean": 0.41832136575185186,
+      "mean_bootstrap_95_ci": [
+        0.36527527185027775,
+        0.4777810388272222
+      ],
+      "median": 0.21427125,
+      "minimum": 0.021504167,
+      "p50": 0.21427125,
+      "p95": 1.62804429755,
+      "p99": 1.6322615960200002,
+      "standard_deviation": 0.49033677496068556
+    }
+  },
+  "sample_count": 1080,
+  "status": "passed"
+}

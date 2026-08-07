@@ -1,0 +1,337 @@
+{
+  "checks": {
+    "completion_waits_for_async_and_slow_handlers": true,
+    "duplicate_shutdown_is_idempotent": true,
+    "handler_exception_does_not_break_completion": true,
+    "no_reef_worker_thread_leak": true,
+    "owned_resources_close_once": true,
+    "timeout_is_explicit": true
+  },
+  "details": {
+    "extra_threads": [],
+    "trials": [
+      {
+        "completed": [
+          "async:0",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:1",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:2",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:3",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:4",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:5",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:6",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:7",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:8",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:9",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:10",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:11",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:12",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:13",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:14",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:15",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:16",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:17",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:18",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:19",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:20",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:21",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:22",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:23",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:24",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:25",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:26",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:27",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:28",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      },
+      {
+        "completed": [
+          "async:29",
+          "slow"
+        ],
+        "eventually_completed": true,
+        "resource_close_count": 1,
+        "second_shutdown": true,
+        "timed_out": true
+      }
+    ]
+  },
+  "limitations": [
+    "Handler exceptions are logged and swallowed; Reef 0.8.1 has no built-in retry or dead-letter guarantee for in-memory delivery."
+  ],
+  "metrics": {
+    "lifecycle_trial_seconds": {
+      "count": 30.0,
+      "maximum": 0.02813675,
+      "mean": 0.024789843133333333,
+      "mean_bootstrap_95_ci": [
+        0.024017456061666668,
+        0.025382630409999996
+      ],
+      "median": 0.0252985625,
+      "minimum": 0.020607792,
+      "p50": 0.0252985625,
+      "p95": 0.027507975299999998,
+      "p99": 0.02809386625,
+      "standard_deviation": 0.001953480715140589
+    }
+  },
+  "sample_count": 30,
+  "status": "passed"
+}

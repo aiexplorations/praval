@@ -169,3 +169,10 @@ examples/downloaded_papers/
 
 # Example virtual environments
 examples/venv/
+
+# Paper-validation transient and sensitive outputs
+research/paper_validation/results/runs/
+research/paper_validation/results/private/
+research/paper_validation/**/executions.log
+research/paper_validation/**/*.sqlite3
+research/paper_validation/**/*.wav

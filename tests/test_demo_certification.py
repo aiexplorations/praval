@@ -23,7 +23,7 @@ def write_json(path: Path, value: dict) -> None:
 
 
 def valid_evidence(tmp_path):
-    wheel_name = "praval-0.8.1-py3-none-any.whl"
+    wheel_name = "praval-0.8.2-py3-none-any.whl"
     digest = "a" * 64
     build = tmp_path / "build.json"
     certification = tmp_path / "certification.json"
@@ -43,9 +43,9 @@ def valid_evidence(tmp_path):
             "wheel": {
                 "filename": wheel_name,
                 "sha256": digest,
-                "version": "0.8.1",
+                "version": "0.8.2",
                 "installed_sha256": digest,
-                "installed_version": "0.8.1",
+                "installed_version": "0.8.2",
                 "source_isolated": True,
             },
             "summary": {"total": 4, "passed": 4, "failed": 0, "skipped": 0},
@@ -59,7 +59,7 @@ def test_verify_accepts_exact_successful_live_evidence(tmp_path):
     build, certification = valid_evidence(tmp_path)
 
     errors = verify_module.verify(
-        build, certification, "abc123", expected_version="0.8.1"
+        build, certification, "abc123", expected_version="0.8.2"
     )
 
     assert errors == []
@@ -74,7 +74,7 @@ def test_verify_rejects_commit_hash_and_skip_mismatches(tmp_path):
     write_json(certification, value)
 
     errors = verify_module.verify(
-        build, certification, "abc123", expected_version="0.8.1"
+        build, certification, "abc123", expected_version="0.8.2"
     )
 
     assert any("certification commit" in error for error in errors)
@@ -90,7 +90,7 @@ def test_verify_rejects_nonpassing_result_and_wrong_version(tmp_path):
     write_json(certification, value)
 
     errors = verify_module.verify(
-        build, certification, "abc123", expected_version="0.8.1"
+        build, certification, "abc123", expected_version="0.8.2"
     )
 
     assert any("non-passing" in error for error in errors)
@@ -105,7 +105,7 @@ def test_verify_rejects_unverifiable_installed_wheel(tmp_path):
     write_json(certification, value)
 
     errors = verify_module.verify(
-        build, certification, "abc123", expected_version="0.8.1"
+        build, certification, "abc123", expected_version="0.8.2"
     )
 
     assert any("installed wheel SHA-256" in error for error in errors)

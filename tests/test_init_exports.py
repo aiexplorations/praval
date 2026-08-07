@@ -2,7 +2,7 @@ import praval
 
 
 def test_version_exported():
-    assert praval.__version__ == "0.8.1"
+    assert praval.__version__ == "0.8.2"
 
 
 def test_all_exports_present():

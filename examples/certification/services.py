@@ -161,7 +161,8 @@ async def certify_qdrant() -> dict:
         return {"stored": True, "retrieved": True, "searched": True}
     finally:
         if provider.is_connected:
-            await provider.delete("praval_certification")
+            deleted = await provider.delete("praval_certification:exact-wheel")
+            assert deleted.success
             await provider.disconnect()
 
 

@@ -377,31 +377,28 @@ def test_agent_resolves_and_sends_lightweight_knowledge_with_fallback():
     )
 
 
-def test_agent_request_knowledge_receives_response_and_cleans_handler():
-    from praval.core.reef import SporeType
-
+def test_agent_request_knowledge_delegates_to_correlation_safe_wait():
     agent = _agent()
     reef = Mock()
-    channel = SimpleNamespace(subscribers={agent.name: []})
-    reef.default_channel = "main"
-    reef.get_channel.return_value = channel
-
-    def subscribe(_name, handler, replace=False):
-        channel.subscribers[agent.name].append(handler)
-        handler(
-            SimpleNamespace(
-                spore_type=SporeType.RESPONSE,
-                to_agent=agent.name,
-                from_agent="source",
-                knowledge={"answer": 42},
-            )
-        )
-
-    reef.subscribe.side_effect = subscribe
+    reef.request_and_wait.return_value = SimpleNamespace(knowledge={"answer": 42})
     with patch("praval.core.reef.get_reef", return_value=reef):
         result = agent.request_knowledge("source", {"question": "life"}, 1)
     assert result == {"answer": 42}
-    assert channel.subscribers[agent.name] == []
+    reef.request_and_wait.assert_called_once_with(
+        from_agent=agent.name,
+        to_agent="source",
+        request={"question": "life"},
+        expires_in_seconds=1,
+        timeout=1,
+    )
+
+
+def test_agent_request_knowledge_preserves_none_timeout_result():
+    agent = _agent()
+    reef = Mock()
+    reef.request_and_wait.side_effect = TimeoutError
+    with patch("praval.core.reef.get_reef", return_value=reef):
+        assert agent.request_knowledge("source", {"question": "life"}, 1) is None
 
 
 def test_agent_close_tolerates_cleanup_errors_and_is_idempotent():

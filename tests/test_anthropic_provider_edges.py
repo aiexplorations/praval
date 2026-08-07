@@ -7,6 +7,7 @@ import pytest
 
 from praval.core.agent import AgentConfig
 from praval.core.exceptions import ProviderError
+from praval.model_runtime import ModelRuntime
 from praval.models import (
     ContentPart,
     ModelMessage,
@@ -150,6 +151,28 @@ def test_anthropic_experimental_tools_validate_direct_requests(anthropic_provide
                 }
             )
         )
+
+
+def test_anthropic_profile_endpoint_is_not_forwarded_to_messages_sdk(
+    anthropic_provider,
+):
+    provider, client = anthropic_provider
+    client.messages.create.return_value = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text="ok")],
+        usage=None,
+        stop_reason="end_turn",
+    )
+    provider.config.model = "claude-sonnet-5"
+    runtime = ModelRuntime(
+        provider=provider,
+        provider_name="anthropic",
+        config=provider.config,
+    )
+
+    response = runtime.invoke(messages=[{"role": "user", "content": "hello"}])
+
+    assert response.content == "ok"
+    assert "endpoint" not in client.messages.create.call_args.kwargs
 
 
 def test_anthropic_stream_context_emits_delta_usage_and_final(anthropic_provider):

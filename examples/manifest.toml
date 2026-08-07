@@ -143,6 +143,14 @@ features = ["hitl"]
 modes = ["offline"]
 
 [[demo]]
+id = "tutorial-017-correlated-reef-requests"
+path = "017_correlated_reef_requests.py"
+features = ["reef.request-reply"]
+modes = ["offline"]
+execution = "run"
+timeout_seconds = 30
+
+[[demo]]
 id = "tutorial-blog-multi-agent"
 path = "blog_multi_agent_demo.py"
 features = ["reef.delivery"]

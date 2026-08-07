@@ -26,4 +26,5 @@ praval.core.reef
 
    .. autosummary::
 
+      ReefLifecycleError
       SporeValidationError

@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "credential_value_not_in_errors": true,
+    "explicit_override_reaches_provider": true,
+    "failures_before_provider": true,
+    "negative_matrix_complete": true
+  },
+  "details": {
+    "failure_messages": {
+      "experimental_opt_in": "experimental_tools requires allow_experimental_tools=True",
+      "image": "Provider 'ollama' does not support image input",
+      "reasoning": "Provider 'ollama' does not support reasoning config",
+      "structured": "Provider 'ollama' does not support structured outputs",
+      "unsafe_options": "Unsafe provider option(s): api_key"
+    },
+    "provider_calls": 1
+  },
+  "limitations": [],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

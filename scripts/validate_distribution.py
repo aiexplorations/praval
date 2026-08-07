@@ -166,7 +166,7 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("dist_dir", type=Path)
-    parser.add_argument("--tag", help="optional release tag, such as v0.8.1")
+    parser.add_argument("--tag", help="optional release tag, such as v0.8.2")
     args = parser.parse_args()
     errors = validate(args.dist_dir, args.tag)
     if errors:

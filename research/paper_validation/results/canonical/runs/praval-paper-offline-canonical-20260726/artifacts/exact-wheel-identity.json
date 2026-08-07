@@ -1,0 +1,16 @@
+{
+  "checks": {
+    "not_imported_from_src": true,
+    "version_is_0_8_1": true,
+    "wheel_hash_matches": true
+  },
+  "details": {
+    "installed_path": "/private/var/folders/f_/04nsxryd6b7crg0knlld1gtm0000gn/T/praval-paper-validation-dmjhj__5/venv/lib/python3.13/site-packages/praval/__init__.py",
+    "version": "0.8.1",
+    "wheel_sha256": "70b0220a2ced6c0bd066423566c4e1811caa9015b128604d2bc5b3c8d57379c5"
+  },
+  "limitations": [],
+  "metrics": {},
+  "sample_count": 0,
+  "status": "passed"
+}

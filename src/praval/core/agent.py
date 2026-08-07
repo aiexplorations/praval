@@ -10,7 +10,6 @@ import inspect
 import json
 import logging
 import os
-import threading
 import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -1001,51 +1000,20 @@ class Agent:
         Returns:
             Response data or None if timeout
         """
-        from .reef import SporeType, get_reef
+        from .reef import get_reef
 
-        # Set up response collection
-        response_received = threading.Event()
-        response_data = {"result": None}
-
-        def response_handler(spore):
-            """Handle response spore."""
-            if (
-                spore.spore_type == SporeType.RESPONSE
-                and spore.to_agent == self.name
-                and spore.from_agent == from_agent
-            ):
-                response_data["result"] = spore.knowledge
-                response_received.set()
-
-        # Subscribe to receive response
         reef = get_reef()
-        reef.subscribe(self.name, response_handler, replace=False)
-
         try:
-            # Send request
-            reef.request(
+            response = reef.request_and_wait(
                 from_agent=self.name,
                 to_agent=from_agent,
                 request=request,
                 expires_in_seconds=timeout,
+                timeout=timeout,
             )
-
-            # Wait for response
-            if response_received.wait(timeout):
-                return response_data["result"]
-            else:
-                return None
-
-        finally:
-            # Ensure handler is removed to avoid leaks
-            channel = reef.get_channel(reef.default_channel)
-            if channel:
-                try:
-                    handlers = channel.subscribers.get(self.name, [])
-                    if response_handler in handlers:
-                        handlers.remove(response_handler)
-                except Exception:
-                    pass
+            return response.knowledge
+        except TimeoutError:
+            return None
 
     def on_spore_received(self, spore) -> None:
         """

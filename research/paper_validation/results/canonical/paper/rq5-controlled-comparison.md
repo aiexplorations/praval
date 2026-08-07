@@ -1,0 +1,5 @@
+| Framework | Process ready (one run) | Steady median | Steady p95 | Correct fraction | Model calls |
+| --- | --- | --- | --- | --- | --- |
+| praval | 341.81 ms | 116.76 ms | 124.56 ms | 1.000 | 2.0 |
+| langgraph | 1.725 s | 119.07 ms | 126.38 ms | 1.000 | 2.0 |
+| crewai | 4.179 s | 124.03 ms | 130.61 ms | 1.000 | 2.0 |

@@ -11,14 +11,16 @@ All transports enforce TLS/SSL by default for security.
 """
 
 import asyncio
+import inspect
 import logging
 import ssl
 import time
 import uuid
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from .reef import Spore
@@ -52,6 +54,17 @@ class PublishError(TransportError):
     """Raised when message publishing fails."""
 
     pass
+
+
+@dataclass
+class AMQPSubscriptionHandle:
+    """Opaque ownership record for one AMQP consumer."""
+
+    id: str
+    topic: str
+    queue: Any
+    consumer_tag: Any
+    owns_queue: bool
 
 
 class MessageTransport(ABC):
@@ -125,6 +138,8 @@ class AMQPTransport(MessageTransport):
         self.channel = None
         self.exchange = None
         self._aio_pika = None
+        self._subscription_handles: Dict[str, AMQPSubscriptionHandle] = {}
+        self._subscriptions_by_topic: Dict[str, List[str]] = {}
 
     async def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize AMQP connection with TLS."""
@@ -223,7 +238,7 @@ class AMQPTransport(MessageTransport):
         except Exception as e:
             raise PublishError(f"Failed to publish AMQP message: {e}")
 
-    async def subscribe(self, topic: str, callback: Callable) -> None:
+    async def subscribe(self, topic: str, callback: Callable) -> AMQPSubscriptionHandle:
         """
         Subscribe to AMQP topic with wildcard support.
 
@@ -244,45 +259,109 @@ class AMQPTransport(MessageTransport):
                 f"{topic.replace('#', 'all').replace('*', 'any')}"
             )
             queue = await self.channel.declare_queue(
-                queue_name, durable=True, exclusive=False, auto_delete=True
+                queue_name, durable=False, exclusive=True, auto_delete=True
             )
 
             # Bind queue to exchange with routing key
             await queue.bind(self.exchange, routing_key=topic)
 
-            # Setup consumer that tries native Spore format first
-            async def message_handler(message):
-                async with message.process():
-                    try:
-                        # Try to convert to native Spore format
-                        # This requires importing Spore class (circular import safe via
-                        # lazy import)
-                        try:
-                            from .reef import Spore
-
-                            spore = Spore.from_amqp_message(message)
-                            await callback(spore)
-                        except ImportError:
-                            # Fallback to raw bytes if Spore not available
-                            await callback(message.body)
-                    except Exception as e:
-                        logger.error(f"AMQP message callback error: {e}")
-
-            await queue.consume(message_handler)
+            handle = await self._consume_queue(topic, queue, callback, owns_queue=True)
             logger.info(f"Subscribed to AMQP topic: {topic}")
+            return handle
 
         except Exception as e:
             raise ConnectionError(f"Failed to subscribe to AMQP topic: {e}")
 
     async def unsubscribe(self, topic: str) -> None:
         """Unsubscribe from AMQP topic."""
-        # In AMQP, we would need to track queue names and cancel consumers
-        # This is a simplified implementation
+        handle_ids = list(self._subscriptions_by_topic.get(topic, []))
+        for handle_id in handle_ids:
+            handle = self._subscription_handles.get(handle_id)
+            if handle is not None:
+                await self.unsubscribe_handler(handle)
         logger.info(f"Unsubscribed from AMQP topic: {topic}")
+
+    async def subscribe_to_queue(
+        self, queue_name: str, callback: Callable
+    ) -> AMQPSubscriptionHandle:
+        """Consume from a configured queue without assuming queue ownership."""
+        if not self.connected or not self.channel:
+            raise ConnectionError("AMQP transport not connected")
+        try:
+            queue = await self.channel.get_queue(queue_name, ensure=True)
+            handle = await self._consume_queue(
+                queue_name, queue, callback, owns_queue=False
+            )
+            logger.info(f"Subscribed to configured AMQP queue: {queue_name}")
+            return handle
+        except Exception as e:
+            raise ConnectionError(
+                f"Failed to subscribe to AMQP queue {queue_name}: {e}"
+            )
+
+    async def _consume_queue(
+        self,
+        topic: str,
+        queue: Any,
+        callback: Callable,
+        *,
+        owns_queue: bool,
+    ) -> AMQPSubscriptionHandle:
+        async def message_handler(message):
+            async with message.process():
+                try:
+                    try:
+                        from .reef import Spore
+
+                        value = Spore.from_amqp_message(message)
+                    except ImportError:
+                        value = message.body
+                    result = callback(value)
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception as e:
+                    logger.error(f"AMQP message callback error: {e}")
+
+        consumer_tag = await queue.consume(message_handler)
+        handle_id = f"amqp-consumer-{uuid.uuid4()}"
+        handle = AMQPSubscriptionHandle(
+            id=handle_id,
+            topic=topic,
+            queue=queue,
+            consumer_tag=consumer_tag,
+            owns_queue=owns_queue,
+        )
+        self._subscription_handles[handle_id] = handle
+        self._subscriptions_by_topic.setdefault(topic, []).append(handle_id)
+        return handle
+
+    async def unsubscribe_handler(self, handle: AMQPSubscriptionHandle) -> None:
+        """Cancel one consumer and delete only its transport-owned queue."""
+        tracked = self._subscription_handles.pop(handle.id, None)
+        if tracked is None:
+            return
+        topic_handles = self._subscriptions_by_topic.get(tracked.topic, [])
+        self._subscriptions_by_topic[tracked.topic] = [
+            handle_id for handle_id in topic_handles if handle_id != tracked.id
+        ]
+        if not self._subscriptions_by_topic[tracked.topic]:
+            del self._subscriptions_by_topic[tracked.topic]
+
+        try:
+            if tracked.consumer_tag is not None:
+                await tracked.queue.cancel(tracked.consumer_tag)
+        finally:
+            if tracked.owns_queue:
+                await tracked.queue.delete(if_unused=False, if_empty=False)
 
     async def close(self) -> None:
         """Close AMQP connection."""
         try:
+            for handle in list(self._subscription_handles.values()):
+                try:
+                    await self.unsubscribe_handler(handle)
+                except Exception as e:
+                    logger.error(f"Error cancelling AMQP consumer: {e}")
             if self.connection and not self.connection.is_closed:
                 await self.connection.close()
             self.connected = False

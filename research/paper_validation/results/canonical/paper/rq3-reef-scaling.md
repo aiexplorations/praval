@@ -1,0 +1,20 @@
+| Backend | Agents | Payload | Median deliveries/s | p50 latency | p95 latency | p99 latency |
+| --- | --- | --- | --- | --- | --- | --- |
+| in-memory | 2 | 256 B | 62327.6 | 4.88 ms | 11.62 ms | 12.31 ms |
+| in-memory | 2 | 16 KiB | 13550.7 | 11.32 ms | 58.73 ms | 66.54 ms |
+| in-memory | 2 | 256 KiB | 1087.1 | 140.41 ms | 700.29 ms | 895.94 ms |
+| in-memory | 8 | 256 B | 45127.2 | 118.56 µs | 3.91 ms | 5.33 ms |
+| in-memory | 8 | 16 KiB | 12577.9 | 15.65 ms | 56.17 ms | 70.66 ms |
+| in-memory | 8 | 256 KiB | 1114.6 | 6.47 ms | 12.16 ms | 13.10 ms |
+| in-memory | 32 | 256 B | 40439.2 | 33.46 µs | 331.63 µs | 641.97 µs |
+| in-memory | 32 | 16 KiB | 12878.8 | 8.43 ms | 41.28 ms | 46.77 ms |
+| in-memory | 32 | 256 KiB | 1136.5 | 6.79 ms | 14.64 ms | 18.22 ms |
+| RabbitMQ | 2 | 256 B | 956.7 | 413.08 µs | 824.89 µs | 1.19 ms |
+| RabbitMQ | 2 | 16 KiB | 764.7 | 894.19 µs | 1.31 ms | 1.64 ms |
+| RabbitMQ | 2 | 256 KiB | 237.9 | 5.52 ms | 6.20 ms | 7.13 ms |
+| RabbitMQ | 8 | 256 B | 1006.7 | 407.77 µs | 713.99 µs | 1.06 ms |
+| RabbitMQ | 8 | 16 KiB | 786.0 | 883.02 µs | 1.37 ms | 1.86 ms |
+| RabbitMQ | 8 | 256 KiB | 237.3 | 5.41 ms | 6.30 ms | 7.47 ms |
+| RabbitMQ | 32 | 256 B | 998.0 | 407.27 µs | 747.68 µs | 1.46 ms |
+| RabbitMQ | 32 | 16 KiB | 715.1 | 994.94 µs | 1.56 ms | 2.02 ms |
+| RabbitMQ | 32 | 256 KiB | 234.6 | 5.37 ms | 6.18 ms | 7.23 ms |

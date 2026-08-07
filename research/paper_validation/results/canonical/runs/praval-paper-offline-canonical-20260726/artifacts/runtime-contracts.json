@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "async_shape": true,
+    "stream_event_order": true,
+    "stream_final_once": true,
+    "structured_output": true,
+    "sync_shape": true,
+    "tool_metadata": true,
+    "usage_invariant": true
+  },
+  "details": {
+    "provider_request_count": 67
+  },
+  "limitations": [
+    "This deterministic adapter tests the shared contract, not live provider conformance."
+  ],
+  "metrics": {
+    "sync_invoke_seconds": {
+      "count": 30.0,
+      "maximum": 0.002168709,
+      "mean": 0.0006543569,
+      "mean_bootstrap_95_ci": [
+        0.0005238297608333334,
+        0.0008194933566666666
+      ],
+      "median": 0.000462375,
+      "minimum": 0.000385583,
+      "p50": 0.000462375,
+      "p95": 0.001520839799999999,
+      "p99": 0.0020302702500000006,
+      "standard_deviation": 0.00041792262459045676
+    }
+  },
+  "sample_count": 30,
+  "status": "passed"
+}

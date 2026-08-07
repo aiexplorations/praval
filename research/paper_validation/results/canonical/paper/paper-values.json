@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "values": {
+    "choreography_speedup_range": {
+      "experiment": "choreography-critical-path",
+      "rendered": "1.89\u00d7 to 7.95\u00d7",
+      "value": [
+        1.8864340184909059,
+        7.949916760873264
+      ]
+    },
+    "comparison_crewai_median_elapsed": {
+      "experiment": "controlled-framework-comparison",
+      "rendered": "124.03 ms",
+      "value": 0.12402925000000001
+    },
+    "comparison_langgraph_median_elapsed": {
+      "experiment": "controlled-framework-comparison",
+      "rendered": "119.07 ms",
+      "value": 0.1190724165
+    },
+    "comparison_praval_median_elapsed": {
+      "experiment": "controlled-framework-comparison",
+      "rendered": "116.76 ms",
+      "value": 0.1167592915
+    },
+    "in_memory_throughput_range": {
+      "experiment": "reef-scaling-inmemory",
+      "rendered": "1087.1 to 62327.6 deliveries/s",
+      "value": [
+        1087.0895519598134,
+        62327.62516166228
+      ]
+    },
+    "overhead_direct_adapter": {
+      "experiment": "abstraction-overhead",
+      "rendered": "1.29 \u00b5s",
+      "value": 1.292e-06
+    },
+    "overhead_direct_function": {
+      "experiment": "abstraction-overhead",
+      "rendered": "0.04 \u00b5s",
+      "value": 4.2e-08
+    },
+    "overhead_mcp_http": {
+      "experiment": "abstraction-overhead",
+      "rendered": "2.31 ms",
+      "value": 0.002308104
+    },
+    "overhead_mcp_stdio": {
+      "experiment": "abstraction-overhead",
+      "rendered": "1.49 ms",
+      "value": 0.0014904165
+    },
+    "overhead_model_runtime": {
+      "experiment": "abstraction-overhead",
+      "rendered": "438.92 \u00b5s",
+      "value": 0.000438917
+    },
+    "overhead_observability_off": {
+      "experiment": "abstraction-overhead",
+      "rendered": "3.42 \u00b5s",
+      "value": 3.416e-06
+    },
+    "overhead_observability_on": {
+      "experiment": "abstraction-overhead",
+      "rendered": "323.77 \u00b5s",
+      "value": 0.0003237705
+    },
+    "overhead_plain_spore": {
+      "experiment": "abstraction-overhead",
+      "rendered": "7.08 \u00b5s",
+      "value": 7.083e-06
+    },
+    "overhead_secure_spore": {
+      "experiment": "abstraction-overhead",
+      "rendered": "548.10 \u00b5s",
+      "value": 0.000548104
+    },
+    "rabbitmq_throughput_range": {
+      "experiment": "reef-scaling-rabbitmq",
+      "rendered": "234.6 to 1006.7 deliveries/s",
+      "value": [
+        234.64319902797047,
+        1006.7083267739994
+      ]
+    }
+  }
+}
