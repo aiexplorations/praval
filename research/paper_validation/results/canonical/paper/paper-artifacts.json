@@ -2,13 +2,13 @@
   "artifacts": {
     "claims_json": {
       "path": "claim-report.json",
-      "sha256": "e9002aa4c49da780bbea0d09df888be6684ad9995095594b08e7c2d29d3b875f",
-      "size": 68687
+      "sha256": "e5071b78b01b8a4cf2252877cab6e8e20bff82d83370f305c846c27e71ab8369",
+      "size": 70148
     },
     "claims_markdown": {
       "path": "claim-report.md",
-      "sha256": "eeeb0ea9d0bec0476336c3edef1ee5b40ddae76f18b8bd4b9013928b08b614a9",
-      "size": 5039
+      "sha256": "c5d8bdc7c1ee7d9f44161b467275bd85dc6fa69428ad46429d87451eecdcc1e9",
+      "size": 5092
     },
     "metrics_csv": {
       "path": "metric-summary.csv",
@@ -47,13 +47,13 @@
     },
     "rq1-claim-evidence_latex": {
       "path": "rq1-claim-evidence.tex",
-      "sha256": "7865121af4638f88f5e5f4a4ccff69b14b1c809592983029aab8d4e08eb1a064",
-      "size": 1643
+      "sha256": "c718b12b81c4349991d721539ccb15971b5eda268e593ce2797fb2feb350f526",
+      "size": 764
     },
     "rq1-claim-evidence_markdown": {
       "path": "rq1-claim-evidence.md",
-      "sha256": "87d05d151013e4a713e70bd72ccbd06f5f9a2893c7f11edf8510fa54daad7f0e",
-      "size": 1607
+      "sha256": "a0bf40e0a638c79d4c02cad63df0d85622cc22be3e267d01b1da7ac0f7602b9b",
+      "size": 735
     },
     "rq2-claim-evidence_latex": {
       "path": "rq2-claim-evidence.tex",
