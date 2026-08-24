@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from .models import (
@@ -163,6 +164,34 @@ class EvaluationStore(Protocol):  # pragma: no cover - structural declaration
         self, *, status: JobStatus | None = None, limit: int = 100
     ) -> list[EvaluationJob]:
         """List jobs, optionally filtered by status."""
+        ...
+
+    async def lease_job(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_seconds: float,
+    ) -> EvaluationJob | None:
+        """Atomically lease one ready or expired job and count its attempt."""
+        ...
+
+    async def complete_job(
+        self, *, job_id: str, worker_id: str, now: datetime
+    ) -> EvaluationJob:
+        """Atomically complete a job held by ``worker_id``."""
+        ...
+
+    async def retry_job(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        now: datetime,
+        error_type: str,
+        retry_delay_seconds: float,
+    ) -> EvaluationJob:
+        """Release a failed lease for retry or move it to dead letter."""
         ...
 
     async def put_attempt(self, attempt: EvaluationAttempt) -> EvaluationAttempt:

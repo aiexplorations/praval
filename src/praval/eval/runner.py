@@ -260,7 +260,9 @@ class EvalRunner:
                 context,
                 metric.version,
             )
-            metric_results.append(await self.store.put_metric_result(metric_result))
+            stored_metric = await self.store.put_metric_result(metric_result)
+            metric_results.append(stored_metric)
+            self._emit_result(stored_metric, subject)
         statuses = {result.status for result in results} | {
             result.status for result in metric_results
         }
@@ -372,7 +374,9 @@ class EvalRunner:
         return value.astimezone(timezone.utc)
 
     @staticmethod
-    def _emit_result(result: JudgeResult, subject: EvaluationSubject) -> None:
+    def _emit_result(
+        result: JudgeResult | MetricResult, subject: EvaluationSubject
+    ) -> None:
         """Keep telemetry exporter failures out of evaluation semantics."""
         try:
             emit_evaluation_result(result, subject)

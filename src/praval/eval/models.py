@@ -580,6 +580,19 @@ class EvaluationJob(_EvaluationModel):
     created_at: datetime
     updated_at: datetime
 
+    @classmethod
+    def create(cls, **values: Any) -> "EvaluationJob":
+        """Create a pending job with a stable at-least-once delivery identity."""
+        values["job_id"] = _stable_id(
+            "job",
+            values["suite_id"],
+            values["evaluation_run_id"],
+            values["case_id"],
+            values["subject_id"],
+        )
+        values.setdefault("status", JobStatus.PENDING)
+        return cls(**values)
+
     @field_validator("available_at", "lease_expires_at", "created_at", "updated_at")
     @classmethod
     def normalize_timestamp(cls, value: datetime | None) -> datetime | None:
@@ -627,6 +640,14 @@ class EvaluationAttempt(_EvaluationModel):
     usage: TokenUsageObservation | None = None
     cost_usd: float | None = Field(default=None, ge=0)
     error_type: str | None = Field(default=None, min_length=1, max_length=256)
+
+    @classmethod
+    def create(cls, **values: Any) -> "EvaluationAttempt":
+        """Create an attempt with a stable job-and-attempt-number identity."""
+        values["attempt_id"] = _stable_id(
+            "attempt", values["job_id"], str(values["attempt_number"])
+        )
+        return cls(**values)
 
     @field_validator("started_at", "ended_at")
     @classmethod

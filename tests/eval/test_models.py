@@ -244,6 +244,41 @@ def test_run_result_gate_baseline_job_and_attempt_round_trip() -> None:
         assert type(record).model_validate_json(record.model_dump_json()) == record
 
 
+def test_online_job_and_attempt_factories_have_stable_delivery_ids() -> None:
+    values = {
+        "evaluation_run_id": "online-run",
+        "suite_id": "suite-1",
+        "case_id": "case-1",
+        "subject_id": "subject-1",
+        "available_at": NOW,
+        "created_at": NOW,
+        "updated_at": NOW,
+    }
+    first = EvaluationJob.create(**values)
+    duplicate = EvaluationJob.create(**values)
+    attempt = EvaluationAttempt.create(
+        job_id=first.job_id,
+        attempt_number=1,
+        status=AttemptStatus.SUCCEEDED,
+        started_at=NOW,
+        ended_at=NOW,
+        duration_ms=0,
+    )
+
+    assert first.job_id == duplicate.job_id
+    assert (
+        attempt.attempt_id
+        == EvaluationAttempt.create(
+            job_id=first.job_id,
+            attempt_number=1,
+            status=AttemptStatus.SUCCEEDED,
+            started_at=NOW,
+            ended_at=NOW,
+            duration_ms=0,
+        ).attempt_id
+    )
+
+
 def test_contracts_are_frozen_and_reject_unknown_fields() -> None:
     run = EvaluationRun(
         evaluation_run_id="eval-run-1",

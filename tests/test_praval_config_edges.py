@@ -10,6 +10,7 @@ from praval.config import (
     EvalConfig,
     EvalJudgeConfig,
     ObservabilityConfig,
+    OnlineEvalConfig,
     OTLPConfig,
     PravalConfig,
     discover_config_path,
@@ -35,6 +36,12 @@ def test_agent_otlp_and_judge_local_validation() -> None:
         EvalConfig(store="postgres")
     with pytest.raises(ValidationError, match="online evaluation"):
         EvalConfig(online={"enabled": True})
+    with pytest.raises(ValidationError, match="lease_seconds"):
+        OnlineEvalConfig(lease_seconds=60, job_timeout_seconds=60)
+    with pytest.raises(ValidationError):
+        OnlineEvalConfig(queue_capacity=100_001)
+    with pytest.raises(ValidationError):
+        OnlineEvalConfig(workers=65)
 
 
 def test_legacy_observability_fields_map_to_nested_configuration(

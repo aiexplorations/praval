@@ -16,7 +16,7 @@ from praval.models.observation import ExecutionObservation, ObservationStatus
 from .lifecycle import get_logger, get_meter, is_observability_configured
 
 if TYPE_CHECKING:
-    from praval.eval.models import EvaluationSubject, JudgeResult
+    from praval.eval.models import EvaluationSubject, JudgeResult, MetricResult
 
 _SECRET_VALUE = re.compile(r"(?i)(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|api[_-]?key\s*[=:])")
 _MAX_DIMENSION_BYTES = 256
@@ -37,6 +37,9 @@ class _SignalInstruments:
     retry_count: Any
     handoff_count: Any
     handoff_duration: Any
+    evaluation_results: Any
+    evaluation_scores: Any
+    evaluation_failures: Any
     health_instruments: tuple[Any, ...]
 
 
@@ -151,6 +154,21 @@ def _get_instruments() -> _SignalInstruments:
                     "praval.reef.handoff.duration",
                     unit="ms",
                     description="Reef handoff duration",
+                ),
+                evaluation_results=meter.create_counter(
+                    "praval.evaluation.results",
+                    unit="{result}",
+                    description="Completed metric and judge evaluation results",
+                ),
+                evaluation_scores=meter.create_histogram(
+                    "praval.evaluation.score",
+                    unit="1",
+                    description="Normalized evaluation result scores",
+                ),
+                evaluation_failures=meter.create_counter(
+                    "praval.evaluation.failures",
+                    unit="{failure}",
+                    description="Errored metric and judge evaluation results",
                 ),
                 health_instruments=_create_health_instruments(meter),
             )
@@ -290,7 +308,9 @@ def emit_execution_observation(observation: ExecutionObservation) -> None:
     _record_log(observation)
 
 
-def emit_evaluation_result(result: "JudgeResult", subject: "EvaluationSubject") -> bool:
+def emit_evaluation_result(
+    result: "JudgeResult | MetricResult", subject: "EvaluationSubject"
+) -> bool:
     """Emit one metadata-only standard evaluation event when configured."""
     if not is_observability_configured():
         return False
@@ -301,8 +321,9 @@ def emit_evaluation_result(result: "JudgeResult", subject: "EvaluationSubject") 
     if result.case_id != subject.case_id:
         raise ValueError("evaluation result case identity does not match")
 
+    evaluator_name = getattr(result, "judge", None) or getattr(result, "metric")
     attributes: dict[str, Any] = {
-        "gen_ai.evaluation.name": _bounded_dimension(result.judge),
+        "gen_ai.evaluation.name": _bounded_dimension(evaluator_name),
         "praval.evaluation.status": result.status.value,
         "praval.evaluation.run.id": _bounded_dimension(result.evaluation_run_id),
         "praval.evaluation.case.id": _bounded_dimension(result.case_id),
@@ -319,8 +340,21 @@ def emit_evaluation_result(result: "JudgeResult", subject: "EvaluationSubject") 
             attributes[key] = bounded
     if result.score is not None:
         attributes["gen_ai.evaluation.score.value"] = result.score
-    if result.explanation is not None and result.privacy.content_captured:
-        attributes["gen_ai.evaluation.explanation"] = result.explanation
+    explanation = getattr(result, "explanation", None)
+    privacy = getattr(result, "privacy", None)
+    if explanation is not None and privacy is not None and privacy.content_captured:
+        attributes["gen_ai.evaluation.explanation"] = explanation
+
+    instruments = _get_instruments()
+    metric_attributes = {
+        "gen_ai.evaluation.name": evaluator_name,
+        "praval.evaluation.status": result.status.value,
+    }
+    instruments.evaluation_results.add(1, metric_attributes)
+    if result.score is not None:
+        instruments.evaluation_scores.record(result.score, metric_attributes)
+    if result.status.value == "error":
+        instruments.evaluation_failures.add(1, metric_attributes)
 
     severity = (
         SeverityNumber.ERROR if result.status.value == "error" else SeverityNumber.INFO

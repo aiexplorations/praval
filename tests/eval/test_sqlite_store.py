@@ -45,7 +45,9 @@ from .store_contract import (
     assert_all_records_round_trip,
     assert_attempt_idempotency,
     assert_concurrent_writes,
+    assert_expired_lease_recovery_and_retry_exhaustion,
     assert_explicit_baseline_promotion,
+    assert_job_leasing_and_duplicate_delivery,
     assert_query_filters,
     assert_result_idempotency,
 )
@@ -239,6 +241,16 @@ async def test_attempt_number_is_idempotent_per_job(
     store: SQLiteEvaluationStore,
 ) -> None:
     await assert_attempt_idempotency(store, _records())
+
+
+@pytest.mark.asyncio
+async def test_job_leases_retries_and_duplicate_delivery_are_atomic(store) -> None:
+    await assert_job_leasing_and_duplicate_delivery(store, _records())
+
+
+@pytest.mark.asyncio
+async def test_expired_leases_recover_and_exhausted_jobs_dead_letter(store) -> None:
+    await assert_expired_lease_recovery_and_retry_exhaustion(store, _records())
 
 
 @pytest.mark.asyncio

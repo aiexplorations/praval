@@ -54,6 +54,14 @@ from .models import (
     MetricResult,
     ResultStatus,
 )
+from .online import (
+    OnlineContextLoader,
+    OnlineEvaluationProcessor,
+    OnlineEvaluationService,
+    OnlineEvaluationStats,
+    OnlineSubjectEvaluator,
+    trace_sampled,
+)
 from .postgres import PostgresEvaluationStore
 from .runner import (
     EvalRunner,
@@ -113,6 +121,11 @@ __all__ = [
     "Metric",
     "MetricPluginError",
     "ModelJudge",
+    "OnlineContextLoader",
+    "OnlineEvaluationProcessor",
+    "OnlineEvaluationService",
+    "OnlineEvaluationStats",
+    "OnlineSubjectEvaluator",
     "PostgresEvaluationStore",
     "ResultStatus",
     "RunComparison",
@@ -129,4 +142,5 @@ __all__ = [
     "is_evaluation_call",
     "load_jsonl_suite",
     "promote_evaluation_baseline",
+    "trace_sampled",
 ]

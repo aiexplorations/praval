@@ -216,9 +216,23 @@ class OnlineEvalConfig(_ConfigModel):
 
     enabled: bool = False
     sample_ratio: float = Field(default=0.01, ge=0.0, le=1.0)
-    queue_capacity: int = Field(default=1000, gt=0)
-    workers: int = Field(default=2, gt=0)
+    queue_capacity: int = Field(default=1000, gt=0, le=100_000)
+    workers: int = Field(default=2, gt=0, le=64)
     max_attempts: int = Field(default=3, gt=0, le=3)
+    max_enqueue_attempts: int = Field(default=3, gt=0, le=3)
+    lease_seconds: float = Field(default=180.0, gt=0, le=3600)
+    job_timeout_seconds: float = Field(default=120.0, gt=0, le=1800)
+    poll_interval_seconds: float = Field(default=0.1, gt=0, le=60)
+    retry_backoff_seconds: float = Field(default=0.25, ge=0, le=300)
+    shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=300)
+    max_subject_bytes: int = Field(default=262_144, gt=0, le=1_048_576)
+
+    @model_validator(mode="after")
+    def validate_worker_timing(self) -> "OnlineEvalConfig":
+        """Keep leases longer than the maximum active processor call."""
+        if self.lease_seconds <= self.job_timeout_seconds:
+            raise ValueError("lease_seconds must exceed job_timeout_seconds")
+        return self
 
 
 class PostgresEvalStoreConfig(_ConfigModel):

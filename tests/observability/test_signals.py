@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 
 from praval.config import AppConfig, ObservabilityConfig, PravalConfig
-from praval.eval import EvaluationSubject, JudgeResult, ResultStatus
+from praval.eval import EvaluationSubject, JudgeResult, MetricResult, ResultStatus
 from praval.models import ExecutionObservation, ObservationStatus
 from praval.models.observation import (
     ContentKind,
@@ -39,6 +39,7 @@ from praval.observability import (
     emit_evaluation_result,
     shutdown_observability,
 )
+from praval.observability.evaluation import OnlineEvaluationTelemetry
 from praval.observability.health import TrackingSpanExporter, TrackingSpanProcessor
 from praval.runtime_observation import (
     ObservationScope,
@@ -249,6 +250,80 @@ def test_evaluation_result_event_preserves_subject_correlation(
     assert record.attributes["praval.evaluation.case.id"] == "case-1"
     assert record.attributes["praval.evaluation.subject.id"] == subject.subject_id
     assert "gen_ai.evaluation.explanation" not in record.attributes
+
+    points = _metric_points(signal_pipeline["metrics"])
+    assert points["praval.evaluation.results"][0].value == 1
+    assert points["praval.evaluation.score"][0].sum == 0.95
+
+
+def test_metric_result_uses_the_same_event_and_score_contract(
+    signal_pipeline: dict[str, Any],
+) -> None:
+    _, subject = _evaluation_pair()
+    result = MetricResult.create(
+        evaluation_run_id=subject.evaluation_run_id,
+        case_id=subject.case_id,
+        subject_id=subject.subject_id,
+        metric="ragas.faithfulness",
+        metric_version="ragas-0.4.3",
+        status=ResultStatus.PASSED,
+        score=0.9,
+        label="measured",
+        created_at=NOW,
+    )
+
+    assert emit_evaluation_result(result, subject) is True
+
+    record = signal_pipeline["logs"].get_finished_logs()[0].log_record
+    assert record.event_name == "gen_ai.evaluation.result"
+    assert record.attributes["gen_ai.evaluation.name"] == "ragas.faithfulness"
+    assert record.attributes["gen_ai.evaluation.score.value"] == 0.9
+    points = _metric_points(signal_pipeline["metrics"])
+    assert points["praval.evaluation.results"][0].value == 1
+    assert points["praval.evaluation.score"][0].sum == 0.9
+
+
+def test_online_evaluation_emits_queue_failure_and_post_hoc_link_signals(
+    signal_pipeline: dict[str, Any],
+) -> None:
+    _, subject = _evaluation_pair()
+    observation = subject.observation.model_copy(
+        update={"trace_id": "0" * 31 + "7", "span_id": "0" * 15 + "9"}
+    )
+    telemetry = OnlineEvaluationTelemetry(
+        suite_id="online-quality", queue_depth=lambda: 3
+    )
+
+    with telemetry.start_post_hoc_span(observation, {"praval.test": "online"}):
+        pass
+    telemetry.scheduled()
+    telemetry.retry()
+    telemetry.dropped("queue_saturated")
+    telemetry.failed("JudgeTimeout")
+    telemetry.completed(12.5)
+
+    span = signal_pipeline["traces"].get_finished_spans()[0]
+    assert span.parent is None
+    assert len(span.links) == 1
+    assert span.links[0].context.trace_id == 7
+    assert span.links[0].context.span_id == 9
+    events = [
+        item.log_record.event_name
+        for item in signal_pipeline["logs"].get_finished_logs()
+    ]
+    assert events == [
+        "praval.evaluation.online.scheduled",
+        "praval.evaluation.online.dropped",
+        "praval.evaluation.online.failed",
+        "praval.evaluation.online.completed",
+    ]
+    points = _metric_points(signal_pipeline["metrics"])
+    assert points["praval.evaluation.online.scheduled"][0].value == 1
+    assert points["praval.evaluation.online.retries"][0].value == 1
+    assert points["praval.evaluation.online.dropped"][0].value == 1
+    assert points["praval.evaluation.online.failures"][0].value == 1
+    assert points["praval.evaluation.online.duration"][0].sum == 12.5
+    assert points["praval.evaluation.online.queue.depth"][0].value == 3
 
 
 def test_evaluation_result_is_a_noop_until_observability_is_configured() -> None:

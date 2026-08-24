@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any, TypeVar
 
@@ -582,27 +583,64 @@ class PostgresEvaluationStore:
         )
 
     async def put_job(self, job: EvaluationJob) -> EvaluationJob:
-        """Create or update a durable evaluation job."""
+        """Create a durable job idempotently without reverting its lifecycle."""
         pool = await self._get_pool()
         async with pool.acquire() as connection:
-            await connection.execute(
-                """
-                INSERT INTO evaluation_jobs (
-                    id, status, available_at, lease_expires_at, payload
-                ) VALUES ($1, $2, $3, $4, $5::jsonb)
-                ON CONFLICT(id) DO UPDATE SET
-                    status=excluded.status,
-                    available_at=excluded.available_at,
-                    lease_expires_at=excluded.lease_expires_at,
-                    payload=excluded.payload
-                """,
-                job.job_id,
-                job.status.value,
-                job.available_at,
-                job.lease_expires_at,
-                self._payload(job),
-            )
-        return job
+            async with connection.transaction():
+                await connection.execute(
+                    "INSERT INTO evaluation_jobs "
+                    "(id, status, available_at, lease_expires_at, payload) "
+                    "VALUES ($1, $2, $3, $4, $5::jsonb) "
+                    "ON CONFLICT(id) DO NOTHING",
+                    job.job_id,
+                    job.status.value,
+                    job.available_at,
+                    job.lease_expires_at,
+                    self._payload(job),
+                )
+                payload = await connection.fetchval(
+                    "SELECT payload FROM evaluation_jobs WHERE id = $1",
+                    job.job_id,
+                )
+                existing = self._decode(EvaluationJob, payload)
+                if not self._same_job_identity(existing, job):
+                    raise EvaluationConflictError(
+                        "job identity conflicts with stored data"
+                    )
+                return existing
+
+    @staticmethod
+    def _same_job_identity(left: EvaluationJob, right: EvaluationJob) -> bool:
+        return (
+            left.evaluation_run_id,
+            left.suite_id,
+            left.case_id,
+            left.subject_id,
+            left.max_attempts,
+        ) == (
+            right.evaluation_run_id,
+            right.suite_id,
+            right.case_id,
+            right.subject_id,
+            right.max_attempts,
+        )
+
+    @staticmethod
+    def _aware_utc(value: datetime, *, field: str) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{field} must be timezone-aware")
+        return value.astimezone(timezone.utc)
+
+    async def _write_job_row(self, connection: Any, job: EvaluationJob) -> None:
+        await connection.execute(
+            "UPDATE evaluation_jobs SET status = $1, available_at = $2, "
+            "lease_expires_at = $3, payload = $4::jsonb WHERE id = $5",
+            job.status.value,
+            job.available_at,
+            job.lease_expires_at,
+            self._payload(job),
+            job.job_id,
+        )
 
     async def get_job(self, job_id: str) -> EvaluationJob | None:
         """Load one job."""
@@ -620,6 +658,132 @@ class PostgresEvaluationStore:
             order_by="available_at, id",
             limit=limit,
         )
+
+    async def lease_job(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_seconds: float,
+    ) -> EvaluationJob | None:
+        """Atomically lease one ready job with ``FOR UPDATE SKIP LOCKED``."""
+        if not worker_id.strip() or len(worker_id) > 256:
+            raise ValueError("worker_id must be non-empty and bounded")
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+        current = self._aware_utc(now, field="now")
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                while True:
+                    payload = await connection.fetchval(
+                        "SELECT payload FROM evaluation_jobs WHERE "
+                        "(status = $1 AND available_at <= $3) OR "
+                        "(status = $2 AND lease_expires_at <= $3) "
+                        "ORDER BY available_at, id FOR UPDATE SKIP LOCKED LIMIT 1",
+                        JobStatus.PENDING.value,
+                        JobStatus.LEASED.value,
+                        current,
+                    )
+                    if payload is None:
+                        return None
+                    job = self._decode(EvaluationJob, payload)
+                    if job.attempt_count >= job.max_attempts:
+                        exhausted = job.model_copy(
+                            update={
+                                "status": JobStatus.DEAD_LETTER,
+                                "lease_owner": None,
+                                "lease_expires_at": None,
+                                "error_type": "LeaseExpired",
+                                "updated_at": current,
+                            }
+                        )
+                        await self._write_job_row(connection, exhausted)
+                        continue
+                    leased = job.model_copy(
+                        update={
+                            "status": JobStatus.LEASED,
+                            "lease_owner": worker_id,
+                            "lease_expires_at": current
+                            + timedelta(seconds=lease_seconds),
+                            "attempt_count": job.attempt_count + 1,
+                            "error_type": None,
+                            "updated_at": current,
+                        }
+                    )
+                    await self._write_job_row(connection, leased)
+                    return leased
+
+    async def _load_leased_job(
+        self, connection: Any, job_id: str, worker_id: str
+    ) -> EvaluationJob:
+        payload = await connection.fetchval(
+            "SELECT payload FROM evaluation_jobs WHERE id = $1 FOR UPDATE",
+            job_id,
+        )
+        if payload is None:
+            raise EvaluationConflictError("job does not exist")
+        job = self._decode(EvaluationJob, payload)
+        if job.status is not JobStatus.LEASED or job.lease_owner != worker_id:
+            raise EvaluationConflictError("job lease owner does not match")
+        return job
+
+    async def complete_job(
+        self, *, job_id: str, worker_id: str, now: datetime
+    ) -> EvaluationJob:
+        """Complete an actively leased job atomically."""
+        current = self._aware_utc(now, field="now")
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                job = await self._load_leased_job(connection, job_id, worker_id)
+                completed = job.model_copy(
+                    update={
+                        "status": JobStatus.COMPLETED,
+                        "lease_owner": None,
+                        "lease_expires_at": None,
+                        "error_type": None,
+                        "updated_at": current,
+                    }
+                )
+                await self._write_job_row(connection, completed)
+                return completed
+
+    async def retry_job(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        now: datetime,
+        error_type: str,
+        retry_delay_seconds: float,
+    ) -> EvaluationJob:
+        """Release a failed lease or dead-letter an exhausted job."""
+        if not error_type.strip() or len(error_type) > 256:
+            raise ValueError("error_type must be non-empty and bounded")
+        if retry_delay_seconds < 0:
+            raise ValueError("retry_delay_seconds cannot be negative")
+        current = self._aware_utc(now, field="now")
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                job = await self._load_leased_job(connection, job_id, worker_id)
+                exhausted = job.attempt_count >= job.max_attempts
+                updated = job.model_copy(
+                    update={
+                        "status": (
+                            JobStatus.DEAD_LETTER if exhausted else JobStatus.PENDING
+                        ),
+                        "available_at": current
+                        + timedelta(seconds=retry_delay_seconds),
+                        "lease_owner": None,
+                        "lease_expires_at": None,
+                        "error_type": error_type if exhausted else None,
+                        "updated_at": current,
+                    }
+                )
+                await self._write_job_row(connection, updated)
+                return updated
 
     async def put_attempt(self, attempt: EvaluationAttempt) -> EvaluationAttempt:
         """Persist one immutable job attempt and enforce its natural key."""
