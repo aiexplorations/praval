@@ -37,3 +37,39 @@ shutdown is safe to call more than once.
   storage has traces enabled, batch size does not exceed queue capacity, and a
   named header environment variable exists.
 
+## Provider ownership
+
+With host-owned providers, construct processors, exporters, and metric readers
+before passing providers to `configure_observability()`. The returned handle
+has an empty `owned_signals` set and Praval will neither replace globals nor
+shut those providers down. In particular, an OTLP metric reader cannot be
+attached after a host-owned `MeterProvider` is constructed.
+
+With Praval-owned providers, the observability extra must be installed and the
+enabled topology must have a usable local or OTLP destination. The handle
+records each owned signal. Reconfiguration with an identical effective config
+returns the active handle; a different config fails until shutdown resets the
+process lifecycle.
+
+## Failure sequence
+
+For a missing signal, diagnose in this order:
+
+1. configuration precedence and selected service resource;
+2. signal enablement and parent-based sampling;
+3. instrumentation active before the operation;
+4. SDK queue depth/drops and export failure type;
+5. endpoint/protocol/headers/TLS and Collector receiver;
+6. Collector processor/exporter logs and backend ingestion;
+7. bounded flush/shutdown result.
+
+Do not repeatedly reconfigure to recover an exporter. Fix the external state or
+restart the owned lifecycle cleanly. A failed flush means delivery is unknown;
+it does not mean agent execution failed.
+
+## Async and process boundaries
+
+Context variables follow normal asyncio task creation. If custom code clears
+context, starts work in a raw thread/process, or manually serializes a Spore,
+it owns context handoff. Extract remote context before creating consumer work,
+and detach it afterward so later tasks cannot inherit the wrong trace.

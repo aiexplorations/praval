@@ -49,3 +49,23 @@ evidence = ["tests/observability/test_spore_propagation.py", "tests/integration/
 id = "observability-privacy"
 statement = "Telemetry capture is metadata-only by default and content requires an exact opt-in allowlist."
 evidence = ["tests/observability/test_privacy.py", "docs/sphinx/observability/privacy-security.md"]
+
+[[claims]]
+id = "evaluation-offline"
+statement = "Provider-neutral offline evaluation composes deterministic metrics and versioned model or agent judges over one immutable subject observation."
+evidence = ["tests/eval/test_runner.py", "tests/eval/test_judges.py", "tests/eval/test_targets.py"]
+
+[[claims]]
+id = "evaluation-stores-gates"
+statement = "SQLite and PostgreSQL implement the same idempotent evaluation record, baseline, durable job, lease, retry, and attempt contract."
+evidence = ["tests/eval/test_sqlite_store.py", "tests/eval/test_postgres_store.py", "tests/eval/store_contract.py"]
+
+[[claims]]
+id = "evaluation-plugins-ragas"
+statement = "Evaluation metrics support a public plugin contract and an optional RAGAS adapter over configured Praval model and embedding runtimes."
+evidence = ["tests/eval/test_metric_plugins.py", "tests/eval/test_ragas.py", "docs/sphinx/evaluation/metrics-ragas.md"]
+
+[[claims]]
+id = "evaluation-online"
+statement = "Opt-in sampled online evaluation isolates request enqueue work from durable PostgreSQL workers and post-hoc linked evaluator telemetry."
+evidence = ["tests/eval/test_online.py", "tests/eval/test_postgres_store.py", "docs/sphinx/evaluation/online.md"]

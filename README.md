@@ -69,7 +69,7 @@ Install the core package:
 python -m pip install praval
 ```
 
-Praval supports Python 3.9 through 3.13. Install only the optional capabilities
+Praval 0.8.3 supports Python 3.10 through 3.14. Install only the optional capabilities
 your application needs:
 
 | Extra | Install command | Adds |
@@ -80,9 +80,11 @@ your application needs:
 | PDF | `python -m pip install "praval[pdf]"` | PDF ingestion through `pypdf` |
 | MCP | `python -m pip install "praval[mcp]"` | Official MCP client SDK on Python 3.10 or newer |
 | Observability | `python -m pip install "praval[observability]"` | Praval-owned OpenTelemetry SDK with OTLP HTTP/protobuf and gRPC |
+| RAGAS evaluation | `python -m pip install "praval[eval-ragas]"` | Optional RAGAS 0.4 metric adapter through Praval runtimes |
 | Notebooks | `python -m pip install "praval[notebooks]"` | JupyterLab and the tested notebook runtime |
 | Documentation | `python -m pip install "praval[docs]"` | Sphinx and the documentation theme |
 | Runtime features | `python -m pip install "praval[all]"` | All optional runtime features, excluding notebooks and documentation tools |
+| Development | `python -m pip install -e ".[dev]"` | Test, lint, type, build, docs, and all runtime dependencies |
 
 ### Why the 0.8 line starts at 0.8.1
 
@@ -239,6 +241,7 @@ for cleanup rules and async use.
 | Embeddings | Local and provider embeddings with explicit compatibility checks | [Embeddings](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/embeddings.md) |
 | Storage | Async filesystem, PostgreSQL, Redis, S3-compatible, and Qdrant providers | [Storage](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/storage.md) |
 | Observability | Explicit traces, metrics, logs, W3C propagation, local SQLite diagnostics, and OTLP export | [Observability](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/observability/index.md) |
+| Evaluation | Deterministic metrics, model and agent judges, gates, baselines, SQLite/PostgreSQL stores, RAGAS, and sampled online evaluation | [Evaluation](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/evaluation/index.md) |
 | Multimodal and voice | Images, files, audio and video where supported, plus request-based STT and TTS | [Multimodal](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/multimodal.md) |
 | Secure messages | Signed and encrypted Spores with optional transport adapters | [Production notebook](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/course/08_production_features.ipynb) |
 
@@ -328,6 +331,8 @@ Lessons 00 through 08 also have companion videos. Use the links in the
 | [Request-based voice agent](https://github.com/aiexplorations/praval/blob/main/examples/request_based_voice_agent.py) | STT, agent generation, and TTS | OpenAI key |
 | [Distributed agents](https://github.com/aiexplorations/praval/blob/main/examples/distributed_agents_with_rabbitmq.py) | RabbitMQ-backed Reef delivery | RabbitMQ |
 | [Observability quick start](https://github.com/aiexplorations/praval/blob/main/examples/observability/000_quickstart.py) | Local spans and trace inspection | Observability extra |
+| [Evaluation quick start](https://github.com/aiexplorations/praval/blob/main/examples/evaluation/000_quickstart.py) | Deterministic suite, SQLite records, and a quality gate | None |
+| [Paired target and evaluator agents](https://github.com/aiexplorations/praval/blob/main/examples/evaluation/001_paired_agents.py) | One aggregated observation and a read-only evaluator tool policy | None |
 
 The [complete example manifest](https://github.com/aiexplorations/praval/blob/main/examples/manifest.toml) records execution modes,
 extras, services, timeouts, and expected artifacts for release certification.
@@ -344,6 +349,9 @@ extras, services, timeouts, and expected artifacts for release certification.
 | Common failures | [Troubleshooting](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/troubleshooting.md) |
 | Detailed learning course | [Notebook catalog](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/README.md) |
 | Correlated Reef requests | [Reef and Spores](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/reef-protocol.md) |
+| Observability operations | [Observability](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/observability/index.md) |
+| Evaluation patterns and CI | [Evaluation](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/evaluation/index.md) |
+| v0.8.3 migration | [Migration guide](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/v083-migration.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
 | Release scope | [0.8.3 candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md) |
 
@@ -375,7 +383,8 @@ make docs-html
 
 See the [0.8.3 candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md)
 for current scope, compatibility details, limitations, and the explicit release
-blocker while evaluation work remains.
+blocker while combined observability, evaluation, documentation, and exact-wheel
+certification remains.
 
 ## Development and release validation
 

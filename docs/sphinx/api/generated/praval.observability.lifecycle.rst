@@ -14,6 +14,7 @@ praval.observability.lifecycle
       get_logger
       get_meter
       get_tracer
+      is_observability_configured
       shutdown_observability
 
    .. rubric:: Classes

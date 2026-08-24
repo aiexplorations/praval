@@ -1,0 +1,133 @@
+schema_version = 1
+
+[public_api]
+manifest = "docs/api-surface.toml"
+documentation = "docs/sphinx/api/index.rst"
+test = "tests/test_documentation_contracts.py"
+
+[feature_claims]
+manifest = "docs/feature-claims.toml"
+test = "tests/test_documentation_contracts.py"
+
+[[config_models]]
+model = "AppConfig"
+fields = ["service_name", "service_version", "deployment_environment"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "ModelProfileConfig"
+fields = ["provider", "model", "temperature", "max_output_tokens"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EmbeddingProfileConfig"
+fields = ["provider", "model", "dimensions", "base_url", "api_key_env"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "AgentProfileConfig"
+fields = ["model", "system_message", "tools", "memory_enabled", "memory_namespace", "max_tool_rounds"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "OTLPConfig"
+fields = ["endpoint", "protocol", "traces", "metrics", "logs", "headers_env", "max_queue_size", "max_export_batch_size", "schedule_delay_millis", "export_timeout_millis", "metric_export_interval_millis"]
+documentation = "docs/sphinx/observability/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "LocalObservabilityConfig"
+fields = ["enabled", "path", "max_traces", "max_age_days"]
+documentation = "docs/sphinx/observability/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "ObservabilityConfig"
+fields = ["enabled", "capture_content", "content_allowlist", "sampling", "sample_ratio", "flush_timeout_millis", "otlp", "local"]
+documentation = "docs/sphinx/observability/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "OnlineEvalConfig"
+fields = ["enabled", "sample_ratio", "queue_capacity", "workers", "max_attempts", "max_enqueue_attempts", "lease_seconds", "job_timeout_seconds", "poll_interval_seconds", "retry_backoff_seconds", "shutdown_timeout_seconds", "max_subject_bytes"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config_edges.py"
+
+[[config_models]]
+model = "PostgresEvalStoreConfig"
+fields = ["dsn_env"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "SQLiteEvalStoreConfig"
+fields = ["path"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalStoresConfig"
+fields = ["sqlite", "postgres"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalRagasConfig"
+fields = ["model", "embedding", "timeout_seconds", "strict_tool_order"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalJudgeConfig"
+fields = ["agent", "model", "timeout_seconds", "max_attempts", "allow_self_evaluation", "allowed_tools", "tool_policy", "allow_side_effects", "hitl_mode", "max_input_tokens", "max_cost_usd", "rubric", "rubric_version", "judge_version"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalGateConfig"
+fields = ["gate_id", "metric", "aggregation", "operator", "threshold", "required", "percentile", "baseline_max_regression"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalSuiteConfig"
+fields = ["dataset", "target", "judges", "metrics", "gates"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "EvalConfig"
+fields = ["enabled", "store", "offline_concurrency", "online", "stores", "ragas", "judges", "suites"]
+documentation = "docs/sphinx/evaluation/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "PravalConfig"
+fields = ["schema_version", "app", "models", "embeddings", "agents", "observability", "eval"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[config_models]]
+model = "ResolvedAgentConfig"
+fields = ["name", "provider", "model", "temperature", "max_output_tokens", "system_message", "tools", "memory_enabled", "memory_namespace", "max_tool_rounds"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[extras]]
+names = ["memory", "storage", "secure", "pdf", "mcp", "observability", "eval-ragas", "notebooks", "docs", "all", "dev"]
+documentation = "README.md"
+test = "tests/test_release_scripts.py"
+
+[[errors]]
+names = ["PravalConfigurationError"]
+documentation = "docs/sphinx/guide/configuration.md"
+test = "tests/test_praval_config.py"
+
+[[errors]]
+names = ["EvalDatasetError", "EvaluationConflictError", "EvaluationExecutionError", "EvaluationStoreError", "GateEvaluationError", "JudgeConfigurationError", "JudgeResponseError", "MetricPluginError"]
+documentation = "docs/sphinx/evaluation/api-reference.md"
+test = "tests/eval"

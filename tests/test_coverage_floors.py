@@ -15,7 +15,10 @@ def _summary(covered, statements):
 
 
 def _passing_report():
-    files = {path: {"summary": _summary(9, 10)} for path in checker.FILE_FLOORS}
+    files = {
+        path: {"summary": _summary(int(floor), 100)}
+        for path, floor in checker.FILE_FLOORS.items()
+    }
     files["src/praval/mcp/client.py"] = {"summary": _summary(9, 10)}
     return {"files": files, "totals": _summary(90, 100)}
 

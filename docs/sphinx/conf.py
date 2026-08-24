@@ -126,6 +126,13 @@ autodoc_type_aliases = {
     "SporeType": "praval.core.reef.SporeType",
 }
 
+# Compatibility helpers are implementation details reached through
+# praval.observability.config, not part of the documented praval.config surface.
+coverage_ignore_functions = [
+    "get_legacy_observability_config",
+    "reset_legacy_observability_config",
+]
+
 # -- napoleon configuration (for Google/NumPy style docstrings)
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
@@ -152,6 +159,21 @@ intersphinx_mapping = (
     if exact_wheel_build or offline_build
     else {"python": ("https://docs.python.org/3", None)}
 )
+
+# Local OTLP examples are deployment targets, not public web pages. The two
+# v0.8.3 comparison URLs become valid only after the release tag exists.
+linkcheck_ignore = [
+    r"http://localhost(?::\d+)?(?:/.*)?$",
+    # Repository files are validated as local documentation/example contracts;
+    # checking their GitHub mirrors is redundant and readily rate-limited.
+    r"https://github\.com/aiexplorations/praval/(?:blob|tree)/.*",
+    (
+        r"https://github\.com/aiexplorations/praval/compare/"
+        r"(?:v0\.8\.3\.\.\.HEAD|v0\.8\.2\.\.\.v0\.8\.3)$"
+    ),
+]
+linkcheck_timeout = 10
+linkcheck_retries = 2
 
 # -- myst_parser configuration (Markdown support)
 myst_enable_extensions = [

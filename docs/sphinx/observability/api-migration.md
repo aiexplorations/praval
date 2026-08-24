@@ -15,6 +15,25 @@ used by both telemetry and evaluation are in `praval.models`.
 | `force_flush()` | Flush Praval-owned components within the configured or supplied millisecond bound; returns success. |
 | `shutdown_observability()` | Flush and close Praval-owned components; idempotent and bounded. |
 
+## Complete public surface
+
+| Area | Symbols |
+|---|---|
+| Configuration/lifecycle | `ObservabilityConfig`, `ObservabilityHandle`, `get_config`, `configure_observability`, `configure_tracing`, `force_flush`, `shutdown_observability`, `is_observability_configured` |
+| Official APIs | `get_tracer`, `get_meter`, `get_logger`, `Span`, `SpanKind`, `SpanStatus` |
+| Observation recording | `CompositeObservationRecorder`, `configure_observation_recorder`, `use_observation_recorder`, `emit_evaluation_result` |
+| Context compatibility | `Tracer`, `TraceContext`, `get_current_span` |
+| Local diagnostics | `SQLiteTraceStore`, `get_trace_store`, `ConsoleViewer`, `print_traces`, `show_recent_traces` |
+| Instrumentation | `initialize_instrumentation`, `is_instrumented` |
+| Export compatibility | `OTLPExporter`, `export_traces_to_otlp` |
+
+Lifecycle functions may raise `PravalConfigurationError` for invalid,
+conflicting, missing-extra, endpoint, header, ownership, or topology settings.
+`force_flush()` and shutdown return booleans for bounded delivery/lifecycle
+failure. Local store access raises when the exporter is not active. Recorder
+and telemetry export failures are isolated from the completed application
+operation and logged by bounded exception type.
+
 ## Observation API
 
 `ExecutionObservation` is immutable and versioned with `schema_version = 1`.

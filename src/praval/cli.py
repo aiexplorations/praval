@@ -29,6 +29,7 @@ OPTIONAL_FEATURE_MODULES = {
         "opentelemetry.exporter.otlp.proto.http",
         "opentelemetry.exporter.otlp.proto.grpc",
     ),
+    "eval_ragas": ("ragas", "langchain_community"),
 }
 
 OBSERVABILITY_DISTRIBUTIONS = (
@@ -256,6 +257,21 @@ def _diagnostic_report() -> Dict[str, Any]:
         ),
         "packages": otel_packages,
     }
+    evaluation_packages = {
+        name: _distribution_version(name)
+        for name in ("asyncpg", "ragas", "langchain-community")
+    }
+    evaluation = {
+        "core_available": _module_available("praval.eval"),
+        "sqlite_available": True,
+        "postgresql_available": evaluation_packages["asyncpg"] is not None,
+        "ragas_available": all(
+            evaluation_packages[name] is not None
+            for name in ("ragas", "langchain-community")
+        ),
+        "metric_entry_point_group": "praval.eval.metrics",
+        "packages": evaluation_packages,
+    }
 
     return {
         "schema_version": 1,
@@ -271,6 +287,7 @@ def _diagnostic_report() -> Dict[str, Any]:
         },
         "optional_features": features,
         "observability": observability,
+        "evaluation": evaluation,
         "providers": providers,
     }
 
@@ -300,6 +317,18 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         "OpenTelemetry: "
         f"API={'available' if observability['api_available'] else 'not installed'}, "
         f"managed={managed_status}, {compatibility}"
+    )
+    evaluation = report["evaluation"]
+    postgres_status = (
+        "available" if evaluation["postgresql_available"] else "not installed"
+    )
+    ragas_status = "available" if evaluation["ragas_available"] else "not installed"
+    print(
+        "Evaluation: "
+        f"core={'available' if evaluation['core_available'] else 'unavailable'}, "
+        "SQLite=available, "
+        f"PostgreSQL={postgres_status}, "
+        f"RAGAS={ragas_status}"
     )
     print("Provider configuration:")
     for name, details in report["providers"].items():

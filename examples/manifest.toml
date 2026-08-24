@@ -31,6 +31,10 @@ stable_features = [
   "observability.sqlite",
   "observability.console",
   "observability.otlp",
+  "evaluation.offline",
+  "evaluation.agent-judge",
+  "evaluation.one-observation",
+  "evaluation.workflow",
   "transport.rabbitmq",
   "mcp.stdio",
   "mcp.streamable-http",
@@ -221,6 +225,44 @@ id = "tutorial-fake-runtime"
 path = "model_runtime_fake_provider.py"
 features = ["runtime.sync", "runtime.streaming"]
 modes = ["offline"]
+
+[[demo]]
+id = "tutorial-evaluation-quickstart"
+path = "evaluation/000_quickstart.py"
+features = ["evaluation.offline", "evaluation.one-observation"]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-quickstart.db"]
+expected_artifacts = ["evaluation-quickstart.db"]
+timeout_seconds = 30
+
+[[demo]]
+id = "tutorial-evaluation-paired-agents"
+path = "evaluation/001_paired_agents.py"
+features = [
+  "evaluation.offline",
+  "evaluation.agent-judge",
+  "evaluation.one-observation",
+]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-paired-agents.db"]
+expected_artifacts = ["evaluation-paired-agents.db"]
+timeout_seconds = 30
+
+[[demo]]
+id = "tutorial-evaluation-workflow"
+path = "evaluation/002_workflow_evaluation.py"
+features = [
+  "evaluation.offline",
+  "evaluation.one-observation",
+  "evaluation.workflow",
+]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-workflow.db"]
+expected_artifacts = ["evaluation-workflow.db"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-multimodal-runtime"

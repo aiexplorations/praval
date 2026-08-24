@@ -8,9 +8,9 @@ A research agent that takes a topic, researches it using an LLM, and returns str
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - Praval installed (`pip install praval`)
-- An OpenAI API key set (`export OPENAI_API_KEY="sk-..."`)
+- An OpenAI API key set (`export OPENAI_API_KEY="..."`)
 
 ## Step 1: Basic Agent
 

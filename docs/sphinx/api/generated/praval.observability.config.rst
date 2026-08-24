@@ -10,9 +10,3 @@ praval.observability.config
 
       get_config
       reset_config
-
-   .. rubric:: Classes
-
-   .. autosummary::
-
-      ObservabilityConfig

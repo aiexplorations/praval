@@ -1,8 +1,8 @@
 # Praval 0.8.3
 
-> Release-candidate notes. Do not publish, tag, or cut this release until the
-> evaluation workstream and all combined observability and evaluation gates
-> are complete.
+> Release-candidate notes. Do not publish, tag, or cut this release from a
+> dirty tree or before the clean-commit CI and documentation-site provenance
+> checks pass.
 
 Praval 0.8.3 replaces the former implicit, trace-only diagnostics with an
 explicit OpenTelemetry foundation and a provider-neutral observation contract
@@ -25,6 +25,39 @@ that evaluation can consume without importing SDK internals.
   migrations, whole-trace retention, and metadata-only privacy defaults.
 - Export attempts, failures, exceptions, drops, queue state, and lifecycle
   failures are observable without exposing payloads or credentials.
+
+## Evaluation capabilities
+
+- JSONL datasets keep candidate/reference material ephemeral while immutable
+  cases and subjects persist content identities and one aggregated
+  `ExecutionObservation` per agent or workflow.
+- SQLite and PostgreSQL share one store contract for runs, results, gates,
+  baselines, durable jobs, leasing, retry, recovery, attempts, and idempotency.
+- Offline runners compose deterministic metrics, metric plugins, direct model
+  judges, and least-privilege ordinary evaluator agents with strict versioned
+  output, time, token, cost, tool, memory, HITL, and self-evaluation policy.
+- Gates support explicit aggregation/threshold policy. Baselines are promoted
+  explicitly and regression comparison is available through `praval eval`.
+- The optional `eval-ragas` extra adds the tested RAGAS 0.4 metrics through
+  configured Praval model and embedding runtimes without exposing RAGAS types
+  in the core API.
+- Sampled online evaluation is disabled by default. When explicitly started
+  with PostgreSQL, request work is limited to deterministic sampling and a
+  bounded enqueue; durable workers perform all evaluator calls and link their
+  telemetry to the original completed trace.
+
+## Documentation and patterns
+
+Observability and Evaluation are top-level documentation areas. The Evaluation
+patterns guide recommends stable identities, structured outcomes, bounded
+execution, deterministic dependency seams, and exactly one immutable
+observation with aggregated facts per evaluated agent or workflow. It pairs
+targets with separate least-privilege evaluator agents and explicitly rejects
+shared target state, unversioned rubrics, unsafe tools, automatic baselines,
+and request-path judging.
+
+Python 3.9 support ends with v0.8.2. v0.8.3 supports Python 3.10 through 3.14.
+See the complete migration guide under `docs/sphinx/guide/v083-migration.md`.
 
 ## Migration from v0.8.2
 
@@ -52,6 +85,11 @@ evidence rather than these notes.
 
 ## Remaining release scope
 
-The evaluation contracts, stores, runners, judges, gates, plugins, sampled
-online evaluation, documentation, and combined release certification remain
-required. This file is not authorization to publish 0.8.3.
+The implementation, documentation, and local combined certification are
+complete through sampled online workers. The candidate has passed exact-wheel,
+example/tutorial, real Collector, PostgreSQL, RabbitMQ, RAGAS, privacy,
+performance, shutdown, API inventory, Sphinx warnings-as-errors, and link
+checks together. Publication remains blocked until those results are repeated
+or accepted by final CI from the clean E6 commit and the matching documentation
+artifact is staged with provenance for `praval-ai`. This file is not by itself
+authorization to publish 0.8.3.

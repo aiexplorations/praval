@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus bounded telemetry health and privacy filtering.
 - Added a top-level observability manual, executable examples, real Collector
   certification, distributed-context certification, and performance gates.
+- Added provider-neutral evaluation cases, JSONL datasets, immutable subjects,
+  SQLite and PostgreSQL stores, bounded runners, deterministic metrics, direct
+  model judges, least-privilege evaluator-agent judges, gates, comparisons,
+  and explicit baseline promotion.
+- Added the `praval.eval.metrics` plugin contract, a reference metric plugin,
+  and an optional RAGAS 0.4 adapter over configured Praval model and embedding
+  runtimes.
+- Added opt-in trace-sampled online evaluation with bounded request-path
+  enqueue, durable PostgreSQL jobs, leases, retries, recovery, dead letters,
+  post-hoc trace links, and metadata-only health signals.
+- Added a top-level Evaluation manual, recommended target/evaluator patterns,
+  credential-free exact-wheel examples, CLI operations, configuration
+  reference, privacy guidance, and a v0.8.3 migration guide.
 
 ### Changed
 
@@ -29,14 +42,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implied by import or development environment detection.
 - The `observability` extra now supplies the tested OpenTelemetry SDK and both
   official OTLP transports; the base package retains API-only instrumentation.
+- Python 3.9 support ends with v0.8.2. v0.8.3 supports Python 3.10 through 3.14.
+- `praval doctor` now reports evaluation core, SQLite, PostgreSQL, and RAGAS
+  availability without printing DSNs or provider credentials.
 
 ### Compatibility
 
 - v0.8.2 configuration aliases and the legacy tracing/viewing facade remain
   available for migration. New code should use `configure_observability()` and
   the typed nested configuration described in the observability manual.
-- Publication remains blocked until the evaluation workstream and combined
-  v0.8.3 release gates are complete.
+- Publication remains blocked until the combined observability, evaluation,
+  documentation, exact-wheel, privacy, performance, PostgreSQL, Collector,
+  and shutdown release gates are complete.
 
 ## [0.8.2] - 2026-07-31
 

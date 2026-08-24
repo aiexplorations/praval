@@ -55,7 +55,7 @@ def test_repository_manifest_registers_every_python_example():
     }
     discovered -= run_demos.NON_DEMO_EXAMPLE_FILES
     assert {demo.path.as_posix() for demo in manifest.demos} == discovered
-    assert len(manifest.demos) == 48
+    assert len(manifest.demos) == 51
 
 
 def test_every_stable_feature_has_executable_certification():

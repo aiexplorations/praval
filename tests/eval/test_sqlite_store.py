@@ -283,6 +283,70 @@ async def test_store_rejects_invalid_configuration_and_inactive_promotion(
         await store.promote_baseline(inactive)
 
 
+@pytest.mark.asyncio
+async def test_job_boundary_validation_and_identity_conflicts(
+    store: SQLiteEvaluationStore,
+) -> None:
+    job = _records()["job"]
+    await store.put_job(job)
+
+    with pytest.raises(EvaluationConflictError, match="job identity"):
+        await store.put_job(job.model_copy(update={"case_id": "different-case"}))
+    with pytest.raises(ValueError, match="timezone-aware"):
+        await store.lease_job(
+            worker_id="worker", now=NOW.replace(tzinfo=None), lease_seconds=1
+        )
+    with pytest.raises(ValueError, match="worker_id"):
+        await store.lease_job(worker_id=" ", now=NOW, lease_seconds=1)
+    with pytest.raises(ValueError, match="lease_seconds"):
+        await store.lease_job(worker_id="worker", now=NOW, lease_seconds=0)
+    with pytest.raises(EvaluationConflictError, match="does not exist"):
+        await store.complete_job(job_id="missing-job", worker_id="worker", now=NOW)
+    with pytest.raises(ValueError, match="error_type"):
+        await store.retry_job(
+            job_id=job.job_id,
+            worker_id="worker",
+            now=NOW,
+            error_type=" ",
+            retry_delay_seconds=0,
+        )
+    with pytest.raises(ValueError, match="retry_delay_seconds"):
+        await store.retry_job(
+            job_id=job.job_id,
+            worker_id="worker",
+            now=NOW,
+            error_type="TransientError",
+            retry_delay_seconds=-1,
+        )
+
+
+@pytest.mark.asyncio
+async def test_expired_job_at_attempt_limit_is_dead_lettered_before_releasing(
+    store: SQLiteEvaluationStore,
+) -> None:
+    job = _records()["job"].model_copy(
+        update={
+            "status": JobStatus.LEASED,
+            "lease_owner": "stopped-worker",
+            "lease_expires_at": NOW - timedelta(seconds=1),
+            "attempt_count": 3,
+            "max_attempts": 3,
+        }
+    )
+    await store.put_job(job)
+
+    assert (
+        await store.lease_job(worker_id="replacement-worker", now=NOW, lease_seconds=1)
+        is None
+    )
+    stored = await store.get_job(job.job_id)
+    assert stored is not None
+    assert stored.status is JobStatus.DEAD_LETTER
+    assert stored.error_type == "LeaseExpired"
+    assert stored.lease_owner is None
+    assert stored.lease_expires_at is None
+
+
 def test_models_still_validate_data_loaded_from_store() -> None:
     """Guard against tests bypassing model validation with ``model_construct``."""
     with pytest.raises(ValidationError):

@@ -24,7 +24,7 @@ python scripts/check_api_surface.py --report evidence/api-coverage.json
 
 ## Required and optional validation
 
-Normal CI is required. It tests Python 3.9 through 3.13, runs quality and
+Normal CI is required. It tests Python 3.10 through 3.14, runs quality and
 coverage checks, builds exact-wheel documentation, and certifies offline and
 service-backed demos against the installed wheel.
 

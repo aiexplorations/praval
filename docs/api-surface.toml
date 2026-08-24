@@ -176,11 +176,102 @@ documentation = "guide/application-lifecycle"
 
 [[submodules]]
 name = "praval.config"
-documentation = "guide/application-lifecycle"
+documentation = "guide/configuration"
+exports = [
+  "AgentProfileConfig",
+  "AppConfig",
+  "EmbeddingProfileConfig",
+  "EvalConfig",
+  "EvalGateConfig",
+  "EvalJudgeConfig",
+  "EvalRagasConfig",
+  "EvalStoresConfig",
+  "EvalSuiteConfig",
+  "LocalObservabilityConfig",
+  "ModelProfileConfig",
+  "ObservabilityConfig",
+  "OnlineEvalConfig",
+  "OTLPConfig",
+  "PostgresEvalStoreConfig",
+  "PravalConfig",
+  "ResolvedAgentConfig",
+  "SQLiteEvalStoreConfig",
+  "discover_config_path",
+  "load_config",
+]
 
 [[submodules]]
 name = "praval.embeddings"
 documentation = "guide/embeddings"
+
+[[submodules]]
+name = "praval.eval"
+documentation = "evaluation/api-reference"
+exports = [
+  "AgentJudge",
+  "AgentEvaluationTarget",
+  "AttemptStatus",
+  "EvalDatasetError",
+  "EvalRunner",
+  "EvalCase",
+  "EvalSuite",
+  "EvaluationAttempt",
+  "EvaluationBaseline",
+  "EvaluationConflictError",
+  "EvaluationExecutionError",
+  "EvaluationJob",
+  "EvaluationMetadata",
+  "EvaluationResult",
+  "EvaluationRun",
+  "EvaluationRunStatus",
+  "EvaluationStore",
+  "EvaluationStoreError",
+  "EvaluationSubject",
+  "EvaluationTarget",
+  "ExactMatchMetric",
+  "Gate",
+  "GateAggregation",
+  "GateEvaluationError",
+  "GateOperator",
+  "GateResult",
+  "GateStatus",
+  "JobStatus",
+  "Judge",
+  "JudgeConfigurationError",
+  "JudgeContext",
+  "JudgeResult",
+  "JudgeResponseError",
+  "LoadedEvalCase",
+  "LoadedEvalSuite",
+  "METRIC_ENTRY_POINT_GROUP",
+  "MetricResult",
+  "MetricComparison",
+  "Metric",
+  "MetricPluginError",
+  "ModelJudge",
+  "OnlineContextLoader",
+  "OnlineEvaluationProcessor",
+  "OnlineEvaluationService",
+  "OnlineEvaluationStats",
+  "OnlineSubjectEvaluator",
+  "PostgresEvaluationStore",
+  "ResultStatus",
+  "RunComparison",
+  "SQLiteEvaluationStore",
+  "TargetResult",
+  "TerminalSuccessMetric",
+  "ToolCallMatchMetric",
+  "available_metrics",
+  "builtin_metrics",
+  "evaluation_call_scope",
+  "compare_evaluation_runs",
+  "discover_metric_plugins",
+  "evaluate_gate",
+  "is_evaluation_call",
+  "load_jsonl_suite",
+  "promote_evaluation_baseline",
+  "trace_sampled",
+]
 
 [[submodules]]
 name = "praval.hitl"

@@ -12,6 +12,7 @@ praval.core.exceptions
       EmbeddingConfigurationError
       HITLConfigurationError
       InterventionRequired
+      PravalConfigurationError
       PravalError
       ProviderError
       StateError

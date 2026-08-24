@@ -9,6 +9,7 @@ praval.decorators
    .. autosummary::
 
       achat
+      agent
       broadcast
       chat
       get_agent_info

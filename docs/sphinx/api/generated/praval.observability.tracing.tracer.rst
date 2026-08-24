@@ -10,11 +10,4 @@ praval.observability.tracing.tracer
 
       generate_span_id
       generate_trace_id
-      get_tracer
       reset_tracer
-
-   .. rubric:: Classes
-
-   .. autosummary::
-
-      Tracer

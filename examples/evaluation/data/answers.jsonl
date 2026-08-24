@@ -1,0 +1,1 @@
+{"id":"capital-france","name":"Known capital","input":{"question":"What is the capital of France?"},"expected_output":{"answer":"Paris"},"reference_contexts":["Paris is the capital of France."],"tags":["smoke","facts"]}

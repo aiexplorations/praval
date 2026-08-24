@@ -5,15 +5,13 @@ creating a second tool registry. Discovered tools become normal Praval
 `ToolSpec` entries, so provider-neutral model execution, HITL approval,
 tracing, timeouts, and error handling continue to apply.
 
-Install the optional SDK support on Python 3.10 or newer:
+Install the optional SDK support:
 
 ```bash
 pip install 'praval[mcp]'
 ```
 
-Praval core continues to support Python 3.9. The official MCP Python SDK v1
-requires Python 3.10 or newer, so MCP connections are not available on Python
-3.9.
+Praval 0.8.3 and the official MCP Python SDK require Python 3.10 or newer.
 
 ## Local stdio server
 
@@ -156,4 +154,3 @@ Praval never reinterprets a provider-hosted descriptor as a local MCP client.
 - Binary and image results
 - Automatic reconnect
 - Sync MCP event-loop bridging
-

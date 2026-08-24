@@ -123,6 +123,23 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
                 cwd=temp_dir,
                 check=True,
             )
+        elif not extra:
+            evaluation_examples = example / "evaluation"
+            for filename, database in (
+                ("000_quickstart.py", "evaluation-quickstart.db"),
+                ("001_paired_agents.py", "evaluation-paired-agents.db"),
+                ("002_workflow_evaluation.py", "evaluation-workflow.db"),
+            ):
+                subprocess.run(
+                    [
+                        str(python),
+                        str(evaluation_examples / filename),
+                        "--db",
+                        str(Path(temp_dir) / database),
+                    ],
+                    cwd=temp_dir,
+                    check=True,
+                )
         subprocess.run(
             [str(python), str(example / "model_runtime_fake_provider.py")], check=True
         )
