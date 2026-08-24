@@ -117,6 +117,16 @@ def _get_tracer() -> Any:
     return get_tracer("praval.runtime")
 
 
+def _emit_observation_signals(observation: ExecutionObservation) -> None:
+    """Offer one completed observation to bounded telemetry signals safely."""
+    try:
+        from praval.observability.signals import emit_execution_observation
+
+        emit_execution_observation(observation)
+    except Exception as telemetry_error:
+        logger.warning("Observation signal emission failed: %s", telemetry_error)
+
+
 @dataclass
 class _ObservationState:
     observation_id: str
@@ -295,6 +305,7 @@ class ObservationScope:
                 error_type=error_type,
             )
             _finish_span(state.span, observation)
+            _emit_observation_signals(observation)
             _safe_record(state.recorder, observation)
         except Exception as observation_error:
             logger.warning("Observation finalization failed: %s", observation_error)

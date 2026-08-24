@@ -28,6 +28,16 @@ _active_handle: "ObservabilityHandle | None" = None
 _lifecycle_lock = threading.RLock()
 
 
+def _reset_signal_state() -> None:
+    """Reset provider-bound signal instruments without import side effects."""
+    try:
+        from .signals import reset_signal_state
+
+        reset_signal_state()
+    except ImportError:
+        return
+
+
 @dataclass(frozen=True)
 class _OwnedComponent:
     """One provider or processor that Praval may flush and close."""
@@ -576,6 +586,7 @@ def configure_observability(
             owned_signals=providers[4],
             _provider_identity=identity,
         )
+        _reset_signal_state()
         return _active_handle
 
 
@@ -643,6 +654,7 @@ def shutdown_observability(timeout_millis: int | None = None) -> bool:
             return True
         result = handle.shutdown(timeout_millis)
         _active_handle = None
+        _reset_signal_state()
         return result
 
 
