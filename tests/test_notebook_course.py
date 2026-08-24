@@ -241,6 +241,18 @@ def test_capstones_expose_required_praval_behavior() -> None:
         assert contract in marketing
 
 
+def test_production_notebook_authenticates_the_secure_spore_trace_carrier() -> None:
+    notebook = (
+        ROOT / "examples" / "notebooks" / "course" / "08_production_features.ipynb"
+    )
+    raw = json.loads(notebook.read_text(encoding="utf-8"))
+    source = "\n".join(
+        "".join(cell["source"]) for cell in raw["cells"] if cell["cell_type"] == "code"
+    )
+
+    assert "authenticated_data=wire_copy.authenticated_trace_context()" in source
+
+
 def test_prerequisites_are_known_unique_and_ordered() -> None:
     manifest = load_manifest(MANIFEST)
     positions = {item.id: index for index, item in enumerate(manifest.notebooks)}
