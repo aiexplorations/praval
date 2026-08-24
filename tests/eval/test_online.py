@@ -558,7 +558,11 @@ async def test_queue_saturation_is_visible_and_does_not_block_request(tmp_path) 
     service.record(_observation(3))
     elapsed_ms = (time.perf_counter() - started) * 1000
 
-    assert elapsed_ms < 2
+    # This functional case guards against accidentally blocking on the worker or
+    # durable store while the queue is full. The strict request-path performance
+    # contract is the 300-sample p95 < 2 ms test below; a one-sample microbenchmark
+    # is too sensitive to coverage instrumentation and shared-runner scheduling.
+    assert elapsed_ms < 50
     assert service.stats().dropped == 1
     gate.set()
     await _wait_until(lambda: service.stats().persisted >= 1)
