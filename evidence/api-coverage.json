@@ -1,0 +1,17 @@
+{
+  "coverage_percent": 100.0,
+  "documented": 89,
+  "errors": [],
+  "exported": 89,
+  "public_submodules": [
+    "praval",
+    "praval.app",
+    "praval.embeddings",
+    "praval.hitl",
+    "praval.mcp",
+    "praval.observability",
+    "praval.storage",
+    "praval.tools"
+  ],
+  "schema_version": 1
+}

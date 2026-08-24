@@ -1,31 +1,16 @@
-"""
-Tracing module for Praval observability.
+"""Official OpenTelemetry tracing API with v0.8.2 import mappings."""
 
-Provides OpenTelemetry-compatible tracing infrastructure.
-"""
-
-from .context import (
-    TraceContext,
-    clear_current_span,
-    get_current_span,
-    set_current_span,
-)
-from .span import NoOpSpan, Span, SpanEvent, SpanKind, SpanStatus
+from .context import TraceContext, get_current_span
+from .span import NoOpSpan, Span, SpanKind, SpanStatus
 from .tracer import Tracer, get_tracer
 
 __all__ = [
-    # Span
+    "NoOpSpan",
     "Span",
     "SpanKind",
     "SpanStatus",
-    "SpanEvent",
-    "NoOpSpan",
-    # Context
     "TraceContext",
-    "get_current_span",
-    "set_current_span",
-    "clear_current_span",
-    # Tracer
     "Tracer",
+    "get_current_span",
     "get_tracer",
 ]

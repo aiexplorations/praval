@@ -128,8 +128,8 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
         )
     if wheel_metadata["name"].lower() != "praval":
         errors.append(f"unexpected wheel project name: {wheel_metadata['name']!r}")
-    if wheel_metadata["requires_python"] != ">=3.9":
-        errors.append("wheel Requires-Python must retain core support for Python >=3.9")
+    if wheel_metadata["requires_python"] not in {">=3.10,<3.15", "<3.15,>=3.10"}:
+        errors.append("wheel Requires-Python must support Python 3.10 through 3.14")
     if wheel_metadata["root_is_purelib"].lower() != "true":
         errors.append("wheel must declare Root-Is-Purelib: true")
     if wheel_metadata["tag"] != "py3-none-any":
@@ -144,11 +144,35 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
     ]
     if len(mcp_requirements) != 1:
         errors.append("wheel must declare exactly one mcp-extra SDK requirement")
-    elif not all(
-        fragment in mcp_requirements[0]
-        for fragment in (">=1.27", "<2", 'python_version >= "3.10"')
-    ):
+    elif not all(fragment in mcp_requirements[0] for fragment in (">=1.27", "<2")):
         errors.append(f"invalid MCP SDK requirement: {mcp_requirements[0]!r}")
+    api_requirements = [
+        requirement
+        for requirement in requirements
+        if requirement.lower().startswith("opentelemetry-api")
+        and "extra ==" not in requirement
+    ]
+    if len(api_requirements) != 1 or not all(
+        fragment in api_requirements[0] for fragment in (">=1.44", "<1.45")
+    ):
+        errors.append("wheel must declare the tested OpenTelemetry API minor")
+    for package in (
+        "opentelemetry-sdk",
+        "opentelemetry-exporter-otlp-proto-http",
+        "opentelemetry-exporter-otlp-proto-grpc",
+    ):
+        matches = [
+            requirement
+            for requirement in requirements
+            if requirement.lower().startswith(package)
+            and 'extra == "observability"' in requirement
+        ]
+        if len(matches) != 1 or not all(
+            fragment in matches[0] for fragment in (">=1.44", "<1.45")
+        ):
+            errors.append(
+                f"wheel observability extra has an invalid requirement for {package}"
+            )
     if any(requirement.lower().startswith("pypdf2") for requirement in requirements):
         errors.append("wheel must not depend on deprecated PyPDF2")
     if not any(

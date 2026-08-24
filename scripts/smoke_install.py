@@ -38,7 +38,12 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
             "import praval",
             "assert praval.__version__ == importlib.metadata.version('praval')",
             "from praval.model_runtime import ModelRuntime",
-            "from praval.models import ModelResponse, ProviderCapabilities",
+            "from praval.models import ExecutionObservation, ModelResponse",
+            "from praval.models import NOOP_OBSERVATION_RECORDER",
+            "from praval.models import ProviderCapabilities",
+            "from opentelemetry.trace import SpanKind as OTelSpanKind",
+            "from praval.observability import SpanKind",
+            "assert SpanKind is OTelSpanKind",
         ]
         if extra == "mcp":
             checks.extend(
@@ -47,11 +52,32 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
                     "from praval.mcp import MCPClient, MCPServerConfig",
                 ]
             )
+        elif extra == "observability":
+            checks.extend(
+                [
+                    "import opentelemetry.sdk",
+                    "import opentelemetry.exporter.otlp.proto.http",
+                    "import opentelemetry.exporter.otlp.proto.grpc",
+                    "from praval.observability import configure_observability",
+                    "from praval.observability import force_flush, get_logger",
+                    "from praval.observability import get_meter, get_tracer",
+                    "from praval.observability import shutdown_observability",
+                    "handle = configure_observability(service_name='wheel-smoke')",
+                    "assert handle.owned_signals == {'traces', 'metrics', 'logs'}",
+                    "assert force_flush(500)",
+                    "assert shutdown_observability(500)",
+                ]
+            )
         else:
             checks.extend(
                 [
                     "import importlib.util",
                     "assert importlib.util.find_spec('mcp') is None",
+                    "assert importlib.util.find_spec('opentelemetry.sdk') is None",
+                    "from praval.observability import get_logger, get_meter",
+                    "from praval.observability import get_tracer",
+                    "span = get_tracer().start_span('wheel-no-sdk')",
+                    "assert not span.is_recording()",
                 ]
             )
         subprocess.run([str(python), "-c", "; ".join(checks)], check=True)
@@ -64,7 +90,7 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("dist_dir", type=Path)
-    parser.add_argument("--extra", default="", choices=("", "mcp"))
+    parser.add_argument("--extra", default="", choices=("", "mcp", "observability"))
     args = parser.parse_args()
     smoke_install(args.dist_dir, args.extra)
     print(f"Clean wheel smoke test passed (extra={args.extra or 'minimal'})")

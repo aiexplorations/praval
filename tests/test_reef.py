@@ -545,6 +545,15 @@ class TestReefIntegration:
         # Should have main channel
         assert reef1.get_channel("main") is not None
 
+    def test_global_reef_creation_guard_is_reentrant(self):
+        """Agent finalizers may request the Reef during lazy construction."""
+        from praval.core import reef as reef_module
+
+        with reef_module._global_reef_lock:
+            reef = get_reef()
+
+        assert reef.get_channel("main") is not None
+
     def test_concurrent_access(self):
         """Test thread-safe concurrent access to reef."""
         reef = Reef()

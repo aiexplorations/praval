@@ -11,6 +11,12 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from .core.exceptions import ProviderError
 from .models import ContentPart, EmbeddingRequest, EmbeddingResponse
+from .models.observation import ContentKind
+from .runtime_observation import (
+    operation_span,
+    record_content_reference,
+    record_model_facts,
+)
 
 DEFAULT_EMBEDDING_MODELS = {
     "sentence-transformers": "all-MiniLM-L6-v2",
@@ -53,24 +59,37 @@ class EmbeddingRuntime:
         """Embed one input or a list of inputs."""
         request = self._build_request(inputs)
         provider = self._normalize_provider(request.provider or self.provider)
-        if provider in {"sentence-transformers", "local"}:
-            embeddings = self._embed_sentence_transformers(request.inputs)
-            raw = None
-        elif provider in {"openai", "openai-compatible"}:
-            embeddings, raw = self._embed_openai_compatible(request, provider)
-        elif provider == "gemini":
-            embeddings, raw = self._embed_gemini(request)
-        else:
-            raise ProviderError(f"Unsupported embedding provider: {provider}")
+        with operation_span(
+            "embedding.invoke",
+            attributes={
+                "gen_ai.provider.name": provider,
+                "gen_ai.request.model": request.model,
+                "gen_ai.request.input_count": len(request.inputs),
+            },
+        ) as span:
+            for item in request.inputs:
+                record_content_reference(ContentKind.CONTEXT, item)
+            if provider in {"sentence-transformers", "local"}:
+                embeddings = self._embed_sentence_transformers(request.inputs)
+                raw = None
+            elif provider in {"openai", "openai-compatible"}:
+                embeddings, raw = self._embed_openai_compatible(request, provider)
+            elif provider == "gemini":
+                embeddings, raw = self._embed_gemini(request)
+            else:
+                raise ProviderError(f"Unsupported embedding provider: {provider}")
 
-        dimensions = len(embeddings[0]) if embeddings else request.dimensions
-        return EmbeddingResponse(
-            embeddings=embeddings,
-            provider=provider,
-            model=request.model,
-            dimensions=dimensions,
-            raw=raw,
-        )
+            dimensions = len(embeddings[0]) if embeddings else request.dimensions
+            if dimensions is not None:
+                span.set_attribute("gen_ai.response.embedding_dimensions", dimensions)
+            record_model_facts(provider=provider, model=request.model)
+            return EmbeddingResponse(
+                embeddings=embeddings,
+                provider=provider,
+                model=request.model,
+                dimensions=dimensions,
+                raw=raw,
+            )
 
     def embed_text(self, text: str) -> List[float]:
         """Embed a single text input and return the vector."""

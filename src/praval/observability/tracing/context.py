@@ -1,111 +1,113 @@
+"""Compatibility context values backed by OpenTelemetry context propagation.
+
+The v0.8.2 ``TraceContext`` name remains available for existing Spore helpers.
+Current-span storage and async isolation are provided entirely by the official
+OpenTelemetry context API. W3C Spore propagation replaces the legacy metadata
+keys in work package O4.
 """
-Trace context propagation.
 
-Handles propagation of trace context through Spore metadata and thread-local storage.
-"""
+from __future__ import annotations
 
-import threading
-from collections.abc import Mapping
-from typing import Optional
+from collections.abc import Mapping, MutableMapping
+from dataclasses import dataclass
+from typing import Any
 
-from .span import Span
+from opentelemetry.context import Context
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    Span,
+    SpanContext,
+    TraceFlags,
+    TraceState,
+    get_current_span,
+    set_span_in_context,
+)
 
-# Thread-local storage for current span
-_current_span = threading.local()
 
-
+@dataclass(frozen=True)
 class TraceContext:
-    """Trace context for propagation across agent boundaries."""
+    """Hex-encoded trace and parent-span identity for legacy Spore metadata."""
 
-    def __init__(self, trace_id: str, span_id: str):
-        """Initialize trace context.
+    trace_id: str
+    span_id: str
+    trace_flags: int = int(TraceFlags.SAMPLED)
 
-        Args:
-            trace_id: Trace identifier
-            span_id: Span identifier (parent for new spans)
-        """
-        self.trace_id = trace_id
-        self.span_id = span_id
+    def __post_init__(self) -> None:
+        """Require identifiers accepted by the OpenTelemetry API."""
+        if not _valid_identifier(self.trace_id, 32):
+            raise ValueError("trace_id must be 32 lowercase hexadecimal characters")
+        if not _valid_identifier(self.span_id, 16):
+            raise ValueError("span_id must be 16 lowercase hexadecimal characters")
+        supported_flags = int(TraceFlags.SAMPLED) | int(TraceFlags.RANDOM_TRACE_ID)
+        if self.trace_flags < 0 or self.trace_flags & ~supported_flags:
+            raise ValueError("trace_flags contains unsupported bits")
 
     @classmethod
     def from_span(cls, span: Span) -> "TraceContext":
-        """Create trace context from a span.
-
-        Args:
-            span: Span to extract context from
-
-        Returns:
-            TraceContext instance
-        """
-        return cls(trace_id=span.trace_id, span_id=span.span_id)
+        """Create a compatibility value from an official span."""
+        context = span.get_span_context()
+        if not context.is_valid:
+            raise ValueError("cannot create TraceContext from an invalid span")
+        return cls(
+            trace_id=f"{context.trace_id:032x}",
+            span_id=f"{context.span_id:016x}",
+            trace_flags=int(context.trace_flags),
+        )
 
     @classmethod
-    def from_spore(cls, spore) -> Optional["TraceContext"]:
-        """Extract trace context from Spore metadata.
-
-        Args:
-            spore: Spore object
-
-        Returns:
-            TraceContext if found in metadata, None otherwise
-        """
-        if not hasattr(spore, "metadata") or not spore.metadata:
-            return None
-
-        metadata = spore.metadata
+    def from_spore(cls, spore: Any) -> "TraceContext | None":
+        """Read supported v0.8.2 trace fields from Spore metadata."""
+        metadata = getattr(spore, "metadata", None)
         if not isinstance(metadata, Mapping):
             return None
-        if "trace_id" in metadata and "span_id" in metadata:
-            return cls(trace_id=metadata["trace_id"], span_id=metadata["span_id"])
-
-        return None
-
-    def inject_into_spore(self, spore) -> None:
-        """Inject trace context into Spore metadata.
-
-        Args:
-            spore: Spore object to inject context into
-        """
-        if not hasattr(spore, "metadata"):
-            return
-
-        if spore.metadata is None or not isinstance(spore.metadata, Mapping):
-            spore.metadata = {}
-
-        spore.metadata["trace_id"] = self.trace_id
-        spore.metadata["span_id"] = self.span_id
+        trace_id = metadata.get("trace_id")
+        span_id = metadata.get("span_id")
+        flags = metadata.get("trace_flags", int(TraceFlags.SAMPLED))
+        if not isinstance(trace_id, str) or not isinstance(span_id, str):
+            return None
+        if not isinstance(flags, int):
+            return None
+        try:
+            return cls(trace_id=trace_id, span_id=span_id, trace_flags=flags)
+        except ValueError:
+            return None
 
     @classmethod
-    def current(cls) -> Optional["TraceContext"]:
-        """Get current trace context from thread-local storage.
-
-        Returns:
-            TraceContext if available, None otherwise
-        """
+    def current(cls) -> "TraceContext | None":
+        """Return the current valid OpenTelemetry span context, if one exists."""
         span = get_current_span()
-        if span:
-            return cls.from_span(span)
-        return None
+        if not span.get_span_context().is_valid:
+            return None
+        return cls.from_span(span)
+
+    def as_context(self) -> Context:
+        """Return an official remote-parent context for span creation."""
+        span_context = SpanContext(
+            trace_id=int(self.trace_id, 16),
+            span_id=int(self.span_id, 16),
+            is_remote=True,
+            trace_flags=TraceFlags(self.trace_flags),
+            trace_state=TraceState(),
+        )
+        return set_span_in_context(NonRecordingSpan(span_context))
+
+    def inject_into_spore(self, spore: Any) -> None:
+        """Write supported v0.8.2 trace fields to mutable Spore metadata."""
+        if not hasattr(spore, "metadata"):
+            return
+        metadata = getattr(spore, "metadata", None)
+        if not isinstance(metadata, MutableMapping):
+            metadata = {}
+            spore.metadata = metadata
+        metadata["trace_id"] = self.trace_id
+        metadata["span_id"] = self.span_id
+        metadata["trace_flags"] = self.trace_flags
 
 
-def get_current_span() -> Optional[Span]:
-    """Get the currently active span from thread-local storage.
-
-    Returns:
-        Current Span if available, None otherwise
-    """
-    return getattr(_current_span, "span", None)
+def _valid_identifier(value: str, length: int) -> bool:
+    if len(value) != length or value == "0" * length:
+        return False
+    return all(character in "0123456789abcdef" for character in value)
 
 
-def set_current_span(span: Optional[Span]) -> None:
-    """Set the currently active span in thread-local storage.
-
-    Args:
-        span: Span to set as current, or None to clear
-    """
-    _current_span.span = span
-
-
-def clear_current_span() -> None:
-    """Clear the currently active span from thread-local storage."""
-    _current_span.span = None
+__all__ = ["TraceContext", "get_current_span"]

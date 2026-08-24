@@ -2340,12 +2340,19 @@ class Reef(ReefCore):
     pass
 
 
-# Global reef instance
-_global_reef = Reef()
+# The process-wide Reef is lazy so importing Praval has no worker side effects.
+_global_reef: Optional[Reef] = None
+_global_reef_lock = threading.RLock()
 
 
 def get_reef() -> Reef:
     """Get the global reef instance."""
+    global _global_reef
+    if _global_reef is None:
+        with _global_reef_lock:
+            if _global_reef is None:
+                _global_reef = Reef()
+    assert _global_reef is not None
     return _global_reef
 
 
@@ -2358,7 +2365,9 @@ def reset_reef() -> None:
     """
     global _global_reef
 
-    old_reef = _global_reef
-    old_reef._cancel_response_waiters("Reef reset while waiting for a response")
-    old_reef.shutdown(wait=False)
-    _global_reef = Reef()
+    with _global_reef_lock:
+        old_reef = _global_reef
+        _global_reef = None
+    if old_reef is not None:
+        old_reef._cancel_response_waiters("Reef reset while waiting for a response")
+        old_reef.shutdown(wait=False)

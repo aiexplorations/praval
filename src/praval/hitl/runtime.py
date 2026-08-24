@@ -6,9 +6,11 @@ import asyncio
 import concurrent.futures
 import inspect
 import json
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from ..core.exceptions import HITLConfigurationError, InterventionRequired
+from ..models.observation import HITLDecisionObservation
+from ..runtime_observation import record_hitl_decision
 from .models import InterventionDecision, InterventionRequest, InterventionStatus
 from .policy import approval_reason, requires_approval, risk_level
 from .store import HITLStore, get_hitl_store
@@ -186,6 +188,13 @@ class HITLRuntime:
                     "risk_level": intervention.risk_level,
                 },
             )
+            record_hitl_decision(
+                HITLDecisionObservation(
+                    decision_id=intervention.id[:256],
+                    decision="requested",
+                    tool_name=function_name[:256] or None,
+                )
+            )
 
             raise InterventionRequired(
                 intervention_id=intervention.id,
@@ -278,6 +287,7 @@ class HITLRuntime:
                     "reviewer": intervention.reviewer,
                 },
             )
+            self._record_decision_fact(intervention)
             return None, {}, f"Rejected by human reviewer: {reason}"
 
         tool_map = self._tool_map(available_tools)
@@ -300,8 +310,36 @@ class HITLRuntime:
                 "reviewer": intervention.reviewer,
             },
         )
+        self._record_decision_fact(intervention)
 
         return tool_def, args, None
+
+    @staticmethod
+    def _record_decision_fact(intervention: InterventionRequest) -> None:
+        """Aggregate a privacy-safe human decision into active observations."""
+        if not intervention.id:
+            return
+        decisions: Dict[
+            InterventionDecision, Literal["approved", "edited", "rejected"]
+        ] = {
+            InterventionDecision.APPROVE: "approved",
+            InterventionDecision.EDIT: "edited",
+            InterventionDecision.REJECT: "rejected",
+        }
+        intervention_decision = intervention.decision
+        if intervention_decision is None:
+            return
+        decision = decisions.get(intervention_decision)
+        if decision is None:
+            return
+        record_hitl_decision(
+            HITLDecisionObservation(
+                decision_id=intervention.id[:256],
+                decision=decision,
+                tool_name=intervention.tool_name[:256] or None,
+                reviewer_type="human" if intervention.reviewer else None,
+            )
+        )
 
     def _execute_tool(self, tool_def: Dict[str, Any], args: Dict[str, Any]) -> str:
         if tool_def.get("async_only"):

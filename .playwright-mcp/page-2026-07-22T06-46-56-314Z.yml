@@ -1,0 +1,266 @@
+- generic [active] [ref=e1]:
+  - link "Skip to article" [ref=e2] [cursor=pointer]:
+    - /url: "#blog-main"
+  - navigation "Primary navigation" [ref=e3]:
+    - generic [ref=e4]:
+      - link "Praval home" [ref=e5] [cursor=pointer]:
+        - /url: ../index.html
+        - generic [ref=e7]: Praval
+      - list [ref=e8]:
+        - listitem [ref=e9]:
+          - link "Architecture" [ref=e10] [cursor=pointer]:
+            - /url: ../index.html#architecture
+        - listitem [ref=e11]:
+          - link "Capabilities" [ref=e12] [cursor=pointer]:
+            - /url: ../index.html#capabilities
+        - listitem [ref=e13]:
+          - link "Examples" [ref=e14] [cursor=pointer]:
+            - /url: ../index.html#examples
+        - listitem [ref=e15]:
+          - link "Docs" [ref=e16] [cursor=pointer]:
+            - /url: ../docs/
+        - listitem [ref=e17]:
+          - link "Blog" [ref=e18] [cursor=pointer]:
+            - /url: index.html?post=praval-architecture
+        - listitem [ref=e19]:
+          - link "GitHub" [ref=e20] [cursor=pointer]:
+            - /url: https://github.com/aiexplorations/praval
+            - text: GitHub ↗
+  - banner [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - paragraph [ref=e24]: Praval field notes
+        - paragraph [ref=e26]: Engineering agentic systems in the open._
+      - paragraph [ref=e27]: Architecture decisions, benchmarks, release notes, and lessons from building coordinated AI systems with Praval.
+  - generic [ref=e29]:
+    - generic [ref=e30]:
+      - generic [ref=e31]: Browse the journal
+      - generic [ref=e32]: Latest first
+    - generic [ref=e33]:
+      - button "Scroll left" [ref=e34] [cursor=pointer]
+      - generic [ref=e37]:
+        - 'link "July 19, 2026 Praval 0.8.1: from model calls to working agent systems Model calls are the easy part. Praval 0.8.1 connects them to tools, human approval, memory, and multi-agent coordination." [ref=e38] [cursor=pointer]':
+          - /url: "?post=praval-0.8.1"
+          - generic [ref=e39]: July 19, 2026
+          - generic [ref=e40]: "Praval 0.8.1: from model calls to working agent systems"
+          - generic [ref=e41]: Model calls are the easy part. Praval 0.8.1 connects them to tools, human approval, memory, and multi-agent coordination.
+        - 'link "March 8, 2026 Scaling Agent Systems: Why Communication Topology Matters More Than Agent Count A founder-technical reflection on what a recent scaling paper gets right, where multi-agent systems fail, and why Praval''s Reef layer is designed around coordination economics rather than agent count." [ref=e42] [cursor=pointer]':
+          - /url: "?post=scaling-agent-systems-reef-praval"
+          - generic [ref=e43]: March 8, 2026
+          - generic [ref=e44]: "Scaling Agent Systems: Why Communication Topology Matters More Than Agent Count"
+          - generic [ref=e45]: A founder-technical reflection on what a recent scaling paper gets right, where multi-agent systems fail, and why Praval's Reef layer is designed around coordination economics rather than agent count.
+        - 'link "December 12, 2025 Building Praval Deep Research: When Agents Learn to Think About Papers A technical walkthrough of building an agentic research assistant: the bugs encountered, the architectural decisions, and the code that makes it work." [ref=e46] [cursor=pointer]':
+          - /url: "?post=praval-deep-research"
+          - generic [ref=e47]: December 12, 2025
+          - generic [ref=e48]: "Building Praval Deep Research: When Agents Learn to Think About Papers"
+          - generic [ref=e49]: "A technical walkthrough of building an agentic research assistant: the bugs encountered, the architectural decisions, and the code that makes it work."
+        - 'link "December 9, 2025 From Local to Distributed: What Changed in Praval 0.7.11–0.7.20 A technical summary of nine Praval releases, from pluggable backends and RabbitMQ integration to deterministic agent synchronization." [ref=e50] [cursor=pointer]':
+          - /url: "?post=praval-0.7-distributed-agents"
+          - generic [ref=e51]: December 9, 2025
+          - generic [ref=e52]: "From Local to Distributed: What Changed in Praval 0.7.11–0.7.20"
+          - generic [ref=e53]: A technical summary of nine Praval releases, from pluggable backends and RabbitMQ integration to deterministic agent synchronization.
+        - 'link "December 7, 2025 Praval vs LangGraph vs CrewAI: Real Benchmarks from Building the Same System Three Times I built identical exoplanet Q&A systems using Praval, LangGraph, and CrewAI, then ran them through the same questions. Here are the actual latency numbers." [ref=e54] [cursor=pointer]':
+          - /url: "?post=framework-comparison"
+          - generic [ref=e55]: December 7, 2025
+          - generic [ref=e56]: "Praval vs LangGraph vs CrewAI: Real Benchmarks from Building the Same System Three Times"
+          - generic [ref=e57]: I built identical exoplanet Q&A systems using Praval, LangGraph, and CrewAI, then ran them through the same questions. Here are the actual latency numbers.
+        - link "November 24, 2025 Praval Architecture Deep Dive A detailed exploration of Praval's architecture, including the Reef communication layer, Spore lifecycle, and memory system." [ref=e58] [cursor=pointer]:
+          - /url: "?post=praval-architecture"
+          - generic [ref=e59]: November 24, 2025
+          - generic [ref=e60]: Praval Architecture Deep Dive
+          - generic [ref=e61]: A detailed exploration of Praval's architecture, including the Reef communication layer, Spore lifecycle, and memory system.
+        - link "November 14, 2025 Praval – Agentic AI Framework in Python Introduction to Praval, a Pythonic agentic AI framework for multi-agent system development inspired by coral ecosystems." [ref=e62] [cursor=pointer]:
+          - /url: "?post=praval-introduction"
+          - generic [ref=e63]: November 14, 2025
+          - generic [ref=e64]: Praval – Agentic AI Framework in Python
+          - generic [ref=e65]: Introduction to Praval, a Pythonic agentic AI framework for multi-agent system development inspired by coral ecosystems.
+      - button "Scroll right" [ref=e66] [cursor=pointer]
+  - main [ref=e69]:
+    - article [ref=e70]:
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - paragraph [ref=e73]:
+            - generic [ref=e74]: LOG
+            - text: Architecture journal
+          - 'heading "Praval 0.8.1: from model calls to working agent systems" [level=1] [ref=e75]'
+          - generic [ref=e76]: Praval Project • July 19, 2026 • 11 min read
+        - generic [ref=e77]:
+          - paragraph [ref=e78]: Most AI applications begin with a model call. The difficult work starts later. The model needs access to data and tools. Some actions need a person's approval. Stored knowledge has to remain compatible with the embedding model that created it. If several agents share the work, the application needs to know which messages belong to which request and when the work is finished.
+          - paragraph [ref=e79]: Praval 0.8.1 is about that transition. It keeps the small starting point, one Python Agent making one model request, but gives the application a path to grow without replacing its foundations at each stage.
+          - paragraph [ref=e80]: Since 0.7.22, Praval has gained a provider-neutral model runtime, a stronger tool system, persistent human approval, MCP tool support, richer media input, request-based speech, a separate embedding runtime, and more reliable tracing and cleanup. Reef remains the framework's communication layer for agent teams. These parts now meet at the Agent instead of behaving like unrelated subsystems.
+          - paragraph [ref=e81]: That is the central change in 0.8.1.
+          - heading "Why the release is numbered 0.8.1" [level=2] [ref=e82]
+          - paragraph [ref=e83]: Version 0.8.0 was briefly uploaded to PyPI during release preparation, then withdrawn before a matching Git tag and GitHub release existed. PyPI does not allow a deleted distribution filename to be reused. Rather than publish different artifacts under one version, the project moved to 0.8.1.
+          - paragraph [ref=e84]: "There is no 0.8.0 migration for users. Praval 0.8.1 is the first supported release in the 0.8 line:"
+          - generic [ref=e85]:
+            - text: praval / source
+            - code [ref=e86]: pip install praval==0.8.1
+          - paragraph [ref=e87]: The core package supports Python 3.9 through 3.13. The optional MCP extra requires Python 3.10 or newer, following the requirement of the official MCP SDK.
+          - heading "One Agent, one model interface" [level=2] [ref=e88]
+          - paragraph [ref=e89]: In earlier releases, Praval's model integrations exposed too much of the differences between provider SDKs. A useful framework cannot erase those differences, but it can stop them from leaking into every part of an application.
+          - paragraph [ref=e90]:
+            - code [ref=e91]: ModelRuntime
+            - text: "now translates a common Praval request into the selected provider's API and converts the result back into common response and streaming types. It supports OpenAI, Anthropic, Cohere, Gemini, and OpenAI-compatible endpoints. An Agent is the usual entry point:"
+          - generic [ref=e92]:
+            - text: praval / source
+            - code [ref=e93]: "from praval import Agent with Agent( \"analyst\", provider=\"openai\", model=\"gpt-5.4-mini\", system_message=\"Give a concise answer and state uncertainty.\", ) as analyst: response = analyst.generate(\"What should we verify before this release?\") print(response.content) print(response.usage)"
+          - paragraph [ref=e94]:
+            - code [ref=e95]: generate()
+            - text: returns more than text. The response can include the provider and model used, token usage, finish status, and tool-call information.
+            - code [ref=e96]: agenerate()
+            - text: offers the same path in async applications.
+            - code [ref=e97]: stream()
+            - text: and
+            - code [ref=e98]: astream()
+            - text: expose a common stream of events instead of provider-specific chunks. The older
+            - code [ref=e99]: chat()
+            - text: method remains available when a string is all the caller needs.
+          - paragraph [ref=e100]: The common interface does not claim that models are interchangeable. Gemini, Anthropic, OpenAI, and a local model served by Ollama may support different combinations of tools, structured output, images, and other media. Praval records those differences in model profiles and rejects capabilities that have not been declared for the selected model.
+          - paragraph [ref=e101]: An application can therefore change providers, use a private OpenAI-compatible server, or choose different models for different tasks without rewriting its control flow. The differences that matter remain explicit in the model profile.
+          - paragraph [ref=e102]:
+            - text: Structured output follows the same principle. Praval can ask a capable provider to constrain its answer to a requested JSON shape. The JSON is returned in
+            - code [ref=e103]: ModelResponse.content
+            - text: . Applications that require a hard schema guarantee should still parse and validate it locally. Provider constraint and application validation are different jobs.
+          - paragraph [ref=e104]:
+            - text: The
+            - link "ModelRuntime guide" [ref=e105] [cursor=pointer]:
+              - /url: https://pravalagents.com/docs/latest/guide/model-runtime.html
+            - text: documents the request, response, streaming, and capability model.
+          - heading "Tools turn an answer into an action" [level=2] [ref=e106]
+          - paragraph [ref=e107]: A model can draft a refund decision, but it cannot inspect an account or issue the refund unless the application gives it that authority. In Praval, that authority is represented by a tool with a JSON schema and a Python handler.
+          - paragraph [ref=e108]: Tools declared with decorators, shared tools, externally supplied schemas, and MCP tools now enter the same Agent registry. Registration is only the beginning. The application also needs consistent argument handling, error reporting, tracing, async execution, and approval rules.
+          - paragraph [ref=e109]:
+            - code [ref=e110]: Agent.add_tool_spec()
+            - text: lets an application attach a schema that was not created by a Praval decorator. That provides the bridge for generated schemas and remote tool catalogs without creating another execution system beside the existing one.
+          - heading "Approval is part of execution, not a prompt" [level=3] [ref=e111]
+          - paragraph [ref=e112]: Some tool calls should not run merely because a model requested them. Publishing a claim, changing production data, issuing a credit, or starting a deployment requires an authority boundary outside the model.
+          - paragraph [ref=e113]: Praval's human-in-the-loop support pauses a protected tool before its handler runs. It stores the requested arguments and the interrupted Agent run in SQLite. A reviewer can approve the request, edit its arguments, or reject it. The application can resume the stored run later, including from a different process.
+          - paragraph [ref=e114]: This is more useful than an in-memory callback. A web process can create the intervention, an operations console can review it, and a worker can continue it. If approval is required but the Agent has not been configured for human review, Praval fails closed and does not run the tool.
+          - paragraph [ref=e115]:
+            - text: The
+            - link "HITL guide" [ref=e116] [cursor=pointer]:
+              - /url: https://pravalagents.com/docs/latest/tutorials/hitl-interventions.html
+            - text: covers interruption, review, persistence, and resumption.
+          - heading "MCP tools use the same boundary" [level=3] [ref=e117]
+          - paragraph [ref=e118]: Praval 0.8.1 can consume tools from a Model Context Protocol server. The optional client discovers remote schemas, registers them with an Agent, calls the selected tool, and returns text or structured results through the normal tool path.
+          - paragraph [ref=e119]: It supports local stdio servers and remote Streamable HTTP servers. Tool names are prefixed with the server name to reduce collisions. Approval is required by default. Timeouts, result-size limits, tracing, cleanup, and secret redaction are applied by the client.
+          - paragraph [ref=e120]:
+            - text: The current scope is narrow. This release does not consume MCP resources or prompts, host an MCP server, manage OAuth, support legacy SSE, reconnect automatically, or bridge an open async MCP session into sync Agent code. MCP tools are used through
+            - code [ref=e121]: agenerate()
+            - text: or
+            - code [ref=e122]: astream()
+            - text: .
+          - paragraph [ref=e123]: "That limited scope is enough for a practical case: an organization already exposes a catalog, issue tracker, filesystem, or internal service through MCP, and wants its tools to participate in the same approval and tracing rules as local Python tools."
+          - paragraph [ref=e124]: "Install it with:"
+          - generic [ref=e125]:
+            - text: praval / source
+            - code [ref=e126]: pip install 'praval[mcp]==0.8.1'
+          - paragraph [ref=e127]:
+            - text: The
+            - link "MCP guide" [ref=e128] [cursor=pointer]:
+              - /url: https://pravalagents.com/docs/latest/guide/mcp.html
+            - text: includes stdio and Streamable HTTP examples and the security constraints.
+          - heading "Reef is still how agents work together" [level=2] [ref=e129]
+          - paragraph [ref=e130]: Praval did not add another agent-to-agent abstraction in 0.8.1. Reef remains the message layer for collaboration, and a Spore remains the message it delivers.
+          - paragraph [ref=e131]:
+            - text: This distinction is useful.
+            - code [ref=e132]: ModelRuntime
+            - text: is concerned with an Agent talking to a model. Reef is concerned with Agents talking to one another. A specialist can receive a Spore, use a model or a deterministic tool, and send its result back through Reef. The two layers meet at the Agent without becoming the same thing.
+          - paragraph [ref=e133]: Spores carry a message type, sender and recipient information, a domain payload, and identifiers that connect related work. A correlation ID can tie the original request to three specialist findings, a review, a revision, and the final result. The application can inspect that trail rather than reconstructing it from logs.
+          - paragraph [ref=e134]:
+            - text: The in-process Reef is suitable for one Python application. Its RabbitMQ backend can deliver the same message flow between processes or machines. Async Spore handlers are supported, and
+            - code [ref=e135]: wait_for_completion()
+            - text: lets callers wait for known Reef work instead of sleeping for an arbitrary time.
+          - paragraph [ref=e136]: Agent teams are not a default. If one model can complete a task clearly, one Agent is easier to run and debug. Reef becomes useful when specialists have distinct evidence, permissions, or work that can proceed independently. A research desk can gather market, customer, and competitor evidence in parallel. A support system can separate technical diagnosis from entitlement policy. A release team can run testing, security, packaging, and documentation checks under different responsibilities.
+          - paragraph [ref=e137]:
+            - text: The
+            - link "architecture article" [ref=e138] [cursor=pointer]:
+              - /url: index.html?post=praval-architecture
+            - text: explains Agent, Reef, Spore, and memory in more depth.
+            - link "Scaling Agent systems" [ref=e139] [cursor=pointer]:
+              - /url: index.html?post=scaling-agent-systems-reef-praval
+            - text: examines the cost of coordination and when another Agent is worth adding.
+          - heading "The rest of the application now fits around that path" [level=2] [ref=e140]
+          - paragraph [ref=e141]: Model calls, tools, and Reef describe the main execution path. Several supporting changes make that path usable beyond a demo.
+          - heading "Media and request-based voice" [level=3] [ref=e142]
+          - paragraph [ref=e143]: Praval can represent text, images, files, audio, and video as typed content parts, subject to the selected model's capabilities. OpenAI and Anthropic support image input through their current adapters. Gemini provides the broadest media path in this release, including supported file, audio, and video inputs.
+          - paragraph [ref=e144]:
+            - text: OpenAI-backed Agents also provide
+            - code [ref=e145]: transcribe()
+            - text: and
+            - code [ref=e146]: speak()
+            - text: . An application can transcribe an audio note, pass the text through a normal Agent and its tools, then generate a spoken reply. This is useful for voice notes, spoken reports, and accessibility features.
+          - paragraph [ref=e147]: It is not a realtime voice session. Praval does not yet keep a persistent WebRTC or WebSocket connection open for continuous audio, interruptions, and turn taking.
+          - heading "Embeddings, memory, and storage" [level=3] [ref=e148]
+          - paragraph [ref=e149]:
+            - code [ref=e150]: EmbeddingRuntime
+            - text: separates embedding configuration from chat configuration. It supports SentenceTransformers, OpenAI, Gemini, and OpenAI-compatible embedding endpoints. Praval also detects when a stored vector collection was created with a different model or vector size and tells the application to reindex it.
+          - paragraph [ref=e151]: That boundary prevents a chat model change from silently corrupting semantic retrieval. Short-term, episodic, semantic, and long-term memory remain separate because an active case, a past interaction, retrieved knowledge, and a durable preference have different lifetimes.
+          - paragraph [ref=e152]:
+            - text: Storage is async and covers the local filesystem, PostgreSQL, Redis, S3-compatible object storage, and Qdrant. PDF support now uses
+            - code [ref=e153]: pypdf
+            - text: . Praval does not hide automatic fallback between these providers. The application remains responsible for its reliability policy.
+          - heading "Traces and cleanup" [level=3] [ref=e154]
+          - paragraph [ref=e155]: Praval records execution as traces containing timed spans. Spans can be printed, stored in SQLite, or exported through OTLP over HTTP. In 0.8.1, a span is finalized before it is stored, it is stored once, and sync and async instrumentation follow the same lifecycle.
+          - paragraph [ref=e156]:
+            - code [ref=e157]: PravalApp
+            - text: owns cleanup for the Agents and Reef it creates. It is a lifecycle helper, not a dependency injection container. MCP clients, storage providers, and exporters should also be closed by the code that creates them.
+          - paragraph [ref=e158]: These details rarely lead a product demo, but they determine whether a failure can be understood and whether an application exits cleanly.
+          - heading "What this makes practical" [level=2] [ref=e159]
+          - paragraph [ref=e160]: The new pieces are most useful when they are combined around a real boundary.
+          - paragraph [ref=e161]: In customer support, one Agent can triage a case while specialists retrieve customer history, current service status, technical guidance, and entitlement rules. The model can prepare a service credit, but a protected tool can hold it for review. The final case record can preserve the evidence, policy decision, human intervention, and customer response.
+          - paragraph [ref=e162]: In release engineering, Agents can coordinate tests, security review, package validation, and documentation checks. Tools run the checks, rather than asking a model to guess their result. Reef retains the review trail, and traces show which operation failed. A human can remain the authority for the final deployment action.
+          - paragraph [ref=e163]: In research, parallel specialists can gather different kinds of evidence. An auditor can reject stale or unsupported claims before an editor produces a brief. Correlation IDs and memory make the evidence and revision history inspectable.
+          - paragraph [ref=e164]: In marketing, a team can analyze a product screenshot and customer interviews, propose positioning, prepare channel assets, and compare claims with approved facts. The publication tool can pause for a person. Campaign memory can retain the winning message and the next experiment instead of treating every run as a blank slate.
+          - paragraph [ref=e165]:
+            - text: The repository includes these systems as
+            - link "Jupyter case studies" [ref=e166] [cursor=pointer]:
+              - /url: https://github.com/aiexplorations/praval/tree/main/examples/notebooks/case_studies
+            - text: ", alongside a 13-part course that begins with one Agent and builds toward tools, memory, Reef, MCP, and voice."
+          - heading "What Praval still does not do" [level=2] [ref=e167]
+          - paragraph [ref=e168]: Praval 0.8.1 is not an autonomous application platform. It does not supply a hidden retry policy for every provider, a universal circuit breaker, or automatic storage failover. It does not make all model capabilities equivalent. It does not turn request-based speech into a realtime conversation. Its MCP support is a tools-only client.
+          - paragraph [ref=e169]: These limits are intentional release boundaries, not claims that the problems are unimportant. Applications should own business retries, validate critical structured output, choose storage recovery rules, and test the actual models and services they intend to use.
+          - paragraph [ref=e170]: A direct provider SDK may still be the better choice for one stable model call. A normal Python function is better for deterministic work that does not need a model. One Agent is better than a team when the extra communication adds no useful separation of responsibility.
+          - heading "Learning and verification" [level=2] [ref=e171]
+          - paragraph [ref=e172]:
+            - text: Praval now has two layers of learning material. The 13 course notebooks explain the framework from first principles. Four larger case studies show complete systems without explaining every line. The
+            - link "notebook collection" [ref=e173] [cursor=pointer]:
+              - /url: https://github.com/aiexplorations/praval/tree/main/examples/notebooks
+            - text: is the best place to see Agents, Spores, tools, memory, approval, and traces while they run. Companion material also appears on the
+            - link "Praval AI YouTube channel" [ref=e174] [cursor=pointer]:
+              - /url: https://www.youtube.com/@praval-ai
+            - text: .
+          - paragraph [ref=e175]: Normal CI tests Python 3.9 through 3.13, builds the package and documentation, checks MCP contracts, and runs offline demos against the built wheel rather than the source tree. Checks that spend money or require external accounts remain manual. A developer supplies provider keys to test live model behavior, model-generated tool calls, image input, transcription, and speech generation.
+          - paragraph [ref=e176]: "The package includes a diagnostic command that reports the installed version and path, Python runtime, optional dependencies, and the presence of provider configuration without printing secret values:"
+          - generic [ref=e177]:
+            - text: praval / source
+            - code [ref=e178]: praval doctor
+          - paragraph [ref=e179]:
+            - text: Praval 0.8.1 is available on
+            - link "PyPI" [ref=e180] [cursor=pointer]:
+              - /url: https://pypi.org/project/praval/0.8.1/
+            - text: and in the matching
+            - link "GitHub release" [ref=e181] [cursor=pointer]:
+              - /url: https://github.com/aiexplorations/praval/releases/tag/v0.8.1
+            - text: . The
+            - link "reference documentation" [ref=e182] [cursor=pointer]:
+              - /url: https://pravalagents.com/docs/latest/
+            - text: covers the public API.
+          - paragraph [ref=e183]: The sensible way to begin has not changed. Start with one Agent. Add a tool when it needs to act. Add approval when that action needs authority. Add Reef when separate specialists have useful work to do.
+  - contentinfo [ref=e184]:
+    - generic [ref=e185]:
+      - generic [ref=e186]:
+        - link "Praval home" [ref=e187] [cursor=pointer]:
+          - /url: ../index.html
+          - generic [ref=e189]: Praval
+        - paragraph [ref=e190]: Simple agents. Powerful ecosystems.
+      - generic [ref=e191]:
+        - link "Documentation" [ref=e192] [cursor=pointer]:
+          - /url: ../docs/
+        - link "PyPI ↗" [ref=e193] [cursor=pointer]:
+          - /url: https://pypi.org/project/praval/
+        - link "GitHub ↗" [ref=e194] [cursor=pointer]:
+          - /url: https://github.com/aiexplorations/praval
+    - generic [ref=e195]:
+      - generic [ref=e196]: © 2026 Praval. Released under the MIT License.
+      - generic [ref=e197]: Field notes from the Reef

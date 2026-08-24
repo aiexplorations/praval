@@ -64,8 +64,8 @@ def _current_docs_text():
 def test_every_top_level_export_is_classified_and_documented():
     report = api_surface.validate_api_surface(ROOT)
 
-    assert report["exported"] == 89
-    assert report["documented"] == 89
+    assert report["exported"] == 93
+    assert report["documented"] == 93
     assert report["coverage_percent"] == 100.0
     assert report["errors"] == []
 

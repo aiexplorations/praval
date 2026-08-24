@@ -12,6 +12,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from ..models.observation import ContentKind
+from ..runtime_observation import record_content_reference, trace_operation
 from .embedded_store import EmbeddedVectorStore
 from .episodic_memory import EpisodicMemory
 from .long_term_memory import LongTermMemory
@@ -162,6 +164,7 @@ class MemoryManager:
             f"semantic={'enabled' if self.semantic_memory else 'disabled'}"
         )
 
+    @trace_operation("memory.store")
     def store_memory(
         self,
         agent_id: str,
@@ -185,6 +188,7 @@ class MemoryManager:
         Returns:
             Memory ID
         """
+        record_content_reference(ContentKind.CONTEXT, content)
         memory = MemoryEntry(
             id=None,
             agent_id=agent_id,
@@ -219,6 +223,7 @@ class MemoryManager:
 
         return memory_id
 
+    @trace_operation("memory.retrieve")
     def retrieve_memory(self, memory_id: str) -> Optional[MemoryEntry]:
         """
         Retrieve a specific memory by ID
@@ -241,8 +246,11 @@ class MemoryManager:
             if memory:
                 self.short_term_memory.store(memory)
 
+        if memory is not None:
+            record_content_reference(ContentKind.RETRIEVED_DOCUMENT, memory.content)
         return memory
 
+    @trace_operation("memory.search")
     def search_memories(self, query: MemoryQuery) -> MemorySearchResult:
         """
         Search memories across all systems
@@ -253,6 +261,7 @@ class MemoryManager:
         Returns:
             Combined search results
         """
+        record_content_reference(ContentKind.CONTEXT, query)
         results = []
 
         # Search short-term memory
@@ -273,7 +282,10 @@ class MemoryManager:
                 results.append(("persistent", persistent_results))
 
         # Combine and deduplicate results
-        return self._combine_search_results(results, query)
+        combined = self._combine_search_results(results, query)
+        for entry in combined.entries:
+            record_content_reference(ContentKind.RETRIEVED_DOCUMENT, entry.content)
+        return combined
 
     def get_conversation_context(
         self, agent_id: str, turns: int = 10
@@ -294,6 +306,7 @@ class MemoryManager:
             # Fallback to general recent memories
             return self.short_term_memory.get_recent(agent_id=agent_id, limit=turns)
 
+    @trace_operation("memory.store_conversation_turn")
     def store_conversation_turn(
         self,
         agent_id: str,
@@ -313,6 +326,8 @@ class MemoryManager:
         Returns:
             Memory ID
         """
+        record_content_reference(ContentKind.PROMPT, user_message)
+        record_content_reference(ContentKind.RESPONSE, agent_response)
         if self.episodic_memory:
             return self.episodic_memory.store_conversation_turn(
                 agent_id, user_message, agent_response, context

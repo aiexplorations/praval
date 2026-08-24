@@ -16,8 +16,14 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..model_runtime import ModelRuntime
 from ..models import AudioResponse, SpeechRequest, ToolSpec, TranscriptionRequest
+from ..models.observation import ContentKind, ObservationKind
 from ..providers.factory import ProviderFactory
 from ..providers.registry import get_provider_registry
+from ..runtime_observation import (
+    ObservationScope,
+    record_content_reference,
+    record_model_facts,
+)
 from .exceptions import (
     HITLConfigurationError,
     InterventionRequired,
@@ -54,6 +60,7 @@ class AgentConfig:
     system_message: Optional[str] = None
     timeout: Optional[float] = None
     retries: int = 2
+    max_tool_rounds: int = 8
     stream: bool = False
     response_schema: Optional[Dict[str, Any]] = None
     reasoning: Optional[Dict[str, Any]] = None
@@ -79,6 +86,10 @@ class AgentConfig:
             raise ValueError("max_output_tokens must be positive")
         if self.retries < 0:
             raise ValueError("retries must be non-negative")
+        if self.max_tool_rounds <= 0:
+            raise ValueError("max_tool_rounds must be positive")
+        if self.max_tool_rounds > 1000:
+            raise ValueError("max_tool_rounds must not exceed 1000")
         if self.provider_options is None:
             self.provider_options = {}
         if self.stream_options is None:
@@ -155,6 +166,7 @@ class Agent:
         self._hitl_enabled = hitl_enabled
         self._hitl_db_path = hitl_db_path
         self._hitl_service = None
+        self._conversation_id = str(uuid.uuid4())
 
         # Lifecycle management
         self._closed = False
@@ -284,6 +296,17 @@ class Agent:
             self._hitl_service = HITLService(db_path=self._hitl_db_path)
         return self._hitl_service
 
+    def _observation_scope(self, run_id: str, request_mode: str) -> ObservationScope:
+        """Create or join this agent's invocation observation."""
+        return ObservationScope(
+            kind=ObservationKind.AGENT,
+            run_id=run_id,
+            agent_id=self.name,
+            agent_name=self.name,
+            conversation_id=self._conversation_id,
+            request_mode=request_mode,
+        )
+
     def chat(self, message: Union[str, None]) -> str:
         """
         Send a message to the agent and get a response.
@@ -306,30 +329,35 @@ class Agent:
         self._trim_history()
         run_id = str(uuid.uuid4())
 
-        try:
-            # Generate response using the provider-neutral runtime.
-            response = self.runtime.generate_text(
-                messages=self.conversation_history,
-                tools=list(self.tools.values()) if self.tools else None,
-                hitl_context=self._build_hitl_context(run_id),
-            )
+        with self._observation_scope(run_id, "chat"):
+            record_content_reference(ContentKind.PROMPT, message)
+            try:
+                # Generate response using the provider-neutral runtime.
+                response = self.runtime.generate_text(
+                    messages=self.conversation_history,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=self._build_hitl_context(run_id),
+                )
 
-            # Add assistant response to history
-            self.conversation_history.append({"role": "assistant", "content": response})
-            self._trim_history()
+                # Add assistant response to history
+                self.conversation_history.append(
+                    {"role": "assistant", "content": response}
+                )
+                self._trim_history()
+                record_content_reference(ContentKind.RESPONSE, response)
 
-            # ==========================================
+                # ==========================================
 
-            # Save state if persistence is enabled
-            if self.persist_state:
-                self._save_state()
+                # Save state if persistence is enabled
+                if self.persist_state:
+                    self._save_state()
 
-            return response
+                return response
 
-        except (InterventionRequired, HITLConfigurationError):
-            raise
-        except Exception as e:
-            raise PravalError(f"Failed to generate response: {str(e)}") from e
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as e:
+                raise PravalError(f"Failed to generate response: {str(e)}") from e
 
     def generate(self, message: Any, **kwargs: Any) -> Any:
         """
@@ -345,30 +373,34 @@ class Agent:
         self._trim_history()
         run_id = str(uuid.uuid4())
 
-        try:
-            response = self.runtime.invoke(
-                messages=self.conversation_history,
-                tools=list(self.tools.values()) if self.tools else None,
-                hitl_context=self._build_hitl_context(run_id),
-                response_schema=kwargs.get("response_schema"),
-                reasoning=kwargs.get("reasoning"),
-                provider_options=kwargs.get("provider_options"),
-                timeout=kwargs.get("timeout"),
-                metadata=kwargs.get("metadata"),
-                stream_options=kwargs.get("stream_options"),
-                stream=bool(kwargs.get("stream", False)),
-            )
-            self.conversation_history.append(
-                {"role": "assistant", "content": response.content}
-            )
-            self._trim_history()
-            if self.persist_state:
-                self._save_state()
-            return response
-        except (InterventionRequired, HITLConfigurationError):
-            raise
-        except Exception as e:
-            raise PravalError(f"Failed to generate response: {str(e)}") from e
+        with self._observation_scope(run_id, "generate"):
+            record_content_reference(ContentKind.PROMPT, message)
+            try:
+                response = self.runtime.invoke(
+                    messages=self.conversation_history,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=self._build_hitl_context(run_id),
+                    response_schema=kwargs.get("response_schema"),
+                    reasoning=kwargs.get("reasoning"),
+                    provider_options=kwargs.get("provider_options"),
+                    timeout=kwargs.get("timeout"),
+                    metadata=kwargs.get("metadata"),
+                    stream_options=kwargs.get("stream_options"),
+                    stream=bool(kwargs.get("stream", False)),
+                    max_tool_rounds=kwargs.get("max_tool_rounds"),
+                )
+                self.conversation_history.append(
+                    {"role": "assistant", "content": response.content}
+                )
+                self._trim_history()
+                record_content_reference(ContentKind.RESPONSE, response.content)
+                if self.persist_state:
+                    self._save_state()
+                return response
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as e:
+                raise PravalError(f"Failed to generate response: {str(e)}") from e
 
     def transcribe(
         self,
@@ -386,39 +418,54 @@ class Agent:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Transcribe request-based audio without changing chat history."""
-        transcribe = getattr(self.provider, "transcribe", None)
-        if not callable(transcribe):
-            raise ProviderError(
-                f"Provider '{self.provider_name}' does not support audio transcription"
+        run_id = str(uuid.uuid4())
+        with self._observation_scope(run_id, "transcription"):
+            record_content_reference(ContentKind.MEDIA, audio, media_type=mime_type)
+            transcribe = getattr(self.provider, "transcribe", None)
+            if not callable(transcribe):
+                raise ProviderError(
+                    f"Provider '{self.provider_name}' does not support "
+                    "audio transcription"
+                )
+            response = transcribe(
+                TranscriptionRequest(
+                    audio=audio,
+                    provider=self.provider_name,
+                    model=model,
+                    filename=filename,
+                    mime_type=mime_type,
+                    language=language,
+                    prompt=prompt,
+                    response_format=response_format,
+                    temperature=temperature,
+                    provider_options=provider_options or {},
+                    timeout=timeout,
+                    metadata=metadata or {},
+                )
             )
-        response = transcribe(
-            TranscriptionRequest(
-                audio=audio,
+            record_model_facts(
                 provider=self.provider_name,
-                model=model,
-                filename=filename,
-                mime_type=mime_type,
-                language=language,
-                prompt=prompt,
-                response_format=response_format,
-                temperature=temperature,
-                provider_options=provider_options or {},
-                timeout=timeout,
-                metadata=metadata or {},
+                model=(
+                    response.model
+                    if isinstance(response, AudioResponse) and response.model
+                    else model or self.config.model
+                ),
+                request_mode="transcription",
             )
-        )
-        if isinstance(response, AudioResponse):
-            if response.text:
-                return response.text
+            if isinstance(response, AudioResponse):
+                if response.text:
+                    record_content_reference(ContentKind.RESPONSE, response.text)
+                    return response.text
+                raise ProviderError(
+                    f"Provider '{self.provider_name}' returned no transcription text"
+                )
+            if isinstance(response, str) and response:
+                record_content_reference(ContentKind.RESPONSE, response)
+                return response
             raise ProviderError(
-                f"Provider '{self.provider_name}' returned no transcription text"
+                f"Provider '{self.provider_name}' returned an invalid "
+                "transcription response"
             )
-        if isinstance(response, str) and response:
-            return response
-        raise ProviderError(
-            f"Provider '{self.provider_name}' returned an invalid "
-            "transcription response"
-        )
 
     def speak(
         self,
@@ -436,36 +483,55 @@ class Agent:
         """Synthesize request-based speech without changing chat history."""
         if not text or not text.strip():
             raise ValueError("Speech text cannot be empty")
-        speak = getattr(self.provider, "speak", None)
-        if not callable(speak):
-            raise ProviderError(
-                f"Provider '{self.provider_name}' does not support speech generation"
+        run_id = str(uuid.uuid4())
+        with self._observation_scope(run_id, "speech"):
+            record_content_reference(ContentKind.PROMPT, text)
+            speak = getattr(self.provider, "speak", None)
+            if not callable(speak):
+                raise ProviderError(
+                    f"Provider '{self.provider_name}' does not support speech "
+                    "generation"
+                )
+            response = speak(
+                SpeechRequest(
+                    input=text,
+                    provider=self.provider_name,
+                    model=model,
+                    voice=voice,
+                    response_format=response_format,
+                    speed=speed,
+                    instructions=instructions,
+                    provider_options=provider_options or {},
+                    timeout=timeout,
+                    metadata=metadata or {},
+                )
             )
-        response = speak(
-            SpeechRequest(
-                input=text,
+            record_model_facts(
                 provider=self.provider_name,
-                model=model,
-                voice=voice,
-                response_format=response_format,
-                speed=speed,
-                instructions=instructions,
-                provider_options=provider_options or {},
-                timeout=timeout,
-                metadata=metadata or {},
+                model=(
+                    response.model
+                    if isinstance(response, AudioResponse) and response.model
+                    else model or self.config.model
+                ),
+                request_mode="speech",
             )
-        )
-        if isinstance(response, AudioResponse):
-            if response.data:
-                return response.data
+            if isinstance(response, AudioResponse):
+                if response.data:
+                    record_content_reference(
+                        ContentKind.MEDIA,
+                        response.data,
+                        media_type=response.mime_type,
+                    )
+                    return response.data
+                raise ProviderError(
+                    f"Provider '{self.provider_name}' returned no synthesized audio"
+                )
+            if isinstance(response, bytes) and response:
+                record_content_reference(ContentKind.MEDIA, response)
+                return response
             raise ProviderError(
-                f"Provider '{self.provider_name}' returned no synthesized audio"
+                f"Provider '{self.provider_name}' returned an invalid speech response"
             )
-        if isinstance(response, bytes) and response:
-            return response
-        raise ProviderError(
-            f"Provider '{self.provider_name}' returned an invalid speech response"
-        )
 
     async def agenerate(self, message: Any, **kwargs: Any) -> Any:
         """Async wrapper for generate()."""
@@ -476,24 +542,28 @@ class Agent:
         self._trim_history()
         run_id = str(uuid.uuid4())
 
-        response = await self.runtime.ainvoke(
-            messages=self.conversation_history,
-            tools=list(self.tools.values()) if self.tools else None,
-            hitl_context=self._build_hitl_context(run_id),
-            response_schema=kwargs.get("response_schema"),
-            reasoning=kwargs.get("reasoning"),
-            provider_options=kwargs.get("provider_options"),
-            timeout=kwargs.get("timeout"),
-            metadata=kwargs.get("metadata"),
-            stream_options=kwargs.get("stream_options"),
-        )
-        self.conversation_history.append(
-            {"role": "assistant", "content": response.content}
-        )
-        self._trim_history()
-        if self.persist_state:
-            self._save_state()
-        return response
+        with self._observation_scope(run_id, "generate_async"):
+            record_content_reference(ContentKind.PROMPT, message)
+            response = await self.runtime.ainvoke(
+                messages=self.conversation_history,
+                tools=list(self.tools.values()) if self.tools else None,
+                hitl_context=self._build_hitl_context(run_id),
+                response_schema=kwargs.get("response_schema"),
+                reasoning=kwargs.get("reasoning"),
+                provider_options=kwargs.get("provider_options"),
+                timeout=kwargs.get("timeout"),
+                metadata=kwargs.get("metadata"),
+                stream_options=kwargs.get("stream_options"),
+                max_tool_rounds=kwargs.get("max_tool_rounds"),
+            )
+            self.conversation_history.append(
+                {"role": "assistant", "content": response.content}
+            )
+            self._trim_history()
+            record_content_reference(ContentKind.RESPONSE, response.content)
+            if self.persist_state:
+                self._save_state()
+            return response
 
     def stream(self, message: Any, **kwargs: Any) -> Any:
         """Stream provider-neutral model events."""
@@ -501,17 +571,25 @@ class Agent:
             raise ValueError("Message cannot be empty")
         self.conversation_history.append({"role": "user", "content": message})
         self._trim_history()
-        return self.runtime.stream(
-            messages=self.conversation_history,
-            tools=list(self.tools.values()) if self.tools else None,
-            hitl_context=self._build_hitl_context(str(uuid.uuid4())),
-            response_schema=kwargs.get("response_schema"),
-            reasoning=kwargs.get("reasoning"),
-            provider_options=kwargs.get("provider_options"),
-            timeout=kwargs.get("timeout"),
-            metadata=kwargs.get("metadata"),
-            stream_options=kwargs.get("stream_options"),
-        )
+        run_id = str(uuid.uuid4())
+
+        def observed_stream() -> Any:
+            with self._observation_scope(run_id, "stream"):
+                record_content_reference(ContentKind.PROMPT, message)
+                yield from self.runtime.stream(
+                    messages=self.conversation_history,
+                    tools=list(self.tools.values()) if self.tools else None,
+                    hitl_context=self._build_hitl_context(run_id),
+                    response_schema=kwargs.get("response_schema"),
+                    reasoning=kwargs.get("reasoning"),
+                    provider_options=kwargs.get("provider_options"),
+                    timeout=kwargs.get("timeout"),
+                    metadata=kwargs.get("metadata"),
+                    stream_options=kwargs.get("stream_options"),
+                    max_tool_rounds=kwargs.get("max_tool_rounds"),
+                )
+
+        return observed_stream()
 
     async def astream(self, message: Any, **kwargs: Any) -> Any:
         """Asynchronously stream provider-neutral model events."""
@@ -519,18 +597,22 @@ class Agent:
             raise ValueError("Message cannot be empty")
         self.conversation_history.append({"role": "user", "content": message})
         self._trim_history()
-        async for event in self.runtime.astream(
-            messages=self.conversation_history,
-            tools=list(self.tools.values()) if self.tools else None,
-            hitl_context=self._build_hitl_context(str(uuid.uuid4())),
-            response_schema=kwargs.get("response_schema"),
-            reasoning=kwargs.get("reasoning"),
-            provider_options=kwargs.get("provider_options"),
-            timeout=kwargs.get("timeout"),
-            metadata=kwargs.get("metadata"),
-            stream_options=kwargs.get("stream_options"),
-        ):
-            yield event
+        run_id = str(uuid.uuid4())
+        with self._observation_scope(run_id, "stream_async"):
+            record_content_reference(ContentKind.PROMPT, message)
+            async for event in self.runtime.astream(
+                messages=self.conversation_history,
+                tools=list(self.tools.values()) if self.tools else None,
+                hitl_context=self._build_hitl_context(run_id),
+                response_schema=kwargs.get("response_schema"),
+                reasoning=kwargs.get("reasoning"),
+                provider_options=kwargs.get("provider_options"),
+                timeout=kwargs.get("timeout"),
+                metadata=kwargs.get("metadata"),
+                stream_options=kwargs.get("stream_options"),
+                max_tool_rounds=kwargs.get("max_tool_rounds"),
+            ):
+                yield event
 
     def configure_hitl(
         self,

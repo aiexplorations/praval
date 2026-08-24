@@ -1,0 +1,11 @@
+{
+  "artifacts": [
+    {
+      "filename": "praval-0.8.2-py3-none-any.whl",
+      "sha256": "b15d7bdfd85df4125f9183bb0c767dcd5510a6f9fa28cc82679c2c9156e985ff",
+      "size": 238475
+    }
+  ],
+  "commit": "30c4cd10f9e51ea8b97658577f0ea6d6ab8967fa",
+  "source_date_epoch": "1786124481"
+}

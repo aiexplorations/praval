@@ -64,6 +64,17 @@ exports = [
 ]
 
 [[surfaces]]
+name = "configuration"
+stability = "stable"
+documentation = "guide/application-lifecycle"
+exports = [
+  "PravalConfig",
+  "PravalConfigurationError",
+  "discover_config_path",
+  "load_config",
+]
+
+[[surfaces]]
 name = "hitl"
 stability = "optional"
 documentation = "tutorials/hitl-interventions"
@@ -161,6 +172,10 @@ documentation = "api/index"
 
 [[submodules]]
 name = "praval.app"
+documentation = "guide/application-lifecycle"
+
+[[submodules]]
+name = "praval.config"
 documentation = "guide/application-lifecycle"
 
 [[submodules]]

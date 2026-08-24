@@ -186,3 +186,23 @@ def test_optional_instrumentation_dependencies_are_debug_only(monkeypatch, caplo
     assert not [
         record for record in caplog.records if record.levelno >= logging.WARNING
     ]
+
+
+def test_missing_optional_memory_methods_are_ignored(monkeypatch):
+    from praval.memory.memory_manager import MemoryManager
+    from praval.observability.instrumentation import manager
+
+    manager.reset_instrumentation()
+    monkeypatch.delattr(MemoryManager, "store_memory")
+    monkeypatch.delattr(MemoryManager, "retrieve_memory")
+
+    manager._instrument_memory_operations()
+
+    assert (
+        "memory_manager.MemoryManager.store_memory" not in manager._original_functions
+    )
+    assert (
+        "memory_manager.MemoryManager.retrieve_memory"
+        not in manager._original_functions
+    )
+    manager.reset_instrumentation()

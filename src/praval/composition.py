@@ -13,11 +13,14 @@ Key Functions:
 
 import threading
 import time
+import uuid
 from typing import Any, Callable, Dict, Optional
 
 from .core.agent_runner import run_agents as _run_agents_impl
 from .core.reef import get_reef
 from .decorators import get_agent_info
+from .models.observation import ObservationKind
+from .runtime_observation import ObservationScope
 
 
 def agent_pipeline(*agents: Callable, channel: str = "pipeline") -> Callable:
@@ -159,16 +162,27 @@ class AgentSession:
         self.session_name = session_name
         self.channel_name = f"session_{session_name}"
         self.agents = []
+        self._workflow_id = str(uuid.uuid4())
+        self._observation_scope = None
 
     def __enter__(self):
         # Create session channel
         reef = get_reef()
         reef.create_channel(self.channel_name)
+        self._observation_scope = ObservationScope(
+            kind=ObservationKind.WORKFLOW,
+            workflow_id=self._workflow_id,
+            workflow_name=self.session_name,
+            request_mode="agent_session",
+        )
+        self._observation_scope.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Cleanup if needed (agents will remain subscribed)
-        pass
+        if self._observation_scope is not None:
+            return self._observation_scope.__exit__(exc_type, exc_val, exc_tb)
+        return False
 
     def add_agent(self, agent_func: Callable) -> "AgentSession":
         """Add an agent to this session."""

@@ -17,10 +17,10 @@ TYPE_CHECKS: Tuple[Tuple[str, Sequence[str]], ...] = (
         ("--python-version", "3.13", SOURCE),
     ),
     (
-        "Python 3.9 compatibility typing",
+        "Python 3.10 compatibility typing",
         (
             "--python-version",
-            "3.9",
+            "3.10",
             "--no-site-packages",
             "--ignore-missing-imports",
             "--disable-error-code",

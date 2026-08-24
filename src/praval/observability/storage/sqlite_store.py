@@ -9,9 +9,42 @@ import logging
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
-from ..tracing.span import Span
+
+class _StoredValue(Protocol):
+    """Enum-like value accepted by the legacy diagnostic store."""
+
+    value: str
+
+
+class _StoredEvent(Protocol):
+    """Serializable event accepted by the legacy diagnostic store."""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-compatible event."""
+        ...
+
+
+class StorableSpan(Protocol):
+    """Temporary input boundary retained until the O5 exporter migration."""
+
+    span_id: str
+    trace_id: str
+    parent_span_id: str | None
+    name: str
+    kind: _StoredValue
+    start_time: int
+    end_time: int | None
+    attributes: Dict[str, Any]
+    events: Sequence[_StoredEvent]
+    status: _StoredValue
+    status_message: str
+
+    def duration_ms(self) -> float:
+        """Return the completed duration in milliseconds."""
+        ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +124,7 @@ class SQLiteTraceStore:
             finally:
                 conn.close()
 
-    def store_span(self, span: Span) -> None:
+    def store_span(self, span: StorableSpan) -> None:
         """Store a completed span.
 
         Args:
@@ -127,7 +160,7 @@ class SQLiteTraceStore:
             finally:
                 conn.close()
 
-    def store_spans(self, spans: List[Span]) -> None:
+    def store_spans(self, spans: Sequence[StorableSpan]) -> None:
         """Store multiple spans (batch operation).
 
         Args:

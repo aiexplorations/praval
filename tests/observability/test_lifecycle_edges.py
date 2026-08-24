@@ -1,0 +1,360 @@
+"""Edge coverage for explicit OpenTelemetry configuration and ownership."""
+
+import time
+
+import pytest
+from opentelemetry import _logs, metrics, trace
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import LogExporter, LogRecordExportResult
+from opentelemetry.sdk.metrics.export import MetricExporter, MetricExportResult
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
+
+from praval.config import ObservabilityConfig, PravalConfig
+from praval.core.exceptions import PravalConfigurationError
+from praval.observability import lifecycle
+from praval.observability.lifecycle import (
+    ObservabilityHandle,
+    _build_providers,
+    _configuration_with_overrides,
+    _exporter,
+    _headers,
+    _http_signal_endpoint,
+    _OwnedComponent,
+    _resource,
+    _run_components,
+    _sampler,
+    configure_observability,
+    configure_tracing,
+    force_flush,
+    get_logger,
+    get_meter,
+    get_tracer,
+    shutdown_observability,
+)
+
+
+class MemoryMetricExporter(MetricExporter):
+    """Non-network metric exporter for lifecycle tests."""
+
+    def export(self, metrics_data, timeout_millis=10000, **kwargs):
+        return MetricExportResult.SUCCESS
+
+    def force_flush(self, timeout_millis=10000):
+        return True
+
+    def shutdown(self, timeout_millis=30000, **kwargs):
+        return None
+
+
+class MemoryLogExporter(LogExporter):
+    """Non-network log exporter for lifecycle tests."""
+
+    def export(self, batch):
+        return LogRecordExportResult.SUCCESS
+
+    def force_flush(self, timeout_millis=10000):
+        return True
+
+    def shutdown(self):
+        return None
+
+
+def _enabled_config(**otlp_overrides) -> PravalConfig:
+    otlp = {"traces": True, "metrics": True, "logs": True, **otlp_overrides}
+    return PravalConfig(observability=ObservabilityConfig(enabled=True, otlp=otlp))
+
+
+def test_configuration_override_paths_and_validation() -> None:
+    config = _configuration_with_overrides(
+        ObservabilityConfig(enabled=False),
+        service_name="service",
+        service_version="1.0",
+        deployment_environment="test",
+        otlp_endpoint="http://collector:4318",
+        otlp_protocol="grpc",
+        traces_enabled=True,
+        metrics_enabled=False,
+        logs_enabled=False,
+        enable_explicitly=True,
+    )
+    assert config.app.model_dump() == {
+        "service_name": "service",
+        "service_version": "1.0",
+        "deployment_environment": "test",
+    }
+    assert config.observability.enabled is True
+    assert config.observability.otlp.protocol == "grpc"
+    assert config.observability.otlp.metrics is False
+
+    with pytest.raises(PravalConfigurationError):
+        _configuration_with_overrides(
+            config,
+            service_name=None,
+            service_version=None,
+            deployment_environment=None,
+            otlp_endpoint=None,
+            otlp_protocol="invalid",
+            traces_enabled=None,
+            metrics_enabled=None,
+            logs_enabled=None,
+            enable_explicitly=False,
+        )
+
+
+def test_resource_sampler_headers_and_http_endpoint(monkeypatch) -> None:
+    config = PravalConfig(
+        app={
+            "service_name": "service",
+            "service_version": "1.2",
+            "deployment_environment": "staging",
+        },
+        observability=ObservabilityConfig(enabled=True),
+    )
+    attributes = _resource(config).attributes
+    assert attributes["service.name"] == "service"
+    assert attributes["service.version"] == "1.2"
+    assert attributes["deployment.environment.name"] == "staging"
+
+    assert _sampler(ObservabilityConfig(sampling="always_on")).get_description()
+    assert _sampler(ObservabilityConfig(sampling="always_off")).get_description()
+    assert _sampler(ObservabilityConfig(sample_ratio=0.4)).get_description()
+
+    assert _headers(ObservabilityConfig()) is None
+    header_config = ObservabilityConfig(otlp={"headers_env": "OTLP_HEADERS"})
+    with pytest.raises(PravalConfigurationError, match="not set"):
+        _headers(header_config)
+    monkeypatch.setenv("OTLP_HEADERS", "authorization=secret,x-tenant=test")
+    assert _headers(header_config) == {
+        "authorization": "secret",
+        "x-tenant": "test",
+    }
+    monkeypatch.setenv("OTLP_HEADERS", "invalid")
+    with pytest.raises(PravalConfigurationError, match="invalid OTLP header"):
+        _headers(header_config)
+
+    assert _http_signal_endpoint("http://collector:4318", "traces") == (
+        "http://collector:4318/v1/traces"
+    )
+    assert (
+        _http_signal_endpoint("http://collector:4318/v1/logs?tenant=a", "metrics")
+        == "http://collector:4318/v1/metrics?tenant=a"
+    )
+
+
+@pytest.mark.parametrize("protocol", ["http/protobuf", "grpc"])
+@pytest.mark.parametrize("signal", ["traces", "metrics", "logs"])
+def test_official_exporters_construct_for_each_signal(
+    protocol: str, signal: str
+) -> None:
+    config = ObservabilityConfig(
+        enabled=True,
+        otlp={"endpoint": "http://127.0.0.1:4318", "protocol": protocol},
+    )
+    exporter = _exporter(signal, config)
+    assert exporter is not None
+    exporter.shutdown()
+
+
+def test_exporter_requires_endpoint() -> None:
+    with pytest.raises(PravalConfigurationError, match="endpoint"):
+        _exporter("traces", ObservabilityConfig(enabled=True))
+
+
+def test_provider_configuration_rejects_incompatible_combinations() -> None:
+    with pytest.raises(PravalConfigurationError, match="disabled"):
+        _build_providers(
+            PravalConfig(
+                observability=ObservabilityConfig(
+                    enabled=False,
+                    otlp={"endpoint": "http://collector:4318"},
+                )
+            ),
+            None,
+            None,
+            None,
+        )
+    with pytest.raises(PravalConfigurationError, match="one enabled signal"):
+        _build_providers(
+            PravalConfig(
+                observability=ObservabilityConfig(
+                    enabled=True,
+                    otlp={
+                        "endpoint": "http://collector:4318",
+                        "traces": False,
+                        "metrics": False,
+                        "logs": False,
+                    },
+                )
+            ),
+            None,
+            None,
+            None,
+        )
+    with pytest.raises(PravalConfigurationError, match="O5"):
+        _build_providers(
+            PravalConfig(
+                observability=ObservabilityConfig(enabled=True, local={"enabled": True})
+            ),
+            None,
+            None,
+            None,
+        )
+
+    providers = _build_providers(PravalConfig(), None, None, None)
+    assert isinstance(providers[0], trace.NoOpTracerProvider)
+    assert isinstance(providers[1], metrics.NoOpMeterProvider)
+    assert isinstance(providers[2], _logs.NoOpLoggerProvider)
+
+
+def test_managed_all_signal_providers_without_exporters() -> None:
+    handle = configure_observability(service_name="managed")
+    assert handle.owned_signals == frozenset({"traces", "metrics", "logs"})
+    assert force_flush(500) is True
+    assert shutdown_observability(500) is True
+
+
+def test_managed_all_signal_export_pipeline(monkeypatch) -> None:
+    exporters = {
+        "traces": InMemorySpanExporter(),
+        "metrics": MemoryMetricExporter(),
+        "logs": MemoryLogExporter(),
+    }
+    monkeypatch.setattr(
+        lifecycle,
+        "_exporter",
+        lambda signal, config: exporters[signal],
+    )
+    handle = configure_observability(
+        service_name="managed",
+        otlp_endpoint="http://collector:4318",
+    )
+    with get_tracer().start_as_current_span("operation"):
+        pass
+    assert handle.owned_signals == frozenset({"traces", "metrics", "logs"})
+    assert force_flush(500) is True
+    assert shutdown_observability(500) is True
+
+
+def test_host_trace_and_log_processors_are_owned_but_providers_are_not(
+    monkeypatch,
+) -> None:
+    exporters = {
+        "traces": InMemorySpanExporter(),
+        "logs": MemoryLogExporter(),
+    }
+    monkeypatch.setattr(
+        lifecycle,
+        "_exporter",
+        lambda signal, config: exporters[signal],
+    )
+    tracer_provider = TracerProvider(shutdown_on_exit=False)
+    logger_provider = LoggerProvider(shutdown_on_exit=False)
+    providers = _build_providers(
+        _enabled_config(endpoint="http://collector:4318", metrics=False),
+        tracer_provider,
+        None,
+        logger_provider,
+    )
+    owned = providers[3]
+    assert {component.signal for component in owned} == {"traces", "logs"}
+    assert all(component.component is not tracer_provider for component in owned)
+    assert all(component.component is not logger_provider for component in owned)
+    assert _run_components(owned, method_name="shutdown", timeout_millis=500)
+    tracer_provider.shutdown()
+    logger_provider.shutdown()
+
+
+def test_host_metric_and_logger_attachment_failures(monkeypatch) -> None:
+    monkeypatch.setattr(lifecycle, "_exporter", lambda signal, config: object())
+    with pytest.raises(PravalConfigurationError, match="metric readers"):
+        _build_providers(
+            _enabled_config(endpoint="http://collector:4318", traces=False, logs=False),
+            None,
+            object(),
+            None,
+        )
+    with pytest.raises(PravalConfigurationError, match="logger provider"):
+        _build_providers(
+            _enabled_config(
+                endpoint="http://collector:4318", traces=False, metrics=False
+            ),
+            None,
+            None,
+            object(),
+        )
+
+
+def test_lifecycle_error_fallback_and_inactive_paths() -> None:
+    class ErrorComponent:
+        def force_flush(self, timeout_millis=None):
+            raise RuntimeError("flush failed")
+
+    class NoTimeoutComponent:
+        def force_flush(self):
+            return True
+
+    class FalseComponent:
+        def force_flush(self, timeout_millis=None):
+            return False
+
+        def shutdown(self):
+            return None
+
+    assert not _run_components(
+        (_OwnedComponent("traces", ErrorComponent()),),
+        method_name="force_flush",
+        timeout_millis=100,
+    )
+    assert _run_components(
+        (_OwnedComponent("traces", NoTimeoutComponent()),),
+        method_name="force_flush",
+        timeout_millis=100,
+    )
+    assert _run_components(
+        (_OwnedComponent("traces", object()),),
+        method_name="force_flush",
+        timeout_millis=100,
+    )
+    component = FalseComponent()
+    handle = ObservabilityHandle(
+        config=_enabled_config(),
+        tracer_provider=component,
+        meter_provider=component,
+        logger_provider=component,
+        _owned_components=(_OwnedComponent("traces", component),),
+    )
+    assert handle.shutdown(100) is False
+    assert handle.force_flush(100) is True
+
+
+def test_public_no_configuration_fallbacks_and_trace_convenience(monkeypatch) -> None:
+    assert get_tracer("fallback") is not None
+    assert get_meter("fallback") is not None
+    assert get_logger("fallback") is not None
+    assert force_flush() is True
+    assert shutdown_observability() is True
+
+    exporter = InMemorySpanExporter()
+    monkeypatch.setattr(lifecycle, "_exporter", lambda signal, config: exporter)
+    handle = configure_tracing(
+        service_name="trace-service",
+        otlp_endpoint="http://collector:4318",
+    )
+    assert handle.owned_signals == frozenset({"traces"})
+
+
+def test_shared_deadline_exhaustion() -> None:
+    class SlowComponent:
+        def shutdown(self):
+            time.sleep(0.03)
+
+    components = (
+        _OwnedComponent("traces", SlowComponent()),
+        _OwnedComponent("logs", SlowComponent()),
+    )
+    assert (
+        _run_components(components, method_name="shutdown", timeout_millis=10) is False
+    )

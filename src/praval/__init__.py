@@ -21,11 +21,13 @@ from .composition import (
     start_agents,
     throttled_agent,
 )
+from .config import PravalConfig, discover_config_path, load_config
 from .core.agent import Agent
 from .core.exceptions import (
     EmbeddingConfigurationError,
     HITLConfigurationError,
     InterventionRequired,
+    PravalConfigurationError,
 )
 from .core.reef import ReefLifecycleError, Spore, SporeType, get_reef
 from .core.registry import get_registry, register_agent
@@ -203,6 +205,10 @@ __all__ = [
     "Spore",
     "SporeType",
     "ReefLifecycleError",
+    "PravalConfig",
+    "PravalConfigurationError",
+    "discover_config_path",
+    "load_config",
     # Enhanced decorator (now with memory support)
     "agent",
     # Communication and composition

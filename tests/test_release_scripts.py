@@ -145,23 +145,25 @@ def test_type_checks_cover_current_and_minimum_python_versions():
 
     assert labels == [
         "strict Python 3.13 typing",
-        "Python 3.9 compatibility typing",
+        "Python 3.10 compatibility typing",
     ]
     assert ("--python-version", "3.13", "src/praval/") in commands
     assert any(
         "--python-version" in command
-        and "3.9" in command
+        and "3.10" in command
         and "--no-site-packages" in command
         for command in commands
     )
 
 
-def test_python39_s3_extras_constrain_cohere_request_stubs():
+def test_python_floor_and_observability_dependency_scope():
     project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
-    expected = "types-requests==2.28.11.17; python_version < '3.10'"
-
-    for extra in ("storage", "all", "dev"):
-        assert expected in project["optional-dependencies"][extra]
+    assert project["requires-python"] == ">=3.10,<3.15"
+    assert "opentelemetry-api>=1.44,<1.45" in project["dependencies"]
+    observability = project["optional-dependencies"]["observability"]
+    assert "opentelemetry-sdk>=1.44,<1.45" in observability
+    assert "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45" in observability
+    assert "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45" in observability
 
 
 def _write_version_wheel(path: Path, version: str = "0.8.2") -> None:

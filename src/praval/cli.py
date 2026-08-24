@@ -24,7 +24,19 @@ OPTIONAL_FEATURE_MODULES = {
     "s3": ("boto3",),
     "qdrant": ("qdrant_client",),
     "notebooks": ("jupyterlab", "nbclient", "nbformat"),
+    "observability": (
+        "opentelemetry.sdk",
+        "opentelemetry.exporter.otlp.proto.http",
+        "opentelemetry.exporter.otlp.proto.grpc",
+    ),
 }
+
+OBSERVABILITY_DISTRIBUTIONS = (
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-exporter-otlp-proto-grpc",
+)
 
 PROVIDER_ENVIRONMENT = {
     "openai": ("OPENAI_API_KEY",),
@@ -120,6 +132,14 @@ def _installed_distribution() -> Any:
         return None
 
 
+def _distribution_version(name: str) -> Optional[str]:
+    """Return an installed distribution version without importing it."""
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
 def _installation_source(distribution: Any) -> str:
     if distribution is None:
         return "source-tree"
@@ -170,6 +190,26 @@ def _diagnostic_report() -> Dict[str, Any]:
             "environment": presence,
         }
 
+    otel_packages = {
+        name: _distribution_version(name) for name in OBSERVABILITY_DISTRIBUTIONS
+    }
+    api_version = otel_packages["opentelemetry-api"]
+    managed_versions = [
+        version
+        for name, version in otel_packages.items()
+        if name != "opentelemetry-api"
+    ]
+    observability = {
+        "api_available": api_version is not None,
+        "managed_available": all(version is not None for version in managed_versions),
+        "tested_minor": "1.44",
+        "compatible": all(
+            version is not None and version.startswith("1.44.")
+            for version in otel_packages.values()
+        ),
+        "packages": otel_packages,
+    }
+
     return {
         "schema_version": 1,
         "praval": {
@@ -183,6 +223,7 @@ def _diagnostic_report() -> Dict[str, Any]:
             "executable": str(Path(sys.executable).resolve()),
         },
         "optional_features": features,
+        "observability": observability,
         "providers": providers,
     }
 
@@ -203,6 +244,16 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     for name, details in report["optional_features"].items():
         status = "available" if details["available"] else "not installed"
         print(f"  {name}: {status}")
+    observability = report["observability"]
+    managed_status = (
+        "available" if observability["managed_available"] else "not installed"
+    )
+    compatibility = "compatible" if observability["compatible"] else "version mismatch"
+    print(
+        "OpenTelemetry: "
+        f"API={'available' if observability['api_available'] else 'not installed'}, "
+        f"managed={managed_status}, {compatibility}"
+    )
     print("Provider configuration:")
     for name, details in report["providers"].items():
         status = "configured" if details["configured"] else "not configured"

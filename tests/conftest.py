@@ -24,6 +24,13 @@ def _reset_observability():
     Reset observability global state (config, tracer, trace store, instrumentation).
     """
     try:
+        from praval.observability.lifecycle import _reset_observability_for_tests
+
+        _reset_observability_for_tests()
+    except ImportError:
+        pass
+
+    try:
         from praval.observability.config import reset_config
 
         reset_config()

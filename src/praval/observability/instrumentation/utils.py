@@ -8,6 +8,8 @@ import functools
 import inspect
 from typing import Any, Callable, Optional
 
+from opentelemetry.trace import Status, StatusCode
+
 from ..tracing import SpanKind, TraceContext, get_tracer
 
 
@@ -46,9 +48,8 @@ def instrument_function(
                 if arg_value and hasattr(arg_value, "metadata"):
                     parent_context = TraceContext.from_spore(arg_value)
 
-            return tracer.start_as_current_span(
-                span_name, parent=parent_context, kind=kind
-            )
+            context = parent_context.as_context() if parent_context else None
+            return tracer.start_as_current_span(span_name, context=context, kind=kind)
 
         def inject_context(span: Any, args: Any, kwargs: Any) -> None:
             if not inject_context_to_arg:
@@ -69,7 +70,7 @@ def instrument_function(
                 with prepare_span(args, kwargs) as span:
                     inject_context(span, args, kwargs)
                     result = await func(*args, **kwargs)
-                    span.set_status("ok")
+                    span.set_status(Status(StatusCode.OK))
                     return result
 
             return async_wrapper
@@ -79,7 +80,7 @@ def instrument_function(
             with prepare_span(args, kwargs) as span:
                 inject_context(span, args, kwargs)
                 result = func(*args, **kwargs)
-                span.set_status("ok")
+                span.set_status(Status(StatusCode.OK))
                 return result
 
         return wrapper

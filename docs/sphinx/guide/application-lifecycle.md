@@ -14,6 +14,14 @@ with PravalApp() as app:
 On exit, the app closes registered agents and shuts down its Reef. Calling
 `close()` more than once is safe.
 
+## Typed application configuration
+
+`PravalConfig` is the schema for `praval.toml`. `load_config()` discovers the
+nearest file, applies environment variables, then applies explicit overrides.
+Unknown fields and invalid cross-references raise `PravalConfigurationError`
+before providers, workers, or paid model calls start. `discover_config_path()`
+can be used when an application needs to report which file would be loaded.
+
 ## Ownership boundary in 0.8
 
 `PravalApp` is a lifecycle owner, not an isolated dependency container. In

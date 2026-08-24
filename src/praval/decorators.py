@@ -23,14 +23,22 @@ Example::
 """
 
 import logging
+import sys
 import time
-from contextvars import ContextVar
+import uuid
+from contextvars import ContextVar, copy_context
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from .core.agent import Agent
 from .core.exceptions import InterventionRequired, ToolError
 from .core.reef import get_reef
 from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
+from .models.observation import ContentKind, ObservationKind
+from .runtime_observation import (
+    ObservationScope,
+    mark_observation_error,
+    record_content_reference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +384,25 @@ def agent(
                     # This agent doesn't respond to this message type
                     return
 
+            observation_scope = ObservationScope(
+                kind=ObservationKind.AGENT,
+                run_id=str(uuid.uuid4()),
+                agent_id=agent_name,
+                agent_name=agent_name,
+                conversation_id=(
+                    str(spore.id)
+                    if isinstance(getattr(spore, "id", None), (str, int))
+                    else None
+                ),
+                request_mode="handler",
+            )
+            observation_scope.__enter__()
+            record_content_reference(
+                ContentKind.CONTEXT,
+                getattr(spore, "knowledge", None),
+            )
+            observation_error: tuple[Any, Any, Any] = (None, None, None)
+
             # Set agent context for chat() and broadcast() functions
             _agent_context.agent = underlying_agent
             _agent_context.channel = agent_channel
@@ -440,9 +467,12 @@ def agent(
                     )
 
             except InterventionRequired:
+                observation_error = sys.exc_info()
                 raise
             except Exception as e:
                 # Main handler error - use configured error handling strategy
+                mark_observation_error(e)
+                observation_error = sys.exc_info()
                 _handle_agent_error(e, spore, agent_name, on_error, context="handler")
 
             finally:
@@ -450,6 +480,7 @@ def agent(
                 _agent_context.agent = None
                 _agent_context.channel = None
                 _agent_context.startup_channel = None
+                observation_scope.__exit__(*observation_error)
 
             return result
 
@@ -586,7 +617,8 @@ def chat(message: str, timeout: float = 10.0) -> str:
 
     # Use thread-based timeout for better cross-platform support
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_agent_context.agent.chat, message)
+        context = copy_context()
+        future = executor.submit(context.run, _agent_context.agent.chat, message)
         try:
             return cast(str, future.result(timeout=timeout))
         except concurrent.futures.TimeoutError:
@@ -615,9 +647,15 @@ async def achat(message: str, timeout: float = 10.0) -> str:
     import asyncio
 
     loop = asyncio.get_event_loop()
+    context = copy_context()
     try:
         return await asyncio.wait_for(
-            loop.run_in_executor(None, _agent_context.agent.chat, message),
+            loop.run_in_executor(
+                None,
+                context.run,
+                _agent_context.agent.chat,
+                message,
+            ),
             timeout=timeout,
         )
     except asyncio.TimeoutError:

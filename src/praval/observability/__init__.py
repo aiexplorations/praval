@@ -1,27 +1,14 @@
+"""Explicit OpenTelemetry configuration and compatibility diagnostics.
+
+Importing this module does not configure providers, start worker threads, open
+files, or monkeypatch Praval runtime functions.
 """
-Praval Observability Framework.
 
-OpenTelemetry-compatible distributed tracing for Praval agents.
-
-Configuration:
-    PRAVAL_OBSERVABILITY: "auto" | "on" | "off" (default: "auto")
-    PRAVAL_OTLP_ENDPOINT: OTLP endpoint URL (optional)
-    PRAVAL_SAMPLE_RATE: 0.0-1.0 (default: 1.0)
-    PRAVAL_TRACES_PATH: SQLite database path (default: ~/.praval/traces.db)
-
-Usage:
-    # Zero configuration - automatic observability
-    from praval import agent
-
-    @agent("researcher")
-    def research_agent(spore):
-        result = chat("Research topic")
-        return result
-
-    # View traces
-    from praval.observability import show_recent_traces
-    show_recent_traces(limit=10)
-"""
+from praval.runtime_observation import (
+    CompositeObservationRecorder,
+    configure_observation_recorder,
+    use_observation_recorder,
+)
 
 from .config import ObservabilityConfig, get_config
 from .export import (
@@ -32,6 +19,16 @@ from .export import (
     show_recent_traces,
 )
 from .instrumentation import initialize_instrumentation, is_instrumented
+from .lifecycle import (
+    ObservabilityHandle,
+    configure_observability,
+    configure_tracing,
+    force_flush,
+    get_logger,
+    get_meter,
+    get_tracer,
+    shutdown_observability,
+)
 from .storage import SQLiteTraceStore, get_trace_store
 from .tracing import (
     Span,
@@ -40,21 +37,30 @@ from .tracing import (
     TraceContext,
     Tracer,
     get_current_span,
-    get_tracer,
 )
 
 __all__ = [
     # Configuration
     "ObservabilityConfig",
+    "ObservabilityHandle",
     "get_config",
+    "configure_observability",
+    "configure_tracing",
+    "force_flush",
+    "shutdown_observability",
     # Tracing
     "Tracer",
     "get_tracer",
+    "get_meter",
+    "get_logger",
     "Span",
     "SpanKind",
     "SpanStatus",
     "TraceContext",
     "get_current_span",
+    "CompositeObservationRecorder",
+    "configure_observation_recorder",
+    "use_observation_recorder",
     # Storage
     "SQLiteTraceStore",
     "get_trace_store",
@@ -68,6 +74,3 @@ __all__ = [
     "print_traces",
     "show_recent_traces",
 ]
-
-# Auto-initialize instrumentation on import
-initialize_instrumentation()
