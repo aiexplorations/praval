@@ -244,7 +244,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        extra: [minimal, mcp]
+        extra: [minimal, mcp, eval-ragas]
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -263,6 +263,9 @@ jobs:
       - name: MCP installation
         if: matrix.extra == 'mcp'
         run: python scripts/smoke_install.py artifact/dist --extra mcp
+      - name: RAGAS evaluation installation
+        if: matrix.extra == 'eval-ragas'
+        run: python scripts/smoke_install.py artifact/dist --extra eval-ragas
 
   demo-offline:
     name: Exact-wheel offline demos

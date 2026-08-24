@@ -179,6 +179,13 @@ def test_ragas_dependency_scope_and_compatibility_bound():
     assert all("instructor" not in dependency for dependency in extras["observability"])
 
 
+def test_ci_runs_the_exact_wheel_ragas_smoke():
+    workflow = Path(".github/workflows/ci.yml").read_text()
+
+    assert "extra: [minimal, mcp, eval-ragas]" in workflow
+    assert "smoke_install.py artifact/dist --extra eval-ragas" in workflow
+
+
 def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
