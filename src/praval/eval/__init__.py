@@ -29,6 +29,14 @@ from .models import (
     ResultStatus,
 )
 from .postgres import PostgresEvaluationStore
+from .runner import (
+    EvalRunner,
+    EvaluationExecutionError,
+    EvaluationTarget,
+    Judge,
+    JudgeContext,
+    TargetResult,
+)
 from .sqlite import SQLiteEvaluationStore
 from .store import (
     EvaluationConflictError,
@@ -39,11 +47,13 @@ from .store import (
 __all__ = [
     "AttemptStatus",
     "EvalDatasetError",
+    "EvalRunner",
     "EvalCase",
     "EvalSuite",
     "EvaluationAttempt",
     "EvaluationBaseline",
     "EvaluationConflictError",
+    "EvaluationExecutionError",
     "EvaluationJob",
     "EvaluationMetadata",
     "EvaluationResult",
@@ -52,12 +62,15 @@ __all__ = [
     "EvaluationStore",
     "EvaluationStoreError",
     "EvaluationSubject",
+    "EvaluationTarget",
     "Gate",
     "GateAggregation",
     "GateOperator",
     "GateResult",
     "GateStatus",
     "JobStatus",
+    "Judge",
+    "JudgeContext",
     "JudgeResult",
     "LoadedEvalCase",
     "LoadedEvalSuite",
@@ -65,5 +78,6 @@ __all__ = [
     "PostgresEvaluationStore",
     "ResultStatus",
     "SQLiteEvaluationStore",
+    "TargetResult",
     "load_jsonl_suite",
 ]
