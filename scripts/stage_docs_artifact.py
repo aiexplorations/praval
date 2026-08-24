@@ -68,11 +68,15 @@ def stage_docs(artifact: Path, website: Path) -> Dict[str, Any]:
 
     versions_path = docs_root / "versions.json"
     versions = json.loads(versions_path.read_text(encoding="utf-8"))
-    retained: List[Dict[str, Any]] = [
-        entry
-        for entry in versions.get("versions", [])
-        if entry.get("version") not in {version, "latest"}
-    ]
+    retained: List[Dict[str, Any]] = []
+    for entry in versions.get("versions", []):
+        retained_version = entry.get("version")
+        if retained_version in {version, "latest"}:
+            continue
+        retained_entry = dict(entry)
+        if retained_entry.get("title") == f"v{retained_version} (latest)":
+            retained_entry["title"] = f"v{retained_version}"
+        retained.append(retained_entry)
     versions["current"] = version
     versions["latest"] = version
     versions["versions"] = [

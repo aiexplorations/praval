@@ -267,3 +267,8 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
     }
     versions = json.loads((website / "docs/versions.json").read_text())
     assert versions["current"] == versions["latest"] == "0.8.2"
+    assert versions["versions"][2] == {
+        "version": "0.7.22",
+        "url": "/docs/v0.7.22/",
+        "title": "v0.7.22",
+    }
