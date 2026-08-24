@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - Unreleased
+
+### Added
+
+- Added one versioned `ExecutionObservation` per agent or workflow, with
+  bounded aggregated facts for model usage, tools, retries, HITL, and Reef
+  handoffs.
+- Added explicit host-owned and Praval-owned OpenTelemetry lifecycles for
+  traces, metrics, and correlated logs over OTLP HTTP/protobuf and gRPC.
+- Added W3C trace propagation across Spore serialization, in-memory Reef,
+  RabbitMQ, request/reply helpers, and secure carriers.
+- Added an official batched SQLite span exporter for opt-in local diagnostics,
+  plus bounded telemetry health and privacy filtering.
+- Added a top-level observability manual, executable examples, real Collector
+  certification, distributed-context certification, and performance gates.
+
+### Changed
+
+- Observability is explicit and disabled by default. SQLite is no longer
+  implied by import or development environment detection.
+- The `observability` extra now supplies the tested OpenTelemetry SDK and both
+  official OTLP transports; the base package retains API-only instrumentation.
+
+### Compatibility
+
+- v0.8.2 configuration aliases and the legacy tracing/viewing facade remain
+  available for migration. New code should use `configure_observability()` and
+  the typed nested configuration described in the observability manual.
+- Publication remains blocked until the evaluation workstream and combined
+  v0.8.3 release gates are complete.
+
 ## [0.8.2] - 2026-07-31
 
 ### Added
@@ -1094,7 +1125,8 @@ Versions 0.7.6 and 0.7.7 have been removed from PyPI.
 - Legacy example files that were replaced with new progressive series
 - Deprecated API patterns in favor of cleaner decorator approach
 
-[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/aiexplorations/praval/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/aiexplorations/praval/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/aiexplorations/praval/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/aiexplorations/praval/compare/v0.7.22...v0.8.1
 [0.7.22]: https://github.com/aiexplorations/praval/compare/v0.7.21...v0.7.22

@@ -1,58 +1,45 @@
 #!/usr/bin/env python3
-"""
-Example 000: Observability Quickstart
-======================================
+"""Create and inspect one explicitly configured local trace."""
 
-The simplest possible demonstration of observability.
-Shows what it will look like when Phase 2 is complete.
+from __future__ import annotations
 
-Run: python examples/observability/000_quickstart.py
-"""
+import argparse
+from pathlib import Path
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from praval.observability import (
+    ObservabilityConfig,
+    configure_observability,
+    force_flush,
+    get_trace_store,
+    get_tracer,
+    shutdown_observability,
+)
 
-import time
-from praval.observability import get_tracer, get_trace_store
 
+def main() -> None:
+    """Run the local diagnostic quickstart."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--db", type=Path, default=Path(".praval/telemetry.db"))
+    args = parser.parse_args()
 
-def simple_example():
-    """Simple example - just create a span and view it."""
-    tracer = get_tracer()
-    store = get_trace_store()
+    config = ObservabilityConfig(
+        enabled=True,
+        local={"enabled": True, "path": str(args.db)},
+        otlp={"traces": True, "metrics": False, "logs": False},
+    )
+    configure_observability(config, service_name="praval-local-quickstart")
+    try:
+        with get_tracer().start_as_current_span("prepare-report") as span:
+            span.set_attribute("report.kind", "example")
+            trace_id = format(span.get_span_context().trace_id, "032x")
 
-    print("Creating a simple trace...\n")
-
-    # Create a span (this will be automatic in Phase 2)
-    with tracer.start_as_current_span("my_operation") as span:
-        span.set_attribute("user", "alice")
-        time.sleep(0.1)
-        print("✓ Did some work (100ms)\n")
-
-    # View what was captured
-    print(f"Trace ID: {span.trace_id}\n")
-
-    # Retrieve from storage
-    spans = store.get_trace(span.trace_id)
-    print(f"Stored {len(spans)} span(s) to SQLite")
-    if spans:
-        print(f"Duration: {spans[0]['duration_ms']:.0f}ms")
-        print(f"Attributes: {spans[0]['attributes']}")
-    else:
-        print("No spans returned from storage yet (continuing).")
+        if not force_flush(5_000):
+            raise RuntimeError("local telemetry did not flush within five seconds")
+        rows = get_trace_store().get_trace(trace_id)
+        print(f"trace_id={trace_id} spans={len(rows)} db={args.db}")
+    finally:
+        shutdown_observability(5_000)
 
 
 if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("Observability Quickstart")
-    print("=" * 60)
-    print()
-
-    simple_example()
-
-    print("\n" + "=" * 60)
-    print("That's it! Traces are automatically stored.")
-    print("=" * 60)
-    print(f"\nStorage location: ~/.praval/traces.db")
-    print()
+    main()

@@ -34,3 +34,18 @@ evidence = ["examples/request_based_voice_agent.py", "examples/certification/liv
 id = "hitl"
 statement = "Approval-gated model tool calls can be persisted, reviewed, and resumed."
 evidence = ["tests/test_hitl_agent.py", "tests/test_hitl_provider_parity.py"]
+
+[[claims]]
+id = "observability-signals"
+statement = "Explicit Praval-owned OpenTelemetry pipelines export traces, metrics, and logs over OTLP HTTP/protobuf and gRPC."
+evidence = ["tests/integration/test_otel_collector.py", "tests/observability/test_lifecycle.py"]
+
+[[claims]]
+id = "observability-distributed-context"
+statement = "W3C trace context follows in-memory and RabbitMQ Reef delivery and Spore serialization."
+evidence = ["tests/observability/test_spore_propagation.py", "tests/integration/test_rabbitmq_trace_propagation.py"]
+
+[[claims]]
+id = "observability-privacy"
+statement = "Telemetry capture is metadata-only by default and content requires an exact opt-in allowlist."
+evidence = ["tests/observability/test_privacy.py", "docs/sphinx/observability/privacy-security.md"]

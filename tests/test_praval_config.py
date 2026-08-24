@@ -184,3 +184,14 @@ def test_otel_environment_can_disable_individual_exporters() -> None:
     assert config.observability.otlp.traces is False
     assert config.observability.otlp.metrics is True
     assert config.observability.otlp.logs is False
+
+
+def test_praval_service_name_overrides_standard_otel_name() -> None:
+    config = load_config(
+        environ={
+            "OTEL_SERVICE_NAME": "otel-default",
+            "PRAVAL_SERVICE_NAME": "praval-service",
+        }
+    )
+
+    assert config.app.service_name == "praval-service"

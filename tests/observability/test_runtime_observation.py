@@ -167,9 +167,10 @@ def test_timeout_skipped_tool_and_unusual_content_are_privacy_safe() -> None:
     assert observation.status is ObservationStatus.TIMEOUT
     assert observation.error_type == "TimeoutError"
     assert observation.tool_calls == ()
-    assert unavailable.sha256 == hashlib.sha256(
-        b"<unavailable:UnserializableContent>"
-    ).hexdigest()
+    assert (
+        unavailable.sha256
+        == hashlib.sha256(b"<unavailable:UnserializableContent>").hexdigest()
+    )
     assert "private" not in observation.model_dump_json()
 
 

@@ -120,6 +120,7 @@ Observability
    :toctree: generated
 
    praval.observability.config
+   praval.observability.lifecycle
    praval.observability.tracing.context
    praval.observability.tracing.tracer
    praval.observability.storage.sqlite_store

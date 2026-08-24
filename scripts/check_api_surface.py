@@ -54,9 +54,27 @@ def validate_api_surface(root: Path) -> Dict[str, Any]:
         name = str(entry["name"])
         submodules.append(name)
         try:
-            importlib.import_module(name)
+            module = importlib.import_module(name)
         except Exception as exc:  # pragma: no cover - error reporting path
             errors.append(f"public submodule {name} failed to import: {exc}")
+            module = None
+        expected_exports = [str(value) for value in entry.get("exports", [])]
+        if expected_exports and module is not None:
+            actual_exports = [str(value) for value in getattr(module, "__all__", [])]
+            if len(expected_exports) != len(set(expected_exports)):
+                errors.append(f"public submodule {name} has duplicate manifest exports")
+            missing_exports = sorted(set(actual_exports) - set(expected_exports))
+            unexpected_exports = sorted(set(expected_exports) - set(actual_exports))
+            if missing_exports:
+                errors.append(
+                    f"public submodule {name} has undocumented exports: "
+                    + ", ".join(missing_exports)
+                )
+            if unexpected_exports:
+                errors.append(
+                    f"public submodule {name} manifest names are not exported: "
+                    + ", ".join(unexpected_exports)
+                )
         page = root / "docs" / "sphinx" / str(entry["documentation"])
         if not any(page.with_suffix(suffix).exists() for suffix in (".md", ".rst")):
             errors.append(

@@ -39,8 +39,8 @@ stage_docs = _load_script("stage_docs_artifact")
 
 
 def test_distribution_validation_helpers_read_versions_and_reject_generated_files():
-    assert _project_version(Path("pyproject.toml")) == "0.8.2"
-    assert _package_version(Path("src/praval/__init__.py")) == "0.8.2"
+    assert _project_version(Path("pyproject.toml")) == "0.8.3"
+    assert _package_version(Path("src/praval/__init__.py")) == "0.8.3"
     assert _forbidden_entries(
         [
             "praval-0.8.2/docs/generated/manual.pdf",
@@ -166,14 +166,14 @@ def test_python_floor_and_observability_dependency_scope():
     assert "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45" in observability
 
 
-def _write_version_wheel(path: Path, version: str = "0.8.2") -> None:
+def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(f"praval-{version}.dist-info/METADATA", metadata)
 
 
 def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
-    _write_version_wheel(tmp_path / "praval-0.8.2-py3-none-any.whl")
+    _write_version_wheel(tmp_path / "praval-0.8.3-py3-none-any.whl")
 
     def not_installed(_name):
         raise release_metadata.importlib.metadata.PackageNotFoundError

@@ -54,7 +54,7 @@ not block a framework patch release.
 
    ```bash
    (cd dist && shasum -a 256 -c ../evidence/SHA256SUMS)
-   twine check dist/praval-0.8.2-py3-none-any.whl
+   twine check dist/praval-0.8.3-py3-none-any.whl
    python scripts/validate_distribution.py dist
    python scripts/check_release_metadata.py --dist dist
    ```
@@ -62,7 +62,7 @@ not block a framework patch release.
 9. Upload only the named wheel. Do not use a wildcard:
 
    ```bash
-   twine upload dist/praval-0.8.2-py3-none-any.whl
+   twine upload dist/praval-0.8.3-py3-none-any.whl
    ```
 
 10. Verify that PyPI serves the exact CI hash:
@@ -70,10 +70,11 @@ not block a framework patch release.
     ```bash
     python scripts/verify_pypi_wheel.py \
       evidence/build-manifest.json \
-      --version 0.8.2
+      --version 0.8.3
     ```
 
-11. Create `v0.8.2` on the exact tested `main` commit and push the tag.
+11. Create `v0.8.3` on the exact tested `main` commit and push the tag only
+    after every observability and evaluation gate in the v0.8.3 plan passes.
 12. The tag workflow retrieves the prior CI artifacts, verifies the tag,
     documentation provenance, and PyPI wheel hash, then creates the GitHub
     release with the same wheel and evidence.
@@ -91,7 +92,7 @@ artifact used for publication.
 source venv/bin/activate
 rm -rf build dist
 python -m build --wheel
-twine check dist/praval-0.8.2-py3-none-any.whl
+twine check dist/praval-0.8.3-py3-none-any.whl
 python scripts/validate_distribution.py dist
 python scripts/write_build_manifest.py dist --evidence-dir evidence
 python scripts/check_release_metadata.py --dist dist
@@ -108,7 +109,7 @@ Install from PyPI in a clean environment and inspect the installation:
 
 ```bash
 python -m venv /tmp/praval-release-check
-/tmp/praval-release-check/bin/python -m pip install --upgrade praval==0.8.2
+/tmp/praval-release-check/bin/python -m pip install --upgrade praval==0.8.3
 /tmp/praval-release-check/bin/praval --version
 /tmp/praval-release-check/bin/praval doctor
 ```

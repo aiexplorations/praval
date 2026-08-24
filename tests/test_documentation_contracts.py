@@ -241,12 +241,24 @@ def test_current_release_notes_cover_correlation_safe_reef():
     assert "build-manifest.json" in notes
 
 
+def test_v083_candidate_notes_keep_release_blocked_until_eval_is_complete():
+    notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.3.md").read_text()
+
+    assert notes.splitlines()[0] == "# Praval 0.8.3"
+    assert "Do not publish, tag, or cut this release" in notes
+    assert "evaluation workstream" in notes
+    assert "ExecutionObservation" in notes
+    assert not re.search(r"\b\d{3,5} passed\b", notes)
+    assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
+
+
 def test_dist_policy_is_documented_as_distributions_only():
     release = (ROOT / "RELEASE.md").read_text()
 
     assert "`dist/` contains exactly one `.whl` file" in release
     assert "`evidence/` contains checksums" in release
-    assert "twine upload dist/praval-0.8.2-py3-none-any.whl" in release
+    assert "twine upload dist/praval-0.8.3-py3-none-any.whl" in release
+    assert "after every observability and evaluation gate" in release
     assert "Do not use a wildcard" in release
 
 

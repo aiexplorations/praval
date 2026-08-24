@@ -82,6 +82,24 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
             )
         subprocess.run([str(python), "-c", "; ".join(checks)], check=True)
         example = Path(__file__).resolve().parents[1] / "examples"
+        if extra == "observability":
+            observability_examples = example / "observability"
+            cases = (
+                (
+                    "000_quickstart.py",
+                    "--db",
+                    str(Path(temp_dir) / "telemetry.db"),
+                ),
+                ("001_host_owned_sdk.py",),
+                ("002_configuration.py",),
+                ("003_reef_context.py",),
+            )
+            for case in cases:
+                subprocess.run(
+                    [str(python), str(observability_examples / case[0]), *case[1:]],
+                    cwd=temp_dir,
+                    check=True,
+                )
         subprocess.run(
             [str(python), str(example / "model_runtime_fake_provider.py")], check=True
         )

@@ -79,7 +79,7 @@ your application needs:
 | Secure transport | `python -m pip install "praval[secure]"` | Secure Spores and AMQP, MQTT, and STOMP adapters |
 | PDF | `python -m pip install "praval[pdf]"` | PDF ingestion through `pypdf` |
 | MCP | `python -m pip install "praval[mcp]"` | Official MCP client SDK on Python 3.10 or newer |
-| Observability | `python -m pip install "praval[observability]"` | OTLP HTTP export support |
+| Observability | `python -m pip install "praval[observability]"` | Praval-owned OpenTelemetry SDK with OTLP HTTP/protobuf and gRPC |
 | Notebooks | `python -m pip install "praval[notebooks]"` | JupyterLab and the tested notebook runtime |
 | Documentation | `python -m pip install "praval[docs]"` | Sphinx and the documentation theme |
 | Runtime features | `python -m pip install "praval[all]"` | All optional runtime features, excluding notebooks and documentation tools |
@@ -238,7 +238,7 @@ for cleanup rules and async use.
 | Memory | Short-term, episodic, semantic, and long-term memory paths | [Memory-enabled agents](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/tutorials/memory-enabled-agents.md) |
 | Embeddings | Local and provider embeddings with explicit compatibility checks | [Embeddings](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/embeddings.md) |
 | Storage | Async filesystem, PostgreSQL, Redis, S3-compatible, and Qdrant providers | [Storage](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/storage.md) |
-| Observability | Finalized spans, console inspection, SQLite storage, and OTLP HTTP export | [Observability](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/observability.md) |
+| Observability | Explicit traces, metrics, logs, W3C propagation, local SQLite diagnostics, and OTLP export | [Observability](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/observability/index.md) |
 | Multimodal and voice | Images, files, audio and video where supported, plus request-based STT and TTS | [Multimodal](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/multimodal.md) |
 | Secure messages | Signed and encrypted Spores with optional transport adapters | [Production notebook](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/course/08_production_features.ipynb) |
 
@@ -345,7 +345,7 @@ extras, services, timeouts, and expected artifacts for release certification.
 | Detailed learning course | [Notebook catalog](https://github.com/aiexplorations/praval/blob/main/examples/notebooks/README.md) |
 | Correlated Reef requests | [Reef and Spores](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/reef-protocol.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
-| Release scope | [Release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.2.md) |
+| Release scope | [0.8.3 candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md) |
 
 Build the reference documentation locally with warnings treated as errors:
 
@@ -373,8 +373,9 @@ make docs-html
   universal circuit breaker, storage fallback, or automatic reconnect layer.
 - `PravalApp` owns cleanup. It is not an isolated service container.
 
-See the [release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.2.md)
-for the stable scope, compatibility details, limitations, and deferred work.
+See the [0.8.3 candidate notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md)
+for current scope, compatibility details, limitations, and the explicit release
+blocker while evaluation work remains.
 
 ## Development and release validation
 

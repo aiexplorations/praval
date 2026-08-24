@@ -201,11 +201,11 @@ notes = ["External service behavior is certified separately from offline behavio
 [[feature]]
 id = "observability"
 classification = "optional"
-statement = "Praval provides console, SQLite, and OTLP trace paths."
-source = ["src/praval/observability/instrumentation/manager.py", "src/praval/observability/export/otlp_exporter.py"]
-evidence = ["tests/observability/test_instrumentation.py", "tests/observability/test_exporters.py"]
-documentation = ["docs/sphinx/guide/observability.md"]
-notes = ["Instrumentation initialization and reset are idempotent."]
+statement = "Praval provides explicit OpenTelemetry traces, metrics, logs, W3C propagation, and local SQLite diagnostics."
+source = ["src/praval/observability/lifecycle.py", "src/praval/observability/signals.py", "src/praval/runtime_observation.py"]
+evidence = ["tests/observability/test_lifecycle.py", "tests/observability/test_signals.py", "tests/integration/test_otel_collector.py"]
+documentation = ["docs/sphinx/observability/index.md"]
+notes = ["Configuration is explicit, metadata-only by default, and ownership-aware."]
 
 [[feature]]
 id = "secure-transports"

@@ -9,6 +9,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+try:
+    import tomllib
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    import tomli as tomllib
+
 from praval.models import (
     NOOP_OBSERVATION_RECORDER,
     ContentKind,
@@ -260,3 +265,28 @@ def test_observation_contract_has_no_otel_sdk_or_eval_dependency() -> None:
 
     assert not any(name.startswith("opentelemetry") for name in imported_modules)
     assert not any(name.startswith("praval.eval") for name in imported_modules)
+
+
+def test_frozen_observation_manifest_matches_the_runtime_exactly() -> None:
+    root = Path(__file__).resolve().parents[1]
+    manifest = tomllib.loads(
+        (root / "docs" / "observation-contract.toml").read_text(encoding="utf-8")
+    )
+
+    assert manifest["schema_version"] == 1
+    assert manifest["execution_observation_fields"] == list(
+        ExecutionObservation.model_fields
+    )
+    assert set(manifest["required_fields"]) == set(
+        ExecutionObservation.model_json_schema()["required"]
+    )
+    assert manifest["observation_kinds"] == [value.value for value in ObservationKind]
+    assert manifest["observation_statuses"] == [
+        value.value for value in ObservationStatus
+    ]
+    assert manifest["fact_statuses"] == [value.value for value in ObservationFactStatus]
+    assert manifest["privacy_modes"] == [value.value for value in PrivacyMode]
+    assert manifest["content_kinds"] == [value.value for value in ContentKind]
+    for field, maximum in manifest["bounds"].items():
+        metadata = ExecutionObservation.model_fields[field].metadata
+        assert any(getattr(item, "max_length", None) == maximum for item in metadata)

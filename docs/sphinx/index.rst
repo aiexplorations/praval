@@ -103,10 +103,15 @@ What To Read
    guide/reef-protocol
    guide/memory-system
    guide/storage
-   guide/observability
    guide/runtime-migration
    guide/troubleshooting
    guide/documentation-quality
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Observability
+
+   observability/index
 
 .. toctree::
    :maxdepth: 2

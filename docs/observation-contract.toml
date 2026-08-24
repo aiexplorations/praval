@@ -1,0 +1,74 @@
+schema_version = 1
+model = "praval.models.ExecutionObservation"
+recorder = "praval.models.ObservationRecorder"
+
+execution_observation_fields = [
+  "schema_version",
+  "observation_id",
+  "run_id",
+  "kind",
+  "conversation_id",
+  "response_id",
+  "agent_id",
+  "agent_name",
+  "workflow_id",
+  "workflow_name",
+  "started_at",
+  "ended_at",
+  "duration_ms",
+  "status",
+  "error_type",
+  "terminal_outcome",
+  "provider",
+  "model",
+  "request_mode",
+  "usage",
+  "tool_calls",
+  "retries",
+  "hitl_decisions",
+  "handoffs",
+  "content_references",
+  "privacy",
+  "trace_id",
+  "span_id",
+]
+
+required_fields = [
+  "observation_id",
+  "run_id",
+  "kind",
+  "started_at",
+  "ended_at",
+  "duration_ms",
+  "status",
+]
+
+observation_kinds = ["agent", "workflow"]
+observation_statuses = ["ok", "error", "cancelled", "timeout"]
+fact_statuses = ["ok", "error", "cancelled", "timeout", "rejected"]
+privacy_modes = ["metadata_only", "redacted", "full"]
+content_kinds = [
+  "prompt",
+  "response",
+  "context",
+  "tool_arguments",
+  "tool_result",
+  "retrieved_document",
+  "media",
+  "judge_evidence",
+  "other",
+]
+
+recorder_api = [
+  "CompositeObservationRecorder",
+  "configure_observation_recorder",
+  "use_observation_recorder",
+]
+
+[bounds]
+tool_calls = 128
+retries = 32
+hitl_decisions = 32
+handoffs = 128
+content_references = 128
+

@@ -423,8 +423,8 @@ def _environment_overrides(environ: Mapping[str, str]) -> dict[str, Any]:
         cursor[path[-1]] = value
 
     string_fields = {
-        "PRAVAL_SERVICE_NAME": ("app", "service_name"),
         "OTEL_SERVICE_NAME": ("app", "service_name"),
+        "PRAVAL_SERVICE_NAME": ("app", "service_name"),
         "PRAVAL_SERVICE_VERSION": ("app", "service_version"),
         "PRAVAL_ENVIRONMENT": ("app", "deployment_environment"),
         "PRAVAL_OTLP_ENDPOINT": ("observability", "otlp", "endpoint"),

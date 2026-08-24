@@ -233,24 +233,38 @@ id = "tutorial-observability-quickstart"
 path = "observability/000_quickstart.py"
 features = ["observability.sqlite"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+args = ["--db", "{report_dir}/observability-quickstart.db"]
+expected_artifacts = ["observability-quickstart.db"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-tracing"
-path = "observability/001_basic_tracing_demo.py"
-features = ["observability.sqlite"]
+path = "observability/001_host_owned_sdk.py"
+features = ["observability.otlp"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-configuration"
-path = "observability/002_configuration_demo.py"
-features = ["observability.sqlite"]
+path = "observability/002_configuration.py"
+features = ["observability.otlp"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-context"
-path = "observability/003_context_propagation_demo.py"
-features = ["observability.sqlite"]
+path = "observability/003_reef_context.py"
+features = ["observability.otlp", "reef.delivery"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-request-voice"
