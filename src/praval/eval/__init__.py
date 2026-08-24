@@ -1,5 +1,11 @@
-"""Provider-neutral evaluation contracts and persistence."""
+"""Provider-neutral evaluation contracts, datasets, and persistence."""
 
+from .dataset import (
+    EvalDatasetError,
+    LoadedEvalCase,
+    LoadedEvalSuite,
+    load_jsonl_suite,
+)
 from .models import (
     AttemptStatus,
     EvalCase,
@@ -7,6 +13,7 @@ from .models import (
     EvaluationAttempt,
     EvaluationBaseline,
     EvaluationJob,
+    EvaluationMetadata,
     EvaluationResult,
     EvaluationRun,
     EvaluationRunStatus,
@@ -31,12 +38,14 @@ from .store import (
 
 __all__ = [
     "AttemptStatus",
+    "EvalDatasetError",
     "EvalCase",
     "EvalSuite",
     "EvaluationAttempt",
     "EvaluationBaseline",
     "EvaluationConflictError",
     "EvaluationJob",
+    "EvaluationMetadata",
     "EvaluationResult",
     "EvaluationRun",
     "EvaluationRunStatus",
@@ -50,8 +59,11 @@ __all__ = [
     "GateStatus",
     "JobStatus",
     "JudgeResult",
+    "LoadedEvalCase",
+    "LoadedEvalSuite",
     "MetricResult",
     "PostgresEvaluationStore",
     "ResultStatus",
     "SQLiteEvaluationStore",
+    "load_jsonl_suite",
 ]

@@ -17,6 +17,7 @@ from praval.eval import (
     EvaluationAttempt,
     EvaluationBaseline,
     EvaluationJob,
+    EvaluationMetadata,
     EvaluationResult,
     EvaluationRun,
     EvaluationRunStatus,
@@ -362,6 +363,16 @@ def test_case_suite_and_gate_reject_ambiguous_selectors() -> None:
         lambda: EvalCase(
             case_id="case", name="Case", input=reference, tags=("same", "same")
         ),
+        lambda: EvalCase(
+            case_id="case",
+            name="Case",
+            input=reference,
+            metadata=(
+                EvaluationMetadata(key="same", value=1),
+                EvaluationMetadata(key="same", value=2),
+            ),
+        ),
+        lambda: EvaluationMetadata(key="score", value=float("nan")),
         lambda: Gate(
             gate_id="percentile",
             metric="quality",

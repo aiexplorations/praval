@@ -17,6 +17,7 @@ from praval.eval import (
     EvaluationBaseline,
     EvaluationConflictError,
     EvaluationJob,
+    EvaluationMetadata,
     EvaluationResult,
     EvaluationRun,
     EvaluationRunStatus,
@@ -54,7 +55,12 @@ NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
 
 def _records() -> dict[str, object]:
     prompt = ContentReference(kind=ContentKind.PROMPT, sha256="a" * 64, size_bytes=8)
-    case = EvalCase(case_id="case-1", name="Case one", input=prompt)
+    case = EvalCase(
+        case_id="case-1",
+        name="Case one",
+        input=prompt,
+        metadata=(EvaluationMetadata(key="priority", value=1),),
+    )
     gate = Gate(
         gate_id="quality",
         metric="correctness",

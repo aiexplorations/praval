@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal
@@ -99,6 +100,23 @@ class GateOperator(str, Enum):
     EQUAL = "=="
 
 
+class EvaluationMetadata(_EvaluationModel):
+    """One bounded, query-safe scalar attached to an evaluation case."""
+
+    key: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
+    value: str | int | float | bool | None
+
+    @field_validator("value")
+    @classmethod
+    def require_finite_value(
+        cls, value: str | int | float | bool | None
+    ) -> str | int | float | bool | None:
+        """Reject non-finite floats that cannot round-trip through strict JSON."""
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("metadata floats must be finite")
+        return value
+
+
 class EvalCase(_EvaluationModel):
     """One versioned case whose content is represented by safe references."""
 
@@ -111,6 +129,9 @@ class EvalCase(_EvaluationModel):
         default_factory=tuple, max_length=128
     )
     expected_tool_calls: tuple[str, ...] = Field(default_factory=tuple, max_length=128)
+    metadata: tuple[EvaluationMetadata, ...] = Field(
+        default_factory=tuple, max_length=64
+    )
     tags: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
 
     @field_validator("expected_tool_calls", "tags")
@@ -121,6 +142,17 @@ class EvalCase(_EvaluationModel):
             raise ValueError("values must contain non-empty names up to 256 characters")
         if len(set(values)) != len(values):
             raise ValueError("values must not contain duplicates")
+        return values
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata_keys(
+        cls, values: tuple[EvaluationMetadata, ...]
+    ) -> tuple[EvaluationMetadata, ...]:
+        """Reject duplicate metadata keys."""
+        keys = [item.key for item in values]
+        if len(keys) != len(set(keys)):
+            raise ValueError("metadata keys must not contain duplicates")
         return values
 
 
@@ -617,6 +649,7 @@ __all__ = [
     "EvaluationAttempt",
     "EvaluationBaseline",
     "EvaluationJob",
+    "EvaluationMetadata",
     "EvaluationResult",
     "EvaluationRun",
     "EvaluationRunStatus",
