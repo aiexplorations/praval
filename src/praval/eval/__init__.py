@@ -21,6 +21,7 @@ from .models import (
     MetricResult,
     ResultStatus,
 )
+from .postgres import PostgresEvaluationStore
 from .sqlite import SQLiteEvaluationStore
 from .store import (
     EvaluationConflictError,
@@ -50,6 +51,7 @@ __all__ = [
     "JobStatus",
     "JudgeResult",
     "MetricResult",
+    "PostgresEvaluationStore",
     "ResultStatus",
     "SQLiteEvaluationStore",
 ]

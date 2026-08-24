@@ -40,6 +40,15 @@ from praval.models import (
     ObservationStatus,
 )
 
+from .store_contract import (
+    assert_all_records_round_trip,
+    assert_attempt_idempotency,
+    assert_concurrent_writes,
+    assert_explicit_baseline_promotion,
+    assert_query_filters,
+    assert_result_idempotency,
+)
+
 NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
 
 
@@ -188,126 +197,72 @@ async def test_migrations_are_idempotent_and_versioned(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_all_e1_records_round_trip(store: SQLiteEvaluationStore) -> None:
-    records = _records()
-
-    assert await store.put_case(records["case"]) == records["case"]
-    assert await store.put_suite(records["suite"]) == records["suite"]
-    assert await store.put_run(records["run"]) == records["run"]
-    assert await store.put_subject(records["subject"]) == records["subject"]
-    assert await store.put_metric_result(records["metric"]) == records["metric"]
-    assert await store.put_judge_result(records["judge"]) == records["judge"]
-    assert await store.put_gate_result(records["gate_result"]) == records["gate_result"]
-    assert await store.put_evaluation_result(records["result"]) == records["result"]
-    assert await store.promote_baseline(records["baseline"]) == records["baseline"]
-    assert await store.put_job(records["job"]) == records["job"]
-    assert await store.put_attempt(records["attempt"]) == records["attempt"]
-
-    assert await store.get_case("case-1") == records["case"]
-    assert await store.get_suite("suite-1") == records["suite"]
-    assert await store.get_run("eval-run-1") == records["run"]
-    assert await store.get_subject(records["subject"].subject_id) == records["subject"]
-    assert await store.get_evaluation_result("eval-run-1") == records["result"]
-    assert await store.get_active_baseline("suite-1") == records["baseline"]
-    assert await store.get_job("job-1") == records["job"]
+    await assert_all_records_round_trip(store, _records())
 
 
 @pytest.mark.asyncio
 async def test_query_filters_return_only_matching_records(
     store: SQLiteEvaluationStore,
 ) -> None:
-    records = _records()
-    await store.put_case(records["case"])
-    await store.put_suite(records["suite"])
-    await store.put_run(records["run"])
-    await store.put_subject(records["subject"])
-    await store.put_metric_result(records["metric"])
-    await store.put_judge_result(records["judge"])
-    await store.put_gate_result(records["gate_result"])
-    await store.put_job(records["job"])
-    await store.put_attempt(records["attempt"])
-
-    assert await store.list_runs(suite_id="suite-1") == [records["run"]]
-    assert await store.list_runs(suite_id="missing") == []
-    assert await store.list_subjects(evaluation_run_id="eval-run-1") == [
-        records["subject"]
-    ]
-    assert await store.list_metric_results(
-        evaluation_run_id="eval-run-1", metric="correctness"
-    ) == [records["metric"]]
-    assert await store.list_judge_results(evaluation_run_id="eval-run-1") == [
-        records["judge"]
-    ]
-    assert await store.list_gate_results(evaluation_run_id="eval-run-1") == [
-        records["gate_result"]
-    ]
-    assert await store.list_jobs(status=JobStatus.PENDING) == [records["job"]]
-    assert await store.list_attempts(job_id="job-1") == [records["attempt"]]
+    await assert_query_filters(store, _records())
 
 
 @pytest.mark.asyncio
 async def test_duplicate_result_is_idempotent_but_conflict_is_rejected(
     store: SQLiteEvaluationStore,
 ) -> None:
-    metric = _records()["metric"]
-
-    first, second = await asyncio.gather(
-        store.put_metric_result(metric), store.put_metric_result(metric)
-    )
-    assert first == second == metric
-
-    changed = metric.model_copy(update={"score": 0.1})
-    with pytest.raises(EvaluationConflictError, match="metric result"):
-        await store.put_metric_result(changed)
+    await assert_result_idempotency(store, _records())
 
 
 @pytest.mark.asyncio
 async def test_concurrent_distinct_writes_are_not_lost(
     store: SQLiteEvaluationStore,
 ) -> None:
-    base = _records()["case"]
-    cases = [
-        base.model_copy(update={"case_id": f"case-{index}", "name": f"Case {index}"})
-        for index in range(25)
-    ]
-
-    await asyncio.gather(*(store.put_case(case) for case in cases))
-
-    assert {case.case_id for case in await store.list_cases(limit=100)} == {
-        case.case_id for case in cases
-    }
+    await assert_concurrent_writes(store, _records())
 
 
 @pytest.mark.asyncio
 async def test_baseline_changes_only_through_explicit_promotion(
     store: SQLiteEvaluationStore,
 ) -> None:
-    first = _records()["baseline"]
-    second = EvaluationBaseline.create(
-        suite_id="suite-1",
-        source_evaluation_run_id="eval-run-2",
-        promoted_at=NOW + timedelta(seconds=3),
-        promoted_by="maintainer",
-    )
-
-    await store.promote_baseline(first)
-    assert await store.get_active_baseline("suite-1") == first
-    await store.promote_baseline(second)
-
-    assert await store.get_active_baseline("suite-1") == second
-    baselines = await store.list_baselines(suite_id="suite-1")
-    assert [baseline.active for baseline in baselines] == [True, False]
+    await assert_explicit_baseline_promotion(store, _records())
 
 
 @pytest.mark.asyncio
 async def test_attempt_number_is_idempotent_per_job(
     store: SQLiteEvaluationStore,
 ) -> None:
-    attempt = _records()["attempt"]
+    await assert_attempt_idempotency(store, _records())
+
+
+@pytest.mark.asyncio
+async def test_terminal_result_and_attempt_conflicts_are_rejected(
+    store: SQLiteEvaluationStore,
+) -> None:
+    records = _records()
+    result = records["result"]
+    attempt = records["attempt"]
+    await store.put_evaluation_result(result)
     await store.put_attempt(attempt)
 
-    conflicting = attempt.model_copy(update={"attempt_id": "different-id"})
-    with pytest.raises(EvaluationConflictError, match="attempt number"):
-        await store.put_attempt(conflicting)
+    with pytest.raises(EvaluationConflictError, match="evaluation result"):
+        await store.put_evaluation_result(
+            result.model_copy(update={"metric_result_ids": ("different",)})
+        )
+    with pytest.raises(EvaluationConflictError, match="attempt identity"):
+        await store.put_attempt(attempt.model_copy(update={"duration_ms": 6}))
+
+
+@pytest.mark.asyncio
+async def test_store_rejects_invalid_configuration_and_inactive_promotion(
+    store: SQLiteEvaluationStore,
+) -> None:
+    with pytest.raises(ValueError, match="busy_timeout_ms"):
+        SQLiteEvaluationStore(":memory:", busy_timeout_ms=0)
+
+    inactive = _records()["baseline"].model_copy(update={"active": False})
+    with pytest.raises(ValueError, match="must be active"):
+        await store.promote_baseline(inactive)
 
 
 def test_models_still_validate_data_loaded_from_store() -> None:

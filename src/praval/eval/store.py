@@ -28,7 +28,7 @@ class EvaluationConflictError(EvaluationStoreError):
     """A natural idempotency key was reused with different data."""
 
 
-class EvaluationStore(Protocol):
+class EvaluationStore(Protocol):  # pragma: no cover - structural declaration
     """Common asynchronous persistence and query contract for evaluation."""
 
     async def migrate(self) -> None:

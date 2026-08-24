@@ -1,15 +1,15 @@
-"""SQLite evaluation store for local development and CI."""
+"""PostgreSQL evaluation store for shared and production deployments."""
 
 from __future__ import annotations
 
-import asyncio
-import os
-import sqlite3
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Callable, Iterator, ParamSpec, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
+
+try:
+    import asyncpg  # type: ignore[import-untyped]
+except ImportError:  # pragma: no cover - exercised in minimal wheel tests
+    asyncpg = None  # type: ignore[assignment]
 
 from .models import (
     EvalCase,
@@ -25,83 +25,81 @@ from .models import (
     JudgeResult,
     MetricResult,
 )
-from .store import EvaluationConflictError
+from .store import EvaluationConflictError, EvaluationStoreError
 
 _RecordT = TypeVar("_RecordT", bound=BaseModel)
-_Params = ParamSpec("_Params")
-_ReturnT = TypeVar("_ReturnT")
 
 
-class SQLiteEvaluationStore:
-    """Async SQLite implementation of the evaluation persistence contract.
-
-    Blocking SQLite calls run in worker threads. A per-store async lock keeps
-    transactions ordered, while WAL and a bounded busy timeout make separate
-    store instances safe for local concurrent writers.
-    """
+class PostgresEvaluationStore:
+    """Pooled async PostgreSQL implementation of ``EvaluationStore``."""
 
     _SCHEMA_VERSION = 1
 
-    def __init__(self, db_path: str | os.PathLike[str], *, busy_timeout_ms: int = 5000):
-        if busy_timeout_ms <= 0:
-            raise ValueError("busy_timeout_ms must be positive")
-        self.db_path = os.fspath(db_path)
-        self.busy_timeout_ms = busy_timeout_ms
-        self._lock = asyncio.Lock()
-
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(
-            self.db_path,
-            timeout=self.busy_timeout_ms / 1000,
-            isolation_level=None,
-        )
-        connection.row_factory = sqlite3.Row
-        connection.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
-        connection.execute("PRAGMA foreign_keys = ON")
-        try:
-            yield connection
-        finally:
-            connection.close()
-
-    async def _run(
+    def __init__(
         self,
-        function: Callable[_Params, _ReturnT],
-        *args: _Params.args,
-        **kwargs: _Params.kwargs,
-    ) -> _ReturnT:
-        async with self._lock:
-            return await asyncio.to_thread(function, *args, **kwargs)
+        dsn: str,
+        *,
+        min_pool_size: int = 1,
+        max_pool_size: int = 10,
+        command_timeout: float = 30.0,
+    ):
+        if asyncpg is None:
+            raise EvaluationStoreError(
+                "asyncpg is required for PostgreSQL evaluation storage; "
+                "install praval[storage]"
+            )
+        if not dsn.strip():
+            raise ValueError("dsn must not be empty")
+        if min_pool_size < 1 or max_pool_size < min_pool_size:
+            raise ValueError(
+                "pool sizes must satisfy 1 <= min_pool_size <= max_pool_size"
+            )
+        if command_timeout <= 0:
+            raise ValueError("command_timeout must be positive")
+        self.dsn = dsn
+        self.min_pool_size = min_pool_size
+        self.max_pool_size = max_pool_size
+        self.command_timeout = command_timeout
+        self._pool: Any = None
+
+    async def _get_pool(self) -> Any:
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(
+                dsn=self.dsn,
+                min_size=self.min_pool_size,
+                max_size=self.max_pool_size,
+                command_timeout=self.command_timeout,
+            )
+        return self._pool
 
     async def migrate(self) -> None:
         """Apply the initial schema transactionally and idempotently."""
-        await self._run(self._migrate_sync)
-
-    def _migrate_sync(self) -> None:
-        Path(self.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                connection.executescript(
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext('praval_eval_migrations'))"
+                )
+                await connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS evaluation_schema_migrations (
                         version INTEGER PRIMARY KEY,
-                        applied_at TEXT NOT NULL
+                        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
                     CREATE TABLE IF NOT EXISTS evaluation_cases (
                         id TEXT PRIMARY KEY,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE TABLE IF NOT EXISTS evaluation_suites (
                         id TEXT PRIMARY KEY,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE TABLE IF NOT EXISTS evaluation_runs (
                         id TEXT PRIMARY KEY,
                         suite_id TEXT NOT NULL,
                         status TEXT NOT NULL,
-                        started_at TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        started_at TIMESTAMPTZ NOT NULL,
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_runs_suite_started
                         ON evaluation_runs(suite_id, started_at DESC);
@@ -111,7 +109,7 @@ class SQLiteEvaluationStore:
                         case_id TEXT NOT NULL,
                         observation_id TEXT NOT NULL,
                         kind TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_subjects_run
                         ON evaluation_subjects(evaluation_run_id, id);
@@ -121,7 +119,7 @@ class SQLiteEvaluationStore:
                         case_id TEXT NOT NULL,
                         subject_id TEXT NOT NULL,
                         metric TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_metrics_run_metric
                         ON evaluation_metric_results(evaluation_run_id, metric, id);
@@ -131,7 +129,7 @@ class SQLiteEvaluationStore:
                         case_id TEXT NOT NULL,
                         subject_id TEXT NOT NULL,
                         judge TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_judges_run
                         ON evaluation_judge_results(evaluation_run_id, id);
@@ -140,32 +138,32 @@ class SQLiteEvaluationStore:
                         evaluation_run_id TEXT NOT NULL,
                         gate_id TEXT NOT NULL,
                         metric TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_gates_run
                         ON evaluation_gate_results(evaluation_run_id, id);
                     CREATE TABLE IF NOT EXISTS evaluation_results (
                         evaluation_run_id TEXT PRIMARY KEY,
-                        payload TEXT NOT NULL
+                        payload JSONB NOT NULL
                     );
                     CREATE TABLE IF NOT EXISTS evaluation_baselines (
                         id TEXT PRIMARY KEY,
                         suite_id TEXT NOT NULL,
                         source_evaluation_run_id TEXT NOT NULL,
-                        active INTEGER NOT NULL,
-                        promoted_at TEXT NOT NULL,
-                        payload TEXT NOT NULL
+                        active BOOLEAN NOT NULL,
+                        promoted_at TIMESTAMPTZ NOT NULL,
+                        payload JSONB NOT NULL
                     );
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluation_active_baseline
-                        ON evaluation_baselines(suite_id) WHERE active = 1;
+                        ON evaluation_baselines(suite_id) WHERE active;
                     CREATE INDEX IF NOT EXISTS idx_evaluation_baseline_history
                         ON evaluation_baselines(suite_id, promoted_at DESC);
                     CREATE TABLE IF NOT EXISTS evaluation_jobs (
                         id TEXT PRIMARY KEY,
                         status TEXT NOT NULL,
-                        available_at TEXT NOT NULL,
-                        lease_expires_at TEXT,
-                        payload TEXT NOT NULL
+                        available_at TIMESTAMPTZ NOT NULL,
+                        lease_expires_at TIMESTAMPTZ,
+                        payload JSONB NOT NULL
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_ready
                         ON evaluation_jobs(status, available_at, id);
@@ -173,45 +171,42 @@ class SQLiteEvaluationStore:
                         id TEXT PRIMARY KEY,
                         job_id TEXT NOT NULL,
                         attempt_number INTEGER NOT NULL,
-                        payload TEXT NOT NULL,
+                        payload JSONB NOT NULL,
                         UNIQUE(job_id, attempt_number)
                     );
                     CREATE INDEX IF NOT EXISTS idx_evaluation_attempts_job
                         ON evaluation_attempts(job_id, attempt_number);
+                    INSERT INTO evaluation_schema_migrations (version)
+                    VALUES (1) ON CONFLICT (version) DO NOTHING;
                     """
                 )
-                connection.execute(
-                    """
-                    INSERT OR IGNORE INTO evaluation_schema_migrations
-                        (version, applied_at)
-                    VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                    """
-                )
-                connection.commit()
-            except BaseException:
-                connection.rollback()
-                raise
 
     async def schema_version(self) -> int:
         """Return the latest applied migration version."""
-        return int(await self._run(self._schema_version_sync))
-
-    def _schema_version_sync(self) -> int:
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT COALESCE(MAX(version), 0) AS version "
-                "FROM evaluation_schema_migrations"
-            ).fetchone()
-        return int(row["version"])
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            value = await connection.fetchval(
+                "SELECT COALESCE(MAX(version), 0) " "FROM evaluation_schema_migrations"
+            )
+        return int(value)
 
     async def close(self) -> None:
-        """Close the store; connections are scoped per operation."""
+        """Close the owned connection pool."""
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
 
     @staticmethod
     def _payload(record: BaseModel) -> str:
         return record.model_dump_json()
 
-    def _put_immutable_sync(
+    @staticmethod
+    def _decode(model: type[_RecordT], payload: Any) -> _RecordT:
+        if isinstance(payload, str):
+            return model.model_validate_json(payload)
+        return model.model_validate(payload)
+
+    async def _put_immutable(
         self,
         *,
         table: str,
@@ -221,42 +216,47 @@ class SQLiteEvaluationStore:
         values: tuple[Any, ...] = (),
         description: str,
     ) -> _RecordT:
-        payload = self._payload(record)
         names = ("id", *columns, "payload")
-        placeholders = ", ".join("?" for _ in names)
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                connection.execute(
-                    f"INSERT OR IGNORE INTO {table} "
-                    f"({', '.join(names)}) VALUES ({placeholders})",
-                    (identity, *values, payload),
+        placeholders = [f"${index}" for index in range(1, len(names) + 1)]
+        placeholders[-1] += "::jsonb"
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    f"INSERT INTO {table} ({', '.join(names)}) "
+                    f"VALUES ({', '.join(placeholders)}) "
+                    "ON CONFLICT (id) DO NOTHING",
+                    identity,
+                    *values,
+                    self._payload(record),
                 )
-                row = connection.execute(
-                    f"SELECT payload FROM {table} WHERE id = ?", (identity,)
-                ).fetchone()
-                if row is None:  # pragma: no cover - SQLite invariant
-                    raise RuntimeError(f"failed to persist {description}")
-                if row["payload"] != payload:
-                    raise EvaluationConflictError(
-                        f"{description} identity conflicts with stored data"
-                    )
-                connection.commit()
-            except BaseException:
-                connection.rollback()
-                raise
+                payload = await connection.fetchval(
+                    f"SELECT payload FROM {table} WHERE id = $1", identity
+                )
+        if payload is None:  # pragma: no cover - PostgreSQL invariant
+            raise EvaluationStoreError(f"failed to persist {description}")
+        existing = self._decode(type(record), payload)
+        if existing != record:
+            raise EvaluationConflictError(
+                f"{description} identity conflicts with stored data"
+            )
         return record
 
-    def _get_sync(
-        self, table: str, identity_column: str, identity: str, model: type[_RecordT]
+    async def _get(
+        self,
+        table: str,
+        identity_column: str,
+        identity: str,
+        model: type[_RecordT],
     ) -> _RecordT | None:
-        with self._connect() as connection:
-            row = connection.execute(
-                f"SELECT payload FROM {table} WHERE {identity_column} = ?", (identity,)
-            ).fetchone()
-        return model.model_validate_json(row["payload"]) if row else None
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            payload = await connection.fetchval(
+                f"SELECT payload FROM {table} WHERE {identity_column} = $1", identity
+            )
+        return self._decode(model, payload) if payload is not None else None
 
-    def _list_sync(
+    async def _list(
         self,
         *,
         table: str,
@@ -270,15 +270,15 @@ class SQLiteEvaluationStore:
         query = f"SELECT payload FROM {table}"
         if where:
             query += f" WHERE {where}"
-        query += f" ORDER BY {order_by} LIMIT ?"
-        with self._connect() as connection:
-            rows = connection.execute(query, (*values, bounded_limit)).fetchall()
-        return [model.model_validate_json(row["payload"]) for row in rows]
+        query += f" ORDER BY {order_by} LIMIT ${len(values) + 1}"
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            rows = await connection.fetch(query, *values, bounded_limit)
+        return [self._decode(model, row["payload"]) for row in rows]
 
     async def put_case(self, case: EvalCase) -> EvalCase:
         """Persist an immutable case idempotently."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_cases",
             identity=case.case_id,
             record=case,
@@ -287,23 +287,15 @@ class SQLiteEvaluationStore:
 
     async def get_case(self, case_id: str) -> EvalCase | None:
         """Load one case by identity."""
-        return await self._run(
-            self._get_sync, "evaluation_cases", "id", case_id, EvalCase
-        )
+        return await self._get("evaluation_cases", "id", case_id, EvalCase)
 
     async def list_cases(self, *, limit: int = 100) -> list[EvalCase]:
         """List cases in stable identity order."""
-        return await self._run(
-            self._list_sync,
-            table="evaluation_cases",
-            model=EvalCase,
-            limit=limit,
-        )
+        return await self._list(table="evaluation_cases", model=EvalCase, limit=limit)
 
     async def put_suite(self, suite: EvalSuite) -> EvalSuite:
         """Persist an immutable suite idempotently."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_suites",
             identity=suite.suite_id,
             record=suite,
@@ -312,55 +304,44 @@ class SQLiteEvaluationStore:
 
     async def get_suite(self, suite_id: str) -> EvalSuite | None:
         """Load one suite by identity."""
-        return await self._run(
-            self._get_sync, "evaluation_suites", "id", suite_id, EvalSuite
-        )
+        return await self._get("evaluation_suites", "id", suite_id, EvalSuite)
 
     async def put_run(self, run: EvaluationRun) -> EvaluationRun:
         """Create or update a run lifecycle record."""
-        await self._run(self._put_run_sync, run)
-        return run
-
-    def _put_run_sync(self, run: EvaluationRun) -> None:
-        with self._connect() as connection:
-            connection.execute(
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            await connection.execute(
                 """
                 INSERT INTO evaluation_runs (id, suite_id, status, started_at, payload)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5::jsonb)
                 ON CONFLICT(id) DO UPDATE SET
                     suite_id=excluded.suite_id,
                     status=excluded.status,
                     started_at=excluded.started_at,
                     payload=excluded.payload
                 """,
-                (
-                    run.evaluation_run_id,
-                    run.suite_id,
-                    run.status.value,
-                    run.started_at.isoformat(),
-                    self._payload(run),
-                ),
+                run.evaluation_run_id,
+                run.suite_id,
+                run.status.value,
+                run.started_at,
+                self._payload(run),
             )
+        return run
 
     async def get_run(self, evaluation_run_id: str) -> EvaluationRun | None:
         """Load one evaluation run."""
-        return await self._run(
-            self._get_sync,
-            "evaluation_runs",
-            "id",
-            evaluation_run_id,
-            EvaluationRun,
+        return await self._get(
+            "evaluation_runs", "id", evaluation_run_id, EvaluationRun
         )
 
     async def list_runs(
         self, *, suite_id: str | None = None, limit: int = 100
     ) -> list[EvaluationRun]:
         """List recent runs, optionally restricted to a suite."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_runs",
             model=EvaluationRun,
-            where="suite_id = ?" if suite_id is not None else "",
+            where="suite_id = $1" if suite_id is not None else "",
             values=(suite_id,) if suite_id is not None else (),
             order_by="started_at DESC, id",
             limit=limit,
@@ -368,8 +349,7 @@ class SQLiteEvaluationStore:
 
     async def put_subject(self, subject: EvaluationSubject) -> EvaluationSubject:
         """Persist one immutable agent or workflow subject."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_subjects",
             identity=subject.subject_id,
             record=subject,
@@ -390,31 +370,25 @@ class SQLiteEvaluationStore:
 
     async def get_subject(self, subject_id: str) -> EvaluationSubject | None:
         """Load one subject."""
-        return await self._run(
-            self._get_sync,
-            "evaluation_subjects",
-            "id",
-            subject_id,
-            EvaluationSubject,
+        return await self._get(
+            "evaluation_subjects", "id", subject_id, EvaluationSubject
         )
 
     async def list_subjects(
         self, *, evaluation_run_id: str, limit: int = 100
     ) -> list[EvaluationSubject]:
         """List subjects belonging to a run."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_subjects",
             model=EvaluationSubject,
-            where="evaluation_run_id = ?",
+            where="evaluation_run_id = $1",
             values=(evaluation_run_id,),
             limit=limit,
         )
 
     async def put_metric_result(self, result: MetricResult) -> MetricResult:
         """Persist one immutable, idempotent metric result."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_metric_results",
             identity=result.metric_result_id,
             record=result,
@@ -436,13 +410,12 @@ class SQLiteEvaluationStore:
         limit: int = 1000,
     ) -> list[MetricResult]:
         """List metric results for a run."""
-        where = "evaluation_run_id = ?"
+        where = "evaluation_run_id = $1"
         values: tuple[Any, ...] = (evaluation_run_id,)
         if metric is not None:
-            where += " AND metric = ?"
+            where += " AND metric = $2"
             values += (metric,)
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_metric_results",
             model=MetricResult,
             where=where,
@@ -452,8 +425,7 @@ class SQLiteEvaluationStore:
 
     async def put_judge_result(self, result: JudgeResult) -> JudgeResult:
         """Persist one immutable, idempotent judge result."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_judge_results",
             identity=result.judge_result_id,
             record=result,
@@ -471,19 +443,17 @@ class SQLiteEvaluationStore:
         self, *, evaluation_run_id: str, limit: int = 1000
     ) -> list[JudgeResult]:
         """List judge results for a run."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_judge_results",
             model=JudgeResult,
-            where="evaluation_run_id = ?",
+            where="evaluation_run_id = $1",
             values=(evaluation_run_id,),
             limit=limit,
         )
 
     async def put_gate_result(self, result: GateResult) -> GateResult:
         """Persist one immutable, idempotent gate result."""
-        return await self._run(
-            self._put_immutable_sync,
+        return await self._put_immutable(
             table="evaluation_gate_results",
             identity=result.gate_result_id,
             record=result,
@@ -496,37 +466,32 @@ class SQLiteEvaluationStore:
         self, *, evaluation_run_id: str, limit: int = 1000
     ) -> list[GateResult]:
         """List gate decisions for a run."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_gate_results",
             model=GateResult,
-            where="evaluation_run_id = ?",
+            where="evaluation_run_id = $1",
             values=(evaluation_run_id,),
             limit=limit,
         )
 
     async def put_evaluation_result(self, result: EvaluationResult) -> EvaluationResult:
         """Persist one immutable terminal run summary."""
-        return await self._run(
-            self._put_result_sync,
-            result,
-        )
-
-    def _put_result_sync(self, result: EvaluationResult) -> EvaluationResult:
-        payload = self._payload(result)
-        with self._connect() as connection:
-            connection.execute(
-                "INSERT OR IGNORE INTO evaluation_results "
-                "(evaluation_run_id, payload) VALUES (?, ?)",
-                (result.evaluation_run_id, payload),
-            )
-            row = connection.execute(
-                "SELECT payload FROM evaluation_results WHERE evaluation_run_id = ?",
-                (result.evaluation_run_id,),
-            ).fetchone()
-        if row is None:  # pragma: no cover - SQLite invariant
-            raise RuntimeError("failed to persist evaluation result")
-        if row["payload"] != payload:
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    "INSERT INTO evaluation_results (evaluation_run_id, payload) "
+                    "VALUES ($1, $2::jsonb) "
+                    "ON CONFLICT (evaluation_run_id) DO NOTHING",
+                    result.evaluation_run_id,
+                    self._payload(result),
+                )
+                payload = await connection.fetchval(
+                    "SELECT payload FROM evaluation_results "
+                    "WHERE evaluation_run_id = $1",
+                    result.evaluation_run_id,
+                )
+        if self._decode(EvaluationResult, payload) != result:
             raise EvaluationConflictError(
                 "evaluation result identity conflicts with stored data"
             )
@@ -536,8 +501,7 @@ class SQLiteEvaluationStore:
         self, evaluation_run_id: str
     ) -> EvaluationResult | None:
         """Load a terminal run summary."""
-        return await self._run(
-            self._get_sync,
+        return await self._get(
             "evaluation_results",
             "evaluation_run_id",
             evaluation_run_id,
@@ -550,74 +514,67 @@ class SQLiteEvaluationStore:
         """Atomically make an explicit baseline active for its suite."""
         if not baseline.active:
             raise ValueError("a promoted baseline must be active")
-        return await self._run(self._promote_baseline_sync, baseline)
-
-    def _promote_baseline_sync(
-        self, baseline: EvaluationBaseline
-    ) -> EvaluationBaseline:
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                rows = connection.execute(
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext($1))",
+                    f"praval_eval_baseline:{baseline.suite_id}",
+                )
+                rows = await connection.fetch(
                     "SELECT id, payload FROM evaluation_baselines "
-                    "WHERE suite_id = ? AND active = 1",
-                    (baseline.suite_id,),
-                ).fetchall()
+                    "WHERE suite_id = $1 AND active FOR UPDATE",
+                    baseline.suite_id,
+                )
                 for row in rows:
-                    previous = EvaluationBaseline.model_validate_json(row["payload"])
+                    previous = self._decode(EvaluationBaseline, row["payload"])
                     inactive = previous.model_copy(update={"active": False})
-                    connection.execute(
-                        "UPDATE evaluation_baselines SET active = 0, payload = ? "
-                        "WHERE id = ?",
-                        (self._payload(inactive), previous.baseline_id),
+                    await connection.execute(
+                        "UPDATE evaluation_baselines "
+                        "SET active = FALSE, payload = $1::jsonb WHERE id = $2",
+                        self._payload(inactive),
+                        previous.baseline_id,
                     )
-                connection.execute(
+                await connection.execute(
                     """
                     INSERT INTO evaluation_baselines (
                         id, suite_id, source_evaluation_run_id, active,
                         promoted_at, payload
-                    ) VALUES (?, ?, ?, 1, ?, ?)
+                    ) VALUES ($1, $2, $3, TRUE, $4, $5::jsonb)
                     ON CONFLICT(id) DO UPDATE SET
-                        active=1,
+                        active=TRUE,
                         promoted_at=excluded.promoted_at,
                         payload=excluded.payload
                     """,
-                    (
-                        baseline.baseline_id,
-                        baseline.suite_id,
-                        baseline.source_evaluation_run_id,
-                        baseline.promoted_at.isoformat(),
-                        self._payload(baseline),
-                    ),
+                    baseline.baseline_id,
+                    baseline.suite_id,
+                    baseline.source_evaluation_run_id,
+                    baseline.promoted_at,
+                    self._payload(baseline),
                 )
-                connection.commit()
-            except BaseException:
-                connection.rollback()
-                raise
         return baseline
 
     async def get_active_baseline(self, suite_id: str) -> EvaluationBaseline | None:
         """Load the active baseline for a suite."""
-        return await self._run(self._get_active_baseline_sync, suite_id)
-
-    def _get_active_baseline_sync(self, suite_id: str) -> EvaluationBaseline | None:
-        with self._connect() as connection:
-            row = connection.execute(
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            payload = await connection.fetchval(
                 "SELECT payload FROM evaluation_baselines "
-                "WHERE suite_id = ? AND active = 1",
-                (suite_id,),
-            ).fetchone()
-        return EvaluationBaseline.model_validate_json(row["payload"]) if row else None
+                "WHERE suite_id = $1 AND active",
+                suite_id,
+            )
+        return (
+            self._decode(EvaluationBaseline, payload) if payload is not None else None
+        )
 
     async def list_baselines(
         self, *, suite_id: str, limit: int = 100
     ) -> list[EvaluationBaseline]:
         """List baseline promotion history for a suite."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_baselines",
             model=EvaluationBaseline,
-            where="suite_id = ?",
+            where="suite_id = $1",
             values=(suite_id,),
             order_by="promoted_at DESC, id",
             limit=limit,
@@ -625,50 +582,39 @@ class SQLiteEvaluationStore:
 
     async def put_job(self, job: EvaluationJob) -> EvaluationJob:
         """Create or update a durable evaluation job."""
-        await self._run(self._put_job_sync, job)
-        return job
-
-    def _put_job_sync(self, job: EvaluationJob) -> None:
-        with self._connect() as connection:
-            connection.execute(
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            await connection.execute(
                 """
                 INSERT INTO evaluation_jobs (
                     id, status, available_at, lease_expires_at, payload
-                ) VALUES (?, ?, ?, ?, ?)
+                ) VALUES ($1, $2, $3, $4, $5::jsonb)
                 ON CONFLICT(id) DO UPDATE SET
                     status=excluded.status,
                     available_at=excluded.available_at,
                     lease_expires_at=excluded.lease_expires_at,
                     payload=excluded.payload
                 """,
-                (
-                    job.job_id,
-                    job.status.value,
-                    job.available_at.isoformat(),
-                    (
-                        job.lease_expires_at.isoformat()
-                        if job.lease_expires_at is not None
-                        else None
-                    ),
-                    self._payload(job),
-                ),
+                job.job_id,
+                job.status.value,
+                job.available_at,
+                job.lease_expires_at,
+                self._payload(job),
             )
+        return job
 
     async def get_job(self, job_id: str) -> EvaluationJob | None:
         """Load one job."""
-        return await self._run(
-            self._get_sync, "evaluation_jobs", "id", job_id, EvaluationJob
-        )
+        return await self._get("evaluation_jobs", "id", job_id, EvaluationJob)
 
     async def list_jobs(
         self, *, status: JobStatus | None = None, limit: int = 100
     ) -> list[EvaluationJob]:
         """List jobs, optionally filtered by status."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_jobs",
             model=EvaluationJob,
-            where="status = ?" if status is not None else "",
+            where="status = $1" if status is not None else "",
             values=(status.value,) if status is not None else (),
             order_by="available_at, id",
             limit=limit,
@@ -676,57 +622,48 @@ class SQLiteEvaluationStore:
 
     async def put_attempt(self, attempt: EvaluationAttempt) -> EvaluationAttempt:
         """Persist one immutable job attempt and enforce its natural key."""
-        return await self._run(self._put_attempt_sync, attempt)
-
-    def _put_attempt_sync(self, attempt: EvaluationAttempt) -> EvaluationAttempt:
-        payload = self._payload(attempt)
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                try:
-                    connection.execute(
-                        "INSERT INTO evaluation_attempts "
-                        "(id, job_id, attempt_number, payload) VALUES (?, ?, ?, ?)",
-                        (
-                            attempt.attempt_id,
-                            attempt.job_id,
-                            attempt.attempt_number,
-                            payload,
-                        ),
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    "INSERT INTO evaluation_attempts "
+                    "(id, job_id, attempt_number, payload) "
+                    "VALUES ($1, $2, $3, $4::jsonb) "
+                    "ON CONFLICT DO NOTHING",
+                    attempt.attempt_id,
+                    attempt.job_id,
+                    attempt.attempt_number,
+                    self._payload(attempt),
+                )
+                row = await connection.fetchrow(
+                    "SELECT id, payload FROM evaluation_attempts "
+                    "WHERE job_id = $1 AND attempt_number = $2",
+                    attempt.job_id,
+                    attempt.attempt_number,
+                )
+                if row is None or row["id"] != attempt.attempt_id:
+                    raise EvaluationConflictError(
+                        "attempt number conflicts with stored attempt"
                     )
-                except sqlite3.IntegrityError:
-                    row = connection.execute(
-                        "SELECT id, payload FROM evaluation_attempts "
-                        "WHERE job_id = ? AND attempt_number = ?",
-                        (attempt.job_id, attempt.attempt_number),
-                    ).fetchone()
-                    if row is None or row["id"] != attempt.attempt_id:
-                        raise EvaluationConflictError(
-                            "attempt number conflicts with stored attempt"
-                        ) from None
-                    if row["payload"] != payload:
-                        raise EvaluationConflictError(
-                            "attempt identity conflicts with stored data"
-                        ) from None
-                connection.commit()
-            except BaseException:
-                connection.rollback()
-                raise
+                existing = self._decode(EvaluationAttempt, row["payload"])
+                if existing != attempt:
+                    raise EvaluationConflictError(
+                        "attempt identity conflicts with stored data"
+                    )
         return attempt
 
     async def list_attempts(
         self, *, job_id: str, limit: int = 100
     ) -> list[EvaluationAttempt]:
         """List attempts for one job in attempt order."""
-        return await self._run(
-            self._list_sync,
+        return await self._list(
             table="evaluation_attempts",
             model=EvaluationAttempt,
-            where="job_id = ?",
+            where="job_id = $1",
             values=(job_id,),
             order_by="attempt_number, id",
             limit=limit,
         )
 
 
-__all__ = ["SQLiteEvaluationStore"]
+__all__ = ["PostgresEvaluationStore"]
