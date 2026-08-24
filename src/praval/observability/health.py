@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import weakref
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -50,6 +51,9 @@ class _MutableTelemetryHealth:
 
 
 _health = {signal: _MutableTelemetryHealth() for signal in _SIGNALS}
+_queue_processors: dict[str, list[weakref.ReferenceType[Any]]] = {
+    signal: [] for signal in _SIGNALS
+}
 
 
 def _signal_health(signal: str) -> _MutableTelemetryHealth:
@@ -63,11 +67,39 @@ def reset_telemetry_health() -> None:
     with _health_lock:
         for signal in _SIGNALS:
             _health[signal] = _MutableTelemetryHealth()
+            _queue_processors[signal] = []
+
+
+def _register_queue_processor(signal: str, processor: Any) -> None:
+    with _health_lock:
+        _signal_health(signal)
+        _queue_processors[signal].append(weakref.ref(processor))
+
+
+def _refresh_queues() -> None:
+    for signal in _SIGNALS:
+        references = _queue_processors[signal]
+        live: list[weakref.ReferenceType[Any]] = []
+        depth = 0
+        capacity = 0
+        for reference in references:
+            processor = reference()
+            if processor is None:
+                continue
+            live.append(reference)
+            batch = processor._batch_processor
+            depth += len(batch._queue)
+            capacity += int(batch._max_queue_size)
+        _queue_processors[signal] = live
+        if references:
+            _health[signal].queue_depth = depth
+            _health[signal].queue_capacity = capacity
 
 
 def get_telemetry_health() -> Mapping[str, TelemetryHealth]:
     """Return immutable copies of current per-signal health counters."""
     with _health_lock:
+        _refresh_queues()
         return {signal: _health[signal].snapshot() for signal in _SIGNALS}
 
 
@@ -248,6 +280,7 @@ class _TrackingProcessor:
     def __init__(self, signal: str, processor: Any) -> None:
         self._signal = signal
         self._processor = processor
+        _register_queue_processor(signal, processor)
 
     def _queue_state(self) -> tuple[int, int]:
         batch = self._processor._batch_processor

@@ -167,6 +167,23 @@ def test_exporter_requires_endpoint() -> None:
         _exporter("traces", ObservabilityConfig(enabled=True))
 
 
+def test_optional_health_and_signal_helpers_tolerate_missing_sdk_modules(
+    monkeypatch,
+) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "praval.observability.signals", None)
+    lifecycle._reset_signal_state()
+    lifecycle._initialize_signal_state()
+    monkeypatch.setitem(sys.modules, "praval.observability.health", None)
+    lifecycle._reset_health_state()
+    lifecycle._record_lifecycle_failure("traces")
+    with pytest.raises(PravalConfigurationError, match="observability extra"):
+        lifecycle._local_span_exporter(
+            ObservabilityConfig(enabled=True, local={"enabled": True})
+        )
+
+
 def test_provider_configuration_rejects_incompatible_combinations() -> None:
     with pytest.raises(PravalConfigurationError, match="disabled"):
         _build_providers(

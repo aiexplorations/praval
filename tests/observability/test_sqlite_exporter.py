@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
 from opentelemetry.trace import Link, SpanContext, Status, StatusCode, TraceFlags
 
 from praval.observability.storage import SQLiteSpanExporter, SQLiteTraceStore
+from praval.observability.storage.sqlite_exporter import _trace_state
 
 
 def _export_test_trace(path: Path) -> tuple[SQLiteTraceStore, str]:
@@ -116,6 +117,23 @@ def test_exporter_returns_failure_without_raising_on_unavailable_store(
     exporter = SQLiteSpanExporter(store=store)
 
     assert exporter.export([object()]) is SpanExportResult.FAILURE
+
+
+def test_exporter_constructor_and_synchronous_lifecycle_edges(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="db_path or store"):
+        SQLiteSpanExporter()
+    exporter = SQLiteSpanExporter(str(tmp_path / "telemetry.db"))
+
+    assert exporter.force_flush() is True
+    assert exporter.shutdown() is None
+    assert _trace_state(object()) == ""
+
+
+def test_storage_module_rejects_unknown_lazy_exports() -> None:
+    import praval.observability.storage as storage
+
+    with pytest.raises(AttributeError):
+        storage.__getattr__("UnknownExporter")
 
 
 def test_cleanup_retains_or_deletes_complete_traces(tmp_path: Path) -> None:

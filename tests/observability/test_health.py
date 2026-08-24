@@ -148,6 +148,11 @@ def test_tracking_processor_observes_bounded_queue_drop_and_depth() -> None:
     assert health.queue_depth == 2
     assert health.queue_capacity == 2
 
+    processor._processor._batch_processor._queue.clear()
+    refreshed = get_telemetry_health()["traces"]
+    assert refreshed.queue_depth == 0
+    assert refreshed.queue_capacity == 2
+
 
 def test_tracking_span_processor_does_not_count_unsampled_span_as_drop() -> None:
     class BatchState:
@@ -272,10 +277,12 @@ def test_tracking_processors_delegate_lifecycle_and_span_hooks() -> None:
     assert spans.force_flush(50) is True
     spans.shutdown()
 
-    logs = TrackingLogRecordProcessor("logs", delegate)
+    log_delegate = Processor()
+    logs = TrackingLogRecordProcessor("logs", log_delegate)
     logs.on_emit(object())
 
-    assert delegate.calls == ["start", "ending", "end", "flush", "shutdown", "emit"]
+    assert delegate.calls == ["start", "ending", "end", "flush", "shutdown"]
+    assert log_delegate.calls == ["emit"]
     assert get_telemetry_health()["traces"].queue_depth == 0
     assert get_telemetry_health()["logs"].queue_depth == 1
 

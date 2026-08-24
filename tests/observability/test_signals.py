@@ -218,7 +218,8 @@ def test_export_health_uses_fixed_signal_dimensions(
             self._batch_processor._queue.appendleft(span)
 
     TrackingSpanExporter("traces", Exporter()).export([object()])
-    TrackingSpanProcessor("traces", Processor()).on_end(object())
+    processor = TrackingSpanProcessor("traces", Processor())
+    processor.on_end(object())
 
     points = _metric_points(signal_pipeline["metrics"])
 
