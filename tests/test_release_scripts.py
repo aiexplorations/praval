@@ -186,6 +186,16 @@ def test_ci_runs_the_exact_wheel_ragas_smoke():
     assert "smoke_install.py artifact/dist --extra eval-ragas" in workflow
 
 
+def test_ci_matrix_has_bounded_test_and_job_timeouts():
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    workflow = Path(".github/workflows/ci.yml").read_text()
+
+    assert "pytest-timeout>=2.3.1,<3" in project["optional-dependencies"]["dev"]
+    assert "timeout-minutes: 20" in workflow
+    assert "--timeout=60" in workflow
+    assert "--timeout-method=thread" in workflow
+
+
 def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
