@@ -357,6 +357,7 @@ def _exporter(signal: str, config: ObservabilityConfig) -> Any:
             exporter_class = GRPCLogExporter
         return exporter_class(
             endpoint=endpoint,
+            insecure=not endpoint.lower().startswith("https://"),
             headers=headers,
             timeout=config.otlp.export_timeout_millis / 1000,
         )
