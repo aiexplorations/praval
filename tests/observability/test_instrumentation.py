@@ -70,15 +70,12 @@ class TestBasicInstrumentation:
         assert is_instrumented()
 
     def test_trace_store_is_available(self):
-        """Verify trace store is accessible."""
+        """Local queries fail clearly when the local exporter is disabled."""
+        from praval.core.exceptions import PravalConfigurationError
         from praval.observability import get_trace_store
 
-        store = get_trace_store()
-        assert store is not None
-
-        # Can query for traces
-        recent = store.get_recent_traces(limit=10)
-        assert isinstance(recent, list)
+        with pytest.raises(PravalConfigurationError, match="not enabled"):
+            get_trace_store()
 
 
 class TestReefInstrumentation:

@@ -39,7 +39,8 @@ max_tool_rounds = 4
 
 [observability]
 enabled = true
-capture_content = false
+capture_content = true
+content_allowlist = ["gen_ai.prompt"]
 sample_ratio = 0.5
 
 [observability.otlp]
@@ -101,6 +102,8 @@ def test_load_config_precedence_and_agent_resolution(tmp_path: Path) -> None:
     assert config.app.service_name == "explicit-service"
     assert config.observability.otlp.endpoint == "http://environment:4318"
     assert config.observability.sample_ratio == 0.25
+    assert config.observability.capture_content is True
+    assert config.observability.content_allowlist == ("gen_ai.prompt",)
     resolved = config.resolve_agent_profile("researcher", {"max_tool_rounds": 12})
     assert resolved.provider == "openai"
     assert resolved.model == "environment-model"

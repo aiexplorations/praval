@@ -84,6 +84,7 @@ class ObservabilityHandle:
     tracer_provider: Any
     meter_provider: Any
     logger_provider: Any
+    local_trace_store: Any | None = None
     owned_signals: frozenset[str] = frozenset()
     _owned_components: tuple[_OwnedComponent, ...] = field(
         default_factory=tuple, repr=False
@@ -385,12 +386,39 @@ def _tracked_log_processor(processor: Any) -> Any:
     return TrackingLogRecordProcessor("logs", processor)
 
 
+def _local_span_exporter(config: ObservabilityConfig) -> tuple[Any, Any]:
+    """Create the optional official SQLite exporter and its query store."""
+    try:
+        from .health import tracking_exporter
+        from .storage.sqlite_exporter import SQLiteSpanExporter
+    except ImportError as exc:
+        raise PravalConfigurationError(
+            "local diagnostics require the observability extra: "
+            "pip install 'praval[observability]'"
+        ) from exc
+
+    exporter = SQLiteSpanExporter(
+        config.local.path,
+        max_age_days=config.local.max_age_days,
+        keep_last_n=config.local.max_traces,
+        capture_content=config.capture_content,
+        content_allowlist=config.content_allowlist,
+    )
+    return tracking_exporter("traces", exporter), exporter.store
+
+
+def _set_local_trace_store(store: Any | None) -> None:
+    from .storage.sqlite_store import set_trace_store
+
+    set_trace_store(store)
+
+
 def _build_providers(
     config: PravalConfig,
     tracer_provider: Any | None,
     meter_provider: Any | None,
     logger_provider: Any | None,
-) -> tuple[Any, Any, Any, tuple[_OwnedComponent, ...], frozenset[str]]:
+) -> tuple[Any, Any, Any, tuple[_OwnedComponent, ...], frozenset[str], Any | None]:
     """Create or attach the selected OpenTelemetry pipelines."""
     observability = config.observability
     otlp = observability.otlp
@@ -403,9 +431,13 @@ def _build_providers(
         raise PravalConfigurationError(
             "an OTLP endpoint requires at least one enabled signal"
         )
-    if observability.local.enabled:
+    if observability.local.enabled and not observability.enabled:
         raise PravalConfigurationError(
-            "the local diagnostic exporter is not available until work package O5"
+            "the local diagnostic exporter requires observability to be enabled"
+        )
+    if observability.local.enabled and not otlp.traces:
+        raise PravalConfigurationError(
+            "the local diagnostic exporter requires traces to be enabled"
         )
     if not observability.enabled:
         return (
@@ -414,6 +446,7 @@ def _build_providers(
             _logs.NoOpLoggerProvider(),
             (),
             frozenset(),
+            None,
         )
 
     try:
@@ -431,11 +464,15 @@ def _build_providers(
 
     owned: list[_OwnedComponent] = []
     owned_signals: set[str] = set()
+    local_trace_store = None
 
     if otlp.traces:
-        trace_exporter = (
-            _tracked_exporter("traces", observability) if endpoint else None
-        )
+        trace_exporters = []
+        if endpoint:
+            trace_exporters.append(_tracked_exporter("traces", observability))
+        if observability.local.enabled:
+            local_exporter, local_trace_store = _local_span_exporter(observability)
+            trace_exporters.append(local_exporter)
         if tracer_provider is None:
             try:
                 from opentelemetry.sdk.trace import TracerProvider
@@ -449,7 +486,7 @@ def _build_providers(
                 sampler=_sampler(observability),
                 shutdown_on_exit=False,
             )
-            if trace_exporter is not None:
+            for trace_exporter in trace_exporters:
                 tracer_provider.add_span_processor(
                     _tracked_span_processor(
                         BatchSpanProcessor(
@@ -463,7 +500,7 @@ def _build_providers(
                 )
             owned.append(_OwnedComponent("traces", tracer_provider))
             owned_signals.add("traces")
-        elif trace_exporter is not None:
+        elif trace_exporters:
             add_processor = getattr(tracer_provider, "add_span_processor", None)
             if add_processor is None:
                 raise PravalConfigurationError(
@@ -471,17 +508,18 @@ def _build_providers(
                 )
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            span_processor = _tracked_span_processor(
-                BatchSpanProcessor(
-                    trace_exporter,
-                    max_queue_size=otlp.max_queue_size,
-                    max_export_batch_size=otlp.max_export_batch_size,
-                    schedule_delay_millis=otlp.schedule_delay_millis,
-                    export_timeout_millis=otlp.export_timeout_millis,
+            for trace_exporter in trace_exporters:
+                span_processor = _tracked_span_processor(
+                    BatchSpanProcessor(
+                        trace_exporter,
+                        max_queue_size=otlp.max_queue_size,
+                        max_export_batch_size=otlp.max_export_batch_size,
+                        schedule_delay_millis=otlp.schedule_delay_millis,
+                        export_timeout_millis=otlp.export_timeout_millis,
+                    )
                 )
-            )
-            add_processor(span_processor)
-            owned.append(_OwnedComponent("traces", span_processor))
+                add_processor(span_processor)
+                owned.append(_OwnedComponent("traces", span_processor))
             owned_signals.add("traces")
     else:
         tracer_provider = trace.NoOpTracerProvider()
@@ -578,6 +616,7 @@ def _build_providers(
         logger_provider,
         tuple(owned),
         frozenset(owned_signals),
+        local_trace_store,
     )
 
 
@@ -650,10 +689,12 @@ def configure_observability(
             tracer_provider=providers[0],
             meter_provider=providers[1],
             logger_provider=providers[2],
+            local_trace_store=providers[5],
             _owned_components=providers[3],
             owned_signals=providers[4],
             _provider_identity=identity,
         )
+        _set_local_trace_store(providers[5])
         _reset_signal_state()
         if resolved.observability.otlp.metrics:
             _initialize_signal_state()
@@ -724,6 +765,7 @@ def shutdown_observability(timeout_millis: int | None = None) -> bool:
             return True
         result = handle.shutdown(timeout_millis)
         _active_handle = None
+        _set_local_trace_store(None)
         _reset_signal_state()
         return result
 

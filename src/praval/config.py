@@ -107,6 +107,7 @@ class ObservabilityConfig(_ConfigModel):
 
     enabled: bool = False
     capture_content: bool = False
+    content_allowlist: tuple[str, ...] = ()
     sampling: Literal["always_on", "always_off", "parentbased_traceidratio"] = (
         "parentbased_traceidratio"
     )

@@ -197,10 +197,25 @@ def test_provider_configuration_rejects_incompatible_combinations() -> None:
             None,
             None,
         )
-    with pytest.raises(PravalConfigurationError, match="O5"):
+    with pytest.raises(PravalConfigurationError, match="requires observability"):
         _build_providers(
             PravalConfig(
-                observability=ObservabilityConfig(enabled=True, local={"enabled": True})
+                observability=ObservabilityConfig(
+                    enabled=False, local={"enabled": True}
+                )
+            ),
+            None,
+            None,
+            None,
+        )
+    with pytest.raises(PravalConfigurationError, match="requires traces"):
+        _build_providers(
+            PravalConfig(
+                observability=ObservabilityConfig(
+                    enabled=True,
+                    otlp={"traces": False},
+                    local={"enabled": True},
+                )
             ),
             None,
             None,
@@ -218,6 +233,74 @@ def test_managed_all_signal_providers_without_exporters() -> None:
     assert handle.owned_signals == frozenset({"traces", "metrics", "logs"})
     assert force_flush(500) is True
     assert shutdown_observability(500) is True
+
+
+def test_local_diagnostic_exporter_is_batched_and_lifecycle_bound(tmp_path) -> None:
+    from praval.observability.storage import get_trace_store
+
+    handle = configure_observability(
+        PravalConfig(
+            observability=ObservabilityConfig(
+                enabled=True,
+                otlp={
+                    "traces": True,
+                    "metrics": False,
+                    "logs": False,
+                    "schedule_delay_millis": 10000,
+                },
+                local={
+                    "enabled": True,
+                    "path": str(tmp_path / "local.db"),
+                    "max_traces": 10,
+                    "max_age_days": 7,
+                },
+            )
+        )
+    )
+    with get_tracer().start_as_current_span("local-operation") as span:
+        trace_id = format(span.get_span_context().trace_id, "032x")
+
+    assert force_flush(500) is True
+    assert handle.local_trace_store is get_trace_store()
+    assert [row["name"] for row in get_trace_store().get_trace(trace_id)] == [
+        "local-operation"
+    ]
+    assert shutdown_observability(500) is True
+    with pytest.raises(PravalConfigurationError, match="not enabled"):
+        get_trace_store()
+
+
+def test_local_and_otlp_exporters_receive_the_same_span(monkeypatch, tmp_path) -> None:
+    from praval.observability.storage import get_trace_store
+
+    otlp_exporter = InMemorySpanExporter()
+    monkeypatch.setattr(
+        lifecycle,
+        "_exporter",
+        lambda signal, config: otlp_exporter,
+    )
+    configure_observability(
+        PravalConfig(
+            observability=ObservabilityConfig(
+                enabled=True,
+                otlp={
+                    "endpoint": "http://collector:4318",
+                    "traces": True,
+                    "metrics": False,
+                    "logs": False,
+                },
+                local={"enabled": True, "path": str(tmp_path / "local.db")},
+            )
+        )
+    )
+    with get_tracer().start_as_current_span("dual-export") as span:
+        trace_id = format(span.get_span_context().trace_id, "032x")
+
+    assert force_flush(500) is True
+    assert [span.name for span in otlp_exporter.get_finished_spans()] == ["dual-export"]
+    assert [row["name"] for row in get_trace_store().get_trace(trace_id)] == [
+        "dual-export"
+    ]
 
 
 def test_managed_all_signal_export_pipeline(monkeypatch) -> None:
