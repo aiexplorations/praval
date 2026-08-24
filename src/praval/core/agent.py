@@ -1165,7 +1165,7 @@ class Agent:
         reef = get_reef()
         channel = reef.get_channel(channel_name)
         if channel:
-            channel.unsubscribe(self.name)
+            channel.unsubscribe(self.name, self.on_spore_received)
 
         # Remove from tracking
         if channel_name in self._subscribed_channels:
@@ -1234,7 +1234,7 @@ class Agent:
                 try:
                     channel = reef.get_channel(channel_name)
                     if channel:
-                        channel.unsubscribe(self.name)
+                        channel.unsubscribe(self.name, self.on_spore_received)
                 except Exception as e:
                     logger.warning(
                         f"Error unsubscribing {self.name} from {channel_name}: {e}"

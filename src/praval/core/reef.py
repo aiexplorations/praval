@@ -768,10 +768,30 @@ class SubscriptionManager:
             if not handlers:
                 return
             self._subscribers[agent_name] = [
-                existing for existing in handlers if existing is not handler
+                existing
+                for existing in handlers
+                if not self._is_same_handler(existing, handler)
             ]
             if not self._subscribers[agent_name]:
                 del self._subscribers[agent_name]
+
+    @staticmethod
+    def _is_same_handler(existing: Callable, candidate: Callable) -> bool:
+        """Match functions and separately accessed instances of one bound method."""
+        if existing is candidate:
+            return True
+        existing_self = getattr(existing, "__self__", None)
+        candidate_self = getattr(candidate, "__self__", None)
+        existing_func = getattr(existing, "__func__", None)
+        candidate_func = getattr(candidate, "__func__", None)
+        return (
+            existing_self is not None
+            and candidate_self is not None
+            and existing_func is not None
+            and candidate_func is not None
+            and existing_self is candidate_self
+            and existing_func is candidate_func
+        )
 
     def get_handlers(self, agent_name: str) -> List[Callable]:
         with self._lock:

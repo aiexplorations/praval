@@ -43,6 +43,7 @@ def test_agent_reregistration_replaces_handler():
 
     # Clear response count
     response_count.clear()
+    replaced_agent = first_agent._praval_agent
 
     # Re-define the same agent with THE SAME NAME (simulating re-running a notebook
     # cell)
@@ -51,6 +52,10 @@ def test_agent_reregistration_replaces_handler():
         """Second version of the agent - same name."""
         response_count.append(1)
         return {"version": 2}
+
+    # Closing or collecting the replaced instance must not remove the newer
+    # same-name subscription.
+    replaced_agent.close()
 
     # Send another message
     _ = start_agents(
