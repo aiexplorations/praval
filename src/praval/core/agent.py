@@ -544,9 +544,25 @@ class Agent:
 
         with self._observation_scope(run_id, "generate_async"):
             record_content_reference(ContentKind.PROMPT, message)
+            allowed_tool_names = kwargs.get("allowed_tool_names")
+            if allowed_tool_names is None:
+                request_tools = list(self.tools.values()) if self.tools else None
+            else:
+                names = tuple(allowed_tool_names)
+                unknown = sorted(set(names) - set(self.tools))
+                if unknown:
+                    raise ValueError(f"Unknown allowed tools: {unknown}")
+                request_tools = [self.tools[name] for name in names]
+            request_messages = list(self.conversation_history)
+            additional_system_message = kwargs.get("additional_system_message")
+            if additional_system_message:
+                request_messages.insert(
+                    0,
+                    {"role": "system", "content": additional_system_message},
+                )
             response = await self.runtime.ainvoke(
-                messages=self.conversation_history,
-                tools=list(self.tools.values()) if self.tools else None,
+                messages=request_messages,
+                tools=request_tools,
                 hitl_context=self._build_hitl_context(run_id),
                 response_schema=kwargs.get("response_schema"),
                 reasoning=kwargs.get("reasoning"),

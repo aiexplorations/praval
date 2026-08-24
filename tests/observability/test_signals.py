@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -21,15 +22,23 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 
 from praval.config import AppConfig, ObservabilityConfig, PravalConfig
+from praval.eval import EvaluationSubject, JudgeResult, ResultStatus
+from praval.models import ExecutionObservation, ObservationStatus
 from praval.models.observation import (
     ContentKind,
     ObservationFactStatus,
     ObservationKind,
+    ObservationPrivacy,
+    PrivacyMode,
     ReefHandoffObservation,
     RetryObservation,
     ToolCallObservation,
 )
-from praval.observability import configure_observability, shutdown_observability
+from praval.observability import (
+    configure_observability,
+    emit_evaluation_result,
+    shutdown_observability,
+)
 from praval.observability.health import TrackingSpanExporter, TrackingSpanProcessor
 from praval.runtime_observation import (
     ObservationScope,
@@ -39,6 +48,58 @@ from praval.runtime_observation import (
     record_retry,
     record_tool_call,
 )
+
+NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
+
+
+def _evaluation_pair(
+    *,
+    status: ResultStatus = ResultStatus.PASSED,
+    explanation: str | None = None,
+) -> tuple[JudgeResult, EvaluationSubject]:
+    observation = ExecutionObservation(
+        observation_id="observation-1",
+        run_id="execution-1",
+        kind=ObservationKind.AGENT,
+        agent_name="researcher",
+        response_id="response-1",
+        started_at=NOW,
+        ended_at=NOW,
+        duration_ms=0,
+        status=ObservationStatus.OK,
+    )
+    subject = EvaluationSubject.from_observation(
+        evaluation_run_id="evaluation-1",
+        case_id="case-1",
+        observation=observation,
+    )
+    values: dict[str, Any] = {
+        "evaluation_run_id": "evaluation-1",
+        "case_id": "case-1",
+        "subject_id": subject.subject_id,
+        "judge": "quality",
+        "judge_version": "1",
+        "prompt_sha256": "a" * 64,
+        "rubric_version": "1",
+        "status": status,
+        "created_at": NOW,
+    }
+    if status is ResultStatus.ERROR:
+        values["error_type"] = "JudgeTimeoutError"
+    else:
+        values.update({"score": 0.95, "label": "pass"})
+    if explanation is not None:
+        values.update(
+            {
+                "explanation": explanation,
+                "privacy": ObservationPrivacy(
+                    mode=PrivacyMode.FULL,
+                    content_captured=True,
+                    byte_limit=1024,
+                ),
+            }
+        )
+    return JudgeResult.create(**values), subject
 
 
 @pytest.fixture
@@ -168,6 +229,73 @@ def test_completed_observation_emits_bounded_metrics_and_correlated_log(
     assert record.attributes["praval.reef.handoff.count"] == 1
     assert "praval.observation.id" not in record.attributes
     assert "praval.run.id" not in record.attributes
+
+
+def test_evaluation_result_event_preserves_subject_correlation(
+    signal_pipeline: dict[str, Any],
+) -> None:
+    result, subject = _evaluation_pair()
+
+    assert emit_evaluation_result(result, subject) is True
+
+    record = signal_pipeline["logs"].get_finished_logs()[0].log_record
+    assert record.event_name == "gen_ai.evaluation.result"
+    assert record.attributes["gen_ai.evaluation.name"] == "quality"
+    assert record.attributes["gen_ai.evaluation.score.value"] == 0.95
+    assert record.attributes["gen_ai.evaluation.score.label"] == "pass"
+    assert record.attributes["gen_ai.response.id"] == "response-1"
+    assert record.attributes["praval.observation.id"] == "observation-1"
+    assert record.attributes["praval.evaluation.run.id"] == "evaluation-1"
+    assert record.attributes["praval.evaluation.case.id"] == "case-1"
+    assert record.attributes["praval.evaluation.subject.id"] == subject.subject_id
+    assert "gen_ai.evaluation.explanation" not in record.attributes
+
+
+def test_evaluation_result_is_a_noop_until_observability_is_configured() -> None:
+    result, subject = _evaluation_pair()
+
+    assert emit_evaluation_result(result, subject) is False
+
+
+@pytest.mark.parametrize(
+    ("result_update", "subject_update", "message"),
+    [
+        ({"subject_id": "wrong"}, {}, "subject identity"),
+        ({"evaluation_run_id": "wrong"}, {}, "run identity"),
+        ({"case_id": "wrong"}, {}, "case identity"),
+    ],
+)
+def test_evaluation_result_rejects_correlation_drift(
+    signal_pipeline: dict[str, Any],
+    result_update: dict[str, Any],
+    subject_update: dict[str, Any],
+    message: str,
+) -> None:
+    result, subject = _evaluation_pair()
+
+    with pytest.raises(ValueError, match=message):
+        emit_evaluation_result(
+            result.model_copy(update=result_update),
+            subject.model_copy(update=subject_update),
+        )
+
+
+def test_evaluation_error_event_and_opted_in_explanation(
+    signal_pipeline: dict[str, Any],
+) -> None:
+    error, subject = _evaluation_pair(status=ResultStatus.ERROR)
+    explained, _ = _evaluation_pair(explanation="bounded explanation")
+
+    emit_evaluation_result(error, subject)
+    emit_evaluation_result(explained, subject)
+
+    records = signal_pipeline["logs"].get_finished_logs()
+    assert records[0].log_record.severity_number is SeverityNumber.ERROR
+    assert records[0].log_record.attributes["error.type"] == "JudgeTimeoutError"
+    assert (
+        records[1].log_record.attributes["gen_ai.evaluation.explanation"]
+        == "bounded explanation"
+    )
 
 
 def test_error_signals_remain_metadata_only(

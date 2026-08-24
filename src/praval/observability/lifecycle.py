@@ -749,6 +749,12 @@ def get_logger(name: str = _INSTRUMENTATION_NAME) -> Any:
     return handle.logger_provider.get_logger(name, _package_version())
 
 
+def is_observability_configured() -> bool:
+    """Return whether the explicit Praval observability facade is active."""
+    handle = _active_handle
+    return bool(handle is not None and handle.active)
+
+
 def force_flush(timeout_millis: int | None = None) -> bool:
     """Flush the active Praval-owned telemetry resources."""
     handle = _active_handle
@@ -784,5 +790,6 @@ __all__ = [
     "get_logger",
     "get_meter",
     "get_tracer",
+    "is_observability_configured",
     "shutdown_observability",
 ]

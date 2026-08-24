@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -20,7 +20,14 @@ from praval.eval import (
     TargetResult,
     load_jsonl_suite,
 )
-from praval.models import ExecutionObservation, ObservationKind, ObservationStatus
+from praval.models import (
+    ExecutionObservation,
+    ObservationFactStatus,
+    ObservationKind,
+    ObservationStatus,
+    ReefHandoffObservation,
+    ToolCallObservation,
+)
 
 NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
 
@@ -74,6 +81,43 @@ class FakeJudge:
         )
 
 
+class FakeWorkflowTarget:
+    async def evaluate(self, case) -> TargetResult:
+        return TargetResult(
+            observation=ExecutionObservation(
+                observation_id=f"workflow-observation-{case.case.case_id}",
+                run_id=f"workflow-execution-{case.case.case_id}",
+                kind=ObservationKind.WORKFLOW,
+                workflow_name="research-workflow",
+                response_id=f"workflow-response-{case.case.case_id}",
+                started_at=NOW,
+                ended_at=NOW + timedelta(milliseconds=20),
+                duration_ms=20,
+                status=ObservationStatus.OK,
+                terminal_outcome="answer_ready",
+                tool_calls=(
+                    ToolCallObservation(
+                        tool_call_id="tool-1",
+                        name="lookup",
+                        status=ObservationFactStatus.OK,
+                        duration_ms=2,
+                    ),
+                ),
+                handoffs=(
+                    ReefHandoffObservation(
+                        handoff_id="handoff-1",
+                        source_agent_id="researcher",
+                        target_agent_id="writer",
+                        channel="drafts",
+                        status=ObservationFactStatus.OK,
+                        duration_ms=3,
+                    ),
+                ),
+            ),
+            output={"answer": case.input},
+        )
+
+
 def _suite(tmp_path, count: int = 6):
     dataset = tmp_path / "cases.jsonl"
     dataset.write_text(
@@ -121,6 +165,95 @@ async def test_runner_bounds_concurrency_and_persists_linked_results(tmp_path) -
     assert {subject.observation_id for subject in subjects} == {
         f"obs-case-{index}" for index in range(6)
     }
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_emits_the_persisted_judge_and_subject_identities(
+    tmp_path, monkeypatch
+) -> None:
+    emitted = []
+
+    def capture(result, subject) -> bool:
+        emitted.append((result, subject))
+        return True
+
+    monkeypatch.setattr("praval.eval.runner.emit_evaluation_result", capture)
+    store = SQLiteEvaluationStore(tmp_path / "evaluation.db")
+    await store.migrate()
+    runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={"quality": FakeJudge()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    await runner.run(_suite(tmp_path, 1), evaluation_run_id="eval-run-1")
+
+    persisted = await store.list_judge_results(evaluation_run_id="eval-run-1")
+    assert len(emitted) == len(persisted) == 1
+    emitted_result, emitted_subject = emitted[0]
+    assert emitted_result == persisted[0]
+    assert emitted_result.subject_id == emitted_subject.subject_id
+    assert emitted_subject.observation_id == "obs-case-0"
+    assert emitted_subject.response_id == "response-case-0"
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_isolates_evaluation_telemetry_failures(
+    tmp_path, monkeypatch
+) -> None:
+    def fail_emission(result, subject) -> bool:
+        raise RuntimeError("telemetry unavailable")
+
+    monkeypatch.setattr("praval.eval.runner.emit_evaluation_result", fail_emission)
+    store = SQLiteEvaluationStore(tmp_path / "evaluation.db")
+    await store.migrate()
+    runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={"quality": FakeJudge()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    result = await runner.run(_suite(tmp_path, 1), evaluation_run_id="eval-run-1")
+
+    assert result.status is EvaluationRunStatus.COMPLETED
+    assert len(await store.list_judge_results(evaluation_run_id="eval-run-1")) == 1
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_evaluates_one_aggregated_workflow_observation(tmp_path) -> None:
+    store = SQLiteEvaluationStore(tmp_path / "workflow.db")
+    await store.migrate()
+    loaded_suite = _suite(tmp_path, 1)
+    workflow_suite = replace(
+        loaded_suite,
+        suite=loaded_suite.suite.model_copy(update={"target": "research-workflow"}),
+    )
+    runner = EvalRunner(
+        store=store,
+        target=FakeWorkflowTarget(),
+        judges={"quality": FakeJudge()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    result = await runner.run(workflow_suite, evaluation_run_id="workflow-eval-1")
+
+    subjects = await store.list_subjects(evaluation_run_id="workflow-eval-1")
+    assert result.passed_cases == 1
+    assert len(subjects) == 1
+    observation = subjects[0].observation
+    assert observation.kind is ObservationKind.WORKFLOW
+    assert observation.workflow_name == "research-workflow"
+    assert observation.terminal_outcome == "answer_ready"
+    assert [fact.name for fact in observation.tool_calls] == ["lookup"]
+    assert [fact.target_agent_id for fact in observation.handoffs] == ["writer"]
     await store.close()
 
 

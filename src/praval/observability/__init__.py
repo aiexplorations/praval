@@ -27,8 +27,10 @@ from .lifecycle import (
     get_logger,
     get_meter,
     get_tracer,
+    is_observability_configured,
     shutdown_observability,
 )
+from .signals import emit_evaluation_result
 from .storage import SQLiteTraceStore, get_trace_store
 from .tracing import (
     Span,
@@ -53,6 +55,8 @@ __all__ = [
     "get_tracer",
     "get_meter",
     "get_logger",
+    "is_observability_configured",
+    "emit_evaluation_result",
     "Span",
     "SpanKind",
     "SpanStatus",

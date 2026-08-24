@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Protocol
 
 from praval.models import ExecutionObservation
+from praval.observability import emit_evaluation_result
 
 from .dataset import LoadedEvalCase, LoadedEvalSuite
 from .models import (
@@ -20,6 +22,8 @@ from .models import (
     ResultStatus,
 )
 from .store import EvaluationStore
+
+logger = logging.getLogger(__name__)
 
 
 class EvaluationExecutionError(RuntimeError):
@@ -201,7 +205,9 @@ class EvalRunner:
             )
             result = await self.judges[judge_name].evaluate(context)
             self._validate_judge_identity(result, judge_name, context)
-            results.append(await self.store.put_judge_result(result))
+            stored = await self.store.put_judge_result(result)
+            results.append(stored)
+            self._emit_result(stored, subject)
         statuses = {result.status for result in results}
         if ResultStatus.ERROR in statuses:
             status = ResultStatus.ERROR
@@ -237,6 +243,14 @@ class EvalRunner:
                 "runner clock must return an aware timestamp"
             )
         return value.astimezone(timezone.utc)
+
+    @staticmethod
+    def _emit_result(result: JudgeResult, subject: EvaluationSubject) -> None:
+        """Keep telemetry exporter failures out of evaluation semantics."""
+        try:
+            emit_evaluation_result(result, subject)
+        except Exception as exc:
+            logger.warning("Evaluation result telemetry failed: %s", type(exc).__name__)
 
 
 __all__ = [

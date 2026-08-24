@@ -205,6 +205,8 @@ exports = [
   "get_tracer",
   "get_meter",
   "get_logger",
+  "is_observability_configured",
+  "emit_evaluation_result",
   "Span",
   "SpanKind",
   "SpanStatus",

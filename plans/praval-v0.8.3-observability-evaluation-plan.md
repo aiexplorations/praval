@@ -305,6 +305,24 @@ Judge prompts must keep the trusted rubric separate from candidate content. Cand
 
 Judge calls will be marked as evaluation work so online evaluation does not evaluate its own judge calls. Self-evaluation will be disabled unless the suite explicitly enables it.
 
+### Recommended agent and evaluator-agent construction patterns
+
+Documentation and reference examples must treat the target agent and the evaluator as a paired design problem. Praval will not introduce a separate evaluator-agent runtime type. An evaluator agent is an ordinary Praval agent with a stricter task envelope and capability policy.
+
+Recommend the least complex evaluation mechanism that can answer the question reliably:
+
+1. Use deterministic assertions for exact outputs, schemas, invariants, tool choices, and terminal status.
+2. Use metric plugins for repeatable domain or retrieval metrics.
+3. Use `ModelJudge` for rubric-based semantic judgment that needs no tools, retrieval, memory, or multi-step agent flow.
+4. Use `AgentJudge` only when evaluation genuinely needs approved tools, retrieval, isolated memory, HITL, or multi-step reasoning.
+5. Combine mechanisms when a gate needs both hard invariants and qualitative judgment; do not replace deterministic checks with an LLM judge.
+
+The recommended **agent-under-evaluation pattern** will use stable agent, model, prompt, tool, and workflow identities; versioned instructions and configuration; typed inputs and structured terminal outputs where the domain permits them; explicit success, failure, and incomplete outcomes; bounded retries and tool rounds; injectable provider and tool seams for deterministic tests; and exactly one immutable observation per evaluated agent or workflow with aggregated model, tool, handoff, usage, timing, status, and content-reference facts. Evaluation-specific judging logic must not be embedded in the production agent.
+
+The recommended **evaluator-agent pattern** will use a separately named agent and model profile where possible; a versioned rubric and prompt; strict `JudgeResult` structured output; deterministic defaults; least-privilege read-only or `evaluation_safe` tools; an isolated memory namespace; explicit time, token, cost, concurrency, retry, and tool-round budgets; trusted-rubric separation from untrusted candidate content; and the evaluation marker that prevents recursive sampling. It must not inherit the target's tools, credentials, memory, retrieval sources, or system prompt. Using the target model as its own judge is discouraged, and self-evaluation remains disabled by default.
+
+The patterns guide must include a decision table, paired target-and-evaluator examples for single agents and workflows, and anti-patterns including self-judging targets, shared operational memory, inherited target capabilities, unrestricted side-effect tools, unversioned rubrics, raw-content capture by default, judge calls on the request path, and automatic baseline promotion.
+
 ### Evaluator-agent capability and safety contract
 
 Evaluator-agent execution will follow these rules:
@@ -666,12 +684,14 @@ Exit gate:
 - Add JSONL suite loading, case selection, concurrency, aggregation, and result persistence.
 - Add `AgentJudge` and `ModelJudge` using configured Praval agents and model profiles.
 - Add strict judge response schemas, rubric and prompt versioning, recursion prevention, retries, timeouts, usage, and cost recording.
+- Prove the recommended agent-under-evaluation, `ModelJudge`, and least-privilege `AgentJudge` construction patterns with deterministic reference fixtures; do not add a second evaluator-agent runtime type.
 - Emit correlation through the public observability facade when it is active.
 
 Exit gate:
 
 - Offline agent and workflow suites run with fake providers and deterministic judges.
 - Judge failures, timeouts, invalid schemas, and self-evaluation rules pass.
+- Reference pattern tests prove stable identities and structured outcomes for targets, strict judge results, evaluator capability and memory isolation, bounded execution, and one aggregated observation per evaluated agent or workflow.
 - Persisted results and emitted evaluation events refer to the same observation and response identities.
 
 #### E3. Workflow evaluation and regression gates
@@ -716,6 +736,7 @@ Exit gate:
 #### E6. Eval certification and final v0.8.3 release
 
 - Complete the top-level Evaluation documentation area and its API reference.
+- Publish a recommended agent and evaluator-agent patterns guide, cross-link it from the core agent-building guides, and include a decision table, paired architectures, safe defaults, and explicit anti-patterns.
 - Add and execute tutorials for evaluator-agent flow and tools, local eval, CI, PostgreSQL, workflow judging, RAGAS, sampled-online evaluation, privacy, cost, failures, and observability correlation.
 - Update installation scopes, API manifests, `praval doctor`, release notes, and the complete v0.8.3 migration guide.
 - Remove claims for nonexistent `praval.explainability`, `praval.security`, and `get_metrics()` APIs.
@@ -726,6 +747,7 @@ Exit gate:
 
 - All observability and evaluation release gates pass together.
 - Documentation claims match the wheel's exported symbols and optional extras.
+- Every recommended agent and evaluator-agent pattern has an executable exact-wheel example and corresponding positive, boundary, failure, and safety tests.
 - The final handoff records completed scope, operational requirements, known limitations, and post-v0.8.3 work.
 
 ## Testing and validation
@@ -742,6 +764,8 @@ Exit gate:
 - Given retries, provider failures, cancellation, interrupted streams, HITL, or tool-round exhaustion, telemetry must show the correct structured error without swallowing the exception.
 - Given local trace retention, age and count pruning must preserve complete newest traces.
 - Given an offline evaluation suite, judge, RAGAS metrics, store records, OpenTelemetry events, and gate outcomes must agree.
+- Given the documented agent-under-evaluation pattern, the exact wheel must produce stable identities, a structured terminal outcome, deterministic fake-provider behavior, and exactly one immutable observation with aggregated facts per evaluated agent or workflow.
+- Given the documented evaluation-mechanism decision table, executable fixtures must prove deterministic assertions, metric plugins, `ModelJudge`, and `AgentJudge` can be selected and composed without changing the target agent's runtime contract.
 - Given a judge profile that references a configured agent, the runner must use that agent's model, prompt, provider, tools, MCP, memory, retrieval, HITL, limits, and observability through the normal Praval runtime.
 - Given a judge profile allowlist, it may narrow the evaluator's tools but must not grant target-agent tools or any capability absent from the evaluator configuration.
 - Given an evaluator tool with side effects, the call must be rejected unless the tool and judge policy explicitly allow it. Required online HITL must suspend only the evaluation job.
@@ -805,6 +829,8 @@ The release must not proceed unless:
 
 Documentation is part of the v0.8.3 product scope and release gate. Extend the existing Sphinx site and add Observability and Evaluation as top-level navigation areas. Do not hide these production features in one long guide or only generate API reference pages.
 
+Update the existing core agent-building and workflow guides with a concise "design for evaluability" section that links to the Evaluation patterns guide. The core guides must explain the stable identity, versioned configuration, structured outcome, bounded execution, deterministic dependency seam, and single aggregated observation requirements without making `praval.eval` a dependency of ordinary agent execution.
+
 ### Observability documentation area
 
 Publish these pages:
@@ -828,18 +854,19 @@ Publish these pages:
 
 1. **Overview and relationship to observability:** Explain `ExecutionObservation`, evaluation records, telemetry summaries, and why eval does not query an external tracing backend.
 2. **Installation and five-minute quickstart:** Cover base `praval.eval`, SQLite, the RAGAS extra, PostgreSQL, one small suite, one judge, and one gate.
-3. **Defining evaluator agents:** Show that an evaluator is a normal configured Praval agent. Document model profiles, prompts, AgentConfig, registration, tools, MCP, memory, retrieval, HITL, retries, and observability.
-4. **Evaluator flow and capability policy:** Explain the evaluation task envelope, normal agent loop, tool allowlists, `evaluation_safe`, side-effect controls, memory isolation, budgets, recursion prevention, and strict JudgeResult validation.
-5. **Direct model judges:** Explain when to use `ModelJudge`, structured output, temperature, retries, timeouts, rubric versioning, and limitations compared with an agent judge.
-6. **Cases, datasets, and suites:** Document JSONL schema, stable IDs, reference answers, contexts, expected tools, tags, selection, concurrency, and reproducibility.
-7. **Agent and workflow evaluation:** Provide separate guides for a single agent, conversation, and correlated multi-agent workflow with handoffs and tools.
-8. **Metrics and RAGAS:** Map supported metrics to required input fields, model and embedding profiles, common failure modes, cost, and plugin extension.
-9. **Gates, baselines, and CI:** Document thresholds, aggregations, missing-metric policy, regression comparison, explicit baseline promotion, CLI commands, and exit codes.
-10. **Online evaluation:** Explain opt-in sampling, durable jobs, workers, request isolation, retries, idempotency, queue saturation, HITL, and shutdown.
-11. **Stores and retention:** Cover SQLite and PostgreSQL configuration, migrations, queries, content references, concurrency, and multi-container operation.
-12. **Evaluation telemetry:** Show suite, case, judge, metric, and gate spans, `gen_ai.evaluation.result`, trace links, score metrics, and backend correlation.
-13. **Cost, privacy, and security:** Cover evaluator-model cost, content transfer, untrusted candidate output, tool side effects, evidence access, redaction, and retention.
-14. **Troubleshooting and API reference:** Cover missing judge agents, invalid output, tool failure, missing RAGAS fields, store errors, failed gates, queue drops, and all public classes and exceptions.
+3. **Recommended agent and evaluator-agent patterns:** Explain how to design an agent for reliable evaluation and how to design a separate least-privilege evaluator. Include the evaluation-mechanism decision table, one-observation boundary, paired single-agent and workflow architectures, safe defaults, and anti-patterns.
+4. **Defining evaluator agents:** Show that an evaluator is a normal configured Praval agent. Document model profiles, prompts, AgentConfig, registration, tools, MCP, memory, retrieval, HITL, retries, and observability.
+5. **Evaluator flow and capability policy:** Explain the evaluation task envelope, normal agent loop, tool allowlists, `evaluation_safe`, side-effect controls, memory isolation, budgets, recursion prevention, and strict JudgeResult validation.
+6. **Direct model judges:** Explain when to use `ModelJudge`, structured output, temperature, retries, timeouts, rubric versioning, and limitations compared with an agent judge.
+7. **Cases, datasets, and suites:** Document JSONL schema, stable IDs, reference answers, contexts, expected tools, tags, selection, concurrency, and reproducibility.
+8. **Agent and workflow evaluation:** Provide separate guides for a single agent, conversation, and correlated multi-agent workflow with handoffs and tools.
+9. **Metrics and RAGAS:** Map supported metrics to required input fields, model and embedding profiles, common failure modes, cost, and plugin extension.
+10. **Gates, baselines, and CI:** Document thresholds, aggregations, missing-metric policy, regression comparison, explicit baseline promotion, CLI commands, and exit codes.
+11. **Online evaluation:** Explain opt-in sampling, durable jobs, workers, request isolation, retries, idempotency, queue saturation, HITL, and shutdown.
+12. **Stores and retention:** Cover SQLite and PostgreSQL configuration, migrations, queries, content references, concurrency, and multi-container operation.
+13. **Evaluation telemetry:** Show suite, case, judge, metric, and gate spans, `gen_ai.evaluation.result`, trace links, score metrics, and backend correlation.
+14. **Cost, privacy, and security:** Cover evaluator-model cost, content transfer, untrusted candidate output, tool side effects, evidence access, redaction, and retention.
+15. **Troubleshooting and API reference:** Cover missing judge agents, invalid output, tool failure, missing RAGAS fields, store errors, failed gates, queue drops, and all public classes and exceptions.
 
 ### End-to-end tutorials and production recipes
 
@@ -848,7 +875,8 @@ Ship executable examples for:
 - A single agent with local traces, metrics, and logs.
 - A multi-agent Reef workflow viewed as one distributed trace.
 - Collector-based export from multiple containers with distinct service names.
-- An evaluator agent with read-only tools, isolated memory, retrieval, and a strict rubric.
+- A paired target agent and evaluator agent demonstrating stable identities, structured outcomes, one aggregated observation, read-only evaluator tools, isolated memory, retrieval, and a strict versioned rubric.
+- The same target evaluated first with deterministic assertions, then `ModelJudge`, then `AgentJudge`, explaining why each mechanism is or is not appropriate.
 - A workflow evaluator that judges handoffs, tool choices, and final outcome.
 - A RAGAS suite with configured Praval judge and embedding models.
 - A CI regression gate with an explicit baseline.
@@ -864,6 +892,7 @@ Each tutorial must show prerequisites, installation command, complete `praval.to
 - Generate or validate the public API inventory from the exact wheel.
 - Document every public function and class with types, defaults, return values, exceptions, lifecycle ownership, and optional dependency requirements.
 - Execute all quickstarts, tutorials, and included configuration files against the exact wheel in CI.
+- Execute every recommended-pattern example and its positive, boundary, failure, and safety cases against the exact wheel; documentation snippets must import only public APIs.
 - Check internal links, external standards links, navigation, code blocks, and referenced files.
 - Maintain a documentation coverage manifest that maps each public API, configuration field, installation extra, error type, and feature claim to a page and an executable test.
 - Test examples with content capture disabled and scan them for credentials and unsafe placeholder secrets.

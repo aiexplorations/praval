@@ -6,14 +6,17 @@ import re
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from opentelemetry._logs import SeverityNumber
 from opentelemetry.metrics import Observation
 
 from praval.models.observation import ExecutionObservation, ObservationStatus
 
-from .lifecycle import get_logger, get_meter
+from .lifecycle import get_logger, get_meter, is_observability_configured
+
+if TYPE_CHECKING:
+    from praval.eval.models import EvaluationSubject, JudgeResult
 
 _SECRET_VALUE = re.compile(r"(?i)(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|api[_-]?key\s*[=:])")
 _MAX_DIMENSION_BYTES = 256
@@ -287,4 +290,49 @@ def emit_execution_observation(observation: ExecutionObservation) -> None:
     _record_log(observation)
 
 
-__all__ = ["emit_execution_observation"]
+def emit_evaluation_result(result: "JudgeResult", subject: "EvaluationSubject") -> bool:
+    """Emit one metadata-only standard evaluation event when configured."""
+    if not is_observability_configured():
+        return False
+    if result.subject_id != subject.subject_id:
+        raise ValueError("evaluation result subject identity does not match")
+    if result.evaluation_run_id != subject.evaluation_run_id:
+        raise ValueError("evaluation result run identity does not match")
+    if result.case_id != subject.case_id:
+        raise ValueError("evaluation result case identity does not match")
+
+    attributes: dict[str, Any] = {
+        "gen_ai.evaluation.name": _bounded_dimension(result.judge),
+        "praval.evaluation.status": result.status.value,
+        "praval.evaluation.run.id": _bounded_dimension(result.evaluation_run_id),
+        "praval.evaluation.case.id": _bounded_dimension(result.case_id),
+        "praval.evaluation.subject.id": _bounded_dimension(result.subject_id),
+        "praval.observation.id": _bounded_dimension(subject.observation_id),
+    }
+    for key, value in (
+        ("gen_ai.evaluation.score.label", result.label),
+        ("gen_ai.response.id", subject.response_id),
+        ("error.type", result.error_type),
+    ):
+        bounded = _bounded_dimension(value)
+        if bounded is not None:
+            attributes[key] = bounded
+    if result.score is not None:
+        attributes["gen_ai.evaluation.score.value"] = result.score
+    if result.explanation is not None and result.privacy.content_captured:
+        attributes["gen_ai.evaluation.explanation"] = result.explanation
+
+    severity = (
+        SeverityNumber.ERROR if result.status.value == "error" else SeverityNumber.INFO
+    )
+    get_logger("praval.evaluation").emit(
+        body="Praval evaluation result",
+        event_name="gen_ai.evaluation.result",
+        severity_number=severity,
+        severity_text=result.status.value.upper(),
+        attributes=attributes,
+    )
+    return True
+
+
+__all__ = ["emit_evaluation_result", "emit_execution_observation"]

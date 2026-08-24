@@ -1,10 +1,17 @@
 """Provider-neutral evaluation contracts, datasets, and persistence."""
 
+from .context import evaluation_call_scope, is_evaluation_call
 from .dataset import (
     EvalDatasetError,
     LoadedEvalCase,
     LoadedEvalSuite,
     load_jsonl_suite,
+)
+from .judges import (
+    AgentJudge,
+    JudgeConfigurationError,
+    JudgeResponseError,
+    ModelJudge,
 )
 from .models import (
     AttemptStatus,
@@ -45,6 +52,7 @@ from .store import (
 )
 
 __all__ = [
+    "AgentJudge",
     "AttemptStatus",
     "EvalDatasetError",
     "EvalRunner",
@@ -70,14 +78,19 @@ __all__ = [
     "GateStatus",
     "JobStatus",
     "Judge",
+    "JudgeConfigurationError",
     "JudgeContext",
     "JudgeResult",
+    "JudgeResponseError",
     "LoadedEvalCase",
     "LoadedEvalSuite",
     "MetricResult",
+    "ModelJudge",
     "PostgresEvaluationStore",
     "ResultStatus",
     "SQLiteEvaluationStore",
     "TargetResult",
+    "evaluation_call_scope",
+    "is_evaluation_call",
     "load_jsonl_suite",
 ]
