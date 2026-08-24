@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 try:
-    import asyncpg  # type: ignore[import-untyped]
+    asyncpg: Any = import_module("asyncpg")
 except ImportError:  # pragma: no cover - exercised in minimal wheel tests
-    asyncpg = None  # type: ignore[assignment]
+    asyncpg = None
 
 from .models import (
     EvalCase,

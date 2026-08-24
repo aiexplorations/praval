@@ -104,6 +104,14 @@ def test_legacy_environment_validation_and_cache(monkeypatch) -> None:
             "unknown model",
         ),
         (
+            {"eval": {"ragas": {"model": "missing"}}},
+            "eval.ragas.model",
+        ),
+        (
+            {"eval": {"ragas": {"embedding": "missing"}}},
+            "eval.ragas.embedding",
+        ),
+        (
             {
                 "eval": {
                     "suites": {

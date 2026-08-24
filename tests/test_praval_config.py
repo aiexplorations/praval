@@ -26,6 +26,12 @@ provider = "anthropic"
 model = "judge-model"
 temperature = 0
 
+[embeddings.evaluation]
+provider = "openai"
+model = "text-embedding-3-small"
+dimensions = 1536
+api_key_env = "OPENAI_API_KEY"
+
 [agents.researcher]
 model = "default"
 max_tool_rounds = 8
@@ -53,6 +59,11 @@ logs = true
 [eval]
 enabled = true
 store = "postgres"
+
+[eval.ragas]
+model = "judge"
+embedding = "evaluation"
+timeout_seconds = 45
 
 [eval.stores.postgres]
 dsn_env = "PRAVAL_EVAL_DATABASE_URL"
@@ -116,6 +127,10 @@ def test_load_config_precedence_and_agent_resolution(tmp_path: Path) -> None:
     judge = config.eval.judges["quality"]
     assert judge.rubric_version == "2026-08-25"
     assert judge.judge_version == "2"
+    assert config.eval.ragas is not None
+    assert config.eval.ragas.model == "judge"
+    assert config.eval.ragas.embedding == "evaluation"
+    assert config.embeddings["evaluation"].api_key_env == "OPENAI_API_KEY"
     gate = config.eval.suites["research_quality"].gates[0]
     assert gate.gate_id == "faithfulness-mean"
     assert gate.baseline_max_regression == 0.05

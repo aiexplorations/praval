@@ -17,10 +17,10 @@ from .dataset import load_jsonl_suite
 from .errors import EvaluationExecutionError
 from .gates import compare_evaluation_runs, promote_evaluation_baseline
 from .judges import AgentJudge, ModelJudge
-from .metrics import builtin_metrics
+from .metrics import Metric, available_metrics
 from .models import Gate, GateStatus
 from .postgres import PostgresEvaluationStore
-from .runner import EvalRunner, Judge, Metric
+from .runner import EvalRunner, Judge
 from .sqlite import SQLiteEvaluationStore
 from .store import EvaluationStore
 from .targets import AgentEvaluationTarget
@@ -86,15 +86,26 @@ async def _run(args: argparse.Namespace) -> int:
         raise EvaluationExecutionError(
             f"unknown evaluation suite: {args.suite}"
         ) from exc
-    available_metrics = builtin_metrics()
-    unknown_metrics = sorted(set(suite_config.metrics) - set(available_metrics))
+    for module_name in args.module:
+        importlib.import_module(module_name)
+    discovered = available_metrics()
+    ragas_names = tuple(
+        name for name in suite_config.metrics if name.startswith("ragas.")
+    )
+    if ragas_names:
+        try:
+            from .ragas import create_ragas_metrics
+        except ImportError as exc:
+            raise EvaluationExecutionError(
+                "RAGAS metrics require the praval[eval-ragas] extra"
+            ) from exc
+        discovered.update(create_ragas_metrics(ragas_names, config))
+    unknown_metrics = sorted(set(suite_config.metrics) - set(discovered))
     if unknown_metrics:
         raise EvaluationExecutionError(f"unknown evaluation metrics: {unknown_metrics}")
     metrics: dict[str, Metric] = {
-        name: available_metrics[name] for name in suite_config.metrics
+        name: discovered[name] for name in suite_config.metrics
     }
-    for module_name in args.module:
-        importlib.import_module(module_name)
     if not suite_config.target.startswith("agent:"):
         raise EvaluationExecutionError(
             "praval eval run currently requires an agent:<name> target"

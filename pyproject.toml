@@ -54,6 +54,9 @@ Changelog = "https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md"
 [project.scripts]
 praval = "praval.cli:main"
 
+[project.entry-points."praval.eval.metrics"]
+"reference.word_overlap" = "praval.eval.reference_plugin:create_metric"
+
 [project.optional-dependencies]
 # Memory system with vector storage and embeddings
 memory = [
@@ -97,6 +100,12 @@ observability = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
 ]
 
+# Optional RAGAS metric adapter with its tested runtime compatibility bound
+eval-ragas = [
+    "ragas>=0.4.3,<0.5",
+    "langchain-community>=0.3.27,<0.4",
+]
+
 # Interactive visual course and exact-wheel notebook execution
 notebooks = [
     "jupyterlab>=4.4,<5",
@@ -137,6 +146,8 @@ all = [
     "opentelemetry-sdk>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
+    "ragas>=0.4.3,<0.5",
+    "langchain-community>=0.3.27,<0.4",
 ]
 
 # Development dependencies
@@ -165,6 +176,8 @@ dev = [
     "opentelemetry-sdk>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
+    "ragas>=0.4.3,<0.5",
+    "langchain-community>=0.3.27,<0.4",
 ]
 
 [tool.setuptools.packages.find]
@@ -252,6 +265,7 @@ omit = [
     "*/test_*.py",
     "*/__pycache__/*",
     "*/venv/*",
+    "*/praval/eval/ragas.py",
 ]
 
 [tool.coverage.report]

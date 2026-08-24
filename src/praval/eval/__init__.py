@@ -22,10 +22,15 @@ from .judges import (
     ModelJudge,
 )
 from .metrics import (
+    METRIC_ENTRY_POINT_GROUP,
     ExactMatchMetric,
+    Metric,
+    MetricPluginError,
     TerminalSuccessMetric,
     ToolCallMatchMetric,
+    available_metrics,
     builtin_metrics,
+    discover_metric_plugins,
 )
 from .models import (
     AttemptStatus,
@@ -56,7 +61,6 @@ from .runner import (
     EvaluationTarget,
     Judge,
     JudgeContext,
-    Metric,
     TargetResult,
 )
 from .sqlite import SQLiteEvaluationStore
@@ -103,9 +107,11 @@ __all__ = [
     "JudgeResponseError",
     "LoadedEvalCase",
     "LoadedEvalSuite",
+    "METRIC_ENTRY_POINT_GROUP",
     "MetricResult",
     "MetricComparison",
     "Metric",
+    "MetricPluginError",
     "ModelJudge",
     "PostgresEvaluationStore",
     "ResultStatus",
@@ -114,9 +120,11 @@ __all__ = [
     "TargetResult",
     "TerminalSuccessMetric",
     "ToolCallMatchMetric",
+    "available_metrics",
     "builtin_metrics",
     "evaluation_call_scope",
     "compare_evaluation_runs",
+    "discover_metric_plugins",
     "evaluate_gate",
     "is_evaluation_call",
     "load_jsonl_suite",

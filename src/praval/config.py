@@ -47,6 +47,16 @@ class ModelProfileConfig(_ConfigModel):
     max_output_tokens: int | None = Field(default=None, gt=0)
 
 
+class EmbeddingProfileConfig(_ConfigModel):
+    """Named provider-neutral embedding profile."""
+
+    provider: str = Field(min_length=1, max_length=128)
+    model: str = Field(min_length=1, max_length=512)
+    dimensions: int | None = Field(default=None, gt=0)
+    base_url: str | None = Field(default=None, min_length=1, max_length=2048)
+    api_key_env: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]*$")
+
+
 class AgentProfileConfig(_ConfigModel):
     """Named agent defaults layered over a model profile."""
 
@@ -230,6 +240,15 @@ class EvalStoresConfig(_ConfigModel):
     postgres: PostgresEvalStoreConfig | None = None
 
 
+class EvalRagasConfig(_ConfigModel):
+    """Configured Praval profiles used only by optional RAGAS metrics."""
+
+    model: str | None = None
+    embedding: str | None = None
+    timeout_seconds: float = Field(default=60.0, gt=0)
+    strict_tool_order: bool = True
+
+
 class EvalJudgeConfig(_ConfigModel):
     """Evaluator-agent or direct-model safety and budget policy."""
 
@@ -309,6 +328,7 @@ class EvalConfig(_ConfigModel):
     offline_concurrency: int = Field(default=4, gt=0)
     online: OnlineEvalConfig = Field(default_factory=OnlineEvalConfig)
     stores: EvalStoresConfig = Field(default_factory=EvalStoresConfig)
+    ragas: EvalRagasConfig | None = None
     judges: dict[str, EvalJudgeConfig] = Field(default_factory=dict)
     suites: dict[str, EvalSuiteConfig] = Field(default_factory=dict)
 
@@ -343,6 +363,7 @@ class PravalConfig(_ConfigModel):
     schema_version: Literal[1] = 1
     app: AppConfig = Field(default_factory=AppConfig)
     models: dict[str, ModelProfileConfig] = Field(default_factory=dict)
+    embeddings: dict[str, EmbeddingProfileConfig] = Field(default_factory=dict)
     agents: dict[str, AgentProfileConfig] = Field(default_factory=dict)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     eval: EvalConfig = Field(default_factory=EvalConfig)
@@ -357,6 +378,17 @@ class PravalConfig(_ConfigModel):
         for name, agent in self.agents.items():
             if agent.model is not None and agent.model not in self.models:
                 raise ValueError(f"agents.{name}.model references unknown model")
+        if self.eval.ragas is not None:
+            if (
+                self.eval.ragas.model is not None
+                and self.eval.ragas.model not in self.models
+            ):
+                raise ValueError("eval.ragas.model references unknown model")
+            if (
+                self.eval.ragas.embedding is not None
+                and self.eval.ragas.embedding not in self.embeddings
+            ):
+                raise ValueError("eval.ragas.embedding references unknown embedding")
         for name, judge in self.eval.judges.items():
             if judge.agent is not None:
                 if judge.agent not in self.agents:
@@ -584,9 +616,11 @@ def reset_legacy_observability_config() -> None:
 __all__ = [
     "AgentProfileConfig",
     "AppConfig",
+    "EmbeddingProfileConfig",
     "EvalConfig",
     "EvalGateConfig",
     "EvalJudgeConfig",
+    "EvalRagasConfig",
     "EvalSuiteConfig",
     "ModelProfileConfig",
     "ObservabilityConfig",

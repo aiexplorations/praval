@@ -70,12 +70,23 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
                     "assert shutdown_observability(500)",
                 ]
             )
+        elif extra == "eval-ragas":
+            checks.extend(
+                [
+                    "import ragas",
+                    "from praval.eval import discover_metric_plugins",
+                    "from praval.eval.ragas import PravalRagasEmbeddings",
+                    "from praval.eval.ragas import PravalRagasLLM",
+                    "from praval.eval.ragas import create_ragas_metrics",
+                ]
+            )
         else:
             checks.extend(
                 [
                     "import importlib.util",
                     "assert importlib.util.find_spec('mcp') is None",
                     "assert importlib.util.find_spec('opentelemetry.sdk') is None",
+                    "assert importlib.util.find_spec('ragas') is None",
                     "from praval.observability import get_logger, get_meter",
                     "from praval.observability import get_tracer",
                     "span = get_tracer().start_span('wheel-no-sdk')",
@@ -103,6 +114,15 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
                     cwd=temp_dir,
                     check=True,
                 )
+        elif extra == "eval-ragas":
+            subprocess.run(
+                [
+                    str(python),
+                    str(Path(__file__).resolve().parent / "smoke_eval_ragas.py"),
+                ],
+                cwd=temp_dir,
+                check=True,
+            )
         subprocess.run(
             [str(python), str(example / "model_runtime_fake_provider.py")], check=True
         )
@@ -111,7 +131,11 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("dist_dir", type=Path)
-    parser.add_argument("--extra", default="", choices=("", "mcp", "observability"))
+    parser.add_argument(
+        "--extra",
+        default="",
+        choices=("", "mcp", "observability", "eval-ragas"),
+    )
     args = parser.parse_args()
     smoke_install(args.dist_dir, args.extra)
     print(f"Clean wheel smoke test passed (extra={args.extra or 'minimal'})")

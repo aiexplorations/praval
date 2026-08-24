@@ -166,6 +166,17 @@ def test_python_floor_and_observability_dependency_scope():
     assert "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45" in observability
 
 
+def test_ragas_dependency_scope_and_compatibility_bound():
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    extras = project["optional-dependencies"]
+
+    assert all("ragas" not in dependency for dependency in project["dependencies"])
+    for extra in ("eval-ragas", "all", "dev"):
+        assert "ragas>=0.4.3,<0.5" in extras[extra]
+        assert "langchain-community>=0.3.27,<0.4" in extras[extra]
+    assert all("ragas" not in dependency for dependency in extras["observability"])
+
+
 def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:

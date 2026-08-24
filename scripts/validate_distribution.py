@@ -173,6 +173,26 @@ def validate(dist_dir: Path, expected_tag: Optional[str] = None) -> List[str]:
             errors.append(
                 f"wheel observability extra has an invalid requirement for {package}"
             )
+    ragas_requirements = [
+        requirement
+        for requirement in requirements
+        if requirement.lower().startswith("ragas")
+        and 'extra == "eval-ragas"' in requirement
+    ]
+    if len(ragas_requirements) != 1 or not all(
+        fragment in ragas_requirements[0] for fragment in (">=0.4.3", "<0.5")
+    ):
+        errors.append("wheel must declare the tested RAGAS 0.4 extra")
+    community_requirements = [
+        requirement
+        for requirement in requirements
+        if requirement.lower().startswith("langchain-community")
+        and 'extra == "eval-ragas"' in requirement
+    ]
+    if len(community_requirements) != 1 or not all(
+        fragment in community_requirements[0] for fragment in (">=0.3.27", "<0.4")
+    ):
+        errors.append("wheel must declare the tested LangChain Community bound")
     if any(requirement.lower().startswith("pypdf2") for requirement in requirements):
         errors.append("wheel must not depend on deprecated PyPDF2")
     if not any(

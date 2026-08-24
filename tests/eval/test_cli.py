@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,31 @@ class EvalCLIProvider:
         self.score = 0.9
 
     async def ainvoke(self, request, tools=None):
+        schema_name = (
+            request.response_schema.name
+            if request.response_schema is not None
+            else None
+        )
+        if schema_name == "StatementGeneratorOutput":
+            return ModelResponse(
+                content=json.dumps({"statements": ["The answer is ok."]}),
+                model="judge-model",
+            )
+        if schema_name == "NLIStatementOutput":
+            return ModelResponse(
+                content=json.dumps(
+                    {
+                        "statements": [
+                            {
+                                "statement": "The answer is ok.",
+                                "reason": "supported",
+                                "verdict": 1,
+                            }
+                        ]
+                    }
+                ),
+                model="judge-model",
+            )
         if request.metadata.get("praval.evaluation"):
             return ModelResponse(
                 content=json.dumps(
@@ -74,6 +100,9 @@ model = "target"
 enabled = true
 store = "sqlite"
 offline_concurrency = 2
+
+[eval.ragas]
+model = "judge"
 
 [eval.stores.sqlite]
 path = "{database}"
@@ -332,6 +361,59 @@ def test_eval_cli_supports_registered_evaluator_agent(
     assert json.loads(capsys.readouterr().out)["passed_cases"] == 1
     target.close()
     evaluator.close()
+
+
+@pytest.mark.skipif(
+    sys.gettrace() is not None,
+    reason="RAGAS datasets/PyArrow registration is incompatible with traced import",
+)
+def test_eval_cli_runs_actual_ragas_metric_with_configured_model(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    provider = EvalCLIProvider()
+    monkeypatch.setattr(
+        "praval.core.agent.ProviderFactory.create_provider",
+        lambda *args, **kwargs: provider,
+    )
+    monkeypatch.setattr(
+        "praval.eval.ragas.ProviderFactory.create_provider",
+        lambda *args, **kwargs: provider,
+    )
+    target = Agent("target", provider="fake", model="target-model")
+    register_agent(target)
+    config, _ = _project(tmp_path, tmp_path / "ragas.db")
+    config_path = Path(config)
+    content = config_path.read_text(encoding="utf-8")
+    content = content.replace(
+        'judges = ["quality"]', 'metrics = ["ragas.faithfulness"]'
+    ).replace('metric = "quality"', 'metric = "ragas.faithfulness"')
+    config_path.write_text(content, encoding="utf-8")
+    (tmp_path / "cases.jsonl").write_text(
+        '{"id":"case-1","input":{"question":"hello"},'
+        '"expected_output":{"answer":"ok"},'
+        '"reference_contexts":["The answer is ok."]}\n',
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "eval",
+                "run",
+                "release",
+                "--config",
+                config,
+                "--run-id",
+                "ragas-run",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["passed_cases"] == 1
+    assert payload["gates"][0]["metric"] == "ragas.faithfulness"
+    target.close()
 
 
 def test_eval_cli_store_selection_and_preflight_errors(

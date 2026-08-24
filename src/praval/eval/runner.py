@@ -15,6 +15,7 @@ from praval.observability import emit_evaluation_result
 from .dataset import LoadedEvalCase, LoadedEvalSuite
 from .errors import EvaluationExecutionError
 from .gates import evaluate_gate
+from .metrics import Metric
 from .models import (
     EvaluationResult,
     EvaluationRun,
@@ -62,17 +63,6 @@ class Judge(Protocol):  # pragma: no cover - structural declaration
     name: str
 
     async def evaluate(self, context: JudgeContext) -> JudgeResult:
-        """Evaluate one completed target subject."""
-        ...
-
-
-class Metric(Protocol):  # pragma: no cover - structural declaration
-    """Configured deterministic or plugin metric."""
-
-    name: str
-    version: str
-
-    async def evaluate(self, context: JudgeContext) -> MetricResult:
         """Evaluate one completed target subject."""
         ...
 
