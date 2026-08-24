@@ -7,11 +7,25 @@ from .dataset import (
     LoadedEvalSuite,
     load_jsonl_suite,
 )
+from .gates import (
+    GateEvaluationError,
+    MetricComparison,
+    RunComparison,
+    compare_evaluation_runs,
+    evaluate_gate,
+    promote_evaluation_baseline,
+)
 from .judges import (
     AgentJudge,
     JudgeConfigurationError,
     JudgeResponseError,
     ModelJudge,
+)
+from .metrics import (
+    ExactMatchMetric,
+    TerminalSuccessMetric,
+    ToolCallMatchMetric,
+    builtin_metrics,
 )
 from .models import (
     AttemptStatus,
@@ -42,6 +56,7 @@ from .runner import (
     EvaluationTarget,
     Judge,
     JudgeContext,
+    Metric,
     TargetResult,
 )
 from .sqlite import SQLiteEvaluationStore
@@ -50,9 +65,11 @@ from .store import (
     EvaluationStore,
     EvaluationStoreError,
 )
+from .targets import AgentEvaluationTarget
 
 __all__ = [
     "AgentJudge",
+    "AgentEvaluationTarget",
     "AttemptStatus",
     "EvalDatasetError",
     "EvalRunner",
@@ -71,8 +88,10 @@ __all__ = [
     "EvaluationStoreError",
     "EvaluationSubject",
     "EvaluationTarget",
+    "ExactMatchMetric",
     "Gate",
     "GateAggregation",
+    "GateEvaluationError",
     "GateOperator",
     "GateResult",
     "GateStatus",
@@ -85,12 +104,21 @@ __all__ = [
     "LoadedEvalCase",
     "LoadedEvalSuite",
     "MetricResult",
+    "MetricComparison",
+    "Metric",
     "ModelJudge",
     "PostgresEvaluationStore",
     "ResultStatus",
+    "RunComparison",
     "SQLiteEvaluationStore",
     "TargetResult",
+    "TerminalSuccessMetric",
+    "ToolCallMatchMetric",
+    "builtin_metrics",
     "evaluation_call_scope",
+    "compare_evaluation_runs",
+    "evaluate_gate",
     "is_evaluation_call",
     "load_jsonl_suite",
+    "promote_evaluation_baseline",
 ]

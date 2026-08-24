@@ -111,6 +111,53 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Import module(s) before resolving agent from registry",
     )
 
+    eval_parser = subparsers.add_parser("eval", help="Evaluation operations")
+    eval_subparsers = eval_parser.add_subparsers(dest="eval_command")
+    eval_run = eval_subparsers.add_parser("run", help="Run an offline suite")
+    eval_run.add_argument("suite")
+    eval_run.add_argument("--config", default=None)
+    eval_run.add_argument("--db", default=None)
+    eval_run.add_argument("--run-id", default=None)
+    eval_run.add_argument("--module", action="append", default=[])
+    eval_run.add_argument("--case-id", action="append", default=[])
+    eval_run.add_argument("--tag", action="append", default=[])
+    eval_run.add_argument("--limit", type=int, default=None)
+    eval_run.add_argument("--seed", type=int, default=0)
+    eval_run.add_argument("--json", action="store_true", dest="json_output")
+
+    eval_compare = eval_subparsers.add_parser(
+        "compare", help="Compare a completed run with a baseline"
+    )
+    eval_compare.add_argument("current_run", nargs="?")
+    eval_compare.add_argument("--current-run", dest="current_run_option", default=None)
+    eval_compare.add_argument(
+        "--baseline", "--baseline-run", dest="baseline_run", default=None
+    )
+    eval_compare.add_argument("--suite", default=None)
+    eval_compare.add_argument("--max-regression", type=float, default=0.0)
+    eval_compare.add_argument(
+        "--direction", choices=("higher", "lower"), default="higher"
+    )
+    eval_compare.add_argument("--config", default=None)
+    eval_compare.add_argument("--db", default=None)
+    eval_compare.add_argument("--json", action="store_true", dest="json_output")
+
+    eval_baseline = eval_subparsers.add_parser(
+        "baseline", help="Manage explicit evaluation baselines"
+    )
+    baseline_subparsers = eval_baseline.add_subparsers(dest="baseline_command")
+    baseline_set = baseline_subparsers.add_parser(
+        "set", help="Promote a completed run as the active baseline"
+    )
+    baseline_set.add_argument("suite", nargs="?")
+    baseline_set.add_argument("run", nargs="?")
+    baseline_set.add_argument("--suite", dest="suite_option", default=None)
+    baseline_set.add_argument("--run", dest="run_option", default=None)
+    baseline_set.add_argument("--promoted-by", required=True)
+    baseline_set.add_argument("--config", default=None)
+    baseline_set.add_argument("--db", default=None)
+    baseline_set.add_argument("--json", action="store_true", dest="json_output")
+
     return parser
 
 
@@ -372,6 +419,11 @@ def main(argv: Optional[list] = None) -> int:
 
     if args.command == "doctor":
         return _cmd_doctor(args)
+
+    if args.command == "eval":
+        from .eval.cli import run_eval_command
+
+        return run_eval_command(args)
 
     if args.command != "hitl":
         parser.print_help()

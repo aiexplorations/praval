@@ -41,6 +41,8 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
             "from praval.models import ExecutionObservation, ModelResponse",
             "from praval.models import NOOP_OBSERVATION_RECORDER",
             "from praval.models import ProviderCapabilities",
+            "from praval.eval import EvalRunner, EvaluationStore, Gate",
+            "from praval.eval import ExactMatchMetric, ModelJudge",
             "from opentelemetry.trace import SpanKind as OTelSpanKind",
             "from praval.observability import SpanKind",
             "assert SpanKind is OTelSpanKind",
@@ -81,6 +83,7 @@ def smoke_install(dist_dir: Path, extra: str = "") -> None:
                 ]
             )
         subprocess.run([str(python), "-c", "; ".join(checks)], check=True)
+        subprocess.run([str(python), "-m", "praval.cli", "eval", "--help"], check=True)
         example = Path(__file__).resolve().parents[1] / "examples"
         if extra == "observability":
             observability_examples = example / "observability"

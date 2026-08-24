@@ -167,6 +167,15 @@ class Gate(_EvaluationModel):
     threshold: float
     required: bool = True
     percentile: float | None = Field(default=None, gt=0, le=100)
+    baseline_max_regression: float | None = Field(default=None, ge=0)
+
+    @field_validator("threshold", "baseline_max_regression")
+    @classmethod
+    def validate_finite_gate_value(cls, value: float | None) -> float | None:
+        """Reject non-finite thresholds and regression bounds."""
+        if value is not None and not math.isfinite(value):
+            raise ValueError("gate values must be finite")
+        return value
 
     @model_validator(mode="after")
     def validate_percentile(self) -> "Gate":
@@ -438,8 +447,20 @@ class GateResult(_EvaluationModel):
     status: GateStatus
     observed_value: float | None = None
     threshold: float
+    baseline_value: float | None = None
+    regression_delta: float | None = None
     error_type: str | None = Field(default=None, min_length=1, max_length=256)
     created_at: datetime
+
+    @field_validator(
+        "observed_value", "threshold", "baseline_value", "regression_delta"
+    )
+    @classmethod
+    def validate_finite_value(cls, value: float | None) -> float | None:
+        """Keep persisted gate values portable across JSON and databases."""
+        if value is not None and not math.isfinite(value):
+            raise ValueError("gate result values must be finite")
+        return value
 
     @classmethod
     def create(cls, **values: Any) -> "GateResult":

@@ -7,6 +7,7 @@ overrides.
 
 from __future__ import annotations
 
+import math
 import os
 import warnings
 from collections.abc import Mapping
@@ -216,9 +217,16 @@ class PostgresEvalStoreConfig(_ConfigModel):
     dsn_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
 
 
+class SQLiteEvalStoreConfig(_ConfigModel):
+    """Local and CI evaluation-store location."""
+
+    path: str = ".praval/evaluations.db"
+
+
 class EvalStoresConfig(_ConfigModel):
     """Named evaluation-store settings."""
 
+    sqlite: SQLiteEvalStoreConfig = Field(default_factory=SQLiteEvalStoreConfig)
     postgres: PostgresEvalStoreConfig | None = None
 
 
@@ -236,6 +244,13 @@ class EvalJudgeConfig(_ConfigModel):
     hitl_mode: Literal["suspend", "fail"] = "suspend"
     max_input_tokens: int = Field(default=16000, gt=0)
     max_cost_usd: float = Field(default=0.25, gt=0)
+    rubric: str = Field(
+        default="Evaluate the candidate output against the expected outcome.",
+        min_length=1,
+        max_length=16384,
+    )
+    rubric_version: str = Field(default="1", min_length=1, max_length=128)
+    judge_version: str = Field(default="1", min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def validate_subject(self) -> "EvalJudgeConfig":
@@ -250,10 +265,30 @@ class EvalJudgeConfig(_ConfigModel):
 class EvalGateConfig(_ConfigModel):
     """One evaluation quality gate."""
 
+    gate_id: str | None = Field(default=None, min_length=1, max_length=256)
     metric: str
-    aggregation: Literal["mean", "minimum", "maximum", "percentile", "count"]
+    aggregation: Literal[
+        "mean", "minimum", "maximum", "percentile", "count", "pass_rate"
+    ]
     operator: Literal[">=", ">", "<=", "<", "=="]
     threshold: float
+    required: bool = True
+    percentile: float | None = Field(default=None, gt=0, le=100)
+    baseline_max_regression: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_gate(self) -> "EvalGateConfig":
+        """Keep percentile and numeric gate inputs deterministic."""
+        if (self.aggregation == "percentile") != (self.percentile is not None):
+            raise ValueError(
+                "percentile must be supplied only for percentile aggregation"
+            )
+        if not math.isfinite(self.threshold) or (
+            self.baseline_max_regression is not None
+            and not math.isfinite(self.baseline_max_regression)
+        ):
+            raise ValueError("gate values must be finite")
+        return self
 
 
 class EvalSuiteConfig(_ConfigModel):
@@ -341,6 +376,20 @@ class PravalConfig(_ConfigModel):
                 raise ValueError(
                     f"eval.suites.{name} references unknown judges: {sorted(unknown)}"
                 )
+            available_results = set(suite.judges) | set(suite.metrics)
+            unknown_gate_metrics = {
+                gate.metric
+                for gate in suite.gates
+                if gate.metric not in available_results
+            }
+            if unknown_gate_metrics:
+                raise ValueError(
+                    f"eval.suites.{name} gates reference unknown results: "
+                    f"{sorted(unknown_gate_metrics)}"
+                )
+            gate_ids = [gate.gate_id for gate in suite.gates if gate.gate_id]
+            if len(gate_ids) != len(set(gate_ids)):
+                raise ValueError(f"eval.suites.{name} gate ids must be unique")
         return self
 
     def resolve_agent_profile(

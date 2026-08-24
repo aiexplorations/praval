@@ -13,12 +13,18 @@ from praval.eval import (
     EvaluationExecutionError,
     EvaluationRunStatus,
     EvaluationSubject,
+    ExactMatchMetric,
+    Gate,
+    GateAggregation,
+    GateOperator,
+    GateStatus,
     JudgeContext,
     JudgeResult,
     ResultStatus,
     SQLiteEvaluationStore,
     TargetResult,
     load_jsonl_suite,
+    promote_evaluation_baseline,
 )
 from praval.models import (
     ExecutionObservation,
@@ -61,8 +67,9 @@ class FakeTarget:
 class FakeJudge:
     name = "quality"
 
-    def __init__(self, *, failed_case: str | None = None) -> None:
+    def __init__(self, *, failed_case: str | None = None, score: float = 0.9) -> None:
         self.failed_case = failed_case
+        self.score = score
 
     async def evaluate(self, context: JudgeContext) -> JudgeResult:
         failed = context.case.case.case_id == self.failed_case
@@ -75,7 +82,7 @@ class FakeJudge:
             prompt_sha256="a" * 64,
             rubric_version="1",
             status=ResultStatus.FAILED if failed else ResultStatus.PASSED,
-            score=0.1 if failed else 0.9,
+            score=0.1 if failed else self.score,
             label="fail" if failed else "pass",
             created_at=NOW,
         )
@@ -233,7 +240,20 @@ async def test_runner_evaluates_one_aggregated_workflow_observation(tmp_path) ->
     loaded_suite = _suite(tmp_path, 1)
     workflow_suite = replace(
         loaded_suite,
-        suite=loaded_suite.suite.model_copy(update={"target": "research-workflow"}),
+        suite=loaded_suite.suite.model_copy(
+            update={
+                "target": "research-workflow",
+                "gates": (
+                    Gate(
+                        gate_id="workflow-quality",
+                        metric="quality",
+                        aggregation=GateAggregation.MEAN,
+                        operator=GateOperator.GREATER_THAN_OR_EQUAL,
+                        threshold=0.8,
+                    ),
+                ),
+            }
+        ),
     )
     runner = EvalRunner(
         store=store,
@@ -246,7 +266,9 @@ async def test_runner_evaluates_one_aggregated_workflow_observation(tmp_path) ->
     result = await runner.run(workflow_suite, evaluation_run_id="workflow-eval-1")
 
     subjects = await store.list_subjects(evaluation_run_id="workflow-eval-1")
+    gates = await store.list_gate_results(evaluation_run_id="workflow-eval-1")
     assert result.passed_cases == 1
+    assert len(gates) == 1 and gates[0].status is GateStatus.PASSED
     assert len(subjects) == 1
     observation = subjects[0].observation
     assert observation.kind is ObservationKind.WORKFLOW
@@ -254,6 +276,222 @@ async def test_runner_evaluates_one_aggregated_workflow_observation(tmp_path) ->
     assert observation.terminal_outcome == "answer_ready"
     assert [fact.name for fact in observation.tool_calls] == ["lookup"]
     assert [fact.target_agent_id for fact in observation.handoffs] == ["writer"]
+    await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("metric", "expected_status", "expected_error"),
+    [
+        ("quality", GateStatus.PASSED, None),
+        ("missing", GateStatus.ERROR, "RequiredMetricMissing"),
+    ],
+)
+async def test_runner_persists_quality_gate_decisions(
+    tmp_path,
+    metric: str,
+    expected_status: GateStatus,
+    expected_error: str | None,
+) -> None:
+    store = SQLiteEvaluationStore(tmp_path / f"{metric}.db")
+    await store.migrate()
+    loaded_suite = _suite(tmp_path, 1)
+    gate = Gate(
+        gate_id="release-quality",
+        metric=metric,
+        aggregation=GateAggregation.MEAN,
+        operator=GateOperator.GREATER_THAN_OR_EQUAL,
+        threshold=0.8,
+    )
+    gated_suite = replace(
+        loaded_suite,
+        suite=loaded_suite.suite.model_copy(update={"gates": (gate,)}),
+    )
+    runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={"quality": FakeJudge()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    result = await runner.run(gated_suite, evaluation_run_id="gated-eval-1")
+
+    gates = await store.list_gate_results(evaluation_run_id="gated-eval-1")
+    assert len(gates) == 1
+    assert result.gate_result_ids == (gates[0].gate_result_id,)
+    assert gates[0].status is expected_status
+    assert gates[0].error_type == expected_error
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_applies_only_explicit_active_baseline_to_regression_gate(
+    tmp_path,
+) -> None:
+    store = SQLiteEvaluationStore(tmp_path / "baseline.db")
+    await store.migrate()
+    loaded_suite = _suite(tmp_path, 1)
+    gate = Gate(
+        gate_id="quality-regression",
+        metric="quality",
+        aggregation=GateAggregation.MEAN,
+        operator=GateOperator.GREATER_THAN_OR_EQUAL,
+        threshold=0,
+        baseline_max_regression=0.1,
+    )
+    gated_suite = replace(
+        loaded_suite,
+        suite=loaded_suite.suite.model_copy(update={"gates": (gate,)}),
+    )
+    baseline_runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={"quality": FakeJudge(score=0.9)},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+    await baseline_runner.run(gated_suite, evaluation_run_id="baseline-run")
+    await promote_evaluation_baseline(
+        store,
+        suite_id="suite-1",
+        evaluation_run_id="baseline-run",
+        promoted_by="release-owner",
+        promoted_at=NOW,
+    )
+    current_runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={"quality": FakeJudge(score=0.7)},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    await current_runner.run(gated_suite, evaluation_run_id="current-run")
+
+    results = await store.list_gate_results(evaluation_run_id="current-run")
+    assert len(results) == 1
+    assert results[0].status is GateStatus.FAILED
+    assert results[0].observed_value == pytest.approx(0.7)
+    assert results[0].baseline_value == pytest.approx(0.9)
+    assert results[0].regression_delta == pytest.approx(-0.2)
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_executes_persists_and_gates_deterministic_metrics(
+    tmp_path,
+) -> None:
+    dataset = tmp_path / "metric-cases.jsonl"
+    dataset.write_text(
+        '{"id":"case-1","input":"question",'
+        '"expected_output":{"answer":"question"}}\n',
+        encoding="utf-8",
+    )
+    gate = Gate(
+        gate_id="exact",
+        metric="exact_match",
+        aggregation=GateAggregation.MEAN,
+        operator=GateOperator.EQUAL,
+        threshold=1,
+    )
+    suite = load_jsonl_suite(
+        dataset,
+        suite_id="metric-suite",
+        name="Metric Suite",
+        target="fake-target",
+        metrics=("exact_match",),
+        gates=(gate,),
+    )
+    store = SQLiteEvaluationStore(tmp_path / "metrics.db")
+    await store.migrate()
+    runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={},
+        metrics={"exact_match": ExactMatchMetric(clock=lambda: NOW)},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    result = await runner.run(suite, evaluation_run_id="metric-run")
+
+    metrics = await store.list_metric_results(evaluation_run_id="metric-run")
+    gates = await store.list_gate_results(evaluation_run_id="metric-run")
+    assert result.passed_cases == 1
+    assert result.metric_result_ids == (metrics[0].metric_result_id,)
+    assert metrics[0].status is ResultStatus.PASSED
+    assert gates[0].status is GateStatus.PASSED
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_persists_metric_failures_and_rejects_identity_drift(
+    tmp_path,
+) -> None:
+    class BrokenMetric:
+        name = "broken"
+        version = "1"
+
+        async def evaluate(self, context):
+            raise TimeoutError("private metric detail")
+
+    loaded = _suite(tmp_path, 1)
+    metric_suite = replace(
+        loaded,
+        suite=loaded.suite.model_copy(update={"judges": (), "metrics": ("broken",)}),
+    )
+    store = SQLiteEvaluationStore(tmp_path / "broken.db")
+    await store.migrate()
+    runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={},
+        metrics={"broken": BrokenMetric()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+
+    result = await runner.run(metric_suite, evaluation_run_id="broken-run")
+
+    metrics = await store.list_metric_results(evaluation_run_id="broken-run")
+    assert result.errored_cases == 1
+    assert metrics[0].error_type == "TimeoutError"
+    assert "private metric detail" not in metrics[0].model_dump_json()
+
+    class DriftMetric(BrokenMetric):
+        async def evaluate(self, context):
+            metric = await ExactMatchMetric(clock=lambda: NOW).evaluate(context)
+            return metric.model_copy(update={"metric": "wrong"})
+
+    drift_runner = EvalRunner(
+        store=store,
+        target=FakeTarget(),
+        judges={},
+        metrics={"broken": DriftMetric()},
+        concurrency=1,
+        clock=lambda: NOW,
+    )
+    with pytest.raises(EvaluationExecutionError, match="metric result evaluator"):
+        await drift_runner.run(metric_suite, evaluation_run_id="drift-run")
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_rejects_unknown_metric_before_execution(tmp_path) -> None:
+    loaded = _suite(tmp_path, 1)
+    metric_suite = replace(
+        loaded,
+        suite=loaded.suite.model_copy(update={"judges": (), "metrics": ("missing",)}),
+    )
+    store = SQLiteEvaluationStore(tmp_path / "unknown-metric.db")
+    await store.migrate()
+    runner = EvalRunner(store=store, target=FakeTarget(), judges={}, metrics={})
+
+    with pytest.raises(EvaluationExecutionError, match="unknown metrics"):
+        await runner.run(metric_suite, evaluation_run_id="metric-run")
+
+    assert await store.get_run("metric-run") is None
     await store.close()
 
 

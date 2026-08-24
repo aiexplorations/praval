@@ -59,6 +59,9 @@ dsn_env = "PRAVAL_EVAL_DATABASE_URL"
 
 [eval.judges.quality]
 agent = "quality_critic"
+rubric = "Score grounded research quality."
+rubric_version = "2026-08-25"
+judge_version = "2"
 allowed_tools = ["search_docs", "lookup_policy"]
 tool_policy = "evaluation_safe"
 allow_side_effects = false
@@ -73,10 +76,12 @@ judges = ["quality"]
 metrics = ["ragas.faithfulness"]
 
 [[eval.suites.research_quality.gates]]
+gate_id = "faithfulness-mean"
 metric = "ragas.faithfulness"
 aggregation = "mean"
 operator = ">="
 threshold = 0.85
+baseline_max_regression = 0.05
 """.strip(),
         encoding="utf-8",
     )
@@ -108,6 +113,12 @@ def test_load_config_precedence_and_agent_resolution(tmp_path: Path) -> None:
     assert resolved.provider == "openai"
     assert resolved.model == "environment-model"
     assert resolved.max_tool_rounds == 12
+    judge = config.eval.judges["quality"]
+    assert judge.rubric_version == "2026-08-25"
+    assert judge.judge_version == "2"
+    gate = config.eval.suites["research_quality"].gates[0]
+    assert gate.gate_id == "faithfulness-mean"
+    assert gate.baseline_max_regression == 0.05
 
 
 def test_discover_config_uses_nearest_parent(tmp_path: Path, monkeypatch) -> None:

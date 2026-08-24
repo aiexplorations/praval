@@ -117,6 +117,27 @@ def test_legacy_environment_validation_and_cache(monkeypatch) -> None:
             },
             "unknown judges",
         ),
+        (
+            {
+                "eval": {
+                    "suites": {
+                        "suite": {
+                            "dataset": "cases.jsonl",
+                            "target": "agent:a",
+                            "gates": [
+                                {
+                                    "metric": "missing",
+                                    "aggregation": "mean",
+                                    "operator": ">=",
+                                    "threshold": 0.8,
+                                }
+                            ],
+                        }
+                    }
+                }
+            },
+            "unknown results",
+        ),
     ],
 )
 def test_cross_section_validation_edges(overrides, match: str) -> None:
