@@ -40,12 +40,11 @@ def test_initialize_and_reset_instrumentation(monkeypatch):
     assert manager.initialize_instrumentation() is True
     assert decorators.agent is not original
     initialized_agent = decorators.agent
-    initialized_send = Reef.send
     initialized_generate = OpenAIProvider.generate
 
     assert manager.initialize_instrumentation() is True
     assert decorators.agent is initialized_agent
-    assert Reef.send is initialized_send
+    assert Reef.send is original_send
     assert OpenAIProvider.generate is initialized_generate
 
     manager.reset_instrumentation()

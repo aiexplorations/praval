@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from .reef import Spore, SporeType
+from .reef import Spore, SporeType, _consume_trace_carrier
 from .secure_spore import SecureSpore, SecureSporeFactory, SporeKeyManager
 from .transport import TransportFactory, TransportProtocol
 
@@ -266,10 +266,12 @@ class SecureReef:
                 created_at=secure_spore.created_at,
                 expires_at=secure_spore.expires_at,
                 priority=secure_spore.priority,
+                trace_context=secure_spore.trace_context,
             )
 
-            # Notify handlers
-            await self._notify_handlers(traditional_spore)
+            # Notify handlers beneath verified delivery and consumer boundaries.
+            with _consume_trace_carrier(traditional_spore, "secure"):
+                await self._notify_handlers(traditional_spore)
             self.stats["spores_received"] += 1
 
         except Exception as e:
@@ -290,12 +292,21 @@ class SecureReef:
             )
 
         # Decrypt and verify
+        authenticated_trace_context = getattr(
+            secure_spore, "authenticated_trace_context", None
+        )
+        authenticated_data = (
+            authenticated_trace_context()
+            if callable(authenticated_trace_context)
+            else b""
+        )
         return self.key_manager.decrypt_and_verify(
             secure_spore.encrypted_knowledge,
             secure_spore.nonce,
             secure_spore.knowledge_signature,
             sender_keys["public_key"],
             sender_keys["verify_key"],
+            authenticated_data=authenticated_data,
         )
 
     async def _notify_handlers(self, spore: Spore):

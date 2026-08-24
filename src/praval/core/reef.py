@@ -23,10 +23,13 @@ import uuid
 from collections import defaultdict, deque
 from collections.abc import Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, Iterator, List, Optional
+
+from opentelemetry.trace import SpanKind, get_current_span
 
 from ..models import ContentPart
 
@@ -57,6 +60,129 @@ def _contains_binary(value: Any) -> bool:
     if isinstance(value, (list, tuple)):
         return any(_contains_binary(item) for item in value)
     return False
+
+
+def _current_trace_carrier(
+    existing: Optional[Mapping[str, str]] = None,
+) -> Dict[str, str]:
+    """Return the active W3C carrier, preserving an explicit carrier if idle."""
+    from praval.observability.tracing.context import inject_trace_context
+
+    injected = inject_trace_context()
+    return injected or dict(existing or {})
+
+
+@contextmanager
+def _activate_trace_carrier(carrier: Mapping[str, str]) -> Iterator[None]:
+    """Attach one Spore parent for the bounded handler invocation."""
+    if not carrier:
+        yield
+        return
+
+    from opentelemetry import context as otel_context
+
+    from praval.observability.tracing.context import extract_trace_context
+
+    token = otel_context.attach(extract_trace_context(carrier))
+    try:
+        yield
+    finally:
+        otel_context.detach(token)
+
+
+async def _invoke_async_handler(
+    handler: Callable[..., Any],
+    spore: "Spore",
+    channel: Optional[str] = None,
+) -> Any:
+    """Invoke an async handler with only its Spore's extracted context active."""
+    with _consume_trace_carrier(spore, channel):
+        return await handler(spore)
+
+
+@contextmanager
+def _reef_operation_span(
+    name: str,
+    spore: "Spore",
+    *,
+    channel: Optional[str] = None,
+    kind: SpanKind = SpanKind.INTERNAL,
+) -> Iterator[Any]:
+    """Trace one Reef boundary without creating a standalone observation."""
+    from praval.runtime_observation import operation_span
+
+    with operation_span(
+        name,
+        kind=kind,
+        attributes={
+            "messaging.system": "praval.reef",
+            "messaging.operation.type": name.rsplit(".", 1)[-1],
+            "messaging.message.id": spore.id,
+            "messaging.destination.name": channel,
+            "praval.spore.type": spore.spore_type.value,
+            "praval.agent.source": spore.from_agent,
+            "praval.agent.target": spore.to_agent or "*",
+        },
+    ) as span:
+        yield span
+
+
+@contextmanager
+def _consume_trace_carrier(
+    spore: "Spore", channel: Optional[str] = None
+) -> Iterator[None]:
+    """Create delivery and consumer spans under the extracted producer."""
+    if not spore.trace_context:
+        yield
+        return
+
+    with _activate_trace_carrier(spore.trace_context):
+        with _reef_operation_span(
+            "praval.reef.delivery", spore, channel=channel, kind=SpanKind.CONSUMER
+        ):
+            with _reef_operation_span(
+                "praval.reef.consumer",
+                spore,
+                channel=channel,
+                kind=SpanKind.CONSUMER,
+            ):
+                if get_current_span().get_span_context().is_valid:
+                    yield
+                else:
+                    with _activate_trace_carrier(spore.trace_context):
+                        yield
+
+
+def _record_reef_handoff(
+    spore: "Spore",
+    channel: str,
+    *,
+    duration_ms: float,
+    error: Optional[BaseException] = None,
+) -> None:
+    """Aggregate one metadata-only Reef handoff into active observations."""
+    from praval.models.observation import (
+        ObservationFactStatus,
+        ReefHandoffObservation,
+    )
+    from praval.runtime_observation import record_handoff
+
+    record_handoff(
+        ReefHandoffObservation(
+            handoff_id=spore.id,
+            source_agent_id=spore.from_agent,
+            target_agent_id=spore.to_agent or "*",
+            spore_id=spore.id,
+            channel=channel,
+            status=(
+                ObservationFactStatus.ERROR
+                if error is not None
+                else ObservationFactStatus.OK
+            ),
+            duration_ms=max(0.0, duration_ms),
+            error_type=type(error).__name__ if error is not None else None,
+        )
+    )
 
 
 class SporeValidationError(Exception):
@@ -116,6 +242,7 @@ class Spore:
     correlation_id: Optional[str] = None
     causation_id: Optional[str] = None
     trace_id: Optional[str] = None
+    trace_context: Optional[Dict[str, str]] = None
     run_id: Optional[str] = None
     idempotency_key: Optional[str] = None
 
@@ -128,6 +255,17 @@ class Spore:
             self.data_references = []
         if self.content_parts is None:
             self.content_parts = []
+        if self.trace_context is None:
+            self.trace_context = {}
+        elif not isinstance(self.trace_context, Mapping) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in self.trace_context.items()
+        ):
+            raise SporeValidationError(
+                "trace_context must be a mapping of string keys to string values"
+            )
+        else:
+            self.trace_context = dict(self.trace_context)
         self.content_parts = self._normalize_content_parts(self.content_parts)
         if self.payload is None and self.knowledge is not None:
             self.payload = self.knowledge
@@ -218,6 +356,7 @@ class Spore:
             or self.content_parts
             or self.data_references
             or self.knowledge_references
+            or self.trace_context
             or self.payload != self.knowledge
         ):
             return self.knowledge if self.knowledge is not None else None
@@ -229,6 +368,7 @@ class Spore:
             "content_parts": list(self.content_parts),
             "knowledge_references": list(self.knowledge_references),
             "data_references": list(self.data_references),
+            "trace_context": dict(self.trace_context),
         }
 
     def get_payload_size(self) -> int:
@@ -261,6 +401,7 @@ class Spore:
             "correlation_id": self.correlation_id,
             "causation_id": self.causation_id,
             "trace_id": self.trace_id,
+            "trace_context": dict(self.trace_context),
             "run_id": self.run_id,
             "idempotency_key": self.idempotency_key,
         }
@@ -311,6 +452,7 @@ class Spore:
             correlation_id=self.correlation_id,
             causation_id=self.causation_id,
             trace_id=self.trace_id,
+            trace_context=dict(self.trace_context),
             run_id=self.run_id,
             idempotency_key=self.idempotency_key,
         )
@@ -338,6 +480,7 @@ class Spore:
             correlation_id=self.correlation_id,
             causation_id=self.causation_id,
             trace_id=self.trace_id,
+            trace_context=dict(self.trace_context),
             run_id=self.run_id,
             idempotency_key=self.idempotency_key,
         )
@@ -409,6 +552,10 @@ class Spore:
             "run_id": self.run_id or "",
             "idempotency_key": self.idempotency_key or "",
         }
+        for carrier_key in ("traceparent", "tracestate", "baggage"):
+            carrier_value = self.trace_context.get(carrier_key)
+            if carrier_value:
+                headers[carrier_key] = carrier_value
 
         # Calculate TTL in milliseconds (if expires_at is set)
         expiration_ms = None
@@ -474,6 +621,7 @@ class Spore:
             content_parts = decoded_body.get("content_parts") or []
             knowledge_references = decoded_body.get("knowledge_references") or []
             data_references = decoded_body.get("data_references") or []
+            trace_context = decoded_body.get("trace_context") or {}
         else:
             knowledge = decoded_body
             payload = knowledge if isinstance(knowledge, dict) else None
@@ -481,6 +629,18 @@ class Spore:
             content_parts = []
             knowledge_references = []
             data_references = []
+            trace_context = {}
+
+        if not isinstance(trace_context, Mapping):
+            raise SporeValidationError(
+                "trace_context must be a mapping of string keys to string values"
+            )
+        trace_context = dict(trace_context)
+
+        for carrier_key in ("traceparent", "tracestate", "baggage"):
+            carrier_value = headers.get(carrier_key)
+            if isinstance(carrier_value, str) and carrier_value:
+                trace_context[carrier_key] = carrier_value
 
         # Parse expires_at timestamp
         expires_at = None
@@ -520,6 +680,7 @@ class Spore:
             correlation_id=(headers.get("correlation_id") or None),
             causation_id=(headers.get("causation_id") or None),
             trace_id=(headers.get("trace_id") or None),
+            trace_context=trace_context,
             run_id=(headers.get("run_id") or None),
             idempotency_key=(headers.get("idempotency_key") or None),
         )
@@ -828,11 +989,13 @@ class ReefChannel:
                         if not self._async_loop or not self._async_loop.is_running():
                             raise RuntimeError("Async handler loop not available")
                         future = asyncio.run_coroutine_threadsafe(
-                            handler(spore), self._async_loop
+                            _invoke_async_handler(handler, spore, self.name),
+                            self._async_loop,
                         )
                         future.result()
                     else:
-                        handler(spore)
+                        with _consume_trace_carrier(spore, self.name):
+                            handler(spore)
                     self.stats["spores_delivered"] += 1
                 except Exception as e:
                     logger.warning(f"Agent handler error in channel {self.name}: {e}")
@@ -852,7 +1015,8 @@ class ReefChannel:
         if getattr(handler, "_praval_response_waiter", False):
             future: Future = Future()
             try:
-                future.set_result(handler(spore))
+                with _consume_trace_carrier(spore, self.name):
+                    future.set_result(handler(spore))
                 self.stats["spores_delivered"] += 1
             except BaseException as exc:
                 future.set_exception(exc)
@@ -867,14 +1031,16 @@ class ReefChannel:
                     if not self._async_loop or not self._async_loop.is_running():
                         raise RuntimeError("Async handler loop not available")
                     future = asyncio.run_coroutine_threadsafe(
-                        handler(spore), self._async_loop
+                        _invoke_async_handler(handler, spore, self.name),
+                        self._async_loop,
                     )
                     result = future.result()
                     self.stats["spores_delivered"] += 1
                     return result
                 else:
                     # Run sync handler directly
-                    result = handler(spore)
+                    with _consume_trace_carrier(spore, self.name):
+                        result = handler(spore)
                     self.stats["spores_delivered"] += 1
                     return result
             except Exception as e:
@@ -1340,6 +1506,7 @@ class ReefCore:
         correlation_id: Optional[str] = None,
         causation_id: Optional[str] = None,
         trace_id: Optional[str] = None,
+        trace_context: Optional[Dict[str, str]] = None,
         run_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
     ) -> Spore:
@@ -1362,6 +1529,7 @@ class ReefCore:
             correlation_id=correlation_id,
             causation_id=causation_id,
             trace_id=trace_id,
+            trace_context=_current_trace_carrier(trace_context),
             run_id=run_id,
             idempotency_key=idempotency_key,
         )
@@ -1373,31 +1541,58 @@ class ReefCore:
 
         if channel is None:
             channel = self.default_channel
+        handoff_started = time.perf_counter()
+        parent_carrier = _current_trace_carrier(spore.trace_context)
+        try:
+            with _activate_trace_carrier(parent_carrier):
+                with _reef_operation_span(
+                    "praval.reef.producer",
+                    spore,
+                    channel=channel,
+                    kind=SpanKind.PRODUCER,
+                ):
+                    spore.trace_context = _current_trace_carrier() or parent_carrier
+                    current_context = get_current_span().get_span_context()
+                    if current_context.is_valid:
+                        spore.trace_id = f"{current_context.trace_id:032x}"
 
-        self._authorize(
-            "send",
-            {
-                "from_agent": spore.from_agent,
-                "to_agent": spore.to_agent,
-                "channel": channel,
-                "spore_type": spore.spore_type.value,
-            },
-        )
+                    self._authorize(
+                        "send",
+                        {
+                            "from_agent": spore.from_agent,
+                            "to_agent": spore.to_agent,
+                            "channel": channel,
+                            "spore_type": spore.spore_type.value,
+                        },
+                    )
 
-        reef_channel = self.get_channel(channel)
-        if not reef_channel:
-            raise ValueError(f"Reef channel '{channel}' not found")
+                    reef_channel = self.get_channel(channel)
+                    if not reef_channel:
+                        raise ValueError(f"Reef channel '{channel}' not found")
 
-        if self._is_distributed_backend():
-            logger.debug(
-                (
-                    f"Routing spore {spore.id} through distributed backend to "
-                    f"channel: {channel}"
-                )
+                    if self._is_distributed_backend():
+                        logger.debug(
+                            (
+                                f"Routing spore {spore.id} through distributed "
+                                f"backend to channel: {channel}"
+                            )
+                        )
+                        self._run_async(self.backend.send(spore, channel))
+                    else:
+                        reef_channel.send_spore(spore)
+        except BaseException as error:
+            _record_reef_handoff(
+                spore,
+                channel,
+                duration_ms=(time.perf_counter() - handoff_started) * 1000,
+                error=error,
             )
-            self._run_async(self.backend.send(spore, channel))
-        else:
-            reef_channel.send_spore(spore)
+            raise
+        _record_reef_handoff(
+            spore,
+            channel,
+            duration_ms=(time.perf_counter() - handoff_started) * 1000,
+        )
         return spore.id
 
     def send(
@@ -1421,6 +1616,7 @@ class ReefCore:
         correlation_id: Optional[str] = None,
         causation_id: Optional[str] = None,
         trace_id: Optional[str] = None,
+        trace_context: Optional[Dict[str, str]] = None,
         run_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         expires_at: Optional[datetime] = None,
@@ -1461,6 +1657,7 @@ class ReefCore:
             correlation_id=correlation_id,
             causation_id=causation_id,
             trace_id=trace_id,
+            trace_context=trace_context,
             run_id=run_id,
             idempotency_key=idempotency_key,
         )
@@ -1983,6 +2180,7 @@ class ReefCore:
             correlation_id=request_spore.correlation_id,
             causation_id=request_spore.id,
             trace_id=request_spore.trace_id,
+            trace_context=request_spore.trace_context,
             run_id=request_spore.run_id,
             idempotency_key=request_spore.idempotency_key,
         )

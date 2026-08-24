@@ -98,7 +98,7 @@ class TestReefInstrumentation:
         # Check for send span
         send_spans = initialize_observability.get_finished_spans()
         assert len(send_spans) == 1
-        assert send_spans[0].name == "reef.send"
+        assert send_spans[0].name == "praval.reef.producer"
         assert send_spans[0].kind.name == "PRODUCER"
 
     def test_reef_broadcast_creates_span(self, initialize_observability):
@@ -114,7 +114,7 @@ class TestReefInstrumentation:
         broadcast_spans = [
             span
             for span in initialize_observability.get_finished_spans()
-            if span.name == "reef.broadcast"
+            if span.name == "praval.reef.producer"
         ]
         assert len(broadcast_spans) == 1
         assert broadcast_spans[0].kind.name == "PRODUCER"

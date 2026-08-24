@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, Optional
 
+from opentelemetry import propagate
 from opentelemetry.context import Context
 from opentelemetry.trace import (
     NonRecordingSpan,
@@ -104,10 +105,27 @@ class TraceContext:
         metadata["trace_flags"] = self.trace_flags
 
 
+def inject_trace_context(context: Optional[Context] = None) -> Dict[str, str]:
+    """Inject the configured OpenTelemetry propagator into a text carrier."""
+    carrier: Dict[str, str] = {}
+    propagate.inject(carrier, context=context)
+    return carrier
+
+
+def extract_trace_context(carrier: Mapping[str, str]) -> Context:
+    """Extract a remote parent with the configured OpenTelemetry propagator."""
+    return propagate.extract(dict(carrier))
+
+
 def _valid_identifier(value: str, length: int) -> bool:
     if len(value) != length or value == "0" * length:
         return False
     return all(character in "0123456789abcdef" for character in value)
 
 
-__all__ = ["TraceContext", "get_current_span"]
+__all__ = [
+    "TraceContext",
+    "extract_trace_context",
+    "get_current_span",
+    "inject_trace_context",
+]
