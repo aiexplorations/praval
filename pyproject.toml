@@ -103,6 +103,7 @@ observability = [
 # Optional RAGAS metric adapter with its tested runtime compatibility bound
 eval-ragas = [
     "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
     "langchain-community>=0.3.27,<0.4",
 ]
 
@@ -147,6 +148,7 @@ all = [
     "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
     "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
     "langchain-community>=0.3.27,<0.4",
 ]
 
@@ -177,6 +179,7 @@ dev = [
     "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
     "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
     "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
     "langchain-community>=0.3.27,<0.4",
 ]
 

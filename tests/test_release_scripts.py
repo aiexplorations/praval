@@ -173,8 +173,10 @@ def test_ragas_dependency_scope_and_compatibility_bound():
     assert all("ragas" not in dependency for dependency in project["dependencies"])
     for extra in ("eval-ragas", "all", "dev"):
         assert "ragas>=0.4.3,<0.5" in extras[extra]
+        assert "instructor>=1.9,<1.13" in extras[extra]
         assert "langchain-community>=0.3.27,<0.4" in extras[extra]
     assert all("ragas" not in dependency for dependency in extras["observability"])
+    assert all("instructor" not in dependency for dependency in extras["observability"])
 
 
 def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:

@@ -612,19 +612,22 @@ class TestReefIntegration:
         assert len(good_messages) == 1
         assert good_messages[0]["test"] == "error handling"
 
+    @pytest.mark.performance
     def test_performance_with_many_spores(self):
-        """Test performance with many spores."""
+        """Guard against severe throughput regressions when sending many spores."""
         reef = Reef()
 
         # Send many spores quickly
-        start_time = time.time()
+        start_time = time.perf_counter()
         for i in range(1000):
             reef.send(from_agent="sender", to_agent="receiver", knowledge={"index": i})
-        end_time = time.time()
+        end_time = time.perf_counter()
 
-        # Should complete in reasonable time (< 1 second)
+        # This coarse guard also runs under coverage on shared CI workers. The strict
+        # v0.8.3 observability overhead gates live in
+        # tests/performance/test_observability_overhead.py.
         duration = end_time - start_time
-        assert duration < 1.0
+        assert duration < 3.0
 
         # All spores should be in the channel
         main_channel = reef.get_channel("main")
