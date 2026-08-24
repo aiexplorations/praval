@@ -15,6 +15,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 from praval.config import ObservabilityConfig, PravalConfig
 from praval.core.exceptions import PravalConfigurationError
 from praval.observability import lifecycle
+from praval.observability.health import (
+    get_telemetry_health,
+    reset_telemetry_health,
+)
 from praval.observability.lifecycle import (
     ObservabilityHandle,
     _build_providers,
@@ -238,6 +242,48 @@ def test_managed_all_signal_export_pipeline(monkeypatch) -> None:
     assert shutdown_observability(500) is True
 
 
+def test_exporter_downtime_is_visible_without_changing_application_result(
+    monkeypatch,
+    caplog,
+) -> None:
+    class UnavailableSpanExporter:
+        def export(self, spans):
+            raise ConnectionError("collector unavailable with token=private")
+
+        def force_flush(self, timeout_millis=30000):
+            return True
+
+        def shutdown(self):
+            return None
+
+    reset_telemetry_health()
+    monkeypatch.setattr(
+        lifecycle,
+        "_exporter",
+        lambda signal, config: UnavailableSpanExporter(),
+    )
+    configure_observability(
+        service_name="downtime-test",
+        otlp_endpoint="http://collector:4318",
+        traces_enabled=True,
+        metrics_enabled=False,
+        logs_enabled=False,
+    )
+
+    with get_tracer().start_as_current_span("application-operation"):
+        result = "unchanged"
+    assert result == "unchanged"
+    assert force_flush(500) is True
+
+    health = get_telemetry_health()["traces"]
+    assert health.export_attempts == 1
+    assert health.export_failures == 1
+    assert health.export_exceptions == 1
+    assert "token=private" not in caplog.text
+    assert "OpenTelemetry export failed" in caplog.text
+    assert shutdown_observability(500) is True
+
+
 def test_host_trace_and_log_processors_are_owned_but_providers_are_not(
     monkeypatch,
 ) -> None:
@@ -328,6 +374,23 @@ def test_lifecycle_error_fallback_and_inactive_paths() -> None:
     )
     assert handle.shutdown(100) is False
     assert handle.force_flush(100) is True
+
+
+def test_lifecycle_failures_are_counted_without_leaking_error_text(caplog) -> None:
+    class ErrorComponent:
+        def force_flush(self, timeout_millis=None):
+            raise RuntimeError("api_key=private-lifecycle-secret")
+
+    reset_telemetry_health()
+    assert not _run_components(
+        (_OwnedComponent("logs", ErrorComponent()),),
+        method_name="force_flush",
+        timeout_millis=100,
+    )
+
+    assert get_telemetry_health()["logs"].lifecycle_failures == 1
+    assert "RuntimeError" in caplog.text
+    assert "private-lifecycle-secret" not in caplog.text
 
 
 def test_public_no_configuration_fallbacks_and_trace_convenience(monkeypatch) -> None:

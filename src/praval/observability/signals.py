@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from opentelemetry._logs import SeverityNumber
+from opentelemetry.metrics import Observation
 
 from praval.models.observation import ExecutionObservation, ObservationStatus
 
@@ -32,6 +34,7 @@ class _SignalInstruments:
     retry_count: Any
     handoff_count: Any
     handoff_duration: Any
+    health_instruments: tuple[Any, ...]
 
 
 def reset_signal_state() -> None:
@@ -39,6 +42,60 @@ def reset_signal_state() -> None:
     global _instruments
     with _signal_lock:
         _instruments = None
+
+
+def initialize_signal_state() -> None:
+    """Create signal instruments after explicit lifecycle configuration."""
+    meter = get_meter("praval.execution")
+    if callable(getattr(meter, "create_counter", None)):
+        _get_instruments()
+
+
+def _health_callback(field: str) -> Any:
+    def observe(options: Any) -> Iterable[Observation]:
+        from .health import get_telemetry_health
+
+        for signal, health in get_telemetry_health().items():
+            yield Observation(
+                getattr(health, field),
+                {"praval.telemetry.signal": signal},
+            )
+
+    return observe
+
+
+def _create_health_instruments(meter: Any) -> tuple[Any, ...]:
+    counters = (
+        ("praval.telemetry.export.attempts", "export_attempts"),
+        ("praval.telemetry.exported.items", "exported_items"),
+        ("praval.telemetry.export.failures", "export_failures"),
+        ("praval.telemetry.export.exceptions", "export_exceptions"),
+        ("praval.telemetry.dropped.items", "dropped_items"),
+        ("praval.telemetry.lifecycle.failures", "lifecycle_failures"),
+    )
+    instruments = [
+        meter.create_observable_counter(
+            name,
+            callbacks=[_health_callback(field)],
+            unit="{item}",
+        )
+        for name, field in counters
+    ]
+    instruments.extend(
+        (
+            meter.create_observable_gauge(
+                "praval.telemetry.queue.depth",
+                callbacks=[_health_callback("queue_depth")],
+                unit="{item}",
+            ),
+            meter.create_observable_gauge(
+                "praval.telemetry.queue.capacity",
+                callbacks=[_health_callback("queue_capacity")],
+                unit="{item}",
+            ),
+        )
+    )
+    return tuple(instruments)
 
 
 def _get_instruments() -> _SignalInstruments:
@@ -92,6 +149,7 @@ def _get_instruments() -> _SignalInstruments:
                     unit="ms",
                     description="Reef handoff duration",
                 ),
+                health_instruments=_create_health_instruments(meter),
             )
         return _instruments
 

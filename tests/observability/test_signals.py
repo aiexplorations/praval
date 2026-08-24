@@ -30,6 +30,7 @@ from praval.models.observation import (
     ToolCallObservation,
 )
 from praval.observability import configure_observability, shutdown_observability
+from praval.observability.health import TrackingSpanExporter, TrackingSpanProcessor
 from praval.runtime_observation import (
     ObservationScope,
     record_content_reference,
@@ -190,3 +191,46 @@ def test_error_signals_remain_metadata_only(
     exported = repr(points) + repr(logs)
     assert secret not in exported
     assert "sk-live-do-not-export" not in exported
+
+
+def test_export_health_uses_fixed_signal_dimensions(
+    signal_pipeline: dict[str, Any],
+) -> None:
+    """Exporter failures and queue drops become bounded health measurements."""
+    from collections import deque
+
+    from opentelemetry.sdk.trace.export import SpanExportResult
+
+    class Exporter:
+        def export(self, spans: Any) -> SpanExportResult:
+            return SpanExportResult.FAILURE
+
+    class BatchState:
+        def __init__(self) -> None:
+            self._queue: deque[object] = deque([object()], maxlen=1)
+            self._max_queue_size = 1
+
+    class Processor:
+        def __init__(self) -> None:
+            self._batch_processor = BatchState()
+
+        def on_end(self, span: object) -> None:
+            self._batch_processor._queue.appendleft(span)
+
+    TrackingSpanExporter("traces", Exporter()).export([object()])
+    TrackingSpanProcessor("traces", Processor()).on_end(object())
+
+    points = _metric_points(signal_pipeline["metrics"])
+
+    def trace_value(name: str) -> int:
+        return next(
+            point.value
+            for point in points[name]
+            if point.attributes == {"praval.telemetry.signal": "traces"}
+        )
+
+    assert trace_value("praval.telemetry.export.attempts") == 1
+    assert trace_value("praval.telemetry.export.failures") == 1
+    assert trace_value("praval.telemetry.dropped.items") == 1
+    assert trace_value("praval.telemetry.queue.depth") == 1
+    assert trace_value("praval.telemetry.queue.capacity") == 1

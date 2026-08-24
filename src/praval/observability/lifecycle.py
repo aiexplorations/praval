@@ -38,6 +38,36 @@ def _reset_signal_state() -> None:
         return
 
 
+def _initialize_signal_state() -> None:
+    """Create provider-bound signal instruments after configuration."""
+    try:
+        from .signals import initialize_signal_state
+
+        initialize_signal_state()
+    except ImportError:
+        return
+
+
+def _reset_health_state() -> None:
+    """Reset exporter health without requiring the SDK on the import path."""
+    try:
+        from .health import reset_telemetry_health
+
+        reset_telemetry_health()
+    except ImportError:
+        return
+
+
+def _record_lifecycle_failure(signal: str) -> None:
+    """Record an owned component failure when health support is installed."""
+    try:
+        from .health import record_lifecycle_failure
+
+        record_lifecycle_failure(signal)
+    except ImportError:
+        return
+
+
 @dataclass(frozen=True)
 class _OwnedComponent:
     """One provider or processor that Praval may flush and close."""
@@ -114,7 +144,11 @@ def _bounded_call(call: Callable[[], Any], timeout_seconds: float) -> tuple[bool
     if worker.is_alive():
         return False, None
     if errors:
-        logger.warning("OpenTelemetry lifecycle operation failed: %s", errors[0])
+        logger.warning(
+            "OpenTelemetry lifecycle operation failed: %s",
+            type(errors[0]).__name__,
+            extra={"event_name": "praval.telemetry.lifecycle.failed"},
+        )
         return False, None
     return True, result[0] if result else None
 
@@ -135,6 +169,7 @@ def _run_components(
         lifecycle_method = cast(Callable[..., Any], method)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            _record_lifecycle_failure(owned.signal)
             return False
 
         def call(remaining: float = remaining) -> Any:
@@ -148,7 +183,10 @@ def _run_components(
             return lifecycle_method()
 
         completed, value = _bounded_call(call, remaining)
-        success = success and completed and value is not False
+        component_succeeded = completed and value is not False
+        if not component_succeeded:
+            _record_lifecycle_failure(owned.signal)
+        success = success and component_succeeded
     return success
 
 
@@ -328,6 +366,25 @@ def _exporter(signal: str, config: ObservabilityConfig) -> Any:
         ) from exc
 
 
+def _tracked_exporter(signal: str, config: ObservabilityConfig) -> Any:
+    """Create an official exporter wrapped with bounded health accounting."""
+    from .health import tracking_exporter
+
+    return tracking_exporter(signal, _exporter(signal, config))
+
+
+def _tracked_span_processor(processor: Any) -> Any:
+    from .health import TrackingSpanProcessor
+
+    return TrackingSpanProcessor("traces", processor)
+
+
+def _tracked_log_processor(processor: Any) -> Any:
+    from .health import TrackingLogRecordProcessor
+
+    return TrackingLogRecordProcessor("logs", processor)
+
+
 def _build_providers(
     config: PravalConfig,
     tracer_provider: Any | None,
@@ -376,7 +433,9 @@ def _build_providers(
     owned_signals: set[str] = set()
 
     if otlp.traces:
-        trace_exporter = _exporter("traces", observability) if endpoint else None
+        trace_exporter = (
+            _tracked_exporter("traces", observability) if endpoint else None
+        )
         if tracer_provider is None:
             try:
                 from opentelemetry.sdk.trace import TracerProvider
@@ -392,12 +451,14 @@ def _build_providers(
             )
             if trace_exporter is not None:
                 tracer_provider.add_span_processor(
-                    BatchSpanProcessor(
-                        trace_exporter,
-                        max_queue_size=otlp.max_queue_size,
-                        max_export_batch_size=otlp.max_export_batch_size,
-                        schedule_delay_millis=otlp.schedule_delay_millis,
-                        export_timeout_millis=otlp.export_timeout_millis,
+                    _tracked_span_processor(
+                        BatchSpanProcessor(
+                            trace_exporter,
+                            max_queue_size=otlp.max_queue_size,
+                            max_export_batch_size=otlp.max_export_batch_size,
+                            schedule_delay_millis=otlp.schedule_delay_millis,
+                            export_timeout_millis=otlp.export_timeout_millis,
+                        )
                     )
                 )
             owned.append(_OwnedComponent("traces", tracer_provider))
@@ -410,12 +471,14 @@ def _build_providers(
                 )
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            span_processor = BatchSpanProcessor(
-                trace_exporter,
-                max_queue_size=otlp.max_queue_size,
-                max_export_batch_size=otlp.max_export_batch_size,
-                schedule_delay_millis=otlp.schedule_delay_millis,
-                export_timeout_millis=otlp.export_timeout_millis,
+            span_processor = _tracked_span_processor(
+                BatchSpanProcessor(
+                    trace_exporter,
+                    max_queue_size=otlp.max_queue_size,
+                    max_export_batch_size=otlp.max_export_batch_size,
+                    schedule_delay_millis=otlp.schedule_delay_millis,
+                    export_timeout_millis=otlp.export_timeout_millis,
+                )
             )
             add_processor(span_processor)
             owned.append(_OwnedComponent("traces", span_processor))
@@ -443,7 +506,7 @@ def _build_providers(
             if endpoint:
                 readers.append(
                     PeriodicExportingMetricReader(
-                        _exporter("metrics", observability),
+                        _tracked_exporter("metrics", observability),
                         export_interval_millis=otlp.metric_export_interval_millis,
                         export_timeout_millis=otlp.export_timeout_millis,
                     )
@@ -459,7 +522,7 @@ def _build_providers(
         meter_provider = metrics.NoOpMeterProvider()
 
     if otlp.logs:
-        log_exporter = _exporter("logs", observability) if endpoint else None
+        log_exporter = _tracked_exporter("logs", observability) if endpoint else None
         if logger_provider is None:
             try:
                 from opentelemetry.sdk._logs import LoggerProvider
@@ -474,12 +537,14 @@ def _build_providers(
             )
             if log_exporter is not None:
                 logger_provider.add_log_record_processor(
-                    BatchLogRecordProcessor(
-                        log_exporter,
-                        max_queue_size=otlp.max_queue_size,
-                        max_export_batch_size=otlp.max_export_batch_size,
-                        schedule_delay_millis=otlp.schedule_delay_millis,
-                        export_timeout_millis=otlp.export_timeout_millis,
+                    _tracked_log_processor(
+                        BatchLogRecordProcessor(
+                            log_exporter,
+                            max_queue_size=otlp.max_queue_size,
+                            max_export_batch_size=otlp.max_export_batch_size,
+                            schedule_delay_millis=otlp.schedule_delay_millis,
+                            export_timeout_millis=otlp.export_timeout_millis,
+                        )
                     )
                 )
             owned.append(_OwnedComponent("logs", logger_provider))
@@ -492,12 +557,14 @@ def _build_providers(
                 )
             from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 
-            log_processor = BatchLogRecordProcessor(
-                log_exporter,
-                max_queue_size=otlp.max_queue_size,
-                max_export_batch_size=otlp.max_export_batch_size,
-                schedule_delay_millis=otlp.schedule_delay_millis,
-                export_timeout_millis=otlp.export_timeout_millis,
+            log_processor = _tracked_log_processor(
+                BatchLogRecordProcessor(
+                    log_exporter,
+                    max_queue_size=otlp.max_queue_size,
+                    max_export_batch_size=otlp.max_export_batch_size,
+                    schedule_delay_millis=otlp.schedule_delay_millis,
+                    export_timeout_millis=otlp.export_timeout_millis,
+                )
             )
             add_processor(log_processor)
             owned.append(_OwnedComponent("logs", log_processor))
@@ -574,6 +641,7 @@ def configure_observability(
             raise PravalConfigurationError(
                 "observability is already configured with different settings"
             )
+        _reset_health_state()
         providers = _build_providers(
             resolved, tracer_provider, meter_provider, logger_provider
         )
@@ -587,6 +655,8 @@ def configure_observability(
             _provider_identity=identity,
         )
         _reset_signal_state()
+        if resolved.observability.otlp.metrics:
+            _initialize_signal_state()
         return _active_handle
 
 
