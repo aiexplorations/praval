@@ -78,7 +78,7 @@ Results recorded on 2026-08-25:
   top-level symbols, with exact public submodule exports.
 - Exact-wheel Sphinx HTML builds with warnings as errors. Sphinx API coverage
   is 100 percent, documentation link checking passes, and the candidate site
-  contains 374 files.
+  contains 376 files.
 - Black, isort, repository-wide flake8, strict Python 3.13 typing, and Python
   3.10 compatibility typing pass.
 
