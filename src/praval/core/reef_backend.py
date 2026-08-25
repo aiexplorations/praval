@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional
 
-from .reef import ReefChannel, Spore, SporeType
+from .reef import ReefChannel, Spore, SporeType, _consume_trace_carrier
 
 logger = logging.getLogger(__name__)
 
@@ -433,9 +433,10 @@ class RabbitMQBackend(ReefBackend):
             async def spore_handler(spore: Spore):
                 # Filter by channel if needed
                 if self._spore_matches_channel(spore, channel):
-                    result = handler(spore)
-                    if inspect.isawaitable(result):
-                        await result
+                    with _consume_trace_carrier(spore, channel):
+                        result = handler(spore)
+                        if inspect.isawaitable(result):
+                            await result
 
             # Check if this channel has a mapped queue
             if channel in self.channel_queue_map:
@@ -514,9 +515,10 @@ class RabbitMQBackend(ReefBackend):
 
         async def spore_handler(spore: Spore):
             if self._spore_matches_channel(spore, channel):
-                result = handler(spore)
-                if inspect.isawaitable(result):
-                    await result
+                with _consume_trace_carrier(spore, channel):
+                    result = handler(spore)
+                    if inspect.isawaitable(result):
+                        await result
 
         if channel in self.channel_queue_map:
             queue_name = self.channel_queue_map[channel]

@@ -8,9 +8,8 @@ praval.observability.tracing.context
 
    .. autosummary::
 
-      clear_current_span
-      get_current_span
-      set_current_span
+      extract_trace_context
+      inject_trace_context
 
    .. rubric:: Classes
 

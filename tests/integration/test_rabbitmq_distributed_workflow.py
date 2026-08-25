@@ -149,6 +149,7 @@ class TestDistributedWorkflow:
             assert len(runner.agents) == 2
 
         finally:
+            loop.run_until_complete(runner.shutdown())
             loop.close()
 
     @pytest.mark.asyncio
@@ -174,6 +175,8 @@ class TestDistributedWorkflow:
 
         except ConnectionError as e:
             pytest.skip(f"RabbitMQ not available: {e}")
+        finally:
+            await runner.shutdown()
 
     @pytest.mark.asyncio
     @pytest.mark.integration

@@ -34,3 +34,38 @@ evidence = ["examples/request_based_voice_agent.py", "examples/certification/liv
 id = "hitl"
 statement = "Approval-gated model tool calls can be persisted, reviewed, and resumed."
 evidence = ["tests/test_hitl_agent.py", "tests/test_hitl_provider_parity.py"]
+
+[[claims]]
+id = "observability-signals"
+statement = "Explicit Praval-owned OpenTelemetry pipelines export traces, metrics, and logs over OTLP HTTP/protobuf and gRPC."
+evidence = ["tests/integration/test_otel_collector.py", "tests/observability/test_lifecycle.py"]
+
+[[claims]]
+id = "observability-distributed-context"
+statement = "W3C trace context follows in-memory and RabbitMQ Reef delivery and Spore serialization."
+evidence = ["tests/observability/test_spore_propagation.py", "tests/integration/test_rabbitmq_trace_propagation.py"]
+
+[[claims]]
+id = "observability-privacy"
+statement = "Telemetry capture is metadata-only by default and content requires an exact opt-in allowlist."
+evidence = ["tests/observability/test_privacy.py", "docs/sphinx/observability/privacy-security.md"]
+
+[[claims]]
+id = "evaluation-offline"
+statement = "Provider-neutral offline evaluation composes deterministic metrics and versioned model or agent judges over one immutable subject observation."
+evidence = ["tests/eval/test_runner.py", "tests/eval/test_judges.py", "tests/eval/test_targets.py"]
+
+[[claims]]
+id = "evaluation-stores-gates"
+statement = "SQLite and PostgreSQL implement the same idempotent evaluation record, baseline, durable job, lease, retry, and attempt contract."
+evidence = ["tests/eval/test_sqlite_store.py", "tests/eval/test_postgres_store.py", "tests/eval/store_contract.py"]
+
+[[claims]]
+id = "evaluation-plugins-ragas"
+statement = "Evaluation metrics support a public plugin contract and an optional RAGAS adapter over configured Praval model and embedding runtimes."
+evidence = ["tests/eval/test_metric_plugins.py", "tests/eval/test_ragas.py", "docs/sphinx/evaluation/metrics-ragas.md"]
+
+[[claims]]
+id = "evaluation-online"
+statement = "Opt-in sampled online evaluation isolates request enqueue work from durable PostgreSQL workers and post-hoc linked evaluator telemetry."
+evidence = ["tests/eval/test_online.py", "tests/eval/test_postgres_store.py", "docs/sphinx/evaluation/online.md"]

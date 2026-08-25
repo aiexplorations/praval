@@ -12,7 +12,13 @@ from typing import Dict, Iterable, Tuple
 FILE_FLOORS: Dict[str, float] = {
     "src/praval/core/reef.py": 85.0,
     "src/praval/core/transport.py": 80.0,
+    "src/praval/eval/gates.py": 95.0,
+    "src/praval/eval/online.py": 95.0,
+    "src/praval/eval/runner.py": 95.0,
+    "src/praval/eval/sqlite.py": 95.0,
     "src/praval/observability/instrumentation/manager.py": 80.0,
+    "src/praval/observability/tracing/context.py": 95.0,
+    "src/praval/runtime_observation.py": 95.0,
     "src/praval/observability/export/console_viewer.py": 70.0,
     "src/praval/observability/export/otlp_exporter.py": 70.0,
     "src/praval/storage/providers/postgresql.py": 60.0,

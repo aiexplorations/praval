@@ -24,6 +24,7 @@ entries for the same class or function.
    :toctree: generated
 
    praval.app
+   praval.config
    praval.core.agent
    praval.core.reef
    praval.core.registry
@@ -120,9 +121,18 @@ Observability
    :toctree: generated
 
    praval.observability.config
+   praval.observability.lifecycle
    praval.observability.tracing.context
    praval.observability.tracing.tracer
    praval.observability.storage.sqlite_store
    praval.observability.export.console_viewer
    praval.observability.export.otlp_exporter
    praval.observability.instrumentation.manager
+
+Evaluation
+==========
+
+.. autosummary::
+   :toctree: generated
+
+   praval.eval

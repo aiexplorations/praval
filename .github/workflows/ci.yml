@@ -17,10 +17,11 @@ jobs:
   tests:
     name: Python ${{ matrix.python }} tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -35,17 +36,15 @@ jobs:
       - name: Install test dependencies
         shell: bash
         run: |
-          if [[ "${{ matrix.python }}" == "3.9" ]]; then
-            python -m pip install -e ".[dev,secure]"
-          else
-            python -m pip install -e ".[dev,mcp,secure]"
-          fi
+          python -m pip install -e ".[dev,mcp,secure]"
       - name: Run tests
         run: >-
           pytest tests/
           --ignore=tests/test_arxiv_downloader.py
           --ignore=tests/test_message_filtering.py
           --ignore=tests/test_venturelens_demo.py
+          --timeout=60
+          --timeout-method=thread
           -q
 
   quality:
@@ -172,6 +171,10 @@ jobs:
           python scripts/validate_distribution.py dist
           python scripts/write_build_manifest.py dist --evidence-dir evidence
           python scripts/check_release_metadata.py --dist dist
+      - name: Smoke test core and observability-extra wheels
+        run: |
+          python scripts/smoke_install.py dist
+          python scripts/smoke_install.py dist --extra observability
       - name: Upload exact commit artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -244,7 +247,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        extra: [minimal, mcp]
+        extra: [minimal, mcp, eval-ragas]
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -263,6 +266,9 @@ jobs:
       - name: MCP installation
         if: matrix.extra == 'mcp'
         run: python scripts/smoke_install.py artifact/dist --extra mcp
+      - name: RAGAS evaluation installation
+        if: matrix.extra == 'eval-ragas'
+        run: python scripts/smoke_install.py artifact/dist --extra eval-ragas
 
   demo-offline:
     name: Exact-wheel offline demos

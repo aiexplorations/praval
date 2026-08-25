@@ -241,6 +241,42 @@ def test_capstones_expose_required_praval_behavior() -> None:
         assert contract in marketing
 
 
+def test_production_notebook_authenticates_the_secure_spore_trace_carrier() -> None:
+    notebook = (
+        ROOT / "examples" / "notebooks" / "course" / "08_production_features.ipynb"
+    )
+    raw = json.loads(notebook.read_text(encoding="utf-8"))
+    source = "\n".join(
+        "".join(cell["source"]) for cell in raw["cells"] if cell["cell_type"] == "code"
+    )
+
+    assert "authenticated_data=wire_copy.authenticated_trace_context()" in source
+
+
+def test_notebooks_querying_local_traces_configure_the_exporter_lifecycle() -> None:
+    manifest = load_manifest(MANIFEST)
+    inspected = set()
+
+    for item in manifest.notebooks:
+        raw = json.loads((manifest.notebooks_dir / item.path).read_text())
+        source = "\n".join(
+            "".join(cell["source"])
+            for cell in raw["cells"]
+            if cell["cell_type"] == "code"
+        )
+        if "get_trace_store(" not in source:
+            continue
+        inspected.add(item.id)
+        assert 'local={"enabled": True, "path": trace_path}' in source
+        assert "configure_observability(" in source
+        assert "force_flush(5_000)" in source
+        assert "shutdown_observability(5_000)" in source
+        assert "reset_trace_store" not in source
+        assert "reset_tracer" not in source
+
+    assert inspected == {"course-08-production", "case-study-release-readiness"}
+
+
 def test_prerequisites_are_known_unique_and_ordered() -> None:
     manifest = load_manifest(MANIFEST)
     positions = {item.id: index for index, item in enumerate(manifest.notebooks)}

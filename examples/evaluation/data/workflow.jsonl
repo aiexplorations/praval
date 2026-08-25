@@ -1,0 +1,1 @@
+{"id":"workflow-capital","name":"Reviewed answer workflow","input":{"question":"What is the capital of France?"},"expected_output":{"answer":"Paris","reviewed":true},"expected_tool_calls":["policy_lookup"],"tags":["workflow","smoke"]}

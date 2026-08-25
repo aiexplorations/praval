@@ -9,6 +9,8 @@ import logging
 import threading
 from typing import Any, Dict, List, Optional, Union
 
+from ..models.observation import ContentKind
+from ..runtime_observation import record_content_reference, trace_operation
 from .base_provider import (
     BaseStorageProvider,
     DataReference,
@@ -55,6 +57,7 @@ class DataManager:
 
     # High-level storage operations
 
+    @trace_operation("storage.store")
     async def store(
         self, provider: str, resource: str, data: Any, **kwargs
     ) -> StorageResult:
@@ -70,9 +73,11 @@ class DataManager:
         Returns:
             StorageResult with operation outcome
         """
+        record_content_reference(ContentKind.CONTEXT, data)
         storage_provider = self._get_provider(provider)
         return await storage_provider.store(resource, data, **kwargs)
 
+    @trace_operation("storage.retrieve")
     async def get(self, provider: str, resource: str, **kwargs) -> StorageResult:
         """
         Retrieve data from a specific provider.
@@ -85,9 +90,14 @@ class DataManager:
         Returns:
             StorageResult with retrieved data
         """
+        record_content_reference(ContentKind.CONTEXT, resource)
         storage_provider = self._get_provider(provider)
-        return await storage_provider.retrieve(resource, **kwargs)
+        result = await storage_provider.retrieve(resource, **kwargs)
+        if result.success and result.data is not None:
+            record_content_reference(ContentKind.RETRIEVED_DOCUMENT, result.data)
+        return result
 
+    @trace_operation("storage.query")
     async def query(
         self, provider: str, resource: str, query: Union[str, Dict], **kwargs
     ) -> StorageResult:
@@ -103,9 +113,14 @@ class DataManager:
         Returns:
             StorageResult with query results
         """
+        record_content_reference(ContentKind.CONTEXT, query)
         storage_provider = self._get_provider(provider)
-        return await storage_provider.query(resource, query, **kwargs)
+        result = await storage_provider.query(resource, query, **kwargs)
+        if result.success and result.data is not None:
+            record_content_reference(ContentKind.RETRIEVED_DOCUMENT, result.data)
+        return result
 
+    @trace_operation("storage.delete")
     async def delete(self, provider: str, resource: str, **kwargs) -> StorageResult:
         """
         Delete data from a specific provider.
@@ -118,6 +133,7 @@ class DataManager:
         Returns:
             StorageResult with operation outcome
         """
+        record_content_reference(ContentKind.CONTEXT, resource)
         storage_provider = self._get_provider(provider)
         return await storage_provider.delete(resource, **kwargs)
 

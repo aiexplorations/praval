@@ -31,6 +31,10 @@ stable_features = [
   "observability.sqlite",
   "observability.console",
   "observability.otlp",
+  "evaluation.offline",
+  "evaluation.agent-judge",
+  "evaluation.one-observation",
+  "evaluation.workflow",
   "transport.rabbitmq",
   "mcp.stdio",
   "mcp.streamable-http",
@@ -223,6 +227,44 @@ features = ["runtime.sync", "runtime.streaming"]
 modes = ["offline"]
 
 [[demo]]
+id = "tutorial-evaluation-quickstart"
+path = "evaluation/000_quickstart.py"
+features = ["evaluation.offline", "evaluation.one-observation"]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-quickstart.db"]
+expected_artifacts = ["evaluation-quickstart.db"]
+timeout_seconds = 30
+
+[[demo]]
+id = "tutorial-evaluation-paired-agents"
+path = "evaluation/001_paired_agents.py"
+features = [
+  "evaluation.offline",
+  "evaluation.agent-judge",
+  "evaluation.one-observation",
+]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-paired-agents.db"]
+expected_artifacts = ["evaluation-paired-agents.db"]
+timeout_seconds = 30
+
+[[demo]]
+id = "tutorial-evaluation-workflow"
+path = "evaluation/002_workflow_evaluation.py"
+features = [
+  "evaluation.offline",
+  "evaluation.one-observation",
+  "evaluation.workflow",
+]
+modes = ["offline"]
+execution = "run"
+args = ["--db", "{report_dir}/evaluation-workflow.db"]
+expected_artifacts = ["evaluation-workflow.db"]
+timeout_seconds = 30
+
+[[demo]]
 id = "tutorial-multimodal-runtime"
 path = "multimodal_input_runtime.py"
 features = ["runtime.multimodal"]
@@ -233,24 +275,38 @@ id = "tutorial-observability-quickstart"
 path = "observability/000_quickstart.py"
 features = ["observability.sqlite"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+args = ["--db", "{report_dir}/observability-quickstart.db"]
+expected_artifacts = ["observability-quickstart.db"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-tracing"
-path = "observability/001_basic_tracing_demo.py"
-features = ["observability.sqlite"]
+path = "observability/001_host_owned_sdk.py"
+features = ["observability.otlp"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-configuration"
-path = "observability/002_configuration_demo.py"
-features = ["observability.sqlite"]
+path = "observability/002_configuration.py"
+features = ["observability.otlp"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-observability-context"
-path = "observability/003_context_propagation_demo.py"
-features = ["observability.sqlite"]
+path = "observability/003_reef_context.py"
+features = ["observability.otlp", "reef.delivery"]
 modes = ["offline"]
+execution = "run"
+extras = ["observability"]
+timeout_seconds = 30
 
 [[demo]]
 id = "tutorial-request-voice"

@@ -138,6 +138,54 @@ using local Chroma storage and ``text-embedding-3-small``.
 
    python examples/configurable_embeddings.py
 
+Evaluation Examples
+===================
+
+Deterministic Quickstart
+------------------------
+
+**File**: ``examples/evaluation/000_quickstart.py``
+
+Runs one JSONL case through a deterministic target, persists one immutable
+agent subject to SQLite, evaluates exact match, and passes a required gate.
+It needs no provider credentials.
+
+.. code-block:: bash
+
+   python examples/evaluation/000_quickstart.py \
+     --db /tmp/praval-evaluation-quickstart.db
+
+Paired Target And Evaluator Agents
+----------------------------------
+
+**File**: ``examples/evaluation/001_paired_agents.py``
+
+Uses credential-free fake providers to run an ordinary target ``Agent`` and a
+separate ordinary evaluator ``Agent``. The evaluator has one explicitly
+allowlisted read-only tool and a strict versioned rubric. The result confirms
+one aggregated target observation.
+
+.. code-block:: bash
+
+   python examples/evaluation/001_paired_agents.py \
+     --db /tmp/praval-evaluation-paired.db
+
+Workflow Evaluation
+-------------------
+
+**File**: ``examples/evaluation/002_workflow_evaluation.py``
+
+Persists one workflow observation with aggregated tool and Reef handoff facts,
+then applies terminal-success and ordered-tool metrics.
+
+.. code-block:: bash
+
+   python examples/evaluation/002_workflow_evaluation.py \
+     --db /tmp/praval-evaluation-workflow.db
+
+See :doc:`../evaluation/patterns` for the mechanism decision table and safety
+tests, and :doc:`../evaluation/online` before enabling sampled production jobs.
+
 Beginner Examples
 =================
 
@@ -338,7 +386,7 @@ Prerequisites
    pip install praval[all]
 
    # Set API key
-   export OPENAI_API_KEY="sk-..."
+   export OPENAI_API_KEY="..."
 
 Run an Example
 --------------

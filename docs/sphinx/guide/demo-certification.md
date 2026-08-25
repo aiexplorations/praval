@@ -12,7 +12,7 @@ Run deterministic checks locally or in normal CI with a built wheel:
 ```bash
 python scripts/run_demos.py \
   --manifest examples/manifest.toml \
-  --wheel dist/praval-0.8.2-py3-none-any.whl \
+  --wheel dist/praval-0.8.3-py3-none-any.whl \
   --mode offline \
   --report-dir /tmp/praval-demo-results
 ```

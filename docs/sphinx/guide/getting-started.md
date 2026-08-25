@@ -9,13 +9,15 @@ enough. Add Reef and Spores when independent specialists need to collaborate.
 python -m pip install praval
 ```
 
-Praval supports Python 3.9 through 3.13. Optional capabilities are installed
+Praval 0.8.3 supports Python 3.10 through 3.14. Optional capabilities are installed
 separately:
 
 ```bash
 python -m pip install "praval[memory]"
 python -m pip install "praval[storage]"
-python -m pip install "praval[mcp]"  # Python 3.10+
+python -m pip install "praval[mcp]"
+python -m pip install "praval[observability]"
+python -m pip install "praval[eval-ragas]"
 ```
 
 For a hosted provider, set the corresponding environment variable before
@@ -174,3 +176,17 @@ python examples/model_runtime_fake_provider.py
 
 Next, read {doc}`core-concepts`, {doc}`model-runtime`, and the generated
 {doc}`../api/index`.
+
+## Design the first agent so it can be evaluated
+
+Use a stable agent name and versioned model/prompt configuration, return a
+structured terminal outcome, bound retries and tool rounds, and keep providers
+and tools replaceable in tests. One completed agent call should produce one
+immutable observation with aggregated model/tool facts. Do not create one
+evaluation subject per log line, model attempt, or tool call.
+
+When quality becomes a release decision, begin with deterministic assertions
+and metrics. Add a separate evaluator model or least-privilege evaluator agent
+only for semantic judgment. The complete pattern and anti-pattern guide is
+{doc}`../evaluation/patterns`; the credential-free first suite is
+{doc}`../evaluation/quickstart`.

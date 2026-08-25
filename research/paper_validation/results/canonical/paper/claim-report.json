@@ -1,11 +1,15 @@
 {
   "claims": [
     {
-      "acceptance_rule": "Runtime and Spore experiments preserve their separate contracts without introducing a second agent-to-agent layer.",
+      "acceptance_rule": "Reef and Spore tests preserve the coordination contract, runtime tests normalize supported execution, negative controls fail before provider invocation, and the prose does not claim field-wide priority.",
       "category": "architectural",
       "citations": [
         "hewitt1973actor",
-        "eugster2003publish_subscribe"
+        "eugster2003publish_subscribe",
+        "langgraph_graph_api_2026",
+        "crewai_core_concepts_2026",
+        "autogen_core_messaging_2026",
+        "autogen_model_clients_2026"
       ],
       "declared_status": "proposed",
       "experiments": [
@@ -28,6 +32,27 @@
           "limitations": [
             "This deterministic adapter tests the shared contract, not live provider conformance."
           ],
+          "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
+          "run_id": "praval-paper-offline-canonical-20260726",
+          "status": "passed"
+        },
+        {
+          "artifacts": {
+            "capability-resolution.json": {
+              "path": "artifacts/capability-resolution.json",
+              "sha256": "37fc0073cd52cb8417079fecfbc11d804053d7b5a00bc6cd0bde4223c9a04ecf",
+              "size": 714
+            },
+            "capability-resolution.samples.jsonl": {
+              "path": "artifacts/capability-resolution.samples.jsonl",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0
+            }
+          },
+          "canonical": true,
+          "failure": null,
+          "id": "capability-resolution",
+          "limitations": [],
           "run_dir": "/Users/rajesh/Github/praval/research/paper_validation/results/canonical/runs/praval-paper-offline-canonical-20260726",
           "run_id": "praval-paper-offline-canonical-20260726",
           "status": "passed"
@@ -61,17 +86,20 @@
         "src/praval/providers/registry.py"
       ],
       "limitations": [
-        "The separation is an implementation boundary, not a formal proof of architectural independence."
+        "The separation is an implementation boundary, not a formal proof of architectural independence.",
+        "The evidence does not establish field-wide priority, lower development effort, or better maintainability than every alternative."
       ],
       "observed_status": "validated",
       "paper_sections": [
         "Abstract",
         "System architecture",
-        "Contributions"
+        "Contributions",
+        "Results RQ1",
+        "Discussion"
       ],
-      "permitted_wording": "Praval 0.8.1 separates its coordination plane from its model execution plane.",
+      "permitted_wording": "Praval 0.8.1 separates its message-coordination plane from its provider-neutral model-execution plane behind one Agent-facing API.",
       "scope": "Praval 0.8.1 public Agent, Reef, Spore, ModelRuntime, and provider adapter boundaries.",
-      "statement": "Praval separates agent coordination from provider-neutral model execution."
+      "statement": "Praval 0.8.1 assigns inter-agent topology and provider-neutral model execution to distinct components and contracts."
     },
     {
       "acceptance_rule": "The historical prose distinguishes source-version states from tagged releases and does not repeat unsupported contemporary marketing claims.",
@@ -94,8 +122,8 @@
       ],
       "observed_status": "validated_with_scope",
       "paper_sections": [
-        "Origins and development",
-        "Results RQ1"
+        "Design provenance and technical development",
+        "Appendix A"
       ],
       "permitted_wording": "Praval began with a direct Agent abstraction, then made decorated agents, Reef, and Spores its main coordination model in the 0.2.0 source state.",
       "scope": "Source states recorded for Praval 0.1.0 and 0.2.0 before the first retained Git tag.",
@@ -130,10 +158,8 @@
       "observed_status": "descriptive_only",
       "paper_sections": [
         "Introduction",
-        "Intellectual origins and development",
-        "Related work",
-        "Results RQ1",
-        "Conclusion"
+        "Design provenance and technical development",
+        "Related work"
       ],
       "permitted_wording": "Praval's message-driven coordination model drew on the author's work with dynamical systems and population-based optimization, practical agent-framework experience, and ideas from swarm intelligence, stigmergy, and coral reef systems.",
       "scope": "Intellectual provenance for the specialist Agent, Reef, and Spore design, stated separately from claims about implemented semantics or measured behavior.",
@@ -168,7 +194,7 @@
       ],
       "observed_status": "descriptive_only",
       "paper_sections": [
-        "Intellectual origins and development"
+        "Appendix C"
       ],
       "permitted_wording": "Contemporaneous first-party posts document how Praval's design, distributed coordination, applications, comparisons, and 0.8.1 transition were described during development.",
       "scope": "Ten Praval-specific posts published on pravalagents.com and rajeshrs.in between November 2025 and July 2026.",
@@ -196,8 +222,8 @@
       ],
       "observed_status": "validated_with_scope",
       "paper_sections": [
-        "Origins and development",
-        "Results RQ1"
+        "Design provenance and technical development",
+        "Appendix A"
       ],
       "permitted_wording": "The 0.5 and 0.6 series added memory, data, transport, and bounded security facilities around Praval's coordination model.",
       "scope": "Tagged and documented states from 0.5.0 through 0.6.2.",
@@ -227,9 +253,9 @@
       ],
       "observed_status": "validated_with_scope",
       "paper_sections": [
-        "Origins and development",
+        "Design provenance and technical development",
         "Coordination before 0.8",
-        "Results RQ1"
+        "Appendix A"
       ],
       "permitted_wording": "The 0.7 series made the coordination model more operational through tools, observability, distributed Reef support, completion tracking, lifecycle work, and durable human intervention.",
       "scope": "Development, tagged, and documented states from 0.7.0 through 0.7.22.",
@@ -257,8 +283,7 @@
       "observed_status": "validated_with_scope",
       "paper_sections": [
         "Introduction",
-        "Origins and development",
-        "Results RQ1"
+        "Design provenance and technical development"
       ],
       "permitted_wording": "By version 0.7.22, Praval already provided the Agent, Reef, and Spore coordination model plus documented tools, data, transport, observability, and completion facilities.",
       "scope": "Capabilities documented by the last stable 0.7 release and its retained source paths.",
@@ -286,8 +311,7 @@
       "observed_status": "validated_with_scope",
       "paper_sections": [
         "Introduction",
-        "Origins and development",
-        "Results RQ1"
+        "Design provenance and technical development"
       ],
       "permitted_wording": "Version 0.7.22 added agent-gated HITL with SQLite-backed intervention and suspended-run state.",
       "scope": "The approval, edit, reject, suspension, restart, and resume behavior documented for the 0.7.22 HITL release.",
@@ -317,7 +341,8 @@
         "Introduction",
         "Why model execution changed",
         "Results RQ1",
-        "System architecture"
+        "System architecture",
+        "Discussion"
       ],
       "permitted_wording": "Praval 0.8.1 extended the established coordination foundation with a provider-neutral execution plane centered on ModelRuntime.",
       "scope": "The published 0.8.1 Agent, ModelRuntime, EmbeddingRuntime, provider profile, Spore V2, MCP, and PravalApp interfaces.",
@@ -587,7 +612,8 @@
       "observed_status": "validated",
       "paper_sections": [
         "Coordination plane",
-        "Compatibility"
+        "Compatibility",
+        "Results RQ1"
       ],
       "permitted_wording": "Spore V2 preserves the legacy knowledge-only transport body while adding JSON-safe references and content parts.",
       "scope": "JSON and AMQP serialization implemented in Praval 0.8.1.",

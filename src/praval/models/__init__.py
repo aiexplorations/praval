@@ -10,6 +10,25 @@ from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .observation import (
+    NOOP_OBSERVATION_RECORDER,
+    ContentKind,
+    ContentReference,
+    ExecutionObservation,
+    HITLDecisionObservation,
+    NoOpObservationRecorder,
+    ObservationFactStatus,
+    ObservationKind,
+    ObservationPrivacy,
+    ObservationRecorder,
+    ObservationStatus,
+    PrivacyMode,
+    ReefHandoffObservation,
+    RetryObservation,
+    TokenUsageObservation,
+    ToolCallObservation,
+)
+
 
 class ContentPart(BaseModel):
     """A single multimodal content part."""
@@ -304,6 +323,7 @@ class ModelRequest(BaseModel):
     tools: List[ToolSpec] = Field(default_factory=list)
     temperature: Optional[float] = None
     max_output_tokens: Optional[int] = None
+    max_tool_rounds: Optional[int] = Field(default=None, ge=1, le=1000)
     stream: bool = False
     response_schema: Optional[StructuredOutputConfig] = None
     reasoning: Optional[ReasoningConfig] = None
@@ -378,22 +398,38 @@ class ProviderAdapter(Protocol):
 
 __all__ = [
     "AudioResponse",
+    "ContentKind",
     "ContentPart",
+    "ContentReference",
     "EmbeddingRequest",
     "EmbeddingResponse",
+    "ExecutionObservation",
+    "HITLDecisionObservation",
     "ModelEvent",
     "ModelMessage",
     "ModelRequest",
     "ModelResponse",
+    "NOOP_OBSERVATION_RECORDER",
+    "NoOpObservationRecorder",
+    "ObservationFactStatus",
+    "ObservationKind",
+    "ObservationPrivacy",
+    "ObservationRecorder",
+    "ObservationStatus",
+    "PrivacyMode",
     "ProviderAdapter",
     "ProviderCapabilities",
     "ProviderProfile",
     "ReasoningConfig",
+    "ReefHandoffObservation",
+    "RetryObservation",
     "SpeechRequest",
     "StructuredOutputConfig",
     "ToolCall",
     "ToolResult",
     "ToolSpec",
     "TranscriptionRequest",
+    "TokenUsageObservation",
     "Usage",
+    "ToolCallObservation",
 ]

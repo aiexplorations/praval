@@ -89,6 +89,7 @@ What To Read
    guide/getting-started
    guide/core-concepts
    guide/application-lifecycle
+   guide/configuration
    guide/model-runtime
    guide/providers
    guide/local-llms
@@ -103,10 +104,22 @@ What To Read
    guide/reef-protocol
    guide/memory-system
    guide/storage
-   guide/observability
    guide/runtime-migration
+   guide/v083-migration
    guide/troubleshooting
    guide/documentation-quality
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Observability
+
+   observability/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Evaluation
+
+   evaluation/index
 
 .. toctree::
    :maxdepth: 2

@@ -24,7 +24,20 @@ OPTIONAL_FEATURE_MODULES = {
     "s3": ("boto3",),
     "qdrant": ("qdrant_client",),
     "notebooks": ("jupyterlab", "nbclient", "nbformat"),
+    "observability": (
+        "opentelemetry.sdk",
+        "opentelemetry.exporter.otlp.proto.http",
+        "opentelemetry.exporter.otlp.proto.grpc",
+    ),
+    "eval_ragas": ("ragas", "langchain_community"),
 }
+
+OBSERVABILITY_DISTRIBUTIONS = (
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-exporter-otlp-proto-grpc",
+)
 
 PROVIDER_ENVIRONMENT = {
     "openai": ("OPENAI_API_KEY",),
@@ -99,6 +112,53 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Import module(s) before resolving agent from registry",
     )
 
+    eval_parser = subparsers.add_parser("eval", help="Evaluation operations")
+    eval_subparsers = eval_parser.add_subparsers(dest="eval_command")
+    eval_run = eval_subparsers.add_parser("run", help="Run an offline suite")
+    eval_run.add_argument("suite")
+    eval_run.add_argument("--config", default=None)
+    eval_run.add_argument("--db", default=None)
+    eval_run.add_argument("--run-id", default=None)
+    eval_run.add_argument("--module", action="append", default=[])
+    eval_run.add_argument("--case-id", action="append", default=[])
+    eval_run.add_argument("--tag", action="append", default=[])
+    eval_run.add_argument("--limit", type=int, default=None)
+    eval_run.add_argument("--seed", type=int, default=0)
+    eval_run.add_argument("--json", action="store_true", dest="json_output")
+
+    eval_compare = eval_subparsers.add_parser(
+        "compare", help="Compare a completed run with a baseline"
+    )
+    eval_compare.add_argument("current_run", nargs="?")
+    eval_compare.add_argument("--current-run", dest="current_run_option", default=None)
+    eval_compare.add_argument(
+        "--baseline", "--baseline-run", dest="baseline_run", default=None
+    )
+    eval_compare.add_argument("--suite", default=None)
+    eval_compare.add_argument("--max-regression", type=float, default=0.0)
+    eval_compare.add_argument(
+        "--direction", choices=("higher", "lower"), default="higher"
+    )
+    eval_compare.add_argument("--config", default=None)
+    eval_compare.add_argument("--db", default=None)
+    eval_compare.add_argument("--json", action="store_true", dest="json_output")
+
+    eval_baseline = eval_subparsers.add_parser(
+        "baseline", help="Manage explicit evaluation baselines"
+    )
+    baseline_subparsers = eval_baseline.add_subparsers(dest="baseline_command")
+    baseline_set = baseline_subparsers.add_parser(
+        "set", help="Promote a completed run as the active baseline"
+    )
+    baseline_set.add_argument("suite", nargs="?")
+    baseline_set.add_argument("run", nargs="?")
+    baseline_set.add_argument("--suite", dest="suite_option", default=None)
+    baseline_set.add_argument("--run", dest="run_option", default=None)
+    baseline_set.add_argument("--promoted-by", required=True)
+    baseline_set.add_argument("--config", default=None)
+    baseline_set.add_argument("--db", default=None)
+    baseline_set.add_argument("--json", action="store_true", dest="json_output")
+
     return parser
 
 
@@ -116,6 +176,14 @@ def _module_available(module_name: str) -> bool:
 def _installed_distribution() -> Any:
     try:
         return importlib.metadata.distribution("praval")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _distribution_version(name: str) -> Optional[str]:
+    """Return an installed distribution version without importing it."""
+    try:
+        return importlib.metadata.version(name)
     except importlib.metadata.PackageNotFoundError:
         return None
 
@@ -170,6 +238,41 @@ def _diagnostic_report() -> Dict[str, Any]:
             "environment": presence,
         }
 
+    otel_packages = {
+        name: _distribution_version(name) for name in OBSERVABILITY_DISTRIBUTIONS
+    }
+    api_version = otel_packages["opentelemetry-api"]
+    managed_versions = [
+        version
+        for name, version in otel_packages.items()
+        if name != "opentelemetry-api"
+    ]
+    observability = {
+        "api_available": api_version is not None,
+        "managed_available": all(version is not None for version in managed_versions),
+        "tested_minor": "1.44",
+        "compatible": all(
+            version is not None and version.startswith("1.44.")
+            for version in otel_packages.values()
+        ),
+        "packages": otel_packages,
+    }
+    evaluation_packages = {
+        name: _distribution_version(name)
+        for name in ("asyncpg", "ragas", "langchain-community")
+    }
+    evaluation = {
+        "core_available": _module_available("praval.eval"),
+        "sqlite_available": True,
+        "postgresql_available": evaluation_packages["asyncpg"] is not None,
+        "ragas_available": all(
+            evaluation_packages[name] is not None
+            for name in ("ragas", "langchain-community")
+        ),
+        "metric_entry_point_group": "praval.eval.metrics",
+        "packages": evaluation_packages,
+    }
+
     return {
         "schema_version": 1,
         "praval": {
@@ -183,6 +286,8 @@ def _diagnostic_report() -> Dict[str, Any]:
             "executable": str(Path(sys.executable).resolve()),
         },
         "optional_features": features,
+        "observability": observability,
+        "evaluation": evaluation,
         "providers": providers,
     }
 
@@ -203,6 +308,28 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     for name, details in report["optional_features"].items():
         status = "available" if details["available"] else "not installed"
         print(f"  {name}: {status}")
+    observability = report["observability"]
+    managed_status = (
+        "available" if observability["managed_available"] else "not installed"
+    )
+    compatibility = "compatible" if observability["compatible"] else "version mismatch"
+    print(
+        "OpenTelemetry: "
+        f"API={'available' if observability['api_available'] else 'not installed'}, "
+        f"managed={managed_status}, {compatibility}"
+    )
+    evaluation = report["evaluation"]
+    postgres_status = (
+        "available" if evaluation["postgresql_available"] else "not installed"
+    )
+    ragas_status = "available" if evaluation["ragas_available"] else "not installed"
+    print(
+        "Evaluation: "
+        f"core={'available' if evaluation['core_available'] else 'unavailable'}, "
+        "SQLite=available, "
+        f"PostgreSQL={postgres_status}, "
+        f"RAGAS={ragas_status}"
+    )
     print("Provider configuration:")
     for name, details in report["providers"].items():
         status = "configured" if details["configured"] else "not configured"
@@ -321,6 +448,11 @@ def main(argv: Optional[list] = None) -> int:
 
     if args.command == "doctor":
         return _cmd_doctor(args)
+
+    if args.command == "eval":
+        from .eval.cli import run_eval_command
+
+        return run_eval_command(args)
 
     if args.command != "hitl":
         parser.print_help()

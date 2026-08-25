@@ -8,10 +8,44 @@ import json
 import logging
 import sqlite3
 import threading
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
-from ..tracing.span import Span
+
+class _StoredValue(Protocol):
+    """Enum-like value accepted by the legacy diagnostic store."""
+
+    value: str
+
+
+class _StoredEvent(Protocol):
+    """Serializable event accepted by the legacy diagnostic store."""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-compatible event."""
+        ...
+
+
+class StorableSpan(Protocol):
+    """Temporary input boundary retained until the O5 exporter migration."""
+
+    span_id: str
+    trace_id: str
+    parent_span_id: str | None
+    name: str
+    kind: _StoredValue
+    start_time: int
+    end_time: int | None
+    attributes: Dict[str, Any]
+    events: Sequence[_StoredEvent]
+    status: _StoredValue
+    status_message: str
+
+    def duration_ms(self) -> float:
+        """Return the completed duration in milliseconds."""
+        ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +70,14 @@ class SQLiteTraceStore:
         events TEXT,
         status TEXT,
         status_message TEXT,
+        resource_attributes TEXT,
+        resource_schema_url TEXT,
+        scope_name TEXT,
+        scope_version TEXT,
+        scope_schema_url TEXT,
+        scope_attributes TEXT,
+        links TEXT,
+        trace_state TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -46,15 +88,16 @@ class SQLiteTraceStore:
     CREATE INDEX IF NOT EXISTS idx_spans_status ON spans(status);
     """
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, *, busy_timeout_ms: int = 5000):
         """Initialize SQLite trace store.
 
         Args:
             db_path: Path to SQLite database file
         """
         self.db_path = Path(db_path).expanduser()
+        self.busy_timeout_ms = max(1, busy_timeout_ms)
 
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._init_error = None
 
         try:
@@ -79,6 +122,8 @@ class SQLiteTraceStore:
             )
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
+        conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
     def _init_schema(self) -> None:
@@ -87,11 +132,29 @@ class SQLiteTraceStore:
             conn = self._get_connection()
             try:
                 conn.executescript(self.SCHEMA)
+                existing = {
+                    row["name"] for row in conn.execute("PRAGMA table_info(spans)")
+                }
+                migrations = {
+                    "resource_attributes": "TEXT",
+                    "resource_schema_url": "TEXT",
+                    "scope_name": "TEXT",
+                    "scope_version": "TEXT",
+                    "scope_schema_url": "TEXT",
+                    "scope_attributes": "TEXT",
+                    "links": "TEXT",
+                    "trace_state": "TEXT",
+                }
+                for name, column_type in migrations.items():
+                    if name not in existing:
+                        conn.execute(
+                            f"ALTER TABLE spans ADD COLUMN {name} {column_type}"
+                        )
                 conn.commit()
             finally:
                 conn.close()
 
-    def store_span(self, span: Span) -> None:
+    def store_span(self, span: StorableSpan) -> None:
         """Store a completed span.
 
         Args:
@@ -127,7 +190,7 @@ class SQLiteTraceStore:
             finally:
                 conn.close()
 
-    def store_spans(self, spans: List[Span]) -> None:
+    def store_spans(self, spans: Sequence[StorableSpan]) -> None:
         """Store multiple spans (batch operation).
 
         Args:
@@ -167,6 +230,80 @@ class SQLiteTraceStore:
             finally:
                 conn.close()
 
+    def store_span_records(self, records: Sequence[Dict[str, Any]]) -> None:
+        """Store normalized records produced by the official SDK exporter."""
+        if not records:
+            return
+        columns = (
+            "span_id",
+            "trace_id",
+            "parent_span_id",
+            "name",
+            "kind",
+            "start_time",
+            "end_time",
+            "duration_ms",
+            "attributes",
+            "events",
+            "status",
+            "status_message",
+            "resource_attributes",
+            "resource_schema_url",
+            "scope_name",
+            "scope_version",
+            "scope_schema_url",
+            "scope_attributes",
+            "links",
+            "trace_state",
+        )
+        json_columns = {
+            "attributes",
+            "events",
+            "resource_attributes",
+            "scope_attributes",
+            "links",
+        }
+        values = []
+        for record in records:
+            values.append(
+                tuple(
+                    (
+                        json.dumps(record.get(column), sort_keys=True)
+                        if column in json_columns
+                        else record.get(column)
+                    )
+                    for column in columns
+                )
+            )
+        placeholders = ", ".join("?" for _ in columns)
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.executemany(
+                    f"INSERT OR REPLACE INTO spans ({', '.join(columns)}) "
+                    f"VALUES ({placeholders})",
+                    values,
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    @staticmethod
+    def _parse_row(row: sqlite3.Row) -> Dict[str, Any]:
+        span = dict(row)
+        for column, fallback in (
+            ("attributes", {}),
+            ("events", []),
+            ("resource_attributes", {}),
+            ("scope_attributes", {}),
+            ("links", []),
+        ):
+            if column in span:
+                span[column] = (
+                    json.loads(span[column]) if span[column] is not None else fallback
+                )
+        return span
+
     def get_trace(self, trace_id: str) -> List[Dict[str, Any]]:
         """Get all spans for a trace.
 
@@ -187,15 +324,7 @@ class SQLiteTraceStore:
                 (trace_id,),
             )
 
-            spans = []
-            for row in cursor:
-                span_dict = dict(row)
-                # Parse JSON fields
-                span_dict["attributes"] = json.loads(span_dict["attributes"])
-                span_dict["events"] = json.loads(span_dict["events"])
-                spans.append(span_dict)
-
-            return spans
+            return [self._parse_row(row) for row in cursor]
         finally:
             conn.close()
 
@@ -212,9 +341,10 @@ class SQLiteTraceStore:
         try:
             cursor = conn.execute(
                 """
-                SELECT DISTINCT trace_id
+                SELECT trace_id
                 FROM spans
-                ORDER BY start_time DESC
+                GROUP BY trace_id
+                ORDER BY MAX(start_time) DESC, trace_id DESC
                 LIMIT ?
             """,
                 (limit,),
@@ -264,14 +394,7 @@ class SQLiteTraceStore:
         try:
             cursor = conn.execute(query, params)
 
-            spans = []
-            for row in cursor:
-                span_dict = dict(row)
-                span_dict["attributes"] = json.loads(span_dict["attributes"])
-                span_dict["events"] = json.loads(span_dict["events"])
-                spans.append(span_dict)
-
-            return spans
+            return [self._parse_row(row) for row in cursor]
         finally:
             conn.close()
 
@@ -308,22 +431,64 @@ class SQLiteTraceStore:
         Returns:
             Number of spans deleted
         """
-        import time
+        return self.cleanup_traces(max_age_days=days)
 
-        # Calculate cutoff time (nanoseconds)
-        cutoff_ns = (time.time() - (days * 24 * 60 * 60)) * 1_000_000_000
+    def cleanup_traces(
+        self,
+        *,
+        max_age_days: int | None = None,
+        keep_last_n: int | None = None,
+        now_ns: int | None = None,
+    ) -> int:
+        """Delete complete traces outside age and count retention bounds."""
+        if max_age_days is not None and max_age_days < 0:
+            raise ValueError("max_age_days cannot be negative")
+        if keep_last_n is not None and keep_last_n < 0:
+            raise ValueError("keep_last_n cannot be negative")
+        if max_age_days is None and keep_last_n is None:
+            return 0
 
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute(
-                    """
-                    DELETE FROM spans
-                    WHERE start_time < ?
-                """,
-                    (int(cutoff_ns),),
+                expired: set[str] = set()
+                if max_age_days is not None:
+                    current_ns = now_ns if now_ns is not None else time.time_ns()
+                    cutoff_ns = current_ns - (
+                        max_age_days * 24 * 60 * 60 * 1_000_000_000
+                    )
+                    expired.update(
+                        row["trace_id"]
+                        for row in conn.execute(
+                            """
+                            SELECT trace_id
+                            FROM spans
+                            GROUP BY trace_id
+                            HAVING MAX(start_time) < ?
+                            """,
+                            (cutoff_ns,),
+                        )
+                    )
+                if keep_last_n is not None:
+                    retained_order = [
+                        row["trace_id"]
+                        for row in conn.execute(
+                            """
+                            SELECT trace_id
+                            FROM spans
+                            GROUP BY trace_id
+                            ORDER BY MAX(start_time) DESC, trace_id DESC
+                            """
+                        )
+                        if row["trace_id"] not in expired
+                    ]
+                    expired.update(retained_order[keep_last_n:])
+                if not expired:
+                    return 0
+                cursor = conn.executemany(
+                    "DELETE FROM spans WHERE trace_id = ?",
+                    ((trace_id,) for trace_id in sorted(expired)),
                 )
-
                 deleted = cursor.rowcount
                 conn.commit()
                 return deleted
@@ -341,15 +506,20 @@ def get_trace_store() -> SQLiteTraceStore:
     Returns:
         SQLiteTraceStore instance
     """
-    global _global_store
-
     if _global_store is None:
-        from ..config import get_config
+        from praval.core.exceptions import PravalConfigurationError
 
-        config = get_config()
-        _global_store = SQLiteTraceStore(config.storage_path)
+        raise PravalConfigurationError(
+            "the local diagnostic exporter is not enabled for the active pipeline"
+        )
 
     return _global_store
+
+
+def set_trace_store(store: SQLiteTraceStore | None) -> None:
+    """Bind the store owned by the active explicit lifecycle."""
+    global _global_store
+    _global_store = store
 
 
 def reset_trace_store() -> None:

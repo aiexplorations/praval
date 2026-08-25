@@ -55,7 +55,7 @@ def test_repository_manifest_registers_every_python_example():
     }
     discovered -= run_demos.NON_DEMO_EXAMPLE_FILES
     assert {demo.path.as_posix() for demo in manifest.demos} == discovered
-    assert len(manifest.demos) == 48
+    assert len(manifest.demos) == 51
 
 
 def test_every_stable_feature_has_executable_certification():
@@ -71,6 +71,19 @@ def test_every_stable_feature_has_executable_certification():
     assert {"offline", "services", "live"} == {
         mode for demo in manifest.demos for mode in demo.modes
     }
+
+
+def test_offline_certification_uses_the_public_observability_lifecycle():
+    source = (ROOT / "examples" / "certification" / "offline_framework.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "configure_observability(" in source
+    assert 'get_tracer("certification")' in source
+    assert "span.get_span_context().trace_id" in source
+    assert "force_flush(5_000)" in source
+    assert "shutdown_observability(5_000)" in source
+    assert 'Tracer("certification")' not in source
 
 
 def test_live_voice_fixture_is_complete_and_has_accurate_wav_metadata():

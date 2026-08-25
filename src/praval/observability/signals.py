@@ -1,0 +1,372 @@
+"""Bounded metrics and correlated logs derived from execution observations."""
+
+from __future__ import annotations
+
+import re
+import threading
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Mapping
+
+from opentelemetry._logs import SeverityNumber
+from opentelemetry.metrics import Observation
+
+from praval.models.observation import ExecutionObservation, ObservationStatus
+
+from .lifecycle import get_logger, get_meter, is_observability_configured
+
+if TYPE_CHECKING:
+    from praval.eval.models import EvaluationSubject, JudgeResult, MetricResult
+
+_SECRET_VALUE = re.compile(r"(?i)(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|api[_-]?key\s*[=:])")
+_MAX_DIMENSION_BYTES = 256
+_signal_lock = threading.RLock()
+_instruments: "_SignalInstruments | None" = None
+
+
+@dataclass(frozen=True)
+class _SignalInstruments:
+    """Cached official API instruments for one configured provider set."""
+
+    execution_invocations: Any
+    execution_duration: Any
+    execution_failures: Any
+    token_usage: Any
+    tool_invocations: Any
+    tool_duration: Any
+    retry_count: Any
+    handoff_count: Any
+    handoff_duration: Any
+    evaluation_results: Any
+    evaluation_scores: Any
+    evaluation_failures: Any
+    health_instruments: tuple[Any, ...]
+
+
+def reset_signal_state() -> None:
+    """Forget provider-bound instruments after lifecycle reconfiguration."""
+    global _instruments
+    with _signal_lock:
+        _instruments = None
+
+
+def initialize_signal_state() -> None:
+    """Create signal instruments after explicit lifecycle configuration."""
+    meter = get_meter("praval.execution")
+    if callable(getattr(meter, "create_counter", None)):
+        _get_instruments()
+
+
+def _health_callback(field: str) -> Any:
+    def observe(options: Any) -> Iterable[Observation]:
+        from .health import get_telemetry_health
+
+        for signal, health in get_telemetry_health().items():
+            yield Observation(
+                getattr(health, field),
+                {"praval.telemetry.signal": signal},
+            )
+
+    return observe
+
+
+def _create_health_instruments(meter: Any) -> tuple[Any, ...]:
+    counters = (
+        ("praval.telemetry.export.attempts", "export_attempts"),
+        ("praval.telemetry.exported.items", "exported_items"),
+        ("praval.telemetry.export.failures", "export_failures"),
+        ("praval.telemetry.export.exceptions", "export_exceptions"),
+        ("praval.telemetry.dropped.items", "dropped_items"),
+        ("praval.telemetry.lifecycle.failures", "lifecycle_failures"),
+    )
+    instruments = [
+        meter.create_observable_counter(
+            name,
+            callbacks=[_health_callback(field)],
+            unit="{item}",
+        )
+        for name, field in counters
+    ]
+    instruments.extend(
+        (
+            meter.create_observable_gauge(
+                "praval.telemetry.queue.depth",
+                callbacks=[_health_callback("queue_depth")],
+                unit="{item}",
+            ),
+            meter.create_observable_gauge(
+                "praval.telemetry.queue.capacity",
+                callbacks=[_health_callback("queue_capacity")],
+                unit="{item}",
+            ),
+        )
+    )
+    return tuple(instruments)
+
+
+def _get_instruments() -> _SignalInstruments:
+    global _instruments
+    with _signal_lock:
+        if _instruments is None:
+            meter = get_meter("praval.execution")
+            _instruments = _SignalInstruments(
+                execution_invocations=meter.create_counter(
+                    "praval.execution.invocations",
+                    unit="{invocation}",
+                    description="Completed Praval agent and workflow invocations",
+                ),
+                execution_duration=meter.create_histogram(
+                    "praval.execution.duration",
+                    unit="ms",
+                    description="Completed Praval execution duration",
+                ),
+                execution_failures=meter.create_counter(
+                    "praval.execution.failures",
+                    unit="{failure}",
+                    description="Non-successful Praval executions",
+                ),
+                token_usage=meter.create_counter(
+                    "praval.gen_ai.token.usage",
+                    unit="{token}",
+                    description="Model tokens used by completed Praval executions",
+                ),
+                tool_invocations=meter.create_counter(
+                    "praval.tool.invocations",
+                    unit="{invocation}",
+                    description="Tool invocations within Praval executions",
+                ),
+                tool_duration=meter.create_histogram(
+                    "praval.tool.duration",
+                    unit="ms",
+                    description="Tool invocation duration",
+                ),
+                retry_count=meter.create_counter(
+                    "praval.retry.count",
+                    unit="{retry}",
+                    description="Retry decisions within Praval executions",
+                ),
+                handoff_count=meter.create_counter(
+                    "praval.reef.handoff.count",
+                    unit="{handoff}",
+                    description="Reef handoffs within Praval executions",
+                ),
+                handoff_duration=meter.create_histogram(
+                    "praval.reef.handoff.duration",
+                    unit="ms",
+                    description="Reef handoff duration",
+                ),
+                evaluation_results=meter.create_counter(
+                    "praval.evaluation.results",
+                    unit="{result}",
+                    description="Completed metric and judge evaluation results",
+                ),
+                evaluation_scores=meter.create_histogram(
+                    "praval.evaluation.score",
+                    unit="1",
+                    description="Normalized evaluation result scores",
+                ),
+                evaluation_failures=meter.create_counter(
+                    "praval.evaluation.failures",
+                    unit="{failure}",
+                    description="Errored metric and judge evaluation results",
+                ),
+                health_instruments=_create_health_instruments(meter),
+            )
+        return _instruments
+
+
+def _bounded_dimension(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if _SECRET_VALUE.search(value):
+        return "[REDACTED]"
+    encoded = value.encode("utf-8")
+    if len(encoded) <= _MAX_DIMENSION_BYTES:
+        return value
+    return encoded[:_MAX_DIMENSION_BYTES].decode("utf-8", errors="ignore")
+
+
+def _base_attributes(observation: ExecutionObservation) -> dict[str, str]:
+    attributes = {
+        "praval.observation.kind": observation.kind.value,
+        "praval.status": observation.status.value,
+    }
+    for key, value in (
+        ("praval.agent.name", observation.agent_name),
+        ("praval.workflow.name", observation.workflow_name),
+        ("gen_ai.provider.name", observation.provider),
+        ("gen_ai.request.model", observation.model),
+        ("praval.request.mode", observation.request_mode),
+    ):
+        bounded = _bounded_dimension(value)
+        if bounded is not None:
+            attributes[key] = bounded
+    return attributes
+
+
+def _fact_attributes(
+    base: Mapping[str, str],
+    **values: str | None,
+) -> dict[str, str]:
+    attributes = dict(base)
+    for key, value in values.items():
+        bounded = _bounded_dimension(value)
+        if bounded is not None:
+            attributes[key] = bounded
+    return attributes
+
+
+def _record_metrics(observation: ExecutionObservation) -> None:
+    instruments = _get_instruments()
+    base = _base_attributes(observation)
+    instruments.execution_invocations.add(1, base)
+    instruments.execution_duration.record(observation.duration_ms, base)
+    if observation.status is not ObservationStatus.OK:
+        instruments.execution_failures.add(1, base)
+
+    if observation.usage is not None:
+        usage = observation.usage
+        for token_type, value in (
+            ("input", usage.input_tokens),
+            ("output", usage.output_tokens),
+            ("reasoning", usage.reasoning_tokens),
+            ("cache_read", usage.cache_read_tokens),
+            ("cache_write", usage.cache_write_tokens),
+            ("total", usage.total_tokens),
+        ):
+            attributes = {**base, "gen_ai.token.type": token_type}
+            instruments.token_usage.add(value, attributes)
+
+    for tool in observation.tool_calls:
+        attributes = _fact_attributes(
+            base,
+            **{
+                "gen_ai.tool.name": tool.name,
+                "praval.tool.status": tool.status.value,
+            },
+        )
+        instruments.tool_invocations.add(1, attributes)
+        instruments.tool_duration.record(tool.duration_ms, attributes)
+
+    for retry in observation.retries:
+        attributes = _fact_attributes(base, **{"praval.operation": retry.operation})
+        instruments.retry_count.add(1, attributes)
+
+    for handoff in observation.handoffs:
+        attributes = _fact_attributes(
+            base,
+            **{
+                "messaging.destination.name": handoff.channel,
+                "praval.handoff.status": handoff.status.value,
+            },
+        )
+        instruments.handoff_count.add(1, attributes)
+        if handoff.duration_ms is not None:
+            instruments.handoff_duration.record(handoff.duration_ms, attributes)
+
+
+def _log_attributes(observation: ExecutionObservation) -> dict[str, Any]:
+    attributes: dict[str, Any] = {
+        **_base_attributes(observation),
+        "praval.duration_ms": observation.duration_ms,
+        "praval.tool.count": len(observation.tool_calls),
+        "praval.retry.count": len(observation.retries),
+        "praval.hitl.count": len(observation.hitl_decisions),
+        "praval.reef.handoff.count": len(observation.handoffs),
+    }
+    if observation.error_type is not None:
+        attributes["error.type"] = _bounded_dimension(observation.error_type)
+    if observation.usage is not None:
+        attributes.update(
+            {
+                "gen_ai.usage.input_tokens": observation.usage.input_tokens,
+                "gen_ai.usage.output_tokens": observation.usage.output_tokens,
+                "praval.usage.total_tokens": observation.usage.total_tokens,
+            }
+        )
+    return attributes
+
+
+def _record_log(observation: ExecutionObservation) -> None:
+    severity = (
+        SeverityNumber.INFO
+        if observation.status is ObservationStatus.OK
+        else SeverityNumber.ERROR
+    )
+    get_logger("praval.execution").emit(
+        body="Praval execution completed",
+        event_name="praval.execution.completed",
+        severity_number=severity,
+        severity_text=observation.status.value.upper(),
+        attributes=_log_attributes(observation),
+    )
+
+
+def emit_execution_observation(observation: ExecutionObservation) -> None:
+    """Emit bounded metrics and one correlated log for an observation."""
+    _record_metrics(observation)
+    _record_log(observation)
+
+
+def emit_evaluation_result(
+    result: "JudgeResult | MetricResult", subject: "EvaluationSubject"
+) -> bool:
+    """Emit one metadata-only standard evaluation event when configured."""
+    if not is_observability_configured():
+        return False
+    if result.subject_id != subject.subject_id:
+        raise ValueError("evaluation result subject identity does not match")
+    if result.evaluation_run_id != subject.evaluation_run_id:
+        raise ValueError("evaluation result run identity does not match")
+    if result.case_id != subject.case_id:
+        raise ValueError("evaluation result case identity does not match")
+
+    evaluator_name = getattr(result, "judge", None) or getattr(result, "metric")
+    attributes: dict[str, Any] = {
+        "gen_ai.evaluation.name": _bounded_dimension(evaluator_name),
+        "praval.evaluation.status": result.status.value,
+        "praval.evaluation.run.id": _bounded_dimension(result.evaluation_run_id),
+        "praval.evaluation.case.id": _bounded_dimension(result.case_id),
+        "praval.evaluation.subject.id": _bounded_dimension(result.subject_id),
+        "praval.observation.id": _bounded_dimension(subject.observation_id),
+    }
+    for key, value in (
+        ("gen_ai.evaluation.score.label", result.label),
+        ("gen_ai.response.id", subject.response_id),
+        ("error.type", result.error_type),
+    ):
+        bounded = _bounded_dimension(value)
+        if bounded is not None:
+            attributes[key] = bounded
+    if result.score is not None:
+        attributes["gen_ai.evaluation.score.value"] = result.score
+    explanation = getattr(result, "explanation", None)
+    privacy = getattr(result, "privacy", None)
+    if explanation is not None and privacy is not None and privacy.content_captured:
+        attributes["gen_ai.evaluation.explanation"] = explanation
+
+    instruments = _get_instruments()
+    metric_attributes = {
+        "gen_ai.evaluation.name": evaluator_name,
+        "praval.evaluation.status": result.status.value,
+    }
+    instruments.evaluation_results.add(1, metric_attributes)
+    if result.score is not None:
+        instruments.evaluation_scores.record(result.score, metric_attributes)
+    if result.status.value == "error":
+        instruments.evaluation_failures.add(1, metric_attributes)
+
+    severity = (
+        SeverityNumber.ERROR if result.status.value == "error" else SeverityNumber.INFO
+    )
+    get_logger("praval.evaluation").emit(
+        body="Praval evaluation result",
+        event_name="gen_ai.evaluation.result",
+        severity_number=severity,
+        severity_text=result.status.value.upper(),
+        attributes=attributes,
+    )
+    return True
+
+
+__all__ = ["emit_evaluation_result", "emit_execution_observation"]

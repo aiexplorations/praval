@@ -44,7 +44,6 @@ def initialize_instrumentation() -> bool:
     try:
         # Instrument components
         _instrument_agent_decorator()
-        _instrument_reef_communication()
         _instrument_memory_operations()
         _instrument_storage_providers()
         _instrument_llm_providers()
@@ -119,44 +118,6 @@ def _instrument_agent_decorator() -> None:
 
     except Exception as e:
         logger.warning(f"Failed to instrument agent decorator: {e}")
-
-
-def _instrument_reef_communication() -> None:
-    """Instrument Reef communication methods."""
-    try:
-        from praval.core import reef
-
-        from ..tracing import SpanKind
-        from .utils import instrument_function
-
-        # Store original Reef.send if not already stored
-        if "reef.Reef.send" not in _original_functions:
-            _original_functions["reef.Reef.send"] = reef.Reef.send
-
-        original_send = _original_functions["reef.Reef.send"]
-
-        @instrument_function(span_name="reef.send", kind=SpanKind.PRODUCER)
-        def instrumented_send(self, from_agent, to_agent, knowledge, **kwargs):
-            return original_send(self, from_agent, to_agent, knowledge, **kwargs)
-
-        reef.Reef.send = instrumented_send
-
-        # Store original Reef.broadcast if not already stored
-        if "reef.Reef.broadcast" not in _original_functions:
-            _original_functions["reef.Reef.broadcast"] = reef.Reef.broadcast
-
-        original_broadcast = _original_functions["reef.Reef.broadcast"]
-
-        @instrument_function(span_name="reef.broadcast", kind=SpanKind.PRODUCER)
-        def instrumented_broadcast(self, from_agent, knowledge, **kwargs):
-            return original_broadcast(self, from_agent, knowledge, **kwargs)
-
-        reef.Reef.broadcast = instrumented_broadcast
-
-        logger.debug("Reef communication instrumented successfully")
-
-    except Exception as e:
-        logger.warning(f"Failed to instrument reef communication: {e}")
 
 
 def _instrument_memory_operations() -> None:
@@ -416,22 +377,6 @@ def reset_instrumentation() -> None:
             from praval import decorators
 
             decorators.agent = _original_functions["decorators.agent"]
-        except ImportError:
-            pass
-
-    if "reef.Reef.send" in _original_functions:
-        try:
-            from praval.core import reef
-
-            reef.Reef.send = _original_functions["reef.Reef.send"]
-        except ImportError:
-            pass
-
-    if "reef.Reef.broadcast" in _original_functions:
-        try:
-            from praval.core import reef
-
-            reef.Reef.broadcast = _original_functions["reef.Reef.broadcast"]
         except ImportError:
             pass
 

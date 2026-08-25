@@ -576,7 +576,9 @@ class TestChatFunction:
 
         assert result == "Thread result"
         mock_executor_class.assert_called_once_with(max_workers=1)
-        mock_executor.submit.assert_called_once_with(mock_agent.chat, "test message")
+        submit_args = mock_executor.submit.call_args.args
+        assert callable(submit_args[0])
+        assert submit_args[1:] == (mock_agent.chat, "test message")
         mock_future.result.assert_called_once_with(timeout=5.0)
 
     @patch("concurrent.futures.ThreadPoolExecutor")
@@ -670,9 +672,10 @@ class TestAChatFunction:
         result = await achat("test message", timeout=3.0)
 
         assert result == "Executor result"
-        mock_loop.run_in_executor.assert_called_once_with(
-            None, mock_agent.chat, "test message"
-        )
+        executor_args = mock_loop.run_in_executor.call_args.args
+        assert executor_args[0] is None
+        assert callable(executor_args[1])
+        assert executor_args[2:] == (mock_agent.chat, "test message")
         mock_wait_for.assert_called_once()
 
     @pytest.mark.asyncio

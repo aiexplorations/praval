@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - Python 3.9/3.10 compatibility
     import tomli as tomllib
 
 import praval
+import praval.config as config_module
 from praval import Agent, DataManager, ModelRuntime, PravalApp, StorageRegistry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,8 +65,8 @@ def _current_docs_text():
 def test_every_top_level_export_is_classified_and_documented():
     report = api_surface.validate_api_surface(ROOT)
 
-    assert report["exported"] == 89
-    assert report["documented"] == 89
+    assert report["exported"] == 93
+    assert report["documented"] == 93
     assert report["coverage_percent"] == 100.0
     assert report["errors"] == []
 
@@ -80,6 +81,40 @@ def test_feature_claims_reference_real_evidence():
         assert claim["statement"].endswith(".")
         for evidence in claim["evidence"]:
             assert (ROOT / evidence).exists(), f"missing evidence: {evidence}"
+
+
+def test_documentation_coverage_manifest_maps_config_extras_and_errors():
+    coverage = tomllib.loads(
+        (ROOT / "docs" / "documentation-coverage.toml").read_text()
+    )
+    assert coverage["schema_version"] == 1
+    for section in ("public_api", "feature_claims"):
+        for key in coverage[section].values():
+            assert (ROOT / key).exists(), f"missing {section} coverage path: {key}"
+
+    for entry in coverage["config_models"]:
+        model = getattr(config_module, entry["model"])
+        assert set(entry["fields"]) == set(model.model_fields)
+        documentation = ROOT / entry["documentation"]
+        assert documentation.exists()
+        text = documentation.read_text()
+        for field in entry["fields"]:
+            assert field in text, f"{entry['model']}.{field} is not documented"
+        assert (ROOT / entry["test"]).exists()
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    mapped_extras = {name for entry in coverage["extras"] for name in entry["names"]}
+    assert mapped_extras == set(project["project"]["optional-dependencies"])
+    for entry in coverage["extras"]:
+        assert (ROOT / entry["documentation"]).exists()
+        assert (ROOT / entry["test"]).exists()
+
+    for entry in coverage["errors"]:
+        documentation = ROOT / entry["documentation"]
+        text = documentation.read_text()
+        assert (ROOT / entry["test"]).exists()
+        for name in entry["names"]:
+            assert name in text, f"{name} is not documented"
 
 
 def test_documented_key_signatures_match_the_runtime():
@@ -175,6 +210,9 @@ def test_current_docs_reject_known_false_or_private_examples():
         "._praval_agent",
         "## Coming Soon",
         "external Reef (Redis",
+        "from praval.explainability import",
+        "from praval.security import",
+        "get_metrics() returns",
     ]
     for value in forbidden:
         assert value not in current
@@ -241,12 +279,28 @@ def test_current_release_notes_cover_correlation_safe_reef():
     assert "build-manifest.json" in notes
 
 
+def test_v083_candidate_notes_keep_release_blocked_until_clean_ci_and_docs():
+    notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.3.md").read_text()
+
+    assert notes.splitlines()[0] == "# Praval 0.8.3"
+    assert "Do not publish, tag, or cut this release" in notes
+    assert "local combined certification" in notes
+    assert "are\ncomplete" in notes
+    assert "clean E6 commit" in notes
+    assert "matching documentation" in notes
+    assert "artifact is staged with provenance" in notes
+    assert "ExecutionObservation" in notes
+    assert not re.search(r"\b\d{3,5} passed\b", notes)
+    assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
+
+
 def test_dist_policy_is_documented_as_distributions_only():
     release = (ROOT / "RELEASE.md").read_text()
 
     assert "`dist/` contains exactly one `.whl` file" in release
     assert "`evidence/` contains checksums" in release
-    assert "twine upload dist/praval-0.8.2-py3-none-any.whl" in release
+    assert "twine upload dist/praval-0.8.3-py3-none-any.whl" in release
+    assert "after every observability and evaluation gate" in release
     assert "Do not use a wildcard" in release
 
 

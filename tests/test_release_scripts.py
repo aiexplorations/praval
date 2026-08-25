@@ -39,8 +39,8 @@ stage_docs = _load_script("stage_docs_artifact")
 
 
 def test_distribution_validation_helpers_read_versions_and_reject_generated_files():
-    assert _project_version(Path("pyproject.toml")) == "0.8.2"
-    assert _package_version(Path("src/praval/__init__.py")) == "0.8.2"
+    assert _project_version(Path("pyproject.toml")) == "0.8.3"
+    assert _package_version(Path("src/praval/__init__.py")) == "0.8.3"
     assert _forbidden_entries(
         [
             "praval-0.8.2/docs/generated/manual.pdf",
@@ -145,33 +145,65 @@ def test_type_checks_cover_current_and_minimum_python_versions():
 
     assert labels == [
         "strict Python 3.13 typing",
-        "Python 3.9 compatibility typing",
+        "Python 3.10 compatibility typing",
     ]
     assert ("--python-version", "3.13", "src/praval/") in commands
     assert any(
         "--python-version" in command
-        and "3.9" in command
+        and "3.10" in command
         and "--no-site-packages" in command
         for command in commands
     )
 
 
-def test_python39_s3_extras_constrain_cohere_request_stubs():
+def test_python_floor_and_observability_dependency_scope():
     project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
-    expected = "types-requests==2.28.11.17; python_version < '3.10'"
+    assert project["requires-python"] == ">=3.10,<3.15"
+    assert "opentelemetry-api>=1.44,<1.45" in project["dependencies"]
+    observability = project["optional-dependencies"]["observability"]
+    assert "opentelemetry-sdk>=1.44,<1.45" in observability
+    assert "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45" in observability
+    assert "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45" in observability
 
-    for extra in ("storage", "all", "dev"):
-        assert expected in project["optional-dependencies"][extra]
+
+def test_ragas_dependency_scope_and_compatibility_bound():
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    extras = project["optional-dependencies"]
+
+    assert all("ragas" not in dependency for dependency in project["dependencies"])
+    for extra in ("eval-ragas", "all", "dev"):
+        assert "ragas>=0.4.3,<0.5" in extras[extra]
+        assert "instructor>=1.9,<1.13" in extras[extra]
+        assert "langchain-community>=0.3.27,<0.4" in extras[extra]
+    assert all("ragas" not in dependency for dependency in extras["observability"])
+    assert all("instructor" not in dependency for dependency in extras["observability"])
 
 
-def _write_version_wheel(path: Path, version: str = "0.8.2") -> None:
+def test_ci_runs_the_exact_wheel_ragas_smoke():
+    workflow = Path(".github/workflows/ci.yml").read_text()
+
+    assert "extra: [minimal, mcp, eval-ragas]" in workflow
+    assert "smoke_install.py artifact/dist --extra eval-ragas" in workflow
+
+
+def test_ci_matrix_has_bounded_test_and_job_timeouts():
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    workflow = Path(".github/workflows/ci.yml").read_text()
+
+    assert "pytest-timeout>=2.3.1,<3" in project["optional-dependencies"]["dev"]
+    assert "timeout-minutes: 20" in workflow
+    assert "--timeout=60" in workflow
+    assert "--timeout-method=thread" in workflow
+
+
+def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
     metadata = f"Metadata-Version: 2.1\nName: praval\nVersion: {version}\n"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(f"praval-{version}.dist-info/METADATA", metadata)
 
 
 def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
-    _write_version_wheel(tmp_path / "praval-0.8.2-py3-none-any.whl")
+    _write_version_wheel(tmp_path / "praval-0.8.3-py3-none-any.whl")
 
     def not_installed(_name):
         raise release_metadata.importlib.metadata.PackageNotFoundError
@@ -254,3 +286,8 @@ def test_docs_stager_copies_identical_versioned_and_latest_trees(tmp_path):
     }
     versions = json.loads((website / "docs/versions.json").read_text())
     assert versions["current"] == versions["latest"] == "0.8.2"
+    assert versions["versions"][2] == {
+        "version": "0.7.22",
+        "url": "/docs/v0.7.22/",
+        "title": "v0.7.22",
+    }

@@ -37,12 +37,20 @@ def test_doctor_json_has_stable_shape_and_never_prints_secrets(monkeypatch, caps
         "praval",
         "python",
         "optional_features",
+        "observability",
+        "evaluation",
         "providers",
     }
     assert report["providers"]["openai"]["configured"] is True
     assert report["providers"]["gemini"]["configured"] is True
     assert report["providers"]["openai_compatible"]["configured"] is True
     assert report["providers"]["openai"]["environment"] == {"OPENAI_API_KEY": True}
+    assert report["observability"]["tested_minor"] == "1.44"
+    assert "opentelemetry-api" in report["observability"]["packages"]
+    assert report["evaluation"]["core_available"] is True
+    assert report["evaluation"]["sqlite_available"] is True
+    assert report["evaluation"]["metric_entry_point_group"] == "praval.eval.metrics"
+    assert "ragas" in report["evaluation"]["packages"]
     for value in secrets.values():
         assert value not in output
 
@@ -65,6 +73,8 @@ def test_doctor_text_reports_status_without_treating_missing_keys_as_errors(
     output = capsys.readouterr().out
     assert "Praval " in output
     assert "Optional features:" in output
+    assert "OpenTelemetry:" in output
+    assert "Evaluation:" in output
     assert "Provider configuration:" in output
     assert "openai: not configured" in output
     assert "gemini: not configured" in output

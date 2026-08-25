@@ -46,7 +46,14 @@ from praval.memory.embedded_store import EmbeddedVectorStore  # noqa: E402
 from praval.memory.memory_manager import MemoryManager  # noqa: E402
 from praval.memory.memory_types import MemoryQuery, MemoryType  # noqa: E402
 from praval.models import ProviderProfile  # noqa: E402
-from praval.observability import SQLiteTraceStore, Tracer  # noqa: E402
+from praval.observability import (  # noqa: E402
+    ObservabilityConfig,
+    configure_observability,
+    force_flush,
+    get_trace_store,
+    get_tracer,
+    shutdown_observability,
+)
 from praval.observability.export import ConsoleViewer  # noqa: E402
 from praval.storage import FileSystemProvider  # noqa: E402
 
@@ -298,24 +305,35 @@ async def certify_storage_memory_pdf_observability() -> dict:
         assert search.total_found >= 1
 
         trace_path = output / "offline-traces.sqlite3"
-        tracer = Tracer("certification")
-        with tracer.start_as_current_span(
-            "certification.offline", attributes={"mode": "offline"}
-        ) as span:
-            span.add_event("framework-certified")
-            trace_id = span.trace_id
-        store = SQLiteTraceStore(str(trace_path))
-        spans = store.get_trace(trace_id)
-        assert len(spans) == 1
-        assert spans[0]["end_time"] is not None
-        assert spans[0]["events"][0]["name"] == "framework-certified"
+        configure_observability(
+            ObservabilityConfig(
+                enabled=True,
+                local={"enabled": True, "path": str(trace_path)},
+                otlp={"traces": True, "metrics": False, "logs": False},
+            ),
+            service_name="praval-offline-certification",
+        )
+        try:
+            tracer = get_tracer("certification")
+            with tracer.start_as_current_span(
+                "certification.offline", attributes={"mode": "offline"}
+            ) as span:
+                span.add_event("framework-certified")
+                trace_id = format(span.get_span_context().trace_id, "032x")
+            assert force_flush(5_000)
+            spans = get_trace_store().get_trace(trace_id)
+            assert len(spans) == 1
+            assert spans[0]["end_time"] is not None
+            assert spans[0]["events"][0]["name"] == "framework-certified"
 
-        # Console export is intentionally exercised through the public viewer
-        # instead of asserting implementation details of the SQLite store.
-        console = io.StringIO()
-        with redirect_stdout(console):
-            ConsoleViewer(use_colors=False).display_trace(trace_id, spans)
-        assert "certification.offline" in console.getvalue()
+            # Console export is intentionally exercised through the public viewer
+            # instead of asserting implementation details of the SQLite store.
+            console = io.StringIO()
+            with redirect_stdout(console):
+                ConsoleViewer(use_colors=False).display_trace(trace_id, spans)
+            assert "certification.offline" in console.getvalue()
+        finally:
+            assert shutdown_observability(5_000)
 
     return {
         "filesystem": True,

@@ -153,6 +153,24 @@ Every example and service should close what it opens:
 - close MCP clients and storage providers;
 - use `PravalApp` when retaining several agents under one cleanup owner helps.
 
+## Design for evaluability
+
+An agent or workflow is easiest to evaluate when its runtime contract is
+explicit before a test suite exists:
+
+- keep stable versioned identities for agents, workflows, prompts, models, and
+  tool schemas;
+- return a structured terminal outcome rather than relying on log text;
+- bound tool rounds, timeouts, retries, context, output, and concurrency;
+- inject providers, clocks, retrieval, and tools through deterministic seams;
+- produce one immutable observation per evaluated agent or workflow, with
+  model, tool, retry, HITL, and handoff facts aggregated into it.
+
+Ordinary agent execution does not depend on `praval.eval`. The same
+provider-neutral observation can be consumed independently by observability
+and by an evaluation runner. See {doc}`../evaluation/patterns` for the paired
+target/evaluator architectures and least-privilege judge guidance.
+
 ## What to read next
 
 - {doc}`model-runtime` for request and response contracts.
@@ -161,3 +179,4 @@ Every example and service should close what it opens:
 - {doc}`storage` and {doc}`embeddings` for data paths.
 - {doc}`mcp` for external tool servers.
 - {doc}`application-lifecycle` for the exact `PravalApp` boundary.
+- {doc}`../evaluation/index` for deterministic metrics, judges, and release gates.

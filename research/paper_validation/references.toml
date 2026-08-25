@@ -487,6 +487,18 @@ version = "1.2.9"
 notes = "Comparison wheel SHA-256 c2d98ad94333937922ba04148641c1da2bfe45b5b8e55d7b6dcb0bb2df809e76"
 
 [[reference]]
+id = "langgraph_graph_api_2026"
+type = "web"
+title = "Graph API overview"
+authors = ["LangChain, Inc."]
+year = 2026
+url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+accessed = "2026-08-20"
+primary = true
+venue = "LangGraph documentation"
+notes = "Official documentation used to characterize workflows in terms of state, nodes, and edges."
+
+[[reference]]
 id = "crewai_pypi_1_15_6"
 type = "software"
 title = "CrewAI 1.15.6"
@@ -497,6 +509,18 @@ accessed = "2026-07-26"
 primary = true
 version = "1.15.6"
 notes = "Comparison wheel SHA-256 966183d71ceb855672e3ea7c99abadeb1d574df7a5657489f1ae6901cb51e919"
+
+[[reference]]
+id = "crewai_core_concepts_2026"
+type = "web"
+title = "CrewAI core concepts"
+authors = ["CrewAI, Inc."]
+year = 2026
+url = "https://docs.crewai.com/core-concepts/Agents"
+accessed = "2026-08-20"
+primary = true
+venue = "CrewAI documentation"
+notes = "Official documentation used to characterize agents, crews, tasks, processes, and flows."
 
 [[reference]]
 id = "autogen_pypi_0_14_1"
@@ -534,6 +558,30 @@ primary = true
 version = "0.7.5"
 commit = "83afbf5"
 notes = "The official repository now describes AutoGen as maintenance mode."
+
+[[reference]]
+id = "autogen_core_messaging_2026"
+type = "web"
+title = "Messages and communication"
+authors = ["Microsoft"]
+year = 2026
+url = "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/framework/message-and-communication.html"
+accessed = "2026-08-20"
+primary = true
+venue = "AutoGen documentation"
+notes = "Official documentation used to characterize direct and published messages in AutoGen Core."
+
+[[reference]]
+id = "autogen_model_clients_2026"
+type = "web"
+title = "Model clients"
+authors = ["Microsoft"]
+year = 2026
+url = "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/components/model-clients.html"
+accessed = "2026-08-20"
+primary = true
+venue = "AutoGen documentation"
+notes = "Official documentation used to characterize the model-client protocol and provider clients."
 
 [[reference]]
 id = "agno_2_6_19"

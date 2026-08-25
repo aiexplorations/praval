@@ -4,10 +4,64 @@ Tests for SQLite trace storage.
 
 import os
 import tempfile
+import time
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from praval.observability.storage.sqlite_store import SQLiteTraceStore
-from praval.observability.tracing.span import Span
+
+
+class _Value(Enum):
+    INTERNAL = "INTERNAL"
+    UNSET = "UNSET"
+    OK = "OK"
+    ERROR = "ERROR"
+
+
+@dataclass
+class _Event:
+    name: str
+    attributes: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "attributes": self.attributes}
+
+
+@dataclass
+class Span:
+    """Storage fixture independent from the removed custom tracing span."""
+
+    name: str
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None = None
+    kind: _Value = _Value.INTERNAL
+    start_time: int = field(default_factory=time.time_ns)
+    end_time: int | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
+    events: list[_Event] = field(default_factory=list)
+    status: _Value = _Value.UNSET
+    status_message: str = ""
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        self.attributes[key] = value
+
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+        self.events.append(_Event(name, attributes or {}))
+
+    def set_status(self, status: str, message: str = "") -> None:
+        self.status = _Value(status.upper())
+        self.status_message = message
+
+    def end(self) -> None:
+        self.end_time = time.time_ns()
+
+    def duration_ms(self) -> float:
+        if self.end_time is None:
+            return 0.0
+        return (self.end_time - self.start_time) / 1_000_000
 
 
 class TestSQLiteTraceStore:

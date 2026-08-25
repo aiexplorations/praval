@@ -22,7 +22,17 @@ import nacl.secret
 import nacl.signing
 from nacl.exceptions import CryptoError
 
-from .reef import SporeType
+from .reef import SporeType, SporeValidationError, _current_trace_carrier
+
+
+def _canonical_trace_context(trace_context: Dict[str, str]) -> bytes:
+    """Return deterministic authenticated bytes for a W3C text carrier."""
+    return json.dumps(
+        trace_context,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
 
 
 @dataclass
@@ -59,6 +69,25 @@ class SecureSpore:
 
     # Version for backward compatibility
     version: str = "1.0"
+    trace_context: Dict[str, str] = field(default_factory=dict)
+    _authenticates_trace_context: bool = field(default=True, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Defensively normalize the authenticated text carrier."""
+        if not isinstance(self.trace_context, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in self.trace_context.items()
+        ):
+            raise SporeValidationError(
+                "trace_context must be a mapping of string keys to string values"
+            )
+        self.trace_context = dict(self.trace_context)
+
+    def authenticated_trace_context(self) -> bytes:
+        """Return the canonical carrier bytes covered by the signature."""
+        if not self._authenticates_trace_context:
+            return b""
+        return _canonical_trace_context(self.trace_context)
 
     def to_bytes(self) -> bytes:
         """Serialize secure spore to bytes for transmission using MessagePack."""
@@ -77,6 +106,8 @@ class SecureSpore:
             "encrypted_references": self.encrypted_references,
             "version": self.version,
         }
+        if self._authenticates_trace_context:
+            data["trace_context"] = dict(self.trace_context)
 
         return msgpack.packb(data, use_bin_type=True)
 
@@ -104,6 +135,8 @@ class SecureSpore:
                 nonce=unpacked.get("nonce", b""),
                 encrypted_references=unpacked.get("encrypted_references"),
                 version=unpacked.get("version", "1.0"),
+                trace_context=unpacked.get("trace_context") or {},
+                _authenticates_trace_context="trace_context" in unpacked,
             )
         except Exception as e:
             raise ValueError(f"Failed to deserialize secure spore: {e}")
@@ -149,7 +182,10 @@ class SporeKeyManager:
         }
 
     def encrypt_and_sign(
-        self, knowledge: Dict[str, Any], recipient_public_key: bytes
+        self,
+        knowledge: Dict[str, Any],
+        recipient_public_key: bytes,
+        authenticated_data: bytes = b"",
     ) -> tuple[bytes, bytes, bytes]:
         """
         Encrypt knowledge and sign the entire package.
@@ -173,7 +209,9 @@ class SporeKeyManager:
             encrypted = box.encrypt(knowledge_bytes)
 
             # Sign the encrypted data + nonce for authentication
-            message_to_sign = encrypted.ciphertext + encrypted.nonce
+            message_to_sign = (
+                encrypted.ciphertext + encrypted.nonce + authenticated_data
+            )
             signed_message = self.signing_key.sign(message_to_sign)
 
             return encrypted.ciphertext, encrypted.nonce, signed_message.signature
@@ -188,6 +226,7 @@ class SporeKeyManager:
         signature: bytes,
         sender_public_key: bytes,
         sender_verify_key: bytes,
+        authenticated_data: bytes = b"",
     ) -> Dict[str, Any]:
         """
         Verify signature and decrypt knowledge.
@@ -205,7 +244,7 @@ class SporeKeyManager:
         try:
             # Verify signature first (fail fast on tampered messages)
             verify_key = nacl.signing.VerifyKey(sender_verify_key)
-            message_to_verify = encrypted_data + nonce
+            message_to_verify = encrypted_data + nonce + authenticated_data
             verify_key.verify(message_to_verify, signature)
 
             # Create decryption box with sender
@@ -333,6 +372,7 @@ class SecureSporeFactory:
         priority: int = 5,
         expires_in_seconds: Optional[int] = None,
         recipient_public_keys: Optional[Dict[str, bytes]] = None,
+        trace_context: Optional[Dict[str, str]] = None,
     ) -> SecureSpore:
         """
         Create a new secure spore with encryption and signing.
@@ -356,6 +396,8 @@ class SecureSporeFactory:
         if expires_in_seconds:
             expires_at = datetime.fromtimestamp(time.time() + expires_in_seconds)
 
+        carrier = _current_trace_carrier(trace_context)
+
         # Encrypt and sign (for broadcasts, use a shared key or skip encryption)
         if to_agent and recipient_public_keys:
             recipient_pub_key = recipient_public_keys.get("public_key")
@@ -363,7 +405,9 @@ class SecureSporeFactory:
                 raise ValueError(f"No public key found for agent: {to_agent}")
 
             encrypted_knowledge, nonce, signature = self.key_manager.encrypt_and_sign(
-                knowledge, recipient_pub_key
+                knowledge,
+                recipient_pub_key,
+                authenticated_data=_canonical_trace_context(carrier),
             )
         else:
             # For broadcasts, we could implement group encryption or use plaintext
@@ -384,4 +428,5 @@ class SecureSporeFactory:
             knowledge_signature=signature,
             sender_public_key=bytes(self.key_manager.public_key),
             nonce=nonce,
+            trace_context=carrier,
         )

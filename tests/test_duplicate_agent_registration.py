@@ -5,12 +5,16 @@ This tests the fix for the issue where re-registering an agent
 (common in Jupyter notebooks) would cause duplicate message handling.
 """
 
-import time
-
 import pytest
 
 from praval import agent, start_agents
 from praval.core.reef import get_reef
+
+
+def _wait_for_agents() -> None:
+    assert get_reef().wait_for_completion(
+        timeout=2.0
+    ), "agent handlers did not complete within the bounded test timeout"
 
 
 def test_agent_reregistration_replaces_handler():
@@ -32,13 +36,14 @@ def test_agent_reregistration_replaces_handler():
     _ = start_agents(
         first_agent, initial_data={"type": "test_message", "content": "hello"}
     )
-    time.sleep(0.1)  # Allow async handlers to execute
+    _wait_for_agents()
 
     # Should have responded once
     assert len(response_count) == 1, f"Expected 1 response, got {len(response_count)}"
 
     # Clear response count
     response_count.clear()
+    replaced_agent = first_agent._praval_agent
 
     # Re-define the same agent with THE SAME NAME (simulating re-running a notebook
     # cell)
@@ -48,11 +53,15 @@ def test_agent_reregistration_replaces_handler():
         response_count.append(1)
         return {"version": 2}
 
+    # Closing or collecting the replaced instance must not remove the newer
+    # same-name subscription.
+    replaced_agent.close()
+
     # Send another message
     _ = start_agents(
         first_agent, initial_data={"type": "test_message", "content": "hello again"}
     )
-    time.sleep(0.1)  # Allow async handlers to execute
+    _wait_for_agents()
 
     # Should still respond only once (not twice!)
     assert len(response_count) == 1, (
@@ -140,7 +149,7 @@ def test_multiple_agents_independent():
 
     # Both agents should respond once
     start_agents(first_agent, second_agent, initial_data={"type": "test"})
-    time.sleep(0.1)  # Allow async handlers to execute
+    _wait_for_agents()
 
     assert response_counts["agent1"] == 1
     assert response_counts["agent2"] == 1
@@ -153,7 +162,7 @@ def test_multiple_agents_independent():
 
     # Send another message
     start_agents(first_agent, second_agent, initial_data={"type": "test"})
-    time.sleep(0.1)  # Allow async handlers to execute
+    _wait_for_agents()
 
     # Agent1 should have responded once more (not twice!)
     assert response_counts["agent1"] == 2, (

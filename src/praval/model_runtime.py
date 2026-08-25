@@ -11,7 +11,12 @@ import asyncio
 import concurrent.futures
 import inspect
 import json
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional
+import time
+from contextvars import copy_context
+from functools import partial
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+
+from opentelemetry import trace
 
 from .core.exceptions import HITLConfigurationError, InterventionRequired, ProviderError
 from .hitl.runtime import HITLRuntime
@@ -28,6 +33,13 @@ from .models import (
     ToolResult,
     ToolSpec,
 )
+from .models.observation import RetryObservation
+from .runtime_observation import (
+    ToolCallScope,
+    operation_span,
+    record_model_facts,
+    record_retry,
+)
 
 UNSAFE_PROVIDER_OPTION_KEYS = {
     "api_key",
@@ -38,7 +50,6 @@ UNSAFE_PROVIDER_OPTION_KEYS = {
 }
 EXPERIMENTAL_TOOL_PROVIDERS = {"openai", "anthropic"}
 MAX_SCHEMA_BYTES = 65536
-MAX_TOOL_ROUNDS = 8
 
 
 def _tool_parameter_schema(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -191,6 +202,44 @@ def execute_legacy_tool_call(
     resume_intervention: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Execute a legacy provider tool call with optional HITL gating."""
+    with ToolCallScope(
+        tool_call_id=tool_call_id,
+        name=function_name,
+        arguments=raw_args,
+    ) as observed:
+        try:
+            result = _execute_legacy_tool_call_impl(
+                hitl_context=hitl_context,
+                tool_call_id=tool_call_id,
+                function_name=function_name,
+                raw_args=raw_args,
+                available_tools=available_tools,
+                continuation_state=continuation_state,
+                resume_intervention=resume_intervention,
+            )
+        except InterventionRequired:
+            observed.skip_fact()
+            raise
+        observed.set_result(
+            result,
+            is_error=result.startswith("Error:")
+            or result.startswith("Unknown function:")
+            or result.startswith("Rejected by human reviewer:"),
+        )
+        return result
+
+
+def _execute_legacy_tool_call_impl(
+    *,
+    hitl_context: Optional[Dict[str, Any]],
+    tool_call_id: str,
+    function_name: str,
+    raw_args: Any,
+    available_tools: List[Dict[str, Any]],
+    continuation_state: Optional[Dict[str, Any]] = None,
+    resume_intervention: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Execute a synchronous tool after observation setup."""
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is not None and tool_def.get("async_only"):
         raise ProviderError(
@@ -227,6 +276,52 @@ async def execute_legacy_tool_call_async(
     resume_intervention: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Execute a tool on the caller's event loop with optional HITL gating."""
+    with ToolCallScope(
+        tool_call_id=tool_call_id,
+        name=function_name,
+        arguments=raw_args,
+    ) as observed:
+        try:
+            result = await _execute_legacy_tool_call_async_impl(
+                hitl_context=hitl_context,
+                tool_call_id=tool_call_id,
+                function_name=function_name,
+                raw_args=raw_args,
+                available_tools=available_tools,
+                continuation_state=continuation_state,
+                resume_intervention=resume_intervention,
+            )
+        except InterventionRequired:
+            observed.skip_fact()
+            raise
+        if isinstance(result, ToolResult):
+            observed.set_result(
+                result.content,
+                is_error=result.is_error,
+                tool_call_id=result.tool_call_id,
+            )
+        else:
+            result_text = str(result)
+            observed.set_result(
+                result_text,
+                is_error=result_text.startswith("Error:")
+                or result_text.startswith("Unknown function:")
+                or result_text.startswith("Rejected by human reviewer:"),
+            )
+        return result
+
+
+async def _execute_legacy_tool_call_async_impl(
+    *,
+    hitl_context: Optional[Dict[str, Any]],
+    tool_call_id: str,
+    function_name: str,
+    raw_args: Any,
+    available_tools: List[Dict[str, Any]],
+    continuation_state: Optional[Dict[str, Any]] = None,
+    resume_intervention: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Execute an asynchronous tool after observation setup."""
     runtime = _build_hitl_runtime(hitl_context)
     if resume_intervention is not None and runtime is not None:
         return await runtime.execute_with_decision_async(
@@ -355,6 +450,7 @@ class ModelRuntime:
         metadata: Optional[Dict[str, Any]] = None,
         stream_options: Optional[Dict[str, Any]] = None,
         stream: bool = False,
+        max_tool_rounds: Optional[int] = None,
     ) -> ModelResponse:
         """Execute a model request and return a neutral response."""
         request = self._build_request(
@@ -368,6 +464,7 @@ class ModelRuntime:
             metadata=metadata,
             stream_options=stream_options,
             stream=stream,
+            max_tool_rounds=max_tool_rounds,
         )
         with self._span(request):
             self.validate_request(request)
@@ -376,6 +473,7 @@ class ModelRuntime:
                 response.provider = self.provider_name
             if not response.model:
                 response.model = request.model
+            self._record_response_facts(response)
             return response
 
     def generate_text(
@@ -406,6 +504,7 @@ class ModelRuntime:
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
         stream_options: Optional[Dict[str, Any]] = None,
+        max_tool_rounds: Optional[int] = None,
     ) -> ModelResponse:
         """Execute providers and tools without moving async tools across loops."""
         request = self._build_request(
@@ -418,10 +517,13 @@ class ModelRuntime:
             timeout=timeout,
             metadata=metadata,
             stream_options=stream_options,
+            max_tool_rounds=max_tool_rounds,
         )
         with self._span(request):
             self.validate_request(request)
-            return await self._ainvoke_with_retries(request, tools=tools)
+            response = await self._ainvoke_with_retries(request, tools=tools)
+            self._record_response_facts(response)
+            return response
 
     def stream(
         self,
@@ -435,6 +537,7 @@ class ModelRuntime:
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
         stream_options: Optional[Dict[str, Any]] = None,
+        max_tool_rounds: Optional[int] = None,
     ) -> Iterator[ModelEvent]:
         """Stream normalized model events."""
         request = self._build_request(
@@ -448,8 +551,11 @@ class ModelRuntime:
             metadata=metadata,
             stream_options=stream_options,
             stream=True,
+            max_tool_rounds=max_tool_rounds,
         )
         self.validate_request(request)
+        record_model_facts(provider=self.provider_name, model=request.model)
+        started = time.perf_counter()
         yield ModelEvent(
             type="start",
             metadata={
@@ -459,34 +565,36 @@ class ModelRuntime:
             },
         )
         if tools:
-            with self._span(request):
+            with self._span(request) as span:
                 response = self._invoke_with_retries(request, tools=tools)
-            yield from self._response_events(response)
+                stream_state = self._new_stream_state()
+                for event in self._response_events(response):
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
+                self._finish_stream_facts(stream_state)
             return
         provider_stream = self._get_concrete_provider_method("stream")
         if provider_stream is not None:
-            try:
-                yield from provider_stream(request, tools=tools)
-            except TypeError:
-                yield from provider_stream(request)
+            with self._span(request) as span:
+                stream_state = self._new_stream_state()
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = provider_stream(request, tools=tools)
+                    except TypeError:
+                        events = provider_stream(request)
+                    for event in events:
+                        self._record_stream_event(event, span, started, stream_state)
+                        yield event
+                self._finish_stream_facts(stream_state)
             return
 
-        response = self.invoke(
-            messages=messages,
-            tools=tools,
-            hitl_context=hitl_context,
-            response_schema=response_schema,
-            reasoning=reasoning,
-            provider_options=provider_options,
-            timeout=timeout,
-            metadata=metadata,
-            stream_options=stream_options,
-        )
-        if response.content:
-            yield ModelEvent(type="delta", delta=response.content)
-        if response.usage:
-            yield ModelEvent(type="usage", usage=response.usage)
-        yield ModelEvent(type="final", response=response, usage=response.usage)
+        with self._span(request) as span:
+            response = self._invoke_with_retries(request, tools=tools)
+            stream_state = self._new_stream_state()
+            for event in self._response_events(response):
+                self._record_stream_event(event, span, started, stream_state)
+                yield event
+            self._finish_stream_facts(stream_state)
 
     async def astream(
         self,
@@ -500,6 +608,7 @@ class ModelRuntime:
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
         stream_options: Optional[Dict[str, Any]] = None,
+        max_tool_rounds: Optional[int] = None,
     ) -> AsyncIterator[ModelEvent]:
         """Asynchronously stream normalized model events."""
         request = self._build_request(
@@ -513,8 +622,11 @@ class ModelRuntime:
             metadata=metadata,
             stream_options=stream_options,
             stream=True,
+            max_tool_rounds=max_tool_rounds,
         )
         self.validate_request(request)
+        record_model_facts(provider=self.provider_name, model=request.model)
+        started = time.perf_counter()
         if tools:
             yield ModelEvent(
                 type="start",
@@ -524,19 +636,13 @@ class ModelRuntime:
                     "native_streaming": False,
                 },
             )
-            response = await self.ainvoke(
-                messages=messages,
-                tools=tools,
-                hitl_context=hitl_context,
-                response_schema=response_schema,
-                reasoning=reasoning,
-                provider_options=provider_options,
-                timeout=timeout,
-                metadata=metadata,
-                stream_options=stream_options,
-            )
-            for event in self._response_events(response):
-                yield event
+            with self._span(request) as span:
+                response = await self._ainvoke_with_retries(request, tools=tools)
+                stream_state = self._new_stream_state()
+                for event in self._response_events(response):
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
+                self._finish_stream_facts(stream_state)
             return
         concrete_astream = self._get_concrete_provider_method("astream")
         if concrete_astream is not None:
@@ -550,26 +656,110 @@ class ModelRuntime:
                     ).native_streaming,
                 },
             )
-            try:
-                events = concrete_astream(request, tools=tools)
-            except TypeError:
-                events = concrete_astream(request)
-            async for event in events:
-                yield event
+            with self._span(request) as span:
+                stream_state = self._new_stream_state()
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = concrete_astream(request, tools=tools)
+                    except TypeError:
+                        events = concrete_astream(request)
+                    async for event in events:
+                        self._record_stream_event(event, span, started, stream_state)
+                        yield event
+                self._finish_stream_facts(stream_state)
             return
 
-        for event in self.stream(
-            messages=messages,
-            tools=tools,
-            hitl_context=hitl_context,
-            response_schema=response_schema,
-            reasoning=reasoning,
-            provider_options=provider_options,
-            timeout=timeout,
-            metadata=metadata,
-            stream_options=stream_options,
-        ):
-            yield event
+        yield ModelEvent(
+            type="start",
+            metadata={
+                "provider": self.provider_name,
+                "model": request.model,
+                "native_streaming": False,
+            },
+        )
+        with self._span(request) as span:
+            response = await self._ainvoke_with_retries(request, tools=tools)
+            stream_state = self._new_stream_state()
+            for event in self._response_events(response):
+                self._record_stream_event(event, span, started, stream_state)
+                yield event
+            self._finish_stream_facts(stream_state)
+
+    def _new_stream_state(self) -> Dict[str, Any]:
+        return {"first_token": False, "usage": None, "final": False}
+
+    def _record_stream_event(
+        self,
+        event: ModelEvent,
+        span: Any,
+        started: float,
+        stream_state: Dict[str, Any],
+    ) -> None:
+        """Aggregate streaming usage/final facts and record time to first token."""
+        if event.type == "delta" and span.is_recording():
+            if not stream_state["first_token"]:
+                span.set_attribute(
+                    "gen_ai.server.time_to_first_token",
+                    max(0.0, time.perf_counter() - started),
+                )
+                stream_state["first_token"] = True
+        if event.type == "usage" and event.usage is not None:
+            stream_state["usage"] = event.usage
+        if event.type == "final" and event.response is not None:
+            self._record_response_facts(event.response)
+            if event.response.usage is None and stream_state["usage"] is not None:
+                record_model_facts(
+                    provider=self.provider_name,
+                    model=event.response.model,
+                    usage=stream_state["usage"],
+                )
+            stream_state["final"] = True
+            return
+
+    def _finish_stream_facts(self, stream_state: Dict[str, Any]) -> None:
+        if not stream_state["final"]:
+            record_model_facts(
+                provider=self.provider_name,
+                model=getattr(self.config, "model", None),
+                usage=stream_state["usage"],
+            )
+
+    def _record_response_facts(self, response: ModelResponse) -> None:
+        """Map a neutral model response to observation-safe aggregate facts."""
+        metadata = response.metadata or {}
+        response_id = metadata.get("response_id") or metadata.get("id")
+        if response_id is not None:
+            response_id = str(response_id)
+        record_model_facts(
+            provider=response.provider or self.provider_name,
+            model=response.model or getattr(self.config, "model", None),
+            response_id=response_id,
+            terminal_outcome=response.finish_reason,
+            usage=response.usage,
+        )
+        try:
+            span = trace.get_current_span()
+            if not span.is_recording():
+                return
+            if response_id:
+                span.set_attribute("gen_ai.response.id", response_id)
+            if response.finish_reason:
+                span.set_attribute(
+                    "gen_ai.response.finish_reasons", (response.finish_reason,)
+                )
+            if response.usage:
+                span.set_attribute(
+                    "gen_ai.usage.input_tokens", response.usage.input_tokens
+                )
+                span.set_attribute(
+                    "gen_ai.usage.output_tokens", response.usage.output_tokens
+                )
+                span.set_attribute(
+                    "praval.usage.total_tokens", response.usage.total_tokens
+                )
+        except Exception:
+            # Telemetry enrichment must not affect provider results.
+            return
 
     def _response_events(self, response: ModelResponse) -> Iterator[ModelEvent]:
         raw_results = response.metadata.get("tool_results") or []
@@ -607,6 +797,7 @@ class ModelRuntime:
         metadata: Optional[Dict[str, Any]] = None,
         stream_options: Optional[Dict[str, Any]] = None,
         stream: bool = False,
+        max_tool_rounds: Optional[int] = None,
     ) -> ModelRequest:
         model = getattr(self.config, "model", None)
         provider_options_with_profile = self._merge_dicts(
@@ -641,6 +832,11 @@ class ModelRuntime:
             tools=tool_specs,
             temperature=getattr(self.config, "temperature", None),
             max_output_tokens=getattr(self.config, "max_output_tokens", None),
+            max_tool_rounds=(
+                max_tool_rounds
+                if max_tool_rounds is not None
+                else getattr(self.config, "max_tool_rounds", 8)
+            ),
             stream=stream,
             response_schema=normalize_structured_output_config(response_schema)
             or normalize_structured_output_config(
@@ -901,12 +1097,14 @@ class ModelRuntime:
                 last_error = exc
                 if attempt >= retries:
                     raise
+                self._record_retry(attempt + 1, exc)
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
                 last_error = exc
                 if attempt >= retries:
                     raise ProviderError(str(exc)) from exc
+                self._record_retry(attempt + 1, exc)
         if last_error is not None:
             raise ProviderError(str(last_error)) from last_error
         raise ProviderError("Provider did not return a response")
@@ -937,12 +1135,14 @@ class ModelRuntime:
                 last_error = exc
                 if attempt >= retries:
                     raise
+                self._record_retry(attempt + 1, exc)
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
                 last_error = exc
                 if attempt >= retries:
                     raise ProviderError(str(exc)) from exc
+                self._record_retry(attempt + 1, exc)
         if last_error is not None:
             raise ProviderError(str(last_error)) from last_error
         raise ProviderError("Provider did not return a response")
@@ -955,19 +1155,19 @@ class ModelRuntime:
     ) -> Any:
         concrete_ainvoke = self._get_concrete_provider_method("ainvoke")
         if concrete_ainvoke is not None:
-            try:
-                response = concrete_ainvoke(request, tools=tools)
-            except TypeError:
-                response = concrete_ainvoke(request)
-            if inspect.isawaitable(response):
-                response = await response
-            return response
+            with self._provider_span(request, "invoke"):
+                try:
+                    response = concrete_ainvoke(request, tools=tools)
+                except TypeError:
+                    response = concrete_ainvoke(request)
+                if inspect.isawaitable(response):
+                    response = await response
+                return response
 
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self._invoke_provider(request, tools=tools),
-        )
+        context = copy_context()
+        provider_call = partial(self._invoke_provider, request, tools=tools)
+        return await loop.run_in_executor(None, context.run, provider_call)
 
     def _orchestrate_tool_calls(
         self,
@@ -986,7 +1186,8 @@ class ModelRuntime:
         all_calls = list(initial_calls or [])
         all_results = list(initial_results or [])
         current = response
-        for round_index in range(start_round, MAX_TOOL_ROUNDS):
+        round_limit = self._tool_round_limit(request)
+        for round_index in range(start_round, round_limit):
             if not current.tool_calls:
                 break
             round_calls = list(current.tool_calls)
@@ -1014,7 +1215,8 @@ class ModelRuntime:
                     )
                 )
             all_results.extend(round_results)
-            continued = continuation(request, current, round_results)
+            with self._provider_span(request, "continue"):
+                continued = continuation(request, current, round_results)
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
             else:
@@ -1024,8 +1226,9 @@ class ModelRuntime:
                 )
         else:
             if current.tool_calls:
+                self._record_limit_reached("tool_rounds", round_limit)
                 raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({MAX_TOOL_ROUNDS})"
+                    f"Provider exceeded maximum tool rounds ({round_limit})"
                 )
 
         current.tool_calls = all_calls
@@ -1052,7 +1255,8 @@ class ModelRuntime:
         all_calls = list(initial_calls or [])
         all_results = list(initial_results or [])
         current = response
-        for round_index in range(start_round, MAX_TOOL_ROUNDS):
+        round_limit = self._tool_round_limit(request)
+        for round_index in range(start_round, round_limit):
             if not current.tool_calls:
                 break
             round_calls = list(current.tool_calls)
@@ -1092,8 +1296,9 @@ class ModelRuntime:
                 )
         else:
             if current.tool_calls:
+                self._record_limit_reached("tool_rounds", round_limit)
                 raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({MAX_TOOL_ROUNDS})"
+                    f"Provider exceeded maximum tool rounds ({round_limit})"
                 )
 
         current.tool_calls = all_calls
@@ -1110,16 +1315,20 @@ class ModelRuntime:
         response: ModelResponse,
         results: List[ToolResult],
     ) -> Any:
-        if inspect.iscoroutinefunction(continuation):
-            return await continuation(request, response, results)
-        loop = asyncio.get_running_loop()
-        continued = await loop.run_in_executor(
-            None,
-            lambda: continuation(request, response, results),
-        )
-        if inspect.isawaitable(continued):
-            return await continued
-        return continued
+        with self._provider_span(request, "continue"):
+            if inspect.iscoroutinefunction(continuation):
+                return await continuation(request, response, results)
+            loop = asyncio.get_running_loop()
+            context = copy_context()
+            provider_call = partial(continuation, request, response, results)
+            continued = await loop.run_in_executor(
+                None,
+                context.run,
+                provider_call,
+            )
+            if inspect.isawaitable(continued):
+                return await continued
+            return continued
 
     def resume_tool_flow(
         self,
@@ -1202,7 +1411,8 @@ class ModelRuntime:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
-        continued = continuation(request, current, round_results)
+        with self._provider_span(request, "continue"):
+            continued = continuation(request, current, round_results)
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
         else:
@@ -1510,33 +1720,73 @@ class ModelRuntime:
             response.model = request.model
         return response
 
+    def _tool_round_limit(self, request: ModelRequest) -> int:
+        """Resolve the validated request override or typed agent default."""
+        value: Any = request.max_tool_rounds
+        if value is None:
+            value = getattr(self.config, "max_tool_rounds", 8)
+        if value is None:
+            value = 8
+        return int(value)
+
+    def _record_retry(self, attempt: int, error: BaseException) -> None:
+        fact = RetryObservation(
+            attempt=attempt,
+            operation="model.invoke",
+            reason_type=type(error).__name__,
+            backoff_ms=0,
+        )
+        record_retry(fact)
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.add_event(
+                "praval.retry",
+                {
+                    "praval.retry.attempt": attempt,
+                    "praval.retry.reason_type": type(error).__name__,
+                    "praval.retry.backoff_ms": 0.0,
+                },
+            )
+
+    def _record_limit_reached(self, limit_name: str, limit: int) -> None:
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.add_event(
+                "praval.limit.reached",
+                {
+                    "praval.limit.name": limit_name,
+                    "praval.limit.value": limit,
+                },
+            )
+
     def _invoke_provider(
         self,
         request: ModelRequest,
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        concrete_invoke = self._get_concrete_provider_method("invoke")
-        if concrete_invoke is not None:
-            try:
-                response = concrete_invoke(request, tools=tools)
-            except TypeError:
-                response = concrete_invoke(request)
-            if isinstance(response, ModelResponse):
-                return response
-            return ModelResponse(content=str(response or ""), raw=response)
+        with self._provider_span(request, "invoke"):
+            concrete_invoke = self._get_concrete_provider_method("invoke")
+            if concrete_invoke is not None:
+                try:
+                    response = concrete_invoke(request, tools=tools)
+                except TypeError:
+                    response = concrete_invoke(request)
+                if isinstance(response, ModelResponse):
+                    return response
+                return ModelResponse(content=str(response or ""), raw=response)
 
-        response_text = self.provider.generate(
-            messages=[_safe_model_dump(message) for message in request.messages],
-            tools=tools,
-            hitl_context=request.hitl_context,
-        )
-        return ModelResponse(
-            content=str(response_text or ""),
-            provider=self.provider_name,
-            model=request.model,
-            raw=response_text,
-        )
+            response_text = self.provider.generate(
+                messages=[_safe_model_dump(message) for message in request.messages],
+                tools=tools,
+                hitl_context=request.hitl_context,
+            )
+            return ModelResponse(
+                content=str(response_text or ""),
+                provider=self.provider_name,
+                model=request.model,
+                raw=response_text,
+            )
 
     def _get_concrete_provider_method(self, name: str) -> Optional[Any]:
         method = getattr(type(self.provider), name, None)
@@ -1545,27 +1795,25 @@ class ModelRuntime:
         return None
 
     def _span(self, request: ModelRequest) -> Any:
-        try:
-            from .observability.tracing import SpanKind, get_tracer
+        return operation_span(
+            "model.invoke",
+            kind=trace.SpanKind.CLIENT,
+            attributes={
+                "gen_ai.provider.name": self.provider_name,
+                "gen_ai.request.model": request.model or "",
+                "gen_ai.request.streaming": request.stream,
+                "praval.tool.count": len(request.tools),
+                "praval.max_tool_rounds": self._tool_round_limit(request),
+            },
+        )
 
-            tracer = get_tracer()
-            return tracer.start_as_current_span(
-                "model.invoke",
-                kind=SpanKind.CLIENT,
-                attributes={
-                    "provider": self.provider_name,
-                    "model": request.model or "",
-                    "stream": request.stream,
-                    "tool_count": len(request.tools),
-                },
-            )
-        except Exception:
-            return _NoOpSpan()
-
-
-class _NoOpSpan:
-    def __enter__(self) -> "_NoOpSpan":
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Literal[False]:
-        return False
+    def _provider_span(self, request: ModelRequest, operation: str) -> Any:
+        return operation_span(
+            f"provider.{operation}",
+            kind=trace.SpanKind.CLIENT,
+            attributes={
+                "gen_ai.provider.name": self.provider_name,
+                "gen_ai.request.model": request.model or "",
+                "gen_ai.operation.name": operation,
+            },
+        )

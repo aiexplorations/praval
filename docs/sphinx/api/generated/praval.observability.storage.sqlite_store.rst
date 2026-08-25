@@ -10,9 +10,11 @@ praval.observability.storage.sqlite\_store
 
       get_trace_store
       reset_trace_store
+      set_trace_store
 
    .. rubric:: Classes
 
    .. autosummary::
 
       SQLiteTraceStore
+      StorableSpan

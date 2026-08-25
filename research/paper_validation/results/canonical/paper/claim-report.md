@@ -2,7 +2,7 @@
 
 | Claim | Declared | Observed | Permitted wording |
 | --- | --- | --- | --- |
-| `two-plane-architecture` | proposed | validated | Praval 0.8.1 separates its coordination plane from its model execution plane. |
+| `two-plane-architecture` | proposed | validated | Praval 0.8.1 separates its message-coordination plane from its provider-neutral model-execution plane behind one Agent-facing API. |
 | `initial-agent-coordination-foundation` | validated_with_scope | validated_with_scope | Praval began with a direct Agent abstraction, then made decorated agents, Reef, and Spores its main coordination model in the 0.2.0 source state. |
 | `intellectual-origins` | descriptive_only | descriptive_only | Praval's message-driven coordination model drew on the author's work with dynamical systems and population-based optimization, practical agent-framework experience, and ideas from swarm intelligence, stigmergy, and coral reef systems. |
 | `first-party-development-accounts` | descriptive_only | descriptive_only | Contemporaneous first-party posts document how Praval's design, distributed coordination, applications, comparisons, and 0.8.1 transition were described during development. |

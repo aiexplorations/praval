@@ -24,6 +24,12 @@ class ConfigurationError(PravalError):
     pass
 
 
+class PravalConfigurationError(ConfigurationError):
+    """Raised when typed application or lifecycle configuration is invalid."""
+
+    pass
+
+
 class EmbeddingConfigurationError(ConfigurationError):
     """Raised when persistent vectors do not match embedding configuration."""
 

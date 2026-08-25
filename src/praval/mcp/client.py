@@ -14,10 +14,12 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..models import ToolResult, ToolSpec
 from ..observability.tracing import SpanKind, get_tracer
+from ..runtime_observation import ToolCallScope
 
 logger = logging.getLogger(__name__)
 
@@ -315,32 +317,57 @@ class MCPClient:
         if not isinstance(arguments, dict):
             raise TypeError("MCP tool arguments must be a dictionary")
 
-        tracer = get_tracer()
-        with tracer.start_as_current_span(
-            f"mcp.{self.config.name}.call_tool",
-            kind=SpanKind.CLIENT,
-            attributes={"mcp.server": self.config.name, "mcp.tool": remote_name},
-        ) as span:
-            try:
-                result = await asyncio.wait_for(
-                    session.call_tool(remote_name, arguments),
-                    timeout=self.config.tool_timeout,
+        observed_result: Optional[ToolResult] = None
+        with ToolCallScope(
+            tool_call_id=f"mcp-{uuid.uuid4()}",
+            name=name,
+            arguments=arguments,
+            span_name=f"mcp.{self.config.name}.tool",
+            attributes={
+                "mcp.server": self.config.name,
+                "mcp.tool": remote_name,
+            },
+        ) as observed:
+            tracer = get_tracer()
+            with tracer.start_as_current_span(
+                f"mcp.{self.config.name}.call_tool",
+                kind=SpanKind.CLIENT,
+                attributes={"mcp.server": self.config.name, "mcp.tool": remote_name},
+            ) as span:
+                try:
+                    result = await asyncio.wait_for(
+                        session.call_tool(remote_name, arguments),
+                        timeout=self.config.tool_timeout,
+                    )
+                    observed_result = self._normalize_result(name, result)
+                    status_code = (
+                        StatusCode.ERROR if observed_result.is_error else StatusCode.OK
+                    )
+                    span.set_status(Status(status_code))
+                except asyncio.CancelledError:
+                    span.set_status(Status(StatusCode.ERROR, "cancelled"))
+                    raise
+                except asyncio.TimeoutError:
+                    span.set_status(Status(StatusCode.ERROR, "timeout"))
+                    observed_result = self._error_result(
+                        name, "MCP tool call timed out"
+                    )
+                except Exception as exc:
+                    span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+                    observed_result = self._error_result(
+                        name,
+                        f"MCP tool call failed: {self._sanitize_error(str(exc))}",
+                    )
+            if observed_result is None:  # defensive: every non-cancelled branch sets it
+                observed_result = self._error_result(
+                    name, "MCP tool returned no result"
                 )
-                normalized = self._normalize_result(name, result)
-                span.set_status("error" if normalized.is_error else "ok")
-                return normalized
-            except asyncio.CancelledError:
-                span.set_status("error", "cancelled")
-                raise
-            except asyncio.TimeoutError:
-                span.set_status("error", "timeout")
-                return self._error_result(name, "MCP tool call timed out")
-            except Exception as exc:
-                span.set_status("error", type(exc).__name__)
-                return self._error_result(
-                    name,
-                    f"MCP tool call failed: {self._sanitize_error(str(exc))}",
-                )
+            observed.set_result(
+                observed_result.content,
+                is_error=observed_result.is_error,
+                tool_call_id=observed_result.tool_call_id,
+            )
+            return observed_result
 
     def _normalize_result(self, name: str, result: Any) -> ToolResult:
         text_blocks: List[str] = []

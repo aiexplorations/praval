@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.8.2"
+version = "0.8.3"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = "MIT"
@@ -21,15 +21,15 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10,<3.15"
 dependencies = [
     # Core LLM providers (choose at least one via API key)
     "openai>=1.0.0",
@@ -39,6 +39,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    # API-only instrumentation works with application-owned OTel providers.
+    "opentelemetry-api>=1.44,<1.45",
 ]
 
 [project.urls]
@@ -50,6 +53,9 @@ Changelog = "https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md"
 
 [project.scripts]
 praval = "praval.cli:main"
+
+[project.entry-points."praval.eval.metrics"]
+"reference.word_overlap" = "praval.eval.reference_plugin:create_metric"
 
 [project.optional-dependencies]
 # Memory system with vector storage and embeddings
@@ -75,7 +81,7 @@ pdf = [
 
 # Model Context Protocol client support
 mcp = [
-    "mcp>=1.27,<2; python_version >= '3.10'",
+    "mcp>=1.27,<2",
 ]
 
 # Storage providers (for advanced data persistence)
@@ -84,14 +90,21 @@ storage = [
     "psycopg2-binary>=2.9.0",  # PostgreSQL setup/administration
     "redis>=4.5.0",            # Redis
     "boto3>=1.26.0",           # AWS S3
-    # Avoid Cohere stub/urllib3 conflicts with botocore on Python 3.9.
-    "types-requests==2.28.11.17; python_version < '3.10'",
     "qdrant-client>=1.6.0",    # Qdrant vector DB
 ]
 
-# OTLP HTTP export support
+# Praval-owned OpenTelemetry SDK and OTLP pipelines
 observability = [
-    "requests>=2.31.0",
+    "opentelemetry-sdk>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
+]
+
+# Optional RAGAS metric adapter with its tested runtime compatibility bound
+eval-ragas = [
+    "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
+    "langchain-community>=0.3.27,<0.4",
 ]
 
 # Interactive visual course and exact-wheel notebook execution
@@ -125,14 +138,18 @@ all = [
     "PyNaCl>=1.5.0",
     "msgpack>=1.0.0",
     "pypdf>=5.0.0",
-    "mcp>=1.27,<2; python_version >= '3.10'",
+    "mcp>=1.27,<2",
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.0",
     "redis>=4.5.0",
     "boto3>=1.26.0",
-    "types-requests==2.28.11.17; python_version < '3.10'",
     "qdrant-client>=1.6.0",
-    "requests>=2.31.0",
+    "opentelemetry-sdk>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
+    "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
+    "langchain-community>=0.3.27,<0.4",
 ]
 
 # Development dependencies
@@ -140,16 +157,15 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-timeout>=2.3.1,<3",
     "black==25.1.0",
     "isort==6.0.1",
     "flake8==7.3.0",
-    # Mypy 2.x no longer supports type-checking a Python 3.9 target.
-    "mypy>=1.0.0,<2.0.0",
-    "tomli>=2.0.0; python_version < '3.11'",
+    "mypy>=1.0.0",
     "pre-commit>=3.0.0",
     "reportlab>=4.0.0",
     "pypdf>=5.0.0",
-    "mcp>=1.27,<2; python_version >= '3.10'",
+    "mcp>=1.27,<2",
     # Embedded memory backend testing (without heavyweight embedding models)
     "chromadb>=0.4.0",
     "build>=1.2.0",
@@ -157,10 +173,15 @@ dev = [
     # Storage provider testing
     "testcontainers[postgres,redis,qdrant]>=4.0.0",
     "moto[s3]>=5.0.0",
-    "types-requests==2.28.11.17; python_version < '3.10'",
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.0",
     "requests>=2.31.0",
+    "opentelemetry-sdk>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.44,<1.45",
+    "ragas>=0.4.3,<0.5",
+    "instructor>=1.9,<1.13",
+    "langchain-community>=0.3.27,<0.4",
 ]
 
 [tool.setuptools.packages.find]
@@ -195,7 +216,7 @@ markers = [
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
@@ -248,6 +269,7 @@ omit = [
     "*/test_*.py",
     "*/__pycache__/*",
     "*/venv/*",
+    "*/praval/eval/ragas.py",
 ]
 
 [tool.coverage.report]
