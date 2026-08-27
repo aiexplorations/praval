@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.3] - Unreleased
+## [0.8.3] - 2026-08-25
 
 ### Added
 
@@ -51,9 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v0.8.2 configuration aliases and the legacy tracing/viewing facade remain
   available for migration. New code should use `configure_observability()` and
   the typed nested configuration described in the observability manual.
-- Publication remains blocked until the combined observability, evaluation,
-  documentation, exact-wheel, privacy, performance, PostgreSQL, Collector,
-  and shutdown release gates are complete.
+- The combined observability, evaluation, documentation, exact-wheel, privacy,
+  performance, PostgreSQL, Collector, and shutdown release gates completed
+  before publication.
 
 ## [0.8.2] - 2026-07-31
 

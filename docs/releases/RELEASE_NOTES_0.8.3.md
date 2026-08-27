@@ -1,8 +1,6 @@
 # Praval 0.8.3
 
-> Release-candidate notes. Do not publish, tag, or cut this release from a
-> dirty tree or before the clean-commit CI and documentation-site provenance
-> checks pass.
+Released on August 25, 2026.
 
 Praval 0.8.3 replaces the former implicit, trace-only diagnostics with an
 explicit OpenTelemetry foundation and a provider-neutral observation contract
@@ -74,22 +72,19 @@ migration window. The complete replacement table is in
 
 ## Certification evidence
 
-The release candidate must be installed from the exact wheel. CI executes its
-documented imports and observability examples, validates API and feature-claim
-manifests, builds documentation with warnings as errors, sends traces, metrics,
-and logs to a real Collector over both transports, checks RabbitMQ parentage,
-and runs privacy, failure, shutdown, coverage, and performance gates.
+The published release was installed from the exact wheel. CI executed its
+documented imports and observability examples, validated API and feature-claim
+manifests, built documentation with warnings as errors, sent traces, metrics,
+and logs to a real Collector over both transports, checked RabbitMQ parentage,
+and ran privacy, failure, shutdown, coverage, and performance gates.
 
 Test totals, coverage percentages, timings, and hashes belong in generated
 evidence rather than these notes.
 
-## Remaining release scope
+## Release status
 
 The implementation, documentation, and local combined certification are
-complete through sampled online workers. The candidate has passed exact-wheel,
+complete through sampled online workers. The release passed exact-wheel,
 example/tutorial, real Collector, PostgreSQL, RabbitMQ, RAGAS, privacy,
 performance, shutdown, API inventory, Sphinx warnings-as-errors, and link
-checks together. Publication remains blocked until those results are repeated
-or accepted by final CI from the clean E6 commit and the matching documentation
-artifact is staged with provenance for `praval-ai`. This file is not by itself
-authorization to publish 0.8.3.
+checks together. Praval 0.8.3 is published from the tagged release commit.
