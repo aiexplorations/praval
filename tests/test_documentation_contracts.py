@@ -279,16 +279,16 @@ def test_current_release_notes_cover_correlation_safe_reef():
     assert "build-manifest.json" in notes
 
 
-def test_v083_candidate_notes_keep_release_blocked_until_clean_ci_and_docs():
+def test_v083_release_notes_record_published_status():
     notes = (ROOT / "docs/releases/RELEASE_NOTES_0.8.3.md").read_text()
 
     assert notes.splitlines()[0] == "# Praval 0.8.3"
-    assert "Do not publish, tag, or cut this release" in notes
+    assert "Released on August 25, 2026." in notes
     assert "local combined certification" in notes
     assert "are\ncomplete" in notes
-    assert "clean E6 commit" in notes
-    assert "matching documentation" in notes
-    assert "artifact is staged with provenance" in notes
+    assert "Praval 0.8.3 is published from the tagged release commit." in notes
+    assert "Do not publish" not in notes
+    assert "Publication remains blocked" not in notes
     assert "ExecutionObservation" in notes
     assert not re.search(r"\b\d{3,5} passed\b", notes)
     assert not re.search(r"\b\d{2}\.\d{2}%\b", notes)
