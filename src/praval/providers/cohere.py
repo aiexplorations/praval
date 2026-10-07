@@ -78,7 +78,7 @@ class CohereProvider:
             self.client = cohere.Client(api_key, **client_kwargs)
         except Exception as e:
             raise ProviderError(
-                f"Failed to initialize Cohere client: {_redact_secrets(str(e))}"
+                f"Failed to initialize Cohere client: {self._redact(str(e))}"
             ) from e
 
     def generate(
@@ -129,8 +129,17 @@ class CohereProvider:
             raise
         except Exception as e:
             raise self._mapped_error(
-                e, f"Cohere API error: {_redact_secrets(str(e))}"
+                e, f"Cohere API error: {self._redact(str(e))}"
             ) from e
+
+    def _redact(self, message: str) -> str:
+        """Redact known provider keys and the key from ``config.api_key_env``."""
+        redacted = _redact_secrets(message)
+        api_key_env = getattr(self.config, "api_key_env", None)
+        secret = os.getenv(api_key_env) if api_key_env else None
+        if secret and redacted:
+            redacted = redacted.replace(secret, "***")
+        return redacted
 
     def map_provider_error(self, exc: BaseException) -> ProviderError:
         """Map a Cohere SDK exception to a typed, redacted ``ProviderError``."""
@@ -150,7 +159,7 @@ class CohereProvider:
             provider=self.provider_name,
             model=self._model_name(),
             message=message,
-            redact=_redact_secrets,
+            redact=self._redact,
         )
 
     def invoke(
