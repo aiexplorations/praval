@@ -51,7 +51,7 @@ def sdk_max_retries(config: Any) -> int:
         return 0
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ProviderError("max_retries must be a non-negative integer")
-    return value
+    return int(value)
 
 
 def header_value(headers: Any, *names: str) -> Optional[str]:

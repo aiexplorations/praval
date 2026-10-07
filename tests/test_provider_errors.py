@@ -420,8 +420,13 @@ def test_anthropic_client_disables_sdk_retries_and_reserves_option(anthropic_pro
 
 def test_anthropic_overloaded_maps_to_retryable_unavailable(anthropic_provider):
     provider, _, _ = anthropic_provider
+    # Older anthropic SDKs have no OverloadedError and raise 529 as a server
+    # error; the mapping depends on the status, not the SDK class.
+    overloaded_cls = getattr(
+        anthropic, "OverloadedError", anthropic.InternalServerError
+    )
     error = _anthropic_status_error(
-        anthropic.OverloadedError, 529, "overloaded_error", {"request-id": "req_ant_1"}
+        overloaded_cls, 529, "overloaded_error", {"request-id": "req_ant_1"}
     )
     mapped = provider.map_provider_error(error)
     assert isinstance(mapped, ProviderUnavailableError)
