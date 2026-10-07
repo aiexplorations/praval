@@ -121,35 +121,51 @@ class CohereProvider:
         """Invoke Cohere through the provider-neutral adapter surface."""
         call_params = self._request_chat_params(request, tools=tools)
         response = self.client.chat(**call_params)
-        return self._chat_model_response(response)
+        return self._chat_model_response(response, call_params)
 
-    def _chat_model_response(self, response: Any) -> ModelResponse:
+    def _chat_model_response(
+        self,
+        response: Any,
+        call_params: Dict[str, Any],
+    ) -> ModelResponse:
         raw_tool_calls = getattr(response, "tool_calls", None) or []
         if not isinstance(raw_tool_calls, (list, tuple)):
             raw_tool_calls = []
         serialized = self._serialize_tool_calls(list(raw_tool_calls))
+        # v1 tool calls carry no id; number them across the whole run so a
+        # later round never reuses an earlier round's id.
+        id_offset = self._history_tool_call_count(call_params.get("chat_history"))
+        for index, call in enumerate(serialized):
+            if not call.get("id"):
+                call["id"] = f"cohere-call-{id_offset + index}"
         tool_calls = [
             ToolCall(
-                id=str(call.get("id") or f"cohere-call-{index}"),
+                id=str(call["id"]),
                 name=str(call.get("name") or ""),
                 arguments=(
                     call.get("args") if isinstance(call.get("args"), dict) else {}
                 ),
                 raw=call,
             )
-            for index, call in enumerate(serialized)
+            for call in serialized
         ]
+        content = str(getattr(response, "text", "") or "")
         finish_reason = getattr(response, "finish_reason", None)
         if not isinstance(finish_reason, str):
             finish_reason = None
+        metadata: Dict[str, Any] = {"cohere_tool_calls": serialized}
+        if serialized:
+            metadata["cohere_chat_history"] = self._cohere_chat_history(
+                call_params, content, serialized
+            )
         return ModelResponse(
-            content=str(getattr(response, "text", "") or ""),
+            content=content,
             provider=self.provider_name,
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=response,
             finish_reason=finish_reason,
-            metadata={"cohere_tool_calls": serialized},
+            metadata=metadata,
         )
 
     def continue_with_tool_results(
@@ -158,16 +174,90 @@ class CohereProvider:
         response: ModelResponse,
         tool_results: List[ToolResult],
     ) -> ModelResponse:
-        """Submit runtime-executed tool results to Cohere."""
+        """Submit runtime-executed tool results to Cohere.
+
+        Follows the v1 multi-step pattern: the run so far goes in
+        ``chat_history``, only the latest round's results go in
+        ``tool_results``, and ``message`` is empty.
+        """
         serialized = response.metadata.get("cohere_tool_calls")
         if not isinstance(serialized, list):
             raise ProviderError("Cohere tool continuation state is missing")
         call_params = self._request_chat_params(request)
+        history = response.metadata.get("cohere_chat_history")
+        if not isinstance(history, list):
+            # State written by v0.8.3 has no transcript; rebuild one round.
+            history = self._cohere_chat_history(
+                call_params, response.content, serialized
+            )
+        call_params["chat_history"] = list(history)
+        call_params["message"] = ""
+        calls_by_id = {
+            str(call.get("id")): call for call in serialized if isinstance(call, dict)
+        }
         call_params["tool_results"] = [
-            {"name": result.name, "result": result.content} for result in tool_results
+            self._cohere_tool_result(result, calls_by_id.get(result.tool_call_id))
+            for result in tool_results
         ]
         continued = self.client.chat(**call_params)
-        return self._chat_model_response(continued)
+        return self._chat_model_response(continued, call_params)
+
+    def _cohere_chat_history(
+        self,
+        call_params: Dict[str, Any],
+        content: str,
+        serialized_calls: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Return the v1 chat history up to and including this tool-call turn."""
+        history = list(call_params.get("chat_history") or [])
+        message = call_params.get("message")
+        if message:
+            history.append({"role": "USER", "message": message})
+        if call_params.get("tool_results"):
+            history.append(
+                {"role": "TOOL", "tool_results": list(call_params["tool_results"])}
+            )
+        history.append(
+            {
+                "role": "CHATBOT",
+                "message": content,
+                "tool_calls": [self._cohere_call(call) for call in serialized_calls],
+            }
+        )
+        return history
+
+    def _cohere_call(self, call: Dict[str, Any]) -> Dict[str, Any]:
+        args = call.get("args")
+        return {
+            "name": str(call.get("name") or ""),
+            "parameters": args if isinstance(args, dict) else {},
+        }
+
+    def _cohere_tool_result(
+        self,
+        result: ToolResult,
+        call: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        output: Dict[str, Any] = {"result": result.content}
+        if result.is_error:
+            output["is_error"] = True
+        return {
+            "call": (
+                self._cohere_call(call)
+                if call is not None
+                else {"name": result.name, "parameters": {}}
+            ),
+            "outputs": [output],
+        }
+
+    def _history_tool_call_count(self, history: Any) -> int:
+        if not isinstance(history, list):
+            return 0
+        return sum(
+            len(entry.get("tool_calls") or [])
+            for entry in history
+            if isinstance(entry, dict) and entry.get("role") == "CHATBOT"
+        )
 
     def _request_chat_params(
         self,
@@ -338,14 +428,20 @@ class CohereProvider:
     def _serialize_tool_calls(self, tool_calls: List[Any]) -> List[Dict[str, Any]]:
         serialized: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
+            # Cohere v1 ToolCall carries ``parameters``; ``args`` stays as a
+            # fallback for older recorded payloads.
             if isinstance(tool_call, dict):
                 call_id = tool_call.get("id")
                 name = tool_call.get("name")
-                args = tool_call.get("args") or {}
+                args = tool_call.get("parameters") or tool_call.get("args") or {}
             else:
                 call_id = getattr(tool_call, "id", None)
                 name = getattr(tool_call, "name", None)
-                args = getattr(tool_call, "args", None) or {}
+                args = (
+                    getattr(tool_call, "parameters", None)
+                    or getattr(tool_call, "args", None)
+                    or {}
+                )
             serialized.append({"id": call_id, "name": name, "args": args})
         return serialized
 
