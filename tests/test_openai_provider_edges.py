@@ -45,7 +45,10 @@ def test_openai_initialization_options_close_and_secret_redaction(monkeypatch):
         )
 
     constructor.assert_called_once_with(
-        api_key="secret-key", base_url="https://openai.test/v1", timeout=12
+        api_key="secret-key",
+        base_url="https://openai.test/v1",
+        timeout=12,
+        max_retries=0,
     )
     assert _redact_secrets("") == ""
     assert _redact_secrets("token=secret-key") == "token=***"

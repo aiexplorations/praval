@@ -26,6 +26,7 @@ from ..models import (
     ToolResult,
     ToolSpec,
 )
+from .errors import map_provider_exception, sdk_max_retries
 
 
 def _redact_secrets(message: str) -> str:
@@ -58,7 +59,7 @@ class CohereProvider:
             if not api_key:
                 raise ProviderError(f"{api_key_env} environment variable not set")
 
-            self.client = cohere.Client(api_key)
+            self.client = cohere.Client(api_key, max_retries=sdk_max_retries(config))
         except Exception as e:
             raise ProviderError(
                 f"Failed to initialize Cohere client: {_redact_secrets(str(e))}"
@@ -111,7 +112,30 @@ class CohereProvider:
         except (InterventionRequired, HITLConfigurationError):
             raise
         except Exception as e:
-            raise ProviderError(f"Cohere API error: {_redact_secrets(str(e))}") from e
+            raise self._mapped_error(
+                e, f"Cohere API error: {_redact_secrets(str(e))}"
+            ) from e
+
+    def map_provider_error(self, exc: BaseException) -> ProviderError:
+        """Map a Cohere SDK exception to a typed, redacted ``ProviderError``."""
+        message: Optional[str] = None
+        body = getattr(exc, "body", None)
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            # ApiError's own str() dumps response headers; the body is clearer.
+            message = f"HTTP {status_code}: {body['message']}"
+        return self._mapped_error(exc, message)
+
+    def _mapped_error(
+        self, exc: BaseException, message: Optional[str]
+    ) -> ProviderError:
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=message,
+            redact=_redact_secrets,
+        )
 
     def invoke(
         self,
@@ -199,7 +223,7 @@ class CohereProvider:
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         for key, value in request.provider_options.items():
-            if key != "capabilities":
+            if key not in {"capabilities", "max_retries"}:
                 call_params.setdefault(key, value)
         return call_params
 
