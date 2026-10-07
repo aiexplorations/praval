@@ -193,12 +193,16 @@ def test_hitl_runtime_executes_decisions_and_reports_tool_errors():
         )
         == "Unknown function: missing"
     )
-    assert runtime._execute_tool({}, {}) == "Error: Tool function is not callable"
+    not_callable = runtime._execute_tool({}, {})
+    assert not_callable.content == "Error: Tool function is not callable"
+    assert not_callable.is_error is True
 
     def fail() -> None:
         raise RuntimeError("tool failed")
 
-    assert runtime._execute_tool({"function": fail}, {}) == "Error: tool failed"
+    failed = runtime._execute_tool({"function": fail}, {})
+    assert failed.content == "Error: RuntimeError: tool failed"
+    assert failed.is_error is True
 
 
 def test_hitl_runtime_accepts_dict_decisions_and_requires_a_decision():
@@ -227,6 +231,105 @@ def test_hitl_runtime_accepts_dict_decisions_and_requires_a_decision():
         runtime.execute_with_decision(
             intervention=_intervention(None), available_tools=[]
         )
+
+
+def test_hitl_runtime_validates_edited_arguments_before_execution():
+    runtime = _runtime()
+    calls = []
+
+    def multiply(value: int) -> int:
+        calls.append(value)
+        return value * 3
+
+    tools = [{"function": multiply}]
+    edited = runtime.execute_with_decision_result(
+        intervention=_intervention(
+            InterventionDecision.EDIT, edited_args={"value": "many"}
+        ),
+        available_tools=tools,
+    )
+
+    assert calls == []
+    assert edited.is_error is True
+    assert edited.content.startswith("Error: Invalid arguments for tool 'multiply'")
+    assert "value: Input should be a valid integer" in edited.content
+    coerced = runtime.execute_with_decision_result(
+        intervention=_intervention(
+            InterventionDecision.EDIT, edited_args={"value": "4"}
+        ),
+        available_tools=tools,
+    )
+    assert coerced.content == "12"
+    assert calls == [4]
+
+
+def test_hitl_runtime_typed_results_classify_rejection_and_unknown_tools():
+    runtime = _runtime()
+
+    def echo(value: int) -> int:
+        return value
+
+    tools = [{"function": echo}]
+    rejected = runtime.execute_with_decision_result(
+        intervention=_intervention(InterventionDecision.REJECT, reason="unsafe"),
+        available_tools=tools,
+    )
+    unknown = runtime.execute_or_interrupt_result(
+        tool_call_id="call-1",
+        function_name="missing",
+        raw_args={},
+        available_tools=tools,
+        continuation_state={},
+    )
+
+    assert rejected.content == "Rejected by human reviewer: unsafe"
+    assert rejected.is_error is True
+    assert unknown.content == "Unknown function: missing"
+    assert unknown.is_error is True
+
+
+def test_hitl_runtime_async_only_tool_is_an_error_result_in_sync():
+    runtime = _runtime()
+
+    async def lookup(query: str) -> str:
+        return query
+
+    result = runtime._execute_tool(
+        {"function": lookup, "async_only": True}, {"query": "x"}
+    )
+
+    assert result.is_error is True
+    assert "async-only" in result.content
+
+
+@pytest.mark.asyncio
+async def test_hitl_runtime_async_paths_return_typed_results_without_calling():
+    runtime = _runtime()
+    calls = []
+
+    async def multiply(value: int) -> int:
+        calls.append(value)
+        return value * 3
+
+    tools = [{"function": multiply}]
+    invalid = await runtime.execute_with_decision_async(
+        intervention=_intervention(
+            InterventionDecision.APPROVE, original_args={"value": [1]}
+        ),
+        available_tools=tools,
+    )
+    valid = await runtime.execute_or_interrupt_async(
+        tool_call_id="call-1",
+        function_name="multiply",
+        raw_args={"value": 2},
+        available_tools=tools,
+        continuation_state={},
+    )
+
+    assert calls == [2]
+    assert invalid.is_error is True
+    assert "value: Input should be a valid integer" in invalid.content
+    assert valid.content == "6" and valid.is_error is False
 
 
 def test_hitl_service_delegates_and_updates_suspended_runs():

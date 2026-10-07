@@ -682,3 +682,52 @@ class TestGlobalRegistry:
         # Should be new instance with no tools
         assert len(registry2.list_all_tools()) == 0
         assert registry1 is not registry2
+
+
+class TestToolArgumentBoundary:
+    """Decorated tools validate model-supplied arguments before running."""
+
+    def setup_method(self):
+        reset_tool_registry()
+
+    def teardown_method(self):
+        reset_tool_registry()
+
+    def test_decorated_tool_coerces_and_rejects_arguments(self):
+        from praval.model_runtime import execute_legacy_tool_call
+
+        calls = []
+
+        @tool("typed_scale", shared=True)
+        def typed_scale(value: float, times: int = 2) -> float:
+            """Scale a value."""
+            calls.append((value, times))
+            return value * times
+
+        registered = get_tool_registry().get_tool("typed_scale")
+        tools = [
+            {
+                "name": registered.metadata.tool_name,
+                "function": registered.func,
+                "parameters": registered.to_dict()["parameters"],
+            }
+        ]
+
+        def run(args):
+            return execute_legacy_tool_call(
+                hitl_context=None,
+                tool_call_id="call-1",
+                function_name="typed_scale",
+                raw_args=args,
+                available_tools=tools,
+            )
+
+        assert run({"value": "1.5", "times": "3"}) == "4.5"
+        assert calls == [(1.5, 3)]
+
+        rejected = run({"value": "wide", "extra": True})
+        assert rejected.startswith("Error: Invalid arguments for tool 'typed_scale'")
+        assert "value: Input should be a valid number" in rejected
+        assert "expected float" in rejected
+        assert "extra: unexpected argument" in rejected
+        assert calls == [(1.5, 3)]

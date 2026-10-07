@@ -15,5 +15,6 @@ praval.core.exceptions
       PravalConfigurationError
       PravalError
       ProviderError
+      ProviderInvalidResponseError
       StateError
       ToolError

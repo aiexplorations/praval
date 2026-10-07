@@ -159,3 +159,16 @@ class HITLConfigurationError(PravalError):
     """Raised when HITL policy requires approval for a HITL-disabled agent."""
 
     pass
+
+
+# --- Structured-output validation (v0.8.4, typed tool boundary) ---
+
+
+class ProviderInvalidResponseError(ProviderError):
+    """Raised when a final response fails local structured-output validation.
+
+    Only raised when ``StructuredOutputConfig.validate_locally`` is true and the
+    final content is not JSON or does not match the requested schema.
+    """
+
+    pass
