@@ -105,6 +105,61 @@ The registry resolves provider aliases such as `ollama`, `vllm`, `lmstudio`,
 `llama-cpp`, and `local` to the OpenAI-compatible provider implementation while
 preserving alias-specific profiles.
 
+## Provider Errors and Retries
+
+Every provider failure reaches the caller as a `ProviderError`, importable from
+`praval`. Adapters map SDK and HTTP failures to a subclass, so callers can
+branch on the kind of failure instead of parsing messages:
+
+| Class | Raised for | Retried |
+|---|---|---|
+| `ProviderAuthenticationError` | 401, 403: bad key or missing permission | No |
+| `ProviderInvalidRequestError` | 400, 404, 422 and other 4xx: the request was rejected | No |
+| `ProviderQuotaError` | Exhausted quota or credit (OpenAI `insufficient_quota`, Gemini daily quota, HTTP 402) | No |
+| `ProviderRateLimitError` | 429 throttling | Yes |
+| `ProviderUnavailableError` | 5xx, Anthropic 529 overloaded, 409 conflict | Yes |
+| `ProviderTransportError` | Connection failure or timeout, HTTP 408 | Yes |
+| `ToolRoundLimitError` | The tool loop exceeded `max_tool_rounds` | No |
+
+`except ProviderError` still catches all of them. Each error carries the fields
+the provider reported: `provider`, `model`, `operation` (`invoke`, `continue`
+or `stream`), `status_code`, `error_code` (for example `insufficient_quota`,
+`overloaded_error` or Gemini's `RESOURCE_EXHAUSTED`), `request_id`,
+`retryable` and `retry_after_seconds`. Gemini error bodies are read, redacted
+and kept in the message; the request URL, which carries the API key, is never
+copied into an error. An exception the adapter does not recognise becomes a
+plain, non-retryable `ProviderError` with the original exception as its
+`__cause__`.
+
+```python
+from praval import Agent, ProviderQuotaError, ProviderRateLimitError
+
+agent = Agent("assistant", provider="openai", model="gpt-5.4-mini")
+try:
+    response = agent.generate("Summarise the release notes.")
+except ProviderQuotaError as error:
+    print(f"Out of quota ({error.error_code}); retrying will not help")
+except ProviderRateLimitError as error:
+    print(f"Still throttled after retries; wait {error.retry_after_seconds}s")
+```
+
+`ModelRuntime` owns retries. Each provider request (the initial call, each
+tool-round continuation, the continuation after a HITL resume, and the start of
+a native stream) is retried on its own when its error is retryable, up to the
+agent's `retries` setting (default 2). Tools that already ran are never run
+again: a failed round-2 continuation is resent with the same tool results.
+The wait before each retry is the provider's `Retry-After` hint when present
+(capped at 60 seconds); otherwise it is exponential backoff with full jitter,
+starting at 0.5 seconds and capped at 30 seconds. A stream is retried only
+before its first event reaches the caller. Each retry is recorded as a retry
+fact on the execution observation with its real backoff.
+
+SDK clients (`openai.OpenAI`, `anthropic.Anthropic`, `cohere.Client`, and the
+OpenAI-compatible client) are built with `max_retries=0`, so SDK-internal
+retries no longer multiply Praval's. To restore them, set
+`provider_options={"max_retries": N}` in the agent configuration; the value is
+used for client construction only and is not sent with requests.
+
 ## Provider Profile Fields
 
 Profiles can include provider, model, endpoint, local preset, context window,
