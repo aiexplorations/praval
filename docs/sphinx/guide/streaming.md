@@ -27,7 +27,8 @@ async for event in agent.astream("Write one sentence."):
 ## Streaming and conversation history
 
 A streamed exchange enters the agent's history the same way as `chat()` or
-`generate()`. The user turn is added when the stream is created. When the
+`generate()`. The user turn is added when `stream()` is called, or when
+iteration of `astream()` begins. When the
 `final` event is produced, the answer from `final.response.content` is added,
 the history is trimmed, and with `persist_state=True` the state is saved, all
 before the event reaches your loop. Breaking out of the loop after `final`

@@ -45,8 +45,7 @@ the same keyword options and apply them the same way:
 | `allowed_tool_names` | Send only these registered tools; an unknown name raises `ValueError` before anything is sent. |
 | `additional_system_message` | A system message placed first in this request only; it is not stored in history. |
 
-`chat()` and `generate()` also accept `stream`, which marks the request as a
-streaming request without changing the return type.
+`chat()` and `generate()` also accept `stream`.
 
 An unknown keyword argument is ignored and logged as a warning that names the
 keyword and the method, for example

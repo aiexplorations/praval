@@ -376,3 +376,19 @@ def test_chat_returns_answer_committed_as_the_limit_expired():
     finally:
         decorators._agent_context.agent = None
     assert token_holder["token"].cancel() is False
+
+
+def test_cancelled_achat_discards_late_answer(context_agent):
+    agent, provider, commits, slow_finished = context_agent()
+
+    async def run() -> None:
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(decorators.achat("slow question"), timeout=0.01)
+        assert provider.slow_started.wait(2)
+        # asyncio.run() waits for executor threads at shutdown; release first.
+        provider.release.set()
+
+    asyncio.run(run())
+    assert slow_finished.wait(5)
+    assert ("answer:slow question", False) in commits
+    assert agent.conversation_history[-1]["content"] == "slow question"

@@ -687,20 +687,22 @@ async def achat(message: str, timeout: Optional[float] = None, **options: Any) -
     limit = _chat_timeout(agent_instance, timeout)
     loop = asyncio.get_event_loop()
     context = copy_context()
-    token: Optional[_CallToken] = None
-    if limit is not None:
-        token = _CallToken()
-        context.run(_CALL_TOKEN.set, token)
+    # The token also covers callers that cancel this coroutine themselves,
+    # for example through their own asyncio.wait_for().
+    token = _CallToken()
+    context.run(_CALL_TOKEN.set, token)
     future = loop.run_in_executor(
         None,
         context.run,
         functools.partial(agent_instance.chat, **options),
         message,
     )
-    if limit is None or token is None:
-        return cast(str, await future)
-
-    done, _ = await asyncio.wait({future}, timeout=limit)
+    try:
+        done, _ = await asyncio.wait({future}, timeout=limit)
+    except asyncio.CancelledError:
+        token.cancel()
+        future.add_done_callback(_discard_future_outcome)
+        raise
     if not done and token.cancel():
         # Retrieve the abandoned call's outcome so asyncio does not log it.
         future.add_done_callback(_discard_future_outcome)

@@ -227,7 +227,9 @@ class Agent:
             memory_enabled: Whether to enable vector memory capabilities
             memory_config: Configuration for memory system
             knowledge_base: Path to knowledge base files to auto-index
-            max_history: Max conversation turns to retain (None for unbounded)
+            max_history: Max non-system messages to retain, trimmed in whole
+                user-turn units; the newest unit is always kept (None for
+                unbounded)
 
         Raises:
             ValueError: If name is empty or configuration is invalid
