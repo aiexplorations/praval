@@ -71,10 +71,13 @@ from .tool_execution import (
 
 UNSAFE_PROVIDER_OPTION_KEYS = {
     "api_key",
+    "api-key",
     "authorization",
     "default_headers",
     "headers",
     "organization",
+    "x-api-key",
+    "x-goog-api-key",
 }
 EXPERIMENTAL_TOOL_PROVIDERS = {"openai", "anthropic"}
 MAX_SCHEMA_BYTES = 65536
@@ -973,9 +976,18 @@ class ModelRuntime:
     def validate_request(self, request: ModelRequest) -> None:
         """Validate a model request before provider execution."""
         capabilities = self.resolve_capabilities(request)
-        unsafe = UNSAFE_PROVIDER_OPTION_KEYS.intersection(request.provider_options)
+        # Case-insensitive and at any depth: options such as ``extra_headers``
+        # and ``extra_query`` are forwarded to the SDK call as given.
+        # ``experimental_tools`` is checked, with its own message, below.
+        unsafe = _nested_unsafe_option_keys(
+            {
+                key: value
+                for key, value in request.provider_options.items()
+                if key != "experimental_tools"
+            }
+        )
         if unsafe:
-            blocked = ", ".join(sorted(unsafe))
+            blocked = ", ".join(sorted(set(unsafe)))
             raise ProviderError(f"Unsafe provider option(s): {blocked}")
         self._validate_experimental_tools(request)
         if request.reasoning is not None and not capabilities.reasoning:
