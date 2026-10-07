@@ -22,6 +22,52 @@ Tool declarations are normalized into `ToolSpec` objects with JSON Schema
 parameters. HITL metadata such as `requires_approval`, `risk_level`, and
 `approval_reason` is preserved when legacy tool dictionaries are converted.
 
+## Argument validation
+
+Model-supplied arguments are validated before the handler runs, on the sync,
+async and HITL paths alike (for HITL, after approval, so edited arguments are
+checked too):
+
+- A Python function is validated against its signature with pydantic in lax
+  mode, so `"3"` becomes `3` for an `int` parameter and the handler receives
+  the coerced values. Unknown arguments are rejected unless the function takes
+  `**kwargs`. A parameter whose annotation cannot be resolved, or has none, is
+  passed through unchanged.
+- A tool whose handler only accepts `**kwargs` and that declares a JSON Schema
+  object (tools added with `Agent.add_tool_spec`, including MCP tools) is
+  validated with `jsonschema`, Draft 2020-12 unless the schema declares another
+  `$schema`. This path does not coerce values. An invalid schema is skipped
+  with a warning.
+
+When validation fails the handler is not called. The model receives an error
+result naming each failing field and the expected type, for example:
+
+```text
+Error: Invalid arguments for tool 'add': x: Input should be a valid integer,
+unable to parse string as an integer, expected int; z: unexpected argument
+```
+
+## Tool results
+
+Every tool call produces one `ToolResult`, in sync and async runs alike:
+
+- A handler that returns a `ToolResult` keeps its `content`, `is_error` and
+  `metadata`; the runtime sets `tool_call_id` and `name` from the model's call.
+- Any other return value becomes `content=str(value)`. A string that starts with
+  `Error:`, `Unknown function:` or `Rejected by human reviewer:` is an error, as
+  in earlier releases.
+- An exception becomes an error result with content
+  `Error: <ExceptionType>: <message>`.
+- Unknown tools and rejected HITL calls are error results.
+
+`execute_legacy_tool_call` and `HITLRuntime.execute_or_interrupt` /
+`execute_with_decision` still return the result content as a string for
+provider adapters; `HITLRuntime.execute_or_interrupt_result` and
+`execute_with_decision_result` return the `ToolResult`, as do the async
+variants.
+
+## Execution
+
 Providers translate declarations and provider-specific tool-call wire shapes.
 Runtime code owns execution, approval and resume state, tracing, and final
 follow-up calls. Retry behavior is provider and error specific; Praval does not
