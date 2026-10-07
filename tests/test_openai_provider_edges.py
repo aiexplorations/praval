@@ -358,3 +358,42 @@ def test_openai_experimental_and_legacy_resume_validation(openai_provider):
         provider.resume_tool_flow({}, tools=[])
     with pytest.raises(ProviderError, match="Missing resume intervention"):
         provider.resume_tool_flow({"schema": "openai_tool_v1"}, tools=[])
+
+
+def test_openai_chat_transcript_is_stored_only_for_tool_turns(openai_provider):
+    provider, _ = openai_provider
+    call_params = {"model": "gpt-test", "messages": [{"role": "user", "content": "x"}]}
+    tool_call = {
+        "id": "call-1",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": "{}"},
+    }
+    tool_turn = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content=None, tool_calls=[tool_call]),
+                finish_reason="tool_calls",
+            )
+        ],
+        usage=None,
+    )
+    plain_turn = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="done", tool_calls=None),
+                finish_reason="stop",
+            )
+        ],
+        usage=None,
+    )
+
+    response = provider._chat_model_response(tool_turn, call_params)
+    plain = provider._chat_model_response(plain_turn, call_params)
+
+    assert response.metadata["openai_chat_messages"] == [
+        {"role": "user", "content": "x"},
+        {"role": "assistant", "content": None, "tool_calls": [tool_call]},
+    ]
+    # The stored transcript is a new list; the sent params are not mutated.
+    assert call_params["messages"] == [{"role": "user", "content": "x"}]
+    assert "openai_chat_messages" not in plain.metadata
