@@ -13,7 +13,11 @@ from opentelemetry.trace import INVALID_SPAN, StatusCode
 from praval.composition import AgentSession
 from praval.config import AppConfig, ObservabilityConfig, OTLPConfig, PravalConfig
 from praval.core.agent import Agent, AgentConfig
-from praval.core.exceptions import PravalError, ProviderError
+from praval.core.exceptions import (
+    PravalError,
+    ProviderError,
+    ProviderUnavailableError,
+)
 from praval.decorators import agent, chat
 from praval.model_runtime import ModelRuntime
 from praval.models import (
@@ -694,7 +698,7 @@ def test_model_runtime_aggregates_response_identity_usage_and_finish_reason() ->
 
 
 def test_model_runtime_retry_is_aggregated_and_provider_error_is_preserved() -> None:
-    original = ProviderError("temporary")
+    original = ProviderUnavailableError("temporary")
 
     class FlakyProvider:
         capabilities = ProviderCapabilities()
@@ -712,15 +716,19 @@ def test_model_runtime_retry_is_aggregated_and_provider_error_is_preserved() -> 
     provider = FlakyProvider()
     with use_observation_recorder(recorder):
         with ObservationScope(kind=ObservationKind.AGENT, agent_id="retry-agent"):
-            _model_runtime(provider, retries=1).invoke(
-                messages=[{"role": "user", "content": "question"}]
-            )
+            with patch("praval.model_runtime._jitter", return_value=0.25):
+                with patch("praval.model_runtime._sleep") as sleep:
+                    _model_runtime(provider, retries=1).invoke(
+                        messages=[{"role": "user", "content": "question"}]
+                    )
 
     retry = recorder.observations[0].retries[0]
     assert provider.calls == 2
     assert retry.attempt == 1
     assert retry.operation == "model.invoke"
-    assert retry.reason_type == "ProviderError"
+    assert retry.reason_type == "ProviderUnavailableError"
+    assert retry.backoff_ms == 250.0
+    sleep.assert_called_once_with(0.25)
 
     with pytest.raises(ProviderError) as caught:
         _model_runtime(FlakyProvider()).invoke(
