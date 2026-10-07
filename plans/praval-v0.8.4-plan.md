@@ -118,6 +118,39 @@ Branch `v084/reasoning`, started after WP4 merges (shares `agent.py`/`decorators
 
 Tests (new `tests/test_reasoning_controls.py`): per-family payloads for each level; precise errors; `chat()` forwards reasoning; local preset sends `reasoning_effort` on Chat Completions; explicit `ReasoningConfig(effort=...)` unchanged.
 
+### WP7. Hardening: security, concurrency and memory
+
+Added after wave 1 merged (release tip `2a3d3b9`, 2484 passed). Wave 1 changed the execution path in ways the unit tests for each package do not probe together. WP7 looks for defects in three areas, writes a failing test for each one it confirms, and fixes it when the fix is local. A defect that needs a design decision is reported with its failing test marked `xfail(strict=True)` and a reason, not patched.
+
+**Security** (branch `v084/hardening-security`, tests in `tests/test_security_hardening.py`):
+
+- Secrets never appear in exception messages, `repr`, logs, span attributes, `ExecutionObservation`, HITL rows or `ModelResponse.metadata`: API keys (including the Gemini key in the request URL), `Authorization` headers, and provider error bodies that echo them. Covers WP2's new error mapping on every adapter.
+- WP1 transcripts in `metadata` and HITL state: confirm they are not exported to traces or logs beyond what the privacy filters allow, and that content capture settings apply to them.
+- Tool arguments from the model are untrusted: oversized and deeply nested arguments (recursion limits in `_json_safe`, `HITLRuntime._parse_args`, validation), non-object JSON, duplicate keys, arguments naming parameters that are not tools' declared ones.
+- JSON Schemas from MCP servers are untrusted: `$ref` to remote or file URLs must not be fetched; pathological `pattern` values (ReDoS) and deeply nested schemas must not hang or crash a run.
+- `Retry-After` and error bodies are untrusted: negative, huge, malformed and HTTP-date values; very large bodies are truncated before parsing or logging.
+- Unsafe provider options still blocked after WP2 added `max_retries` to the reserved keys; nested credential keys in every option path.
+
+**Concurrency** (branch `v084/hardening-concurrency`, tests in `tests/test_concurrency_hardening.py`):
+
+- One `Agent` used from several threads at once (Reef delivers spores on a thread pool): history consistency, `_history_lock` coverage of every read and write, `persist_state` file writes, unknown-kwarg warnings.
+- HITL: two concurrent resumes or decisions for the same intervention must not execute the approved tool twice; `decide_intervention` and suspended-run status changes must be atomic.
+- Decorator `chat()`/`achat()` timeouts under load: thread and executor leaks after many timeouts, the `_CallToken` race between commit and cancel, ContextVar propagation into worker threads.
+- Retry: sync backoff never blocks an event loop (sync paths called from async code), async retries do not leak coroutines, cancellation during backoff stops promptly.
+- Shared caches: signature-validator `WeakKeyDictionary` and schema `lru_cache` under concurrent first use and garbage collection.
+- Streams: abandoning a stream from another thread or task, and closing generators, leave no half-committed history.
+
+**Memory** (branch `v084/hardening-memory`, tests in `tests/test_memory_hardening.py`):
+
+- WP1 transcripts: each tool-call response holds a full transcript copy, so a long run can hold O(rounds²) data and HITL rows grow per round. Measure for 50 rounds with large tool outputs; bound or share what is held.
+- `conversation_history` growth with `max_history=None`, large tool outputs and multimodal content; persisted state size.
+- Abandoned `chat()` workers: what an abandoned call keeps alive (agent, request, response) and for how long.
+- Caches: validator caches must not keep handlers, agents or closures alive (weak references actually released after `gc.collect()`); schema cache bounded.
+- Reef and agent lifecycle: creating and discarding many agents (PravalClaw creates one per planner call) must not leak registrations, threads, executors or memory, checked with `tracemalloc` and `gc` over repeated cycles.
+- Observation and span buffers stay bounded under long runs.
+
+Each WP7 agent works like a wave-1 agent (own worktree and venv, tests real, gates green), may edit any file its fixes need but keeps fixes minimal, and reports: each finding with its test, severity (high: wrong result, data loss, secret exposure or unbounded growth reachable in normal use; medium: reachable under load or misuse; low: hardening), whether it was fixed, and any design-level item left as `xfail`. The lead merges security, then concurrency, then memory, with the full gate after each, and brings the `xfail` items to the user before wave 2.
+
 ## Execution: agents, branches and merging
 
 Implementation is split across subagents, each in its own git worktree (`isolation: "worktree"`), branching from the current tip of `release/v0.8.4`. The lead session (this one) owns `release/v0.8.4`, all merges, `CHANGELOG.md`, release notes, the metering spec update, and the integration gate.
