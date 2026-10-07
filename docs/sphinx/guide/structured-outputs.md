@@ -32,6 +32,19 @@ import json
 payload = json.loads(response.content)
 ```
 
+Provider adapters map the neutral schema into provider-specific fields:
+
+| Provider | Mapping |
+| --- | --- |
+| OpenAI Chat Completions | `response_format.type=json_schema` |
+| OpenAI Responses | `text.format.type=json_schema` |
+| Anthropic Messages | `output_config.format.type=json_schema` |
+| Gemini | `generationConfig.responseMimeType` and `responseSchema` |
+| Local OpenAI-compatible | Disabled unless explicitly enabled |
+
+`Agent.chat()` still returns text. Prefer `Agent.generate()` when you need a
+provider-constrained schema, response metadata, or usage.
+
 ## Local validation
 
 Set `validate_locally=True` to have Praval check the final answer itself. The
@@ -63,21 +76,8 @@ The same option is accepted in dict form:
 `response_schema={"schema": {...}, "validate_locally": True}`. A dict without a
 `schema` key is still treated as the schema itself.
 
-Local validation runs on the final response of `generate`/`agenerate` (the
-model runtime's `invoke` and `ainvoke`), including the answer after a tool loop
-and after a HITL resume. It does not run on streamed responses (`stream` and
+Local validation runs on the final response of `chat`, `generate` and
+`agenerate` (the model runtime's `invoke` and `ainvoke`), including the answer
+after a tool loop and after a HITL resume. It does not run on streamed responses (`stream` and
 `astream`); validate the `final` event's content in application code there. The
 option is off by default, and it is never sent to the provider.
-
-Provider adapters map the neutral schema into provider-specific fields:
-
-| Provider | Mapping |
-| --- | --- |
-| OpenAI Chat Completions | `response_format.type=json_schema` |
-| OpenAI Responses | `text.format.type=json_schema` |
-| Anthropic Messages | `output_config.format.type=json_schema` |
-| Gemini | `generationConfig.responseMimeType` and `responseSchema` |
-| Local OpenAI-compatible | Disabled unless explicitly enabled |
-
-`Agent.chat()` still returns text. Prefer `Agent.generate()` when you need a
-provider-constrained schema, response metadata, or usage.
