@@ -911,15 +911,27 @@ class Agent:
                     tools=list(self.tools.values()) if self.tools else None,
                     hitl_context=hitl_context,
                 )
-        except InterventionRequired:
+            return self._complete_resume_run(run_id, str(response), service)
+        except BaseException:
+            # A new intervention has already re-pended the run; otherwise the
+            # run becomes resumable again, as it was before the claim.
+            service.release_run(run_id)
             raise
-
-        return self._complete_resume_run(run_id, str(response), service)
 
     async def aresume_run(self, run_id: str) -> str:
         """Asynchronously resume a suspended run containing async-only tools."""
         service, suspended, hitl_context = self._prepare_resume_run(run_id)
+        try:
+            response = await self._aresume_claimed_run(suspended, hitl_context)
+            return self._complete_resume_run(run_id, str(response), service)
+        except BaseException:
+            service.release_run(run_id)
+            raise
 
+    async def _aresume_claimed_run(
+        self, suspended: Any, hitl_context: Dict[str, Any]
+    ) -> Any:
+        """Run the resume continuation of a claimed suspended run."""
         if suspended.state.get("schema") == "model_runtime_tool_v1":
             resumed = await self.runtime.resume_tool_flow_async(
                 suspended_state=suspended.state,
@@ -952,8 +964,7 @@ class Agent:
                         hitl_context=hitl_context,
                     ),
                 )
-
-        return self._complete_resume_run(run_id, str(response), service)
+        return response
 
     def _prepare_resume_run(self, run_id: str) -> Any:
         """Validate a suspended run and build its decided HITL context."""
@@ -989,6 +1000,11 @@ class Agent:
             **self._build_hitl_context(run_id),
             "resume_intervention": intervention.to_dict(),
         }
+        # Claim last, so a validation error never leaves the run claimed. The
+        # claim is one conditional UPDATE, so only one thread or process can
+        # resume the run and execute the approved tool.
+        if not service.claim_run(run_id):
+            raise ValueError(f"Suspended run '{run_id}' is not pending")
         return service, suspended, hitl_context
 
     def _complete_resume_run(self, run_id: str, response: str, service: Any) -> str:

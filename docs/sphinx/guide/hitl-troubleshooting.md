@@ -43,6 +43,20 @@ agent.resume_run(run_id)
 3. Resume run via API or CLI.
 4. Verify DB path consistency (`PRAVAL_HITL_DB_PATH` vs explicit `--hitl-db-path`).
 
+## Resume reports "is not pending"
+
+**Cause:**
+Another thread or process is resuming, or has resumed, the same run. A resume
+first moves the suspended run from `pending` to `resuming` in one atomic
+update, so only one caller executes the approved tool. The run becomes
+`completed` on success and returns to `pending` if the resume raises.
+
+**Fix:**
+Check the run's status in the HITL store. A run left in `resuming` after the
+resuming process crashed is not resumed automatically, because its tool may
+already have run. Inspect the tool's side effects first; to resume it again,
+reset it with `HITLStore.update_suspended_run_status(run_id, status="pending")`.
+
 ## `praval hitl resume` cannot find agent
 
 **Symptom:**
