@@ -33,7 +33,18 @@ from praval.models import (
     ToolResult,
     ToolSpec,
 )
-from praval.tool_execution import tool_result, validate_tool_arguments
+from praval.models.observation import (
+    ExecutionObservation,
+    ObservationFactStatus,
+    ObservationKind,
+)
+from praval.runtime_observation import ObservationScope, use_observation_recorder
+from praval.tool_execution import (
+    _signature_validator,
+    cached_schema_validator,
+    tool_result,
+    validate_tool_arguments,
+)
 
 ORDER_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -632,3 +643,142 @@ def test_validate_locally_applies_to_hitl_resume(tmp_path: Path) -> None:
             hitl_context={**context, "resume_intervention": approved["intervention"]},
         )
     assert recorder.calls == [{"x": 1, "y": 1}]
+
+
+# --- Observation facts and validator edge cases ---
+
+
+class ObservationRecorder:
+    def __init__(self) -> None:
+        self.observations: List[ExecutionObservation] = []
+
+    def record(self, observation: ExecutionObservation) -> None:
+        self.observations.append(observation)
+
+
+def test_observed_status_comes_from_the_typed_result() -> None:
+    def lookup(query: str) -> ToolResult:
+        return ToolResult(
+            tool_call_id="handler-id", name="x", content="no prefix", is_error=True
+        )
+
+    recorder = CallRecorder()
+    tools = [{"function": lookup}, {"name": "add", "function": recorder.add}]
+    observations = ObservationRecorder()
+    with use_observation_recorder(observations):
+        with ObservationScope(kind=ObservationKind.AGENT, agent_id="boundary"):
+            for call_id, name, args in [
+                ("model-call-1", "lookup", {"query": "q"}),
+                ("model-call-2", "add", {"x": "bad"}),
+                ("model-call-3", "add", {"x": 1}),
+            ]:
+                _execute_legacy_tool_call_result(
+                    hitl_context=None,
+                    tool_call_id=call_id,
+                    function_name=name,
+                    raw_args=args,
+                    available_tools=tools,
+                )
+
+    facts = observations.observations[0].tool_calls
+    assert [fact.status for fact in facts] == [
+        ObservationFactStatus.ERROR,
+        ObservationFactStatus.ERROR,
+        ObservationFactStatus.OK,
+    ]
+    assert [fact.tool_call_id for fact in facts] == [
+        "model-call-1",
+        "model-call-2",
+        "model-call-3",
+    ]
+
+
+def test_json_schema_errors_report_received_json_types() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            name: {"type": "string"}
+            for name in ("none", "flag", "ratio", "items", "mapping", "count")
+        },
+    }
+    schema["properties"]["either"] = {"type": ["integer", "null"]}
+
+    def handler(**arguments: Any) -> str:
+        return "ok"
+
+    tool = {"name": "types", "function": handler, "parameters": schema}
+    _, error = validate_tool_arguments(
+        tool,
+        {
+            "none": None,
+            "flag": True,
+            "ratio": 1.5,
+            "items": [1],
+            "mapping": {"a": 1},
+            "count": 2,
+            "either": "x",
+        },
+    )
+
+    assert error is not None
+    for expected in (
+        "none: got null",
+        "flag: got boolean",
+        "ratio: got number",
+        "items: got array",
+        "mapping: got object",
+        "count: got integer",
+        "either: got string, expected integer or null",
+    ):
+        assert expected in error.content
+
+
+def test_long_schema_messages_are_truncated() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"code": {"type": "string", "pattern": "^[a-z]{3}$"}},
+    }
+
+    def handler(**arguments: Any) -> str:
+        return "ok"
+
+    tool = {"name": "codes", "function": handler, "parameters": schema}
+    _, error = validate_tool_arguments(tool, {"code": "X" * 500})
+
+    assert error is not None
+    detail = error.content.split("code: ", 1)[1]
+    assert detail.endswith("..., expected string")
+    assert len(detail) < 240
+
+
+def test_unserializable_schema_and_uninspectable_callables_are_not_validated(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="praval.tool_execution"):
+        assert cached_schema_validator({"type": "object", "default": object()}) is None
+    assert "not serializable" in caplog.text
+
+    # Builtins without an inspectable signature pass arguments through.
+    tool = {"name": "max", "function": max}
+    assert validate_tool_arguments(tool, {"a": 1}) == ({"a": 1}, None)
+
+
+def test_signature_cache_is_weak_and_handles_methods_and_unhashables() -> None:
+    first = CallRecorder()
+    second = CallRecorder()
+    validator = _signature_validator(first.add)
+    assert validator is not None
+    # Bound methods of every instance share the underlying function's entry.
+    assert _signature_validator(second.add) is validator
+
+    class Unhashable:
+        __hash__ = None  # type: ignore[assignment]
+        __slots__ = ()
+
+        def __call__(self, value: int) -> int:
+            return value
+
+    handler = Unhashable()
+    result = _call([{"name": "u", "function": handler}], "u", {"value": "5"})
+    assert result.content == "5"
+    assert _call([{"name": "u", "function": handler}], "u", {"value": "x"}).is_error
