@@ -8,17 +8,21 @@ objects for newer provider features.
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import inspect
 import json
 import time
 from contextvars import copy_context
 from functools import partial
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from opentelemetry import trace
 
-from .core.exceptions import HITLConfigurationError, InterventionRequired, ProviderError
+from .core.exceptions import (
+    HITLConfigurationError,
+    InterventionRequired,
+    ProviderError,
+    ProviderInvalidResponseError,
+)
 from .hitl.runtime import HITLRuntime
 from .models import (
     ContentPart,
@@ -39,6 +43,14 @@ from .runtime_observation import (
     operation_span,
     record_model_facts,
     record_retry,
+)
+from .tool_execution import (
+    arun_tool,
+    cached_schema_validator,
+    error_result,
+    json_schema_errors,
+    run_tool,
+    tool_result,
 )
 
 UNSAFE_PROVIDER_OPTION_KEYS = {
@@ -201,14 +213,40 @@ def execute_legacy_tool_call(
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Execute a legacy provider tool call with optional HITL gating."""
+    """Execute a legacy provider tool call and return the result content.
+
+    Provider adapters place the returned text directly in their tool messages.
+    The runtime tool loop uses the typed ``ToolResult`` instead.
+    """
+    return _execute_legacy_tool_call_result(
+        hitl_context=hitl_context,
+        tool_call_id=tool_call_id,
+        function_name=function_name,
+        raw_args=raw_args,
+        available_tools=available_tools,
+        continuation_state=continuation_state,
+        resume_intervention=resume_intervention,
+    ).content
+
+
+def _execute_legacy_tool_call_result(
+    *,
+    hitl_context: Optional[Dict[str, Any]],
+    tool_call_id: str,
+    function_name: str,
+    raw_args: Any,
+    available_tools: List[Dict[str, Any]],
+    continuation_state: Optional[Dict[str, Any]] = None,
+    resume_intervention: Optional[Dict[str, Any]] = None,
+) -> ToolResult:
+    """Execute a tool call with optional HITL gating and return a `ToolResult`."""
     with ToolCallScope(
         tool_call_id=tool_call_id,
         name=function_name,
         arguments=raw_args,
     ) as observed:
         try:
-            result = _execute_legacy_tool_call_impl(
+            outcome = _execute_legacy_tool_call_impl(
                 hitl_context=hitl_context,
                 tool_call_id=tool_call_id,
                 function_name=function_name,
@@ -220,12 +258,8 @@ def execute_legacy_tool_call(
         except InterventionRequired:
             observed.skip_fact()
             raise
-        observed.set_result(
-            result,
-            is_error=result.startswith("Error:")
-            or result.startswith("Unknown function:")
-            or result.startswith("Rejected by human reviewer:"),
-        )
+        result = tool_result(outcome, tool_call_id=tool_call_id, name=function_name)
+        observed.set_result(result.content, is_error=result.is_error)
         return result
 
 
@@ -238,7 +272,7 @@ def _execute_legacy_tool_call_impl(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> str:
+) -> ToolResult:
     """Execute a synchronous tool after observation setup."""
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is not None and tool_def.get("async_only"):
@@ -247,12 +281,12 @@ def _execute_legacy_tool_call_impl(
         )
     runtime = _build_hitl_runtime(hitl_context)
     if resume_intervention is not None and runtime is not None:
-        return runtime.execute_with_decision(
+        return runtime.execute_with_decision_result(
             intervention=resume_intervention,
             available_tools=available_tools or [],
         )
     if runtime is not None and continuation_state is not None:
-        return runtime.execute_or_interrupt(
+        return runtime.execute_or_interrupt_result(
             tool_call_id=tool_call_id,
             function_name=function_name,
             raw_args=raw_args,
@@ -261,7 +295,7 @@ def _execute_legacy_tool_call_impl(
         )
 
     if tool_def is None:
-        return f"Unknown function: {function_name}"
+        return error_result(f"Unknown function: {function_name}")
     return _execute_tool_direct(tool_def, HITLRuntime._parse_args(raw_args))
 
 
@@ -274,7 +308,7 @@ async def execute_legacy_tool_call_async(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> Any:
+) -> ToolResult:
     """Execute a tool on the caller's event loop with optional HITL gating."""
     with ToolCallScope(
         tool_call_id=tool_call_id,
@@ -282,7 +316,7 @@ async def execute_legacy_tool_call_async(
         arguments=raw_args,
     ) as observed:
         try:
-            result = await _execute_legacy_tool_call_async_impl(
+            outcome = await _execute_legacy_tool_call_async_impl(
                 hitl_context=hitl_context,
                 tool_call_id=tool_call_id,
                 function_name=function_name,
@@ -294,20 +328,8 @@ async def execute_legacy_tool_call_async(
         except InterventionRequired:
             observed.skip_fact()
             raise
-        if isinstance(result, ToolResult):
-            observed.set_result(
-                result.content,
-                is_error=result.is_error,
-                tool_call_id=result.tool_call_id,
-            )
-        else:
-            result_text = str(result)
-            observed.set_result(
-                result_text,
-                is_error=result_text.startswith("Error:")
-                or result_text.startswith("Unknown function:")
-                or result_text.startswith("Rejected by human reviewer:"),
-            )
+        result = tool_result(outcome, tool_call_id=tool_call_id, name=function_name)
+        observed.set_result(result.content, is_error=result.is_error)
         return result
 
 
@@ -320,7 +342,7 @@ async def _execute_legacy_tool_call_async_impl(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> Any:
+) -> ToolResult:
     """Execute an asynchronous tool after observation setup."""
     runtime = _build_hitl_runtime(hitl_context)
     if resume_intervention is not None and runtime is not None:
@@ -339,7 +361,7 @@ async def _execute_legacy_tool_call_async_impl(
 
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is None:
-        return f"Unknown function: {function_name}"
+        return error_result(f"Unknown function: {function_name}")
     return await _execute_tool_direct_async(tool_def, HITLRuntime._parse_args(raw_args))
 
 
@@ -372,47 +394,53 @@ def _tool_map(available_tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
     return mapping
 
 
-def _execute_tool_direct(tool_def: Dict[str, Any], args: Dict[str, Any]) -> str:
+def _execute_tool_direct(tool_def: Dict[str, Any], args: Dict[str, Any]) -> ToolResult:
+    """Validate arguments and run a tool synchronously without HITL gating."""
     if tool_def.get("async_only"):
         raise ProviderError(
             "This tool is async-only; use Agent.agenerate() or Agent.astream()."
         )
-    tool_func = tool_def.get("function")
-    if not callable(tool_func):
-        return "Error: Tool function is not callable"
-    try:
-        result = tool_func(**args)
-        if inspect.iscoroutine(result):
-            result = _run_coroutine_sync(result)
-        return str(result)
-    except Exception as exc:
-        return f"Error: {str(exc)}"
+    return run_tool(tool_def, args)
 
 
 async def _execute_tool_direct_async(
     tool_def: Dict[str, Any], args: Dict[str, Any]
-) -> Any:
-    tool_func = tool_def.get("function")
-    if not callable(tool_func):
-        return "Error: Tool function is not callable"
+) -> ToolResult:
+    """Validate arguments and run a tool on the caller's event loop."""
+    return await arun_tool(tool_def, args)
+
+
+def _validate_structured_content(
+    content: str,
+    config: StructuredOutputConfig,
+    *,
+    provider: Optional[str],
+    model: Optional[str],
+) -> None:
+    """Check final content against the requested schema.
+
+    Raises:
+        ProviderInvalidResponseError: If the content is not JSON or does not
+            match the schema.
+    """
+    source = f"provider '{provider or 'unknown'}' model '{model or 'unknown'}'"
     try:
-        result = tool_func(**args)
-        if inspect.isawaitable(result):
-            result = await result
-        return result
-    except Exception as exc:
-        return f"Error: {str(exc)}"
-
-
-def _run_coroutine_sync(coroutine: Any) -> Any:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coroutine)
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(lambda: asyncio.run(coroutine))
-        return future.result()
+        payload = json.loads(content)
+    except (TypeError, ValueError) as exc:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} is not valid JSON: {exc}"
+        ) from exc
+    validator = cached_schema_validator(config.json_schema or {})
+    if validator is None:
+        raise ProviderInvalidResponseError(
+            f"response_schema for {source} is not a valid JSON Schema"
+        )
+    errors = json_schema_errors(validator, payload)
+    if errors:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} does not match response_schema: "
+            + "; ".join(errors)
+        )
 
 
 class ModelRuntime:
@@ -474,6 +502,7 @@ class ModelRuntime:
             if not response.model:
                 response.model = request.model
             self._record_response_facts(response)
+            self._validate_final_response(request, response)
             return response
 
     def generate_text(
@@ -523,6 +552,7 @@ class ModelRuntime:
             self.validate_request(request)
             response = await self._ainvoke_with_retries(request, tools=tools)
             self._record_response_facts(response)
+            self._validate_final_response(request, response)
             return response
 
     def stream(
@@ -1373,7 +1403,7 @@ class ModelRuntime:
         ]
 
         blocked_call = round_calls[current_index]
-        content = execute_legacy_tool_call(
+        blocked_result = _execute_legacy_tool_call_result(
             hitl_context=hitl_context,
             tool_call_id=blocked_call.id,
             function_name=blocked_call.name,
@@ -1381,7 +1411,7 @@ class ModelRuntime:
             available_tools=available_tools,
             resume_intervention=resume_intervention,
         )
-        round_results.append(self._tool_result(blocked_call, content))
+        round_results.append(self._tool_result(blocked_call, blocked_result))
 
         for next_index in range(current_index + 1, len(round_calls)):
             tool_call = round_calls[next_index]
@@ -1420,7 +1450,7 @@ class ModelRuntime:
                 ModelResponse(content=str(continued or ""), raw=continued),
                 request,
             )
-        return self._orchestrate_tool_calls(
+        resumed = self._orchestrate_tool_calls(
             request,
             next_response,
             tools=available_tools,
@@ -1428,6 +1458,8 @@ class ModelRuntime:
             initial_results=all_results + round_results,
             start_round=round_index + 1,
         )
+        self._validate_final_response(request, resumed)
+        return resumed
 
     async def resume_tool_flow_async(
         self,
@@ -1472,7 +1504,7 @@ class ModelRuntime:
         ]
 
         blocked_call = round_calls[current_index]
-        content = await execute_legacy_tool_call_async(
+        blocked_result = await execute_legacy_tool_call_async(
             hitl_context=hitl_context,
             tool_call_id=blocked_call.id,
             function_name=blocked_call.name,
@@ -1480,17 +1512,7 @@ class ModelRuntime:
             available_tools=available_tools,
             resume_intervention=resume_intervention,
         )
-        if isinstance(content, ToolResult):
-            round_results.append(
-                content.model_copy(
-                    update={
-                        "tool_call_id": blocked_call.id,
-                        "name": blocked_call.name,
-                    }
-                )
-            )
-        else:
-            round_results.append(self._tool_result(blocked_call, str(content)))
+        round_results.append(self._tool_result(blocked_call, blocked_result))
 
         for next_index in range(current_index + 1, len(round_calls)):
             tool_call = round_calls[next_index]
@@ -1530,7 +1552,7 @@ class ModelRuntime:
                 ModelResponse(content=str(continued or ""), raw=continued),
                 request,
             )
-        return await self._orchestrate_tool_calls_async(
+        resumed = await self._orchestrate_tool_calls_async(
             request,
             next_response,
             tools=available_tools,
@@ -1538,6 +1560,8 @@ class ModelRuntime:
             initial_results=all_results + round_results,
             start_round=round_index + 1,
         )
+        self._validate_final_response(request, resumed)
+        return resumed
 
     def _execute_runtime_tool_call(
         self,
@@ -1559,7 +1583,7 @@ class ModelRuntime:
                 result.model_dump(exclude_none=True) for result in previous_results
             ],
         }
-        content = execute_legacy_tool_call(
+        result = _execute_legacy_tool_call_result(
             hitl_context=request.hitl_context,
             tool_call_id=tool_call.id,
             function_name=tool_call.name,
@@ -1567,7 +1591,7 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        return self._tool_result(tool_call, content)
+        return self._tool_result(tool_call, result)
 
     async def _execute_runtime_tool_call_async(
         self,
@@ -1589,7 +1613,7 @@ class ModelRuntime:
                 result.model_dump(exclude_none=True) for result in previous_results
             ],
         }
-        content = await execute_legacy_tool_call_async(
+        result = await execute_legacy_tool_call_async(
             hitl_context=request.hitl_context,
             tool_call_id=tool_call.id,
             function_name=tool_call.name,
@@ -1597,19 +1621,26 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        if isinstance(content, ToolResult):
-            return content.model_copy(
-                update={"tool_call_id": tool_call.id, "name": tool_call.name}
-            )
-        return self._tool_result(tool_call, str(content))
+        return self._tool_result(tool_call, result)
 
-    def _tool_result(self, tool_call: ToolCall, content: str) -> ToolResult:
-        return ToolResult(
-            tool_call_id=tool_call.id,
-            name=tool_call.name,
-            content=content,
-            is_error=content.startswith("Error:")
-            or content.startswith("Unknown function:"),
+    def _tool_result(
+        self, tool_call: ToolCall, outcome: Union[ToolResult, str]
+    ) -> ToolResult:
+        """Bind a tool outcome to the model's call id and tool name."""
+        return tool_result(outcome, tool_call_id=tool_call.id, name=tool_call.name)
+
+    def _validate_final_response(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> None:
+        """Validate final content locally when the request asks for it."""
+        config = request.response_schema
+        if config is None or not config.validate_locally:
+            return
+        _validate_structured_content(
+            response.content,
+            config,
+            provider=response.provider or self.provider_name,
+            model=response.model or request.model,
         )
 
     def _runtime_continuation_state(

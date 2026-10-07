@@ -108,14 +108,16 @@ def test_legacy_tool_conversion_and_direct_execution_errors():
     unnamed = Mock()
     unnamed.__name__ = ""
     assert legacy_tool_to_spec({"function": unnamed}) is None
-    assert _execute_tool_direct({"function": None}, {}) == (
-        "Error: Tool function is not callable"
-    )
+    not_callable = _execute_tool_direct({"function": None}, {})
+    assert not_callable.content == "Error: Tool function is not callable"
+    assert not_callable.is_error is True
 
     def explode() -> None:
         raise RuntimeError("boom")
 
-    assert _execute_tool_direct({"function": explode}, {}) == "Error: boom"
+    exploded = _execute_tool_direct({"function": explode}, {})
+    assert exploded.content == "Error: RuntimeError: boom"
+    assert exploded.is_error is True
     with pytest.raises(ProviderError, match="Agent.agenerate.*Agent.astream"):
         _execute_tool_direct({"function": explode, "async_only": True}, {})
     assert (
@@ -137,7 +139,8 @@ async def test_direct_async_tool_executes_inside_running_event_loop():
         return value.upper()
 
     result = _execute_tool_direct({"function": async_tool}, {"value": "ok"})
-    assert result == "OK"
+    assert result.content == "OK"
+    assert result.is_error is False
 
 
 @pytest.mark.parametrize(

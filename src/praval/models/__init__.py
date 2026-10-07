@@ -259,6 +259,9 @@ class StructuredOutputConfig(BaseModel):
     json_schema: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
     name: Optional[str] = None
     strict: bool = True
+    # When true, the runtime parses the final content as JSON and checks it
+    # against ``json_schema`` locally, raising ProviderInvalidResponseError.
+    validate_locally: bool = False
 
 
 class ProviderCapabilities(BaseModel):
