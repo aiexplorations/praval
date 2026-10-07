@@ -693,7 +693,7 @@ def test_s8_unresolvable_ref_is_not_fetched_and_does_not_crash(ref):
     assert isinstance(result.content, str)
 
 
-def test_s8_unresolvable_ref_still_checks_resolvable_parts():
+def test_s8_unresolvable_ref_skips_validation_without_network(caplog):
     tool = _kwargs_tool(
         {
             "type": "object",
@@ -704,8 +704,43 @@ def test_s8_unresolvable_ref_still_checks_resolvable_parts():
             "required": ["a"],
         }
     )
-    args, error = validate_tool_arguments(tool, {"a": 1, "b": "ok"})
+    with (
+        patch.object(
+            socket.socket, "connect", side_effect=AssertionError("connected")
+        ) as connect,
+        patch.object(
+            socket, "getaddrinfo", side_effect=AssertionError("resolved")
+        ) as resolve,
+    ):
+        args, error = validate_tool_arguments(tool, {"a": 1, "b": "ok"})
+    connect.assert_not_called()
+    resolve.assert_not_called()
+    # Same convention as an invalid schema: skipped with a warning.
     assert error is None and args == {"a": 1, "b": "ok"}
+    assert "unresolvable $ref" in caplog.text
+
+
+def test_s8_internal_defs_ref_still_validates():
+    tool = _kwargs_tool(
+        {
+            "type": "object",
+            "$defs": {
+                "Item": {
+                    "type": "object",
+                    "properties": {"qty": {"type": "integer"}},
+                    "required": ["qty"],
+                }
+            },
+            "properties": {"item": {"$ref": "#/$defs/Item"}},
+            "required": ["item"],
+        }
+    )
+    result = run_tool(tool, {"item": {"qty": "three"}})
+    assert result.is_error
+    assert "item.qty" in result.content
+    assert tool["_c"] == []
+    assert not run_tool(tool, {"item": {"qty": 3}}).is_error
+    assert tool["_c"] == [{"item": {"qty": 3}}]
 
 
 def _nested_schema(depth: int) -> Dict[str, Any]:
@@ -912,3 +947,30 @@ def test_s10_unsafe_options_in_agent_config_are_blocked(monkeypatch):
     with pytest.raises(ProviderError, match="Unsafe provider option"):
         runtime.invoke(messages=_messages())
     client.chat.completions.create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"extra_headers": {"Authorization": "Bearer x"}},
+        {"API_KEY": "x"},
+        {"extra_query": {"api-key": "x"}},
+    ],
+)
+def test_s10_audio_requests_block_credential_options(monkeypatch, options):
+    from praval.models import SpeechRequest, TranscriptionRequest
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    client = Mock()
+    with patch("praval.providers.openai.openai.OpenAI", return_value=client):
+        provider = OpenAIProvider(AgentConfig(provider="openai", model="gpt-test"))
+    with pytest.raises(ProviderError, match="Unsafe provider option"):
+        provider.speak(
+            SpeechRequest(input="hi", voice="nova", provider_options=options)
+        )
+    with pytest.raises(ProviderError, match="Unsafe provider option"):
+        provider.transcribe(
+            TranscriptionRequest(audio=b"RIFF", provider_options=options)
+        )
+    client.audio.speech.create.assert_not_called()
+    client.audio.transcriptions.create.assert_not_called()
