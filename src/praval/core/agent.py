@@ -292,11 +292,12 @@ class Agent:
         else:
             self._storage = None
 
-        # Add system message to conversation if provided
-        if self.config.system_message:
-            self.conversation_history.append(
-                {"role": "system", "content": self.config.system_message}
-            )
+        # Add system message to conversation if provided. History loaded by
+        # persist_state already holds it; trimming keeps every system message,
+        # so appending it again would grow the state on every restart.
+        system_turn = {"role": "system", "content": self.config.system_message}
+        if self.config.system_message and system_turn not in self.conversation_history:
+            self.conversation_history.append(system_turn)
             self._trim_history()
 
     # ==========================================

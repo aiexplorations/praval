@@ -320,6 +320,24 @@ def test_default_max_history_bounds_history_and_persisted_state(tmp_path):
     assert sizes[1] <= sizes[0] * 1.05
 
 
+def test_persisted_restarts_do_not_duplicate_the_system_message(tmp_path):
+    """Each restart used to append another copy that trimming never drops."""
+    storage = StateStorage(str(tmp_path / "state"))
+    lengths = []
+    for restart in range(6):
+        with patch("praval.core.agent.StateStorage", return_value=storage):
+            restarted = _agent(system_message="Be brief.", persist_state=True)
+        restarted.chat(f"question {restart}")
+        lengths.append(len(restarted.conversation_history))
+        system_turns = [
+            m for m in restarted.conversation_history if m["role"] == "system"
+        ]
+        assert system_turns == [{"role": "system", "content": "Be brief."}]
+        restarted.close()
+
+    assert lengths == [3, 5, 7, 9, 11, 13]
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
