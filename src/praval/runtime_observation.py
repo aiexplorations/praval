@@ -288,7 +288,14 @@ class ObservationScope:
             return False
         state = self._state
         if self._token is not None:
-            _state_stack.reset(self._token)
+            try:
+                _state_stack.reset(self._token)
+            except ValueError:
+                # Exited in another context, for example when a stream is
+                # closed from another thread or finalized by another task.
+                # The stack entry belongs to the original context, so there
+                # is nothing to restore here.
+                pass
 
         ended_at = datetime.now(timezone.utc)
         duration_ms = max(0.0, (time.perf_counter() - state.started_monotonic) * 1000)
