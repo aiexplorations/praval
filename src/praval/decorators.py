@@ -494,14 +494,11 @@ def agent(
         # own channel ALSO receive system-wide broadcasts.
         #
         # The handler is delegated through on_spore_received to the custom
-        # agent_handler set above, preventing duplicate invocations.
+        # agent_handler set above, preventing duplicate invocations. Going
+        # through subscribe_to_channel records the channel, so close()
+        # removes this subscription and the reef stops holding the agent.
         reef = get_reef()
-        reef.subscribe(
-            agent_name,
-            underlying_agent.on_spore_received,
-            channel=reef.default_channel,
-            replace=True,
-        )
+        underlying_agent.subscribe_to_channel(reef.default_channel)
 
         # Tool attachment based on decorator params
         registry = get_tool_registry()

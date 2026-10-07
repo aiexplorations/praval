@@ -9,7 +9,7 @@ and error conditions.
 import threading
 import time
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -241,7 +241,11 @@ class TestAgentDecorator:
 
         # Verify reef setup calls
         mock_agent.set_spore_handler.assert_called_once()
-        mock_agent.subscribe_to_channel.assert_called_once_with("test_channel")
+        # The main-channel subscription is tracked too, so close() removes it.
+        assert mock_agent.subscribe_to_channel.call_args_list == [
+            call("test_channel"),
+            call("main"),
+        ]
 
 
 class TestAgentHandler:

@@ -546,6 +546,32 @@ def test_discarded_agents_are_collected_without_threads_or_registrations():
     assert growth < 256 * 1024
 
 
+def test_closed_decorated_agent_leaves_the_reef_and_is_collected():
+    """close() used to leave the main-channel subscription holding the agent."""
+    reef = get_reef()
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_ScriptedProvider(),
+    ):
+
+        @agent_decorator("closing_agent")
+        def closing_agent(spore: Any) -> None:
+            return None
+
+    underlying = closing_agent._praval_agent
+    main = reef.get_channel(reef.default_channel)
+    assert main is not None
+    assert main.subscribers.get("closing_agent")
+
+    underlying.close()
+
+    assert not main.subscribers.get("closing_agent")
+    ref = weakref.ref(underlying)
+    del underlying, closing_agent
+    gc.collect()
+    assert ref() is None
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
