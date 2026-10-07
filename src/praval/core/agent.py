@@ -10,9 +10,11 @@ import inspect
 import json
 import logging
 import os
+import threading
 import uuid
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Union
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..model_runtime import ModelRuntime
 from ..models import AudioResponse, SpeechRequest, ToolSpec, TranscriptionRequest
@@ -44,6 +46,84 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+
+# Options forwarded unchanged to every ModelRuntime entry point.
+_RUNTIME_OPTION_NAMES: Tuple[str, ...] = (
+    "response_schema",
+    "reasoning",
+    "provider_options",
+    "timeout",
+    "metadata",
+    "stream_options",
+    "max_tool_rounds",
+)
+# Options applied by the agent itself before the runtime is called.
+_CALL_CONTROL_NAMES: Tuple[str, ...] = (
+    "allowed_tool_names",
+    "additional_system_message",
+)
+# Options that only some runtime entry points accept.
+_ENTRY_POINT_OPTION_NAMES: Dict[str, Tuple[str, ...]] = {
+    "chat": ("stream",),
+    "generate": ("stream",),
+}
+
+
+class _CallToken:
+    """Commit guard for one agent call whose caller may stop waiting.
+
+    The caller cancels the token when it gives up (for example on a timeout).
+    The agent commits the answer to history only through ``try_commit``, so a
+    cancelled call never writes its late answer.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._state = "pending"
+
+    def cancel(self) -> bool:
+        """Abandon the call; return False if its answer is already committed."""
+        with self._lock:
+            if self._state == "committed":
+                return False
+            self._state = "cancelled"
+            return True
+
+    def try_commit(self, commit: Callable[[], None]) -> bool:
+        """Run ``commit`` unless the call was cancelled; return whether it ran."""
+        with self._lock:
+            if self._state == "cancelled":
+                return False
+            commit()
+            self._state = "committed"
+            return True
+
+
+# Set by decorator chat()/achat() in the worker's copied context. The first
+# Agent.chat()/generate() running in that context consumes it.
+_CALL_TOKEN: ContextVar[Optional[_CallToken]] = ContextVar(
+    "praval_agent_call_token", default=None
+)
+
+
+@dataclass(frozen=True)
+class _RuntimeCallOptions:
+    """Per-call options resolved once and applied the same way everywhere."""
+
+    tools: Optional[List[Dict[str, Any]]]
+    additional_system_message: Optional[str]
+    runtime_kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    def request_messages(
+        self, history: Sequence[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Return the messages to send; the extra system message is not stored."""
+        messages = list(history)
+        if self.additional_system_message:
+            messages.insert(
+                0, {"role": "system", "content": self.additional_system_message}
+            )
+        return messages
 
 
 @dataclass
@@ -167,6 +247,8 @@ class Agent:
         self._hitl_db_path = hitl_db_path
         self._hitl_service = None
         self._conversation_id = str(uuid.uuid4())
+        # Guards every change that a model call makes to conversation_history.
+        self._history_lock = threading.RLock()
 
         # Lifecycle management
         self._closed = False
@@ -218,13 +300,121 @@ class Agent:
     # ==========================================
 
     def _trim_history(self) -> None:
+        """Trim history to ``max_history`` non-system messages in whole units.
+
+        A unit is a user message and everything up to the next user message,
+        so an assistant tool turn is never separated from its tool results.
+        System messages are always kept and do not count towards the limit.
+        The newest unit is always kept, even when it alone exceeds the limit.
+        """
         if self.max_history is None:
             return
-        if self.max_history <= 0:
-            self.conversation_history.clear()
-            return
-        if len(self.conversation_history) > self.max_history:
-            self.conversation_history = self.conversation_history[-self.max_history :]
+        limit = max(self.max_history, 0)
+        history = self.conversation_history
+        units: List[List[int]] = []
+        for index, message in enumerate(history):
+            role = message.get("role")
+            if role == "system":
+                continue
+            if role == "user" or not units:
+                units.append([])
+            units[-1].append(index)
+        retained = sum(len(unit) for unit in units)
+        dropped = set()
+        for unit in units[:-1]:
+            if retained <= limit:
+                break
+            dropped.update(unit)
+            retained -= len(unit)
+        if dropped:
+            history[:] = [
+                message for index, message in enumerate(history) if index not in dropped
+            ]
+
+    def _runtime_call_options(
+        self, kwargs: Dict[str, Any], *, entry_point: str
+    ) -> _RuntimeCallOptions:
+        """Resolve the per-call keyword options of one agent entry point.
+
+        Args:
+            kwargs: Keyword options passed to the entry point.
+            entry_point: Public method name, used in warnings.
+
+        Returns:
+            The request tools, the extra system message, and the keyword
+            arguments for the runtime call.
+
+        Raises:
+            ValueError: If ``allowed_tool_names`` names an unregistered tool.
+        """
+        extra_names = _ENTRY_POINT_OPTION_NAMES.get(entry_point, ())
+        known = {*_RUNTIME_OPTION_NAMES, *_CALL_CONTROL_NAMES, *extra_names}
+        for name in kwargs:
+            if name not in known:
+                logger.warning(
+                    "Agent.%s() ignored unknown keyword argument '%s'; "
+                    "it will be an error in a future release",
+                    entry_point,
+                    name,
+                )
+
+        allowed_tool_names = kwargs.get("allowed_tool_names")
+        if allowed_tool_names is None:
+            tools = list(self.tools.values()) if self.tools else None
+        else:
+            names = tuple(allowed_tool_names)
+            unknown = sorted(set(names) - set(self.tools))
+            if unknown:
+                raise ValueError(f"Unknown allowed tools: {unknown}")
+            tools = [self.tools[name] for name in names]
+
+        runtime_kwargs = {name: kwargs.get(name) for name in _RUNTIME_OPTION_NAMES}
+        if "stream" in extra_names:
+            runtime_kwargs["stream"] = bool(kwargs.get("stream", False))
+        return _RuntimeCallOptions(
+            tools=tools,
+            additional_system_message=kwargs.get("additional_system_message"),
+            runtime_kwargs=runtime_kwargs,
+        )
+
+    def _append_user_turn(self, message: Any) -> List[Dict[str, Any]]:
+        """Append a user turn, trim, and return a snapshot of the history."""
+        with self._history_lock:
+            self.conversation_history.append({"role": "user", "content": message})
+            self._trim_history()
+            return list(self.conversation_history)
+
+    def _commit_answer(self, content: Any, token: Optional[_CallToken] = None) -> bool:
+        """Append an accepted assistant answer, trim, and persist state.
+
+        Returns:
+            False when ``token`` was cancelled and the answer was discarded.
+        """
+
+        def commit() -> None:
+            with self._history_lock:
+                self.conversation_history.append(
+                    {"role": "assistant", "content": content}
+                )
+                self._trim_history()
+                if self.persist_state:
+                    self._save_state()
+
+        if token is None:
+            commit()
+            return True
+        if token.try_commit(commit):
+            return True
+        logger.debug("Agent %s discarded the answer of an abandoned call", self.name)
+        return False
+
+    @staticmethod
+    def _take_call_token() -> Optional[_CallToken]:
+        """Consume the call token that chat()/achat() set for this call."""
+        token = _CALL_TOKEN.get()
+        if token is not None:
+            _CALL_TOKEN.set(None)
+        return token
 
     def _detect_provider(self) -> str:
         """
@@ -307,26 +497,27 @@ class Agent:
             request_mode=request_mode,
         )
 
-    def chat(self, message: Union[str, None]) -> str:
+    def chat(self, message: Union[str, None], **kwargs: Any) -> str:
         """
         Send a message to the agent and get a response.
 
         Args:
             message: User message to send to the agent
+            **kwargs: Per-call options, the same as for generate()
 
         Returns:
             Agent's response as a string
 
         Raises:
-            ValueError: If message is empty or None
+            ValueError: If message is empty or None, or a tool name is unknown
             PravalError: If response generation fails
         """
+        token = self._take_call_token()
         if not message:
             raise ValueError("Message cannot be empty")
 
-        # Add user message to history
-        self.conversation_history.append({"role": "user", "content": message})
-        self._trim_history()
+        options = self._runtime_call_options(kwargs, entry_point="chat")
+        history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "chat"):
@@ -334,24 +525,13 @@ class Agent:
             try:
                 # Generate response using the provider-neutral runtime.
                 response = self.runtime.generate_text(
-                    messages=self.conversation_history,
-                    tools=list(self.tools.values()) if self.tools else None,
+                    messages=options.request_messages(history),
+                    tools=options.tools,
                     hitl_context=self._build_hitl_context(run_id),
+                    **options.runtime_kwargs,
                 )
-
-                # Add assistant response to history
-                self.conversation_history.append(
-                    {"role": "assistant", "content": response}
-                )
-                self._trim_history()
+                self._commit_answer(response, token)
                 record_content_reference(ContentKind.RESPONSE, response)
-
-                # ==========================================
-
-                # Save state if persistence is enabled
-                if self.persist_state:
-                    self._save_state()
-
                 return response
 
             except (InterventionRequired, HITLConfigurationError):
@@ -365,37 +545,38 @@ class Agent:
 
         This is the richer counterpart to chat(); chat() remains the
         compatibility API that returns only text.
+
+        Args:
+            message: User message to send to the agent
+            **kwargs: Per-call options: ``response_schema``, ``reasoning``,
+                ``provider_options``, ``timeout``, ``metadata``,
+                ``stream_options``, ``stream``, ``max_tool_rounds``,
+                ``allowed_tool_names`` and ``additional_system_message``.
+                Unknown keywords are logged and ignored.
+
+        Raises:
+            ValueError: If message is empty or a tool name is unknown
+            PravalError: If response generation fails
         """
+        token = self._take_call_token()
         if not message:
             raise ValueError("Message cannot be empty")
 
-        self.conversation_history.append({"role": "user", "content": message})
-        self._trim_history()
+        options = self._runtime_call_options(kwargs, entry_point="generate")
+        history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate"):
             record_content_reference(ContentKind.PROMPT, message)
             try:
                 response = self.runtime.invoke(
-                    messages=self.conversation_history,
-                    tools=list(self.tools.values()) if self.tools else None,
+                    messages=options.request_messages(history),
+                    tools=options.tools,
                     hitl_context=self._build_hitl_context(run_id),
-                    response_schema=kwargs.get("response_schema"),
-                    reasoning=kwargs.get("reasoning"),
-                    provider_options=kwargs.get("provider_options"),
-                    timeout=kwargs.get("timeout"),
-                    metadata=kwargs.get("metadata"),
-                    stream_options=kwargs.get("stream_options"),
-                    stream=bool(kwargs.get("stream", False)),
-                    max_tool_rounds=kwargs.get("max_tool_rounds"),
+                    **options.runtime_kwargs,
                 )
-                self.conversation_history.append(
-                    {"role": "assistant", "content": response.content}
-                )
-                self._trim_history()
+                self._commit_answer(response.content, token)
                 record_content_reference(ContentKind.RESPONSE, response.content)
-                if self.persist_state:
-                    self._save_state()
                 return response
             except (InterventionRequired, HITLConfigurationError):
                 raise
@@ -538,97 +719,81 @@ class Agent:
         if not message:
             raise ValueError("Message cannot be empty")
 
-        self.conversation_history.append({"role": "user", "content": message})
-        self._trim_history()
+        options = self._runtime_call_options(kwargs, entry_point="agenerate")
+        history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate_async"):
             record_content_reference(ContentKind.PROMPT, message)
-            allowed_tool_names = kwargs.get("allowed_tool_names")
-            if allowed_tool_names is None:
-                request_tools = list(self.tools.values()) if self.tools else None
-            else:
-                names = tuple(allowed_tool_names)
-                unknown = sorted(set(names) - set(self.tools))
-                if unknown:
-                    raise ValueError(f"Unknown allowed tools: {unknown}")
-                request_tools = [self.tools[name] for name in names]
-            request_messages = list(self.conversation_history)
-            additional_system_message = kwargs.get("additional_system_message")
-            if additional_system_message:
-                request_messages.insert(
-                    0,
-                    {"role": "system", "content": additional_system_message},
-                )
             response = await self.runtime.ainvoke(
-                messages=request_messages,
-                tools=request_tools,
+                messages=options.request_messages(history),
+                tools=options.tools,
                 hitl_context=self._build_hitl_context(run_id),
-                response_schema=kwargs.get("response_schema"),
-                reasoning=kwargs.get("reasoning"),
-                provider_options=kwargs.get("provider_options"),
-                timeout=kwargs.get("timeout"),
-                metadata=kwargs.get("metadata"),
-                stream_options=kwargs.get("stream_options"),
-                max_tool_rounds=kwargs.get("max_tool_rounds"),
+                **options.runtime_kwargs,
             )
-            self.conversation_history.append(
-                {"role": "assistant", "content": response.content}
-            )
-            self._trim_history()
+            self._commit_answer(response.content)
             record_content_reference(ContentKind.RESPONSE, response.content)
-            if self.persist_state:
-                self._save_state()
             return response
 
     def stream(self, message: Any, **kwargs: Any) -> Any:
-        """Stream provider-neutral model events."""
+        """Stream provider-neutral model events.
+
+        The user turn enters history when the stream is created. The answer
+        enters history when the ``final`` event is produced, before it is
+        yielded; a failed or abandoned stream leaves only the user turn.
+        """
         if not message:
             raise ValueError("Message cannot be empty")
-        self.conversation_history.append({"role": "user", "content": message})
-        self._trim_history()
+        options = self._runtime_call_options(kwargs, entry_point="stream")
+        history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         def observed_stream() -> Any:
+            deltas: List[str] = []
             with self._observation_scope(run_id, "stream"):
                 record_content_reference(ContentKind.PROMPT, message)
-                yield from self.runtime.stream(
-                    messages=self.conversation_history,
-                    tools=list(self.tools.values()) if self.tools else None,
+                for event in self.runtime.stream(
+                    messages=options.request_messages(history),
+                    tools=options.tools,
                     hitl_context=self._build_hitl_context(run_id),
-                    response_schema=kwargs.get("response_schema"),
-                    reasoning=kwargs.get("reasoning"),
-                    provider_options=kwargs.get("provider_options"),
-                    timeout=kwargs.get("timeout"),
-                    metadata=kwargs.get("metadata"),
-                    stream_options=kwargs.get("stream_options"),
-                    max_tool_rounds=kwargs.get("max_tool_rounds"),
-                )
+                    **options.runtime_kwargs,
+                ):
+                    self._observe_stream_event(event, deltas)
+                    yield event
 
         return observed_stream()
 
     async def astream(self, message: Any, **kwargs: Any) -> Any:
-        """Asynchronously stream provider-neutral model events."""
+        """Asynchronously stream provider-neutral model events.
+
+        History is updated as described for stream().
+        """
         if not message:
             raise ValueError("Message cannot be empty")
-        self.conversation_history.append({"role": "user", "content": message})
-        self._trim_history()
+        options = self._runtime_call_options(kwargs, entry_point="astream")
+        history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
+        deltas: List[str] = []
         with self._observation_scope(run_id, "stream_async"):
             record_content_reference(ContentKind.PROMPT, message)
             async for event in self.runtime.astream(
-                messages=self.conversation_history,
-                tools=list(self.tools.values()) if self.tools else None,
+                messages=options.request_messages(history),
+                tools=options.tools,
                 hitl_context=self._build_hitl_context(run_id),
-                response_schema=kwargs.get("response_schema"),
-                reasoning=kwargs.get("reasoning"),
-                provider_options=kwargs.get("provider_options"),
-                timeout=kwargs.get("timeout"),
-                metadata=kwargs.get("metadata"),
-                stream_options=kwargs.get("stream_options"),
-                max_tool_rounds=kwargs.get("max_tool_rounds"),
+                **options.runtime_kwargs,
             ):
+                self._observe_stream_event(event, deltas)
                 yield event
+
+    def _observe_stream_event(self, event: Any, deltas: List[str]) -> None:
+        """Collect text deltas and commit the answer on the ``final`` event."""
+        event_type = getattr(event, "type", None)
+        if event_type == "delta":
+            deltas.append(str(getattr(event, "delta", "") or ""))
+        elif event_type == "final":
+            response = getattr(event, "response", None)
+            content = response.content if response is not None else "".join(deltas)
+            self._commit_answer(content)
 
     def configure_hitl(
         self,
@@ -823,17 +988,7 @@ class Agent:
 
     def _complete_resume_run(self, run_id: str, response: str, service: Any) -> str:
         """Record a resumed response and mark its suspended run complete."""
-        self.conversation_history.append(
-            {
-                "role": "assistant",
-                "content": response,
-            }
-        )
-        self._trim_history()
-
-        if self.persist_state:
-            self._save_state()
-
+        self._commit_answer(response)
         service.mark_run_completed(run_id, response)
 
         try:
