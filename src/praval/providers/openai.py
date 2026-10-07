@@ -17,7 +17,7 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import _nested_unsafe_option_keys, execute_legacy_tool_call
 from ..models import (
     AudioResponse,
     ContentPart,
@@ -358,6 +358,10 @@ class OpenAIProvider:
                 "Streaming audio is outside the request-based voice API; "
                 "use a realtime or streaming adapter instead"
             )
+        unsafe = _nested_unsafe_option_keys(provider_options)
+        if unsafe:
+            blocked = ", ".join(sorted(set(unsafe)))
+            raise ProviderError(f"Unsafe provider option(s): {blocked}")
         reserved = {
             "file",
             "input",
