@@ -18,6 +18,7 @@ import functools
 import inspect
 import json
 import logging
+import weakref
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -38,7 +39,6 @@ LEGACY_ERROR_PREFIXES = (
     "Rejected by human reviewer:",
 )
 MAX_ERROR_DETAIL_CHARS = 200
-SIGNATURE_CACHE_SIZE = 1024
 SCHEMA_CACHE_SIZE = 256
 
 # (field path, expected type or None for an unexpected field, problem)
@@ -216,20 +216,38 @@ class _SignatureValidator:
         return coerced, errors
 
 
+_ValidatorCache = weakref.WeakKeyDictionary[Any, Optional[_SignatureValidator]]
+_FUNCTION_VALIDATORS: _ValidatorCache = weakref.WeakKeyDictionary()
+_METHOD_VALIDATORS: _ValidatorCache = weakref.WeakKeyDictionary()
+
+
 def _signature_validator(func: Callable[..., Any]) -> Optional[_SignatureValidator]:
-    """Return the cached signature validator for ``func``."""
+    """Return the cached signature validator for ``func``.
+
+    The cache holds weak references, so it never keeps a handler (or the
+    agent or client a closure captures) alive. Bound methods are keyed by
+    their underlying function, because a new bound object is created on
+    every attribute access.
+    """
+    underlying = getattr(func, "__func__", None)
+    cache, key = (
+        (_METHOD_VALIDATORS, underlying)
+        if inspect.ismethod(func)
+        else (_FUNCTION_VALIDATORS, func)
+    )
     try:
-        return _cached_signature_validator(func)
+        return cache[key]
+    except KeyError:
+        pass
     except TypeError:
-        # Unhashable callables cannot be cached; build the validator each time.
+        # Objects that cannot be weakly referenced are validated uncached.
         return _build_signature_validator(func)
-
-
-@functools.lru_cache(maxsize=SIGNATURE_CACHE_SIZE)
-def _cached_signature_validator(
-    func: Callable[..., Any],
-) -> Optional[_SignatureValidator]:
-    return _build_signature_validator(func)
+    validator = _build_signature_validator(func)
+    try:
+        cache[key] = validator
+    except TypeError:
+        pass
+    return validator
 
 
 def _build_signature_validator(
@@ -275,7 +293,11 @@ def _resolve_annotation(func: Callable[..., Any], annotation: Any) -> Any:
     """
     if not isinstance(annotation, str):
         return annotation
-    namespace = getattr(inspect.unwrap(func), "__globals__", None)
+    target = inspect.unwrap(func)
+    namespace = getattr(target, "__globals__", None)
+    if namespace is None:
+        # Callable instances: resolve in the module that defines ``__call__``.
+        namespace = getattr(getattr(target, "__call__", None), "__globals__", None)
     if not isinstance(namespace, dict):
         return annotation
     try:
@@ -318,7 +340,7 @@ def _pydantic_errors(
     key: str, expected: str, exc: ValidationError
 ) -> List[ArgumentError]:
     errors: List[ArgumentError] = []
-    for detail in exc.errors(include_url=False, include_input=False):
+    for detail in exc.errors():
         location = ".".join(str(part) for part in detail.get("loc", ()))
         path = f"{key}.{location}" if location else key
         errors.append((path, expected, str(detail.get("msg", "invalid value"))))
