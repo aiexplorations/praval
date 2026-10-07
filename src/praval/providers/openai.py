@@ -640,7 +640,7 @@ class OpenAIProvider:
         raw_arguments = function.get("arguments") or "{}"
         try:
             arguments = json.loads(raw_arguments)
-        except (TypeError, json.JSONDecodeError):
+        except (TypeError, json.JSONDecodeError, RecursionError):
             arguments = {"raw": raw_arguments}
         return ToolCall(
             id=str(tool_call.get("id") or ""),
@@ -1154,7 +1154,7 @@ class OpenAIProvider:
         if isinstance(raw_args, str):
             try:
                 arguments = json.loads(raw_args)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 arguments = {"raw": raw_args}
         elif isinstance(raw_args, dict):
             arguments = raw_args
