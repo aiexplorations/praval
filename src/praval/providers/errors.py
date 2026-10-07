@@ -29,6 +29,8 @@ from ..core.exceptions import (
 )
 
 MAX_ERROR_BODY_CHARS = 2000
+# Error bodies are untrusted: read at most this much before decoding.
+MAX_ERROR_BODY_BYTES = 64 * 1024
 QUOTA_ERROR_CODES = {"insufficient_quota", "billing_hard_limit_reached"}
 UNAVAILABLE_ERROR_CODES = {"overloaded_error", "api_error", "server_error"}
 RATE_LIMIT_ERROR_CODES = {"rate_limit_error", "rate_limit_exceeded"}
@@ -214,11 +216,13 @@ def map_provider_exception(
     code and error code; connection failures and timeouts become
     ``ProviderTransportError``. Anything unrecognised becomes a plain,
     non-retryable ``ProviderError``. ``message`` replaces the default text,
-    which is ``str(exc)`` passed through ``redact``.
+    which is ``str(exc)`` passed through ``redact`` and then truncated, so an
+    oversized provider error body never becomes an oversized message.
     """
     text = message if message is not None else str(exc)
     if redact is not None:
         text = redact(text)
+    text = _truncate_message(text)
     if isinstance(exc, ProviderError):
         if message is not None:
             # Same type and fields, re-worded by the adapter's except block.
@@ -259,6 +263,12 @@ def map_provider_exception(
         retryable=retryable,
         retry_after_seconds=parse_retry_after(headers),
     )
+
+
+def _truncate_message(text: str) -> str:
+    if len(text) <= MAX_ERROR_BODY_CHARS:
+        return text
+    return text[:MAX_ERROR_BODY_CHARS] + "... [truncated]"
 
 
 def fill_provider_error_fields(
@@ -317,9 +327,10 @@ def _gemini_retry_delay(error: Mapping[str, Any]) -> Optional[float]:
             delay = str(detail.get("retryDelay", "")).strip()
             if delay.endswith("s"):
                 try:
-                    return max(0.0, float(delay[:-1]))
+                    seconds = float(delay[:-1])
                 except ValueError:
                     return None
+                return max(0.0, seconds) if math.isfinite(seconds) else None
     return None
 
 
@@ -337,7 +348,7 @@ def map_gemini_http_error(
     URL, which carries the API key, is never copied.
     """
     try:
-        raw_body = exc.read().decode("utf-8", errors="replace")
+        raw_body = exc.read(MAX_ERROR_BODY_BYTES).decode("utf-8", errors="replace")
     except Exception:
         raw_body = ""
     try:
