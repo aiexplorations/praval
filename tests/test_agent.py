@@ -242,8 +242,11 @@ class TestAgentErrorHandling:
             mock_provider_class.return_value = mock_provider
 
             agent = Agent("assistant", provider="openai")
-            with pytest.raises(PravalError, match="Failed to generate response"):
+            # The runtime turns a foreign exception into a ProviderError, which
+            # is a PravalError and reaches the caller unwrapped.
+            with pytest.raises(ProviderError, match="API Error") as raised:
                 agent.chat("Hello")
+            assert isinstance(raised.value, PravalError)
 
     def test_agent_validates_configuration(self):
         """Test that Agent validates configuration parameters."""

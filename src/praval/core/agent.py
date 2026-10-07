@@ -27,7 +27,6 @@ from ..runtime_observation import (
     record_model_facts,
 )
 from .exceptions import (
-    HITLConfigurationError,
     InterventionRequired,
     PravalError,
     ProviderError,
@@ -536,7 +535,9 @@ class Agent:
                 record_content_reference(ContentKind.RESPONSE, response)
                 return response
 
-            except (InterventionRequired, HITLConfigurationError):
+            except PravalError:
+                # Typed errors (provider, HITL, tool) reach the caller as
+                # raised, matching agenerate(), stream() and astream().
                 raise
             except Exception as e:
                 raise PravalError(f"Failed to generate response: {str(e)}") from e
@@ -580,7 +581,9 @@ class Agent:
                 self._commit_answer(response.content, token)
                 record_content_reference(ContentKind.RESPONSE, response.content)
                 return response
-            except (InterventionRequired, HITLConfigurationError):
+            except PravalError:
+                # Typed errors (provider, HITL, tool) reach the caller as
+                # raised, matching agenerate(), stream() and astream().
                 raise
             except Exception as e:
                 raise PravalError(f"Failed to generate response: {str(e)}") from e
