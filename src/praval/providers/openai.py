@@ -799,6 +799,9 @@ class OpenAIProvider:
         reserved = {
             "endpoint",
             "api",
+            # A model profile uses this only to select an OpenAI-compatible
+            # local endpoint.  It is not a Chat Completions API argument.
+            "local_preset",
             "use_responses",
             "capabilities",
             "transcription_model",
