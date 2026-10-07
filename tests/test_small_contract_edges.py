@@ -107,6 +107,7 @@ def test_openai_compatible_provider_validates_configuration_and_redacts_errors(
         "api_key": "secret-key",
         "base_url": "http://localhost:9000/v1",
         "timeout": 3,
+        "max_retries": 0,
     }
 
     with patch(

@@ -11,6 +11,7 @@ import openai
 
 from ..core.exceptions import ProviderError
 from ..models import ProviderCapabilities
+from .errors import sdk_max_retries
 from .openai import OpenAIProvider, _redact_secrets
 
 LOCAL_BASE_URLS = {
@@ -52,6 +53,7 @@ class OpenAICompatibleProvider(OpenAIProvider):
             client_kwargs: Dict[str, Any] = {"api_key": api_key, "base_url": base_url}
             if getattr(config, "timeout", None):
                 client_kwargs["timeout"] = config.timeout
+            client_kwargs["max_retries"] = sdk_max_retries(config)
             self.client = openai.OpenAI(**client_kwargs)
             self.base_url = base_url
         except Exception as e:

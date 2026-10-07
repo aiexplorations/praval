@@ -11,14 +11,31 @@ import asyncio
 import concurrent.futures
 import inspect
 import json
+import logging
+import random
 import time
 from contextvars import copy_context
 from functools import partial
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    TypeVar,
+)
 
 from opentelemetry import trace
 
-from .core.exceptions import HITLConfigurationError, InterventionRequired, ProviderError
+from .core.exceptions import (
+    HITLConfigurationError,
+    InterventionRequired,
+    ProviderError,
+    ToolRoundLimitError,
+)
 from .hitl.runtime import HITLRuntime
 from .models import (
     ContentPart,
@@ -34,6 +51,7 @@ from .models import (
     ToolSpec,
 )
 from .models.observation import RetryObservation
+from .providers.errors import fill_provider_error_fields, map_provider_exception
 from .runtime_observation import (
     ToolCallScope,
     operation_span,
@@ -50,6 +68,32 @@ UNSAFE_PROVIDER_OPTION_KEYS = {
 }
 EXPERIMENTAL_TOOL_PROVIDERS = {"openai", "anthropic"}
 MAX_SCHEMA_BYTES = 65536
+RETRY_BASE_SECONDS = 0.5
+RETRY_CAP_SECONDS = 30.0
+RETRY_AFTER_CAP_SECONDS = 60.0
+
+logger = logging.getLogger(__name__)
+_T = TypeVar("_T")
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+async def _async_sleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+def _jitter(upper: float) -> float:
+    return random.uniform(0.0, upper)
+
+
+def _retry_backoff_seconds(attempt: int, error: ProviderError) -> float:
+    """Delay before retry ``attempt``: provider hint, else full-jitter backoff."""
+    if error.retry_after_seconds is not None:
+        return min(max(0.0, float(error.retry_after_seconds)), RETRY_AFTER_CAP_SECONDS)
+    exponent = min(max(attempt - 1, 0), 16)
+    return _jitter(min(RETRY_CAP_SECONDS, RETRY_BASE_SECONDS * (2**exponent)))
 
 
 def _tool_parameter_schema(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -577,14 +621,11 @@ class ModelRuntime:
         if provider_stream is not None:
             with self._span(request) as span:
                 stream_state = self._new_stream_state()
-                with self._provider_span(request, "stream"):
-                    try:
-                        events = provider_stream(request, tools=tools)
-                    except TypeError:
-                        events = provider_stream(request)
-                    for event in events:
-                        self._record_stream_event(event, span, started, stream_state)
-                        yield event
+                for event in self._stream_provider_events(
+                    request, provider_stream, tools
+                ):
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
                 self._finish_stream_facts(stream_state)
             return
 
@@ -658,14 +699,11 @@ class ModelRuntime:
             )
             with self._span(request) as span:
                 stream_state = self._new_stream_state()
-                with self._provider_span(request, "stream"):
-                    try:
-                        events = concrete_astream(request, tools=tools)
-                    except TypeError:
-                        events = concrete_astream(request)
-                    async for event in events:
-                        self._record_stream_event(event, span, started, stream_state)
-                        yield event
+                async for event in self._astream_provider_events(
+                    request, concrete_astream, tools
+                ):
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
                 self._finish_stream_facts(stream_state)
             return
 
@@ -1080,34 +1118,24 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        retries = int(getattr(self.config, "retries", 0) or 0)
-        last_error: Optional[Exception] = None
-        for attempt in range(retries + 1):
-            try:
-                response = self._complete_response(
-                    self._invoke_provider(request, tools=tools),
-                    request,
-                )
-                return self._orchestrate_tool_calls(
-                    request,
-                    response,
-                    tools=tools or [],
-                )
-            except ProviderError as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise
-                self._record_retry(attempt + 1, exc)
-            except (InterventionRequired, HITLConfigurationError):
-                raise
-            except Exception as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise ProviderError(str(exc)) from exc
-                self._record_retry(attempt + 1, exc)
-        if last_error is not None:
-            raise ProviderError(str(last_error)) from last_error
-        raise ProviderError("Provider did not return a response")
+        """Send the initial request, then run the tool loop.
+
+        Retries happen per provider request inside ``_call_provider``, so a
+        failed continuation never re-runs tools from earlier rounds.
+        """
+        try:
+            response = self._call_provider(
+                "invoke", request, self._invoke_provider, request, tools=tools
+            )
+            return self._orchestrate_tool_calls(
+                request,
+                self._complete_response(response, request),
+                tools=tools or [],
+            )
+        except (ProviderError, InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc)) from exc
 
     async def _ainvoke_with_retries(
         self,
@@ -1115,37 +1143,225 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        """Async provider invocation and tool orchestration with retries."""
-        retries = int(getattr(self.config, "retries", 0) or 0)
-        last_error: Optional[Exception] = None
-        for attempt in range(retries + 1):
-            try:
-                raw_response = await self._invoke_provider_async(request, tools=tools)
-                if not isinstance(raw_response, ModelResponse):
-                    raw_response = ModelResponse(
-                        content=str(raw_response or ""), raw=raw_response
-                    )
-                response = self._complete_response(raw_response, request)
-                return await self._orchestrate_tool_calls_async(
-                    request,
-                    response,
-                    tools=tools or [],
+        """Async initial request and tool loop with per-request retries."""
+        try:
+            raw_response = await self._acall_provider(
+                "invoke", request, self._invoke_provider_async, request, tools=tools
+            )
+            if not isinstance(raw_response, ModelResponse):
+                raw_response = ModelResponse(
+                    content=str(raw_response or ""), raw=raw_response
                 )
-            except ProviderError as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise
-                self._record_retry(attempt + 1, exc)
+            response = self._complete_response(raw_response, request)
+            return await self._orchestrate_tool_calls_async(
+                request,
+                response,
+                tools=tools or [],
+            )
+        except (ProviderError, InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc)) from exc
+
+    def _call_provider(
+        self,
+        operation: str,
+        request: ModelRequest,
+        fn: Callable[..., _T],
+        *args: Any,
+        **kwargs: Any,
+    ) -> _T:
+        """Send one provider request, retrying only that request.
+
+        Every provider request passes through here (or ``_acall_provider``):
+        the initial invoke, each tool-round continuation, the HITL resume
+        continuation and the start of a native stream. A failure that maps to
+        a retryable ``ProviderError`` is retried up to ``config.retries``
+        times; anything else is raised at once.
+        """
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            try:
+                with self._provider_span(request, operation):
+                    return fn(*args, **kwargs)
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise ProviderError(str(exc)) from exc
-                self._record_retry(attempt + 1, exc)
-        if last_error is not None:
-            raise ProviderError(str(last_error)) from last_error
-        raise ProviderError("Provider did not return a response")
+                error = self._provider_error(exc, operation, request)
+                if not error.retryable or attempt > retries:
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation=operation, backoff_seconds=delay
+                )
+                _sleep(delay)
+            attempt += 1
+
+    async def _acall_provider(
+        self,
+        operation: str,
+        request: ModelRequest,
+        fn: Callable[..., Awaitable[_T]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> _T:
+        """Async ``_call_provider``: ``fn`` is called afresh for each attempt."""
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            try:
+                with self._provider_span(request, operation):
+                    return await fn(*args, **kwargs)
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as exc:
+                error = self._provider_error(exc, operation, request)
+                if not error.retryable or attempt > retries:
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation=operation, backoff_seconds=delay
+                )
+                await _async_sleep(delay)
+            attempt += 1
+
+    def _stream_provider_events(
+        self,
+        request: ModelRequest,
+        provider_stream: Callable[..., Iterator[ModelEvent]],
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> Iterator[ModelEvent]:
+        """Run a native provider stream, retrying only before its first event.
+
+        Adapters yield an ``error`` event before raising, so a leading error
+        event is held back until the outcome is known: it is dropped when the
+        stream is retried and yielded before the exception otherwise.
+        """
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            emitted = False
+            held_error: Optional[ModelEvent] = None
+            try:
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = provider_stream(request, tools=tools)
+                    except TypeError:
+                        events = provider_stream(request)
+                    for event in events:
+                        if not emitted and held_error is None and event.type == "error":
+                            held_error = event
+                            continue
+                        if held_error is not None:
+                            yield held_error
+                            held_error = None
+                        emitted = True
+                        yield event
+                if held_error is not None:
+                    yield held_error
+                return
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as exc:
+                error = self._provider_error(exc, "stream", request)
+                if emitted or not error.retryable or attempt > retries:
+                    if held_error is not None:
+                        yield held_error
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation="stream", backoff_seconds=delay
+                )
+                _sleep(delay)
+            attempt += 1
+
+    async def _astream_provider_events(
+        self,
+        request: ModelRequest,
+        provider_astream: Callable[..., AsyncIterator[ModelEvent]],
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> AsyncIterator[ModelEvent]:
+        """Async ``_stream_provider_events``."""
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            emitted = False
+            held_error: Optional[ModelEvent] = None
+            try:
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = provider_astream(request, tools=tools)
+                    except TypeError:
+                        events = provider_astream(request)
+                    async for event in events:
+                        if not emitted and held_error is None and event.type == "error":
+                            held_error = event
+                            continue
+                        if held_error is not None:
+                            yield held_error
+                            held_error = None
+                        emitted = True
+                        yield event
+                if held_error is not None:
+                    yield held_error
+                return
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as exc:
+                error = self._provider_error(exc, "stream", request)
+                if emitted or not error.retryable or attempt > retries:
+                    if held_error is not None:
+                        yield held_error
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation="stream", backoff_seconds=delay
+                )
+                await _async_sleep(delay)
+            attempt += 1
+
+    def _max_provider_retries(self) -> int:
+        return max(0, int(getattr(self.config, "retries", 0) or 0))
+
+    def _provider_error(
+        self,
+        exc: Exception,
+        operation: str,
+        request: ModelRequest,
+    ) -> ProviderError:
+        """Return the typed ``ProviderError`` for an exception from a provider.
+
+        Adapters may expose ``map_provider_error(exc)`` to translate their SDK
+        exceptions; anything still unmapped is classified generically, and an
+        unrecognised exception becomes a non-retryable ``ProviderError``.
+        """
+        error: Optional[ProviderError] = exc if isinstance(exc, ProviderError) else None
+        mapper = self._get_concrete_provider_method("map_provider_error")
+        if error is None and mapper is not None:
+            try:
+                mapped = mapper(exc)
+            except Exception as mapping_error:
+                logger.warning("Provider error mapping failed: %s", mapping_error)
+                mapped = None
+            if isinstance(mapped, ProviderError):
+                error = mapped
+        if error is None:
+            error = map_provider_exception(exc)
+        return fill_provider_error_fields(
+            error,
+            provider=self.provider_name,
+            model=request.model,
+            operation=operation,
+        )
 
     async def _invoke_provider_async(
         self,
@@ -1155,14 +1371,13 @@ class ModelRuntime:
     ) -> Any:
         concrete_ainvoke = self._get_concrete_provider_method("ainvoke")
         if concrete_ainvoke is not None:
-            with self._provider_span(request, "invoke"):
-                try:
-                    response = concrete_ainvoke(request, tools=tools)
-                except TypeError:
-                    response = concrete_ainvoke(request)
-                if inspect.isawaitable(response):
-                    response = await response
-                return response
+            try:
+                response = concrete_ainvoke(request, tools=tools)
+            except TypeError:
+                response = concrete_ainvoke(request)
+            if inspect.isawaitable(response):
+                response = await response
+            return response
 
         loop = asyncio.get_running_loop()
         context = copy_context()
@@ -1215,8 +1430,9 @@ class ModelRuntime:
                     )
                 )
             all_results.extend(round_results)
-            with self._provider_span(request, "continue"):
-                continued = continuation(request, current, round_results)
+            continued = self._call_provider(
+                "continue", request, continuation, request, current, round_results
+            )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
             else:
@@ -1227,8 +1443,11 @@ class ModelRuntime:
         else:
             if current.tool_calls:
                 self._record_limit_reached("tool_rounds", round_limit)
-                raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({round_limit})"
+                raise ToolRoundLimitError(
+                    f"Provider exceeded maximum tool rounds ({round_limit})",
+                    limit=round_limit,
+                    provider=self.provider_name,
+                    model=request.model,
                 )
 
         current.tool_calls = all_calls
@@ -1284,8 +1503,14 @@ class ModelRuntime:
                     )
                 )
             all_results.extend(round_results)
-            continued = await self._continue_with_tool_results_async(
-                continuation, request, current, round_results
+            continued = await self._acall_provider(
+                "continue",
+                request,
+                self._continue_with_tool_results_async,
+                continuation,
+                request,
+                current,
+                round_results,
             )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
@@ -1297,8 +1522,11 @@ class ModelRuntime:
         else:
             if current.tool_calls:
                 self._record_limit_reached("tool_rounds", round_limit)
-                raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({round_limit})"
+                raise ToolRoundLimitError(
+                    f"Provider exceeded maximum tool rounds ({round_limit})",
+                    limit=round_limit,
+                    provider=self.provider_name,
+                    model=request.model,
                 )
 
         current.tool_calls = all_calls
@@ -1315,20 +1543,19 @@ class ModelRuntime:
         response: ModelResponse,
         results: List[ToolResult],
     ) -> Any:
-        with self._provider_span(request, "continue"):
-            if inspect.iscoroutinefunction(continuation):
-                return await continuation(request, response, results)
-            loop = asyncio.get_running_loop()
-            context = copy_context()
-            provider_call = partial(continuation, request, response, results)
-            continued = await loop.run_in_executor(
-                None,
-                context.run,
-                provider_call,
-            )
-            if inspect.isawaitable(continued):
-                return await continued
-            return continued
+        if inspect.iscoroutinefunction(continuation):
+            return await continuation(request, response, results)
+        loop = asyncio.get_running_loop()
+        context = copy_context()
+        provider_call = partial(continuation, request, response, results)
+        continued = await loop.run_in_executor(
+            None,
+            context.run,
+            provider_call,
+        )
+        if inspect.isawaitable(continued):
+            return await continued
+        return continued
 
     def resume_tool_flow(
         self,
@@ -1411,8 +1638,9 @@ class ModelRuntime:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
-        with self._provider_span(request, "continue"):
-            continued = continuation(request, current, round_results)
+        continued = self._call_provider(
+            "continue", request, continuation, request, current, round_results
+        )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
         else:
@@ -1520,8 +1748,14 @@ class ModelRuntime:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
-        continued = await self._continue_with_tool_results_async(
-            continuation, request, current, round_results
+        continued = await self._acall_provider(
+            "continue",
+            request,
+            self._continue_with_tool_results_async,
+            continuation,
+            request,
+            current,
+            round_results,
         )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
@@ -1729,12 +1963,27 @@ class ModelRuntime:
             value = 8
         return int(value)
 
-    def _record_retry(self, attempt: int, error: BaseException) -> None:
+    def _record_retry(
+        self,
+        attempt: int,
+        error: BaseException,
+        *,
+        operation: str = "invoke",
+        backoff_seconds: float = 0.0,
+    ) -> None:
+        backoff_ms = max(0.0, backoff_seconds * 1000.0)
+        logger.info(
+            "Retrying provider %s request (retry %d) after %s; waiting %.0f ms",
+            operation,
+            attempt,
+            type(error).__name__,
+            backoff_ms,
+        )
         fact = RetryObservation(
             attempt=attempt,
-            operation="model.invoke",
+            operation=f"model.{operation}",
             reason_type=type(error).__name__,
-            backoff_ms=0,
+            backoff_ms=backoff_ms,
         )
         record_retry(fact)
         span = trace.get_current_span()
@@ -1743,8 +1992,9 @@ class ModelRuntime:
                 "praval.retry",
                 {
                     "praval.retry.attempt": attempt,
+                    "praval.retry.operation": operation,
                     "praval.retry.reason_type": type(error).__name__,
-                    "praval.retry.backoff_ms": 0.0,
+                    "praval.retry.backoff_ms": backoff_ms,
                 },
             )
 
@@ -1765,28 +2015,27 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        with self._provider_span(request, "invoke"):
-            concrete_invoke = self._get_concrete_provider_method("invoke")
-            if concrete_invoke is not None:
-                try:
-                    response = concrete_invoke(request, tools=tools)
-                except TypeError:
-                    response = concrete_invoke(request)
-                if isinstance(response, ModelResponse):
-                    return response
-                return ModelResponse(content=str(response or ""), raw=response)
+        concrete_invoke = self._get_concrete_provider_method("invoke")
+        if concrete_invoke is not None:
+            try:
+                response = concrete_invoke(request, tools=tools)
+            except TypeError:
+                response = concrete_invoke(request)
+            if isinstance(response, ModelResponse):
+                return response
+            return ModelResponse(content=str(response or ""), raw=response)
 
-            response_text = self.provider.generate(
-                messages=[_safe_model_dump(message) for message in request.messages],
-                tools=tools,
-                hitl_context=request.hitl_context,
-            )
-            return ModelResponse(
-                content=str(response_text or ""),
-                provider=self.provider_name,
-                model=request.model,
-                raw=response_text,
-            )
+        response_text = self.provider.generate(
+            messages=[_safe_model_dump(message) for message in request.messages],
+            tools=tools,
+            hitl_context=request.hitl_context,
+        )
+        return ModelResponse(
+            content=str(response_text or ""),
+            provider=self.provider_name,
+            model=request.model,
+            raw=response_text,
+        )
 
     def _get_concrete_provider_method(self, name: str) -> Optional[Any]:
         method = getattr(type(self.provider), name, None)

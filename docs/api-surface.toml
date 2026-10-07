@@ -34,6 +34,21 @@ exports = [
 ]
 
 [[surfaces]]
+name = "provider-errors"
+stability = "stable"
+documentation = "guide/providers"
+exports = [
+  "ProviderError",
+  "ProviderAuthenticationError",
+  "ProviderInvalidRequestError",
+  "ProviderQuotaError",
+  "ProviderRateLimitError",
+  "ProviderUnavailableError",
+  "ProviderTransportError",
+  "ToolRoundLimitError",
+]
+
+[[surfaces]]
 name = "collaboration"
 stability = "stable"
 documentation = "guide/core-concepts"

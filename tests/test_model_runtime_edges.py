@@ -1,17 +1,29 @@
 """Edge-case contracts for the provider-neutral 0.8 model runtime."""
 
 import asyncio
-from unittest.mock import Mock, patch
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from praval.core.agent import AgentConfig
-from praval.core.exceptions import ProviderError
+from praval.core.exceptions import (
+    InterventionRequired,
+    ProviderAuthenticationError,
+    ProviderError,
+    ProviderInvalidRequestError,
+    ProviderRateLimitError,
+    ProviderTransportError,
+    ProviderUnavailableError,
+    ToolRoundLimitError,
+)
+from praval.hitl.service import HITLService
 from praval.model_runtime import (
     ModelRuntime,
     _execute_tool_direct,
     _json_safe,
     _nested_unsafe_option_keys,
+    _retry_backoff_seconds,
     _safe_model_dump,
     _tool_parameter_schema,
     execute_legacy_tool_call,
@@ -29,6 +41,7 @@ from praval.models import (
     ProviderCapabilities,
     ReasoningConfig,
     StructuredOutputConfig,
+    ToolCall,
     Usage,
 )
 
@@ -291,13 +304,14 @@ def test_runtime_retries_provider_errors_and_wraps_unexpected_errors():
         def invoke(self, request):
             self.calls += 1
             if self.calls == 1:
-                raise ProviderError("retry")
+                raise ProviderUnavailableError("retry")
             return "recovered"
 
     provider = FlakyProvider()
-    response = _runtime(provider, retries=1).invoke(
-        messages=[{"role": "user", "content": "x"}]
-    )
+    with patch("praval.model_runtime._sleep"):
+        response = _runtime(provider, retries=1).invoke(
+            messages=[{"role": "user", "content": "x"}]
+        )
     assert response.content == "recovered"
     assert provider.calls == 2
 
@@ -408,3 +422,498 @@ def test_runtime_restore_helpers_reject_missing_state_and_span_falls_back():
     with patch("praval.observability.tracing.get_tracer", side_effect=RuntimeError):
         with runtime._span(request):
             pass
+
+
+# --- Per-request retry (v0.8.4) ------------------------------------------
+
+
+class _TwoRoundProvider:
+    """Round 1 calls ``record_a``, round 2 calls ``record_b``, then answers.
+
+    The round-2 continuation (the request that carries ``record_b``'s result)
+    fails ``failures`` times with ``error_factory()`` before succeeding.
+    """
+
+    capabilities = ProviderCapabilities(tools=True, streaming=True)
+
+    def __init__(self, failures=1, error_factory=None):
+        self.invoke_calls = 0
+        self.continuation_calls = 0
+        self.failures = failures
+        self.error_factory = error_factory or (
+            lambda: ProviderUnavailableError("overloaded")
+        )
+
+    def invoke(self, request):
+        self.invoke_calls += 1
+        return ModelResponse(
+            tool_calls=[ToolCall(id="call-a", name="record_a", arguments={})]
+        )
+
+    def continue_with_tool_results(self, request, response, tool_results):
+        self.continuation_calls += 1
+        if tool_results[0].name == "record_a":
+            return ModelResponse(
+                tool_calls=[ToolCall(id="call-b", name="record_b", arguments={})]
+            )
+        if self.failures:
+            self.failures -= 1
+            raise self.error_factory()
+        return ModelResponse(content="done")
+
+
+def _counting_tools(counter, *, approve_b=False):
+    def record_a() -> str:
+        counter["a"] += 1
+        return "a recorded"
+
+    def record_b() -> str:
+        counter["b"] += 1
+        return "b recorded"
+
+    return [
+        {"function": record_a, "description": "Record A"},
+        {
+            "function": record_b,
+            "description": "Record B",
+            "requires_approval": approve_b,
+        },
+    ]
+
+
+def _run_mode(runtime, mode, tools):
+    messages = [{"role": "user", "content": "record both"}]
+    if mode == "invoke":
+        return runtime.invoke(messages=messages, tools=tools).content
+    if mode == "stream":
+        events = list(runtime.stream(messages=messages, tools=tools))
+        return events[-1].response.content
+
+    async def _async_run():
+        if mode == "ainvoke":
+            return (await runtime.ainvoke(messages=messages, tools=tools)).content
+        events = [
+            event async for event in runtime.astream(messages=messages, tools=tools)
+        ]
+        return events[-1].response.content
+
+    return asyncio.run(_async_run())
+
+
+@pytest.mark.parametrize("mode", ["invoke", "ainvoke", "stream", "astream"])
+def test_failed_continuation_retry_never_repeats_earlier_tools(mode):
+    counter = {"a": 0, "b": 0}
+    provider = _TwoRoundProvider(failures=1)
+    runtime = _runtime(provider, retries=2)
+    with (
+        patch("praval.model_runtime._sleep") as sleep,
+        patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep,
+    ):
+        content = _run_mode(runtime, mode, _counting_tools(counter))
+
+    assert content == "done"
+    assert counter == {"a": 1, "b": 1}
+    assert provider.invoke_calls == 1
+    assert provider.continuation_calls == 3
+    assert sleep.call_count + async_sleep.await_count == 1
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_hitl_resume_retries_only_the_failed_continuation(tmp_path, use_async):
+    counter = {"a": 0, "b": 0}
+    tools = _counting_tools(counter, approve_b=True)
+    provider = _TwoRoundProvider(failures=1)
+    runtime = _runtime(provider, retries=1)
+    db_path = str(tmp_path / "hitl.db")
+    hitl_context = {
+        "enabled": True,
+        "run_id": f"run-retry-{use_async}",
+        "agent_name": "retry-agent",
+        "provider_name": "edge-provider",
+        "db_path": db_path,
+    }
+    with pytest.raises(InterventionRequired):
+        runtime.invoke(
+            messages=[{"role": "user", "content": "record both"}],
+            tools=tools,
+            hitl_context=hitl_context,
+        )
+    assert counter == {"a": 1, "b": 0}
+
+    service = HITLService(db_path=db_path)
+    pending = service.get_pending_interventions(run_id=hitl_context["run_id"])
+    approved = service.approve_intervention(pending[0].id, reviewer="qa")
+    suspended = service.get_suspended_run(hitl_context["run_id"])
+    resume_context = {**hitl_context, "resume_intervention": approved.to_dict()}
+
+    with (
+        patch("praval.model_runtime._sleep") as sleep,
+        patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep,
+    ):
+        if use_async:
+            response = asyncio.run(
+                runtime.resume_tool_flow_async(suspended.state, tools, resume_context)
+            )
+        else:
+            response = runtime.resume_tool_flow(suspended.state, tools, resume_context)
+
+    assert response.content == "done"
+    assert counter == {"a": 1, "b": 1}
+    assert provider.invoke_calls == 1
+    assert provider.continuation_calls == 3
+    assert sleep.call_count + async_sleep.await_count == 1
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_retryable_failures_stop_after_configured_retries(use_async):
+    class AlwaysOverloaded:
+        capabilities = ProviderCapabilities()
+
+        def __init__(self):
+            self.calls = 0
+
+        def invoke(self, request):
+            self.calls += 1
+            raise ProviderUnavailableError(f"overloaded {self.calls}")
+
+    provider = AlwaysOverloaded()
+    runtime = _runtime(provider, retries=2)
+    messages = [{"role": "user", "content": "x"}]
+    with patch("praval.model_runtime._jitter", side_effect=lambda upper: upper):
+        with (
+            patch("praval.model_runtime._sleep") as sleep,
+            patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep,
+        ):
+            with pytest.raises(ProviderUnavailableError, match="overloaded 3") as info:
+                if use_async:
+                    asyncio.run(runtime.ainvoke(messages=messages))
+                else:
+                    runtime.invoke(messages=messages)
+
+    assert provider.calls == 3
+    delays = [call.args[0] for call in (sleep.call_args_list or [])] + [
+        call.args[0] for call in async_sleep.await_args_list
+    ]
+    assert delays == [0.5, 1.0]
+    assert info.value.operation == "invoke"
+    assert info.value.provider == "edge-provider"
+    assert info.value.model == "edge-model"
+
+
+def test_non_retryable_continuation_error_raises_immediately():
+    counter = {"a": 0, "b": 0}
+    provider = _TwoRoundProvider(
+        failures=5,
+        error_factory=lambda: ProviderInvalidRequestError("bad tool result"),
+    )
+    runtime = _runtime(provider, retries=3)
+    with patch("praval.model_runtime._sleep") as sleep:
+        with pytest.raises(
+            ProviderInvalidRequestError, match="bad tool result"
+        ) as info:
+            runtime.invoke(
+                messages=[{"role": "user", "content": "x"}],
+                tools=_counting_tools(counter),
+            )
+    sleep.assert_not_called()
+    assert provider.continuation_calls == 2
+    assert counter == {"a": 1, "b": 1}
+    assert info.value.operation == "continue"
+
+
+def test_unrecognised_adapter_exception_is_wrapped_and_not_retried():
+    cause = RuntimeError("socket closed by peer")
+    provider = _TwoRoundProvider(failures=5, error_factory=lambda: cause)
+    runtime = _runtime(provider, retries=3)
+    with patch("praval.model_runtime._sleep") as sleep:
+        with pytest.raises(ProviderError, match="socket closed by peer") as info:
+            runtime.invoke(
+                messages=[{"role": "user", "content": "x"}],
+                tools=_counting_tools({"a": 0, "b": 0}),
+            )
+    sleep.assert_not_called()
+    assert type(info.value) is ProviderError
+    assert info.value.retryable is False
+    assert info.value.__cause__ is cause
+    assert provider.continuation_calls == 2
+
+
+@pytest.mark.parametrize(("hint", "expected"), [(5.0, 5.0), (600.0, 60.0), (0, 0)])
+def test_retry_after_hint_is_honoured_and_capped(hint, expected):
+    provider = _TwoRoundProvider(
+        failures=1,
+        error_factory=lambda: ProviderRateLimitError(
+            "slow down", retry_after_seconds=hint
+        ),
+    )
+    with patch("praval.model_runtime._sleep") as sleep:
+        response = _runtime(provider, retries=1).invoke(
+            messages=[{"role": "user", "content": "x"}],
+            tools=_counting_tools({"a": 0, "b": 0}),
+        )
+    assert response.content == "done"
+    sleep.assert_called_once_with(expected)
+
+
+def test_backoff_uses_full_jitter_with_exponential_cap():
+    error = ProviderUnavailableError("x")
+    with patch("praval.model_runtime._jitter", side_effect=lambda upper: upper):
+        ceilings = [_retry_backoff_seconds(attempt, error) for attempt in (1, 2, 3, 7)]
+        assert ceilings == [0.5, 1.0, 2.0, 30.0]
+        assert _retry_backoff_seconds(10_000, error) == 30.0
+    for attempt in (1, 4):
+        delay = _retry_backoff_seconds(attempt, error)
+        assert 0.0 <= delay <= 0.5 * 2 ** (attempt - 1)
+
+
+def test_retry_is_recorded_with_operation_and_real_backoff():
+    provider = _TwoRoundProvider(failures=1)
+    runtime = _runtime(provider, retries=1)
+    with (
+        patch("praval.model_runtime.record_retry") as record,
+        patch("praval.model_runtime._jitter", return_value=0.125),
+        patch("praval.model_runtime._sleep"),
+    ):
+        runtime.invoke(
+            messages=[{"role": "user", "content": "x"}],
+            tools=_counting_tools({"a": 0, "b": 0}),
+        )
+    fact = record.call_args.args[0]
+    assert fact.attempt == 1
+    assert fact.operation == "model.continue"
+    assert fact.reason_type == "ProviderUnavailableError"
+    assert fact.backoff_ms == 125.0
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_tool_round_limit_raises_typed_error_without_retry(use_async):
+    class EndlessProvider(_TwoRoundProvider):
+        def continue_with_tool_results(self, request, response, tool_results):
+            self.continuation_calls += 1
+            return ModelResponse(
+                tool_calls=[ToolCall(id="call-a", name="record_a", arguments={})]
+            )
+
+    provider = EndlessProvider()
+    runtime = _runtime(provider, retries=3)
+    tools = _counting_tools({"a": 0, "b": 0})
+    messages = [{"role": "user", "content": "x"}]
+    with (
+        patch("praval.model_runtime._sleep") as sleep,
+        patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep,
+    ):
+        with pytest.raises(
+            ToolRoundLimitError, match=r"maximum tool rounds \(2\)"
+        ) as info:
+            if use_async:
+                asyncio.run(
+                    runtime.ainvoke(messages=messages, tools=tools, max_tool_rounds=2)
+                )
+            else:
+                runtime.invoke(messages=messages, tools=tools, max_tool_rounds=2)
+    assert isinstance(info.value, ProviderError)
+    assert info.value.limit == 2 and info.value.retryable is False
+    assert provider.invoke_calls == 1
+    assert provider.continuation_calls == 2
+    sleep.assert_not_called()
+    async_sleep.assert_not_awaited()
+
+
+def test_async_native_continuation_gets_a_fresh_coroutine_per_attempt():
+    class AsyncContinuationProvider(_TwoRoundProvider):
+        async def continue_with_tool_results(self, request, response, tool_results):
+            return _TwoRoundProvider.continue_with_tool_results(
+                self, request, response, tool_results
+            )
+
+    counter = {"a": 0, "b": 0}
+    provider = AsyncContinuationProvider(failures=2)
+    runtime = _runtime(provider, retries=2)
+    with patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep:
+        response = asyncio.run(
+            runtime.ainvoke(
+                messages=[{"role": "user", "content": "x"}],
+                tools=_counting_tools(counter),
+            )
+        )
+    assert response.content == "done"
+    assert counter == {"a": 1, "b": 1}
+    assert provider.continuation_calls == 4
+    assert async_sleep.await_count == 2
+
+
+def test_hitl_exceptions_pass_through_without_retry():
+    class PausingProvider:
+        capabilities = ProviderCapabilities()
+
+        def __init__(self):
+            self.calls = 0
+
+        def invoke(self, request):
+            self.calls += 1
+            raise InterventionRequired("int-1", "run-1", "agent", "tool")
+
+    provider = PausingProvider()
+    with patch("praval.model_runtime._sleep") as sleep:
+        with pytest.raises(InterventionRequired):
+            _runtime(provider, retries=3).invoke(
+                messages=[{"role": "user", "content": "x"}]
+            )
+    assert provider.calls == 1
+    sleep.assert_not_called()
+
+
+def test_adapter_error_mapping_hook_is_used_and_failures_fall_back():
+    class SdkThrottle(Exception):
+        pass
+
+    class MappingProvider:
+        capabilities = ProviderCapabilities()
+
+        def __init__(self):
+            self.calls = 0
+
+        def invoke(self, request):
+            self.calls += 1
+            if self.calls == 1:
+                raise SdkThrottle("429 from sdk")
+            return "recovered"
+
+        def map_provider_error(self, exc):
+            return ProviderRateLimitError(str(exc), status_code=429)
+
+    provider = MappingProvider()
+    with patch("praval.model_runtime._sleep"):
+        response = _runtime(provider, retries=1).invoke(
+            messages=[{"role": "user", "content": "x"}]
+        )
+    assert response.content == "recovered"
+    assert provider.calls == 2
+
+    class BrokenMappingProvider(MappingProvider):
+        def map_provider_error(self, exc):
+            raise ValueError("mapper bug")
+
+    broken = BrokenMappingProvider()
+    with pytest.raises(ProviderError, match="429 from sdk") as info:
+        _runtime(broken, retries=1).invoke(messages=[{"role": "user", "content": "x"}])
+    assert type(info.value) is ProviderError
+    assert broken.calls == 1
+
+
+@contextmanager
+def _patched_sleeps():
+    with (
+        patch("praval.model_runtime._sleep") as sleep,
+        patch("praval.model_runtime._async_sleep", new=AsyncMock()) as async_sleep,
+    ):
+        yield sleep, async_sleep
+
+
+class _FlakyStreamProvider:
+    capabilities = ProviderCapabilities(streaming=True, native_streaming=True)
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = 0
+
+    def stream(self, request):
+        self.calls += 1
+        failure, deltas = self.script.pop(0)
+        for delta in deltas:
+            yield ModelEvent(type="delta", delta=delta)
+        if failure is not None:
+            yield ModelEvent(type="error", metadata={"message": str(failure)})
+            raise failure
+        yield ModelEvent(type="final", response=ModelResponse(content="".join(deltas)))
+
+
+class _FlakyAsyncStreamProvider(_FlakyStreamProvider):
+    async def astream(self, request):
+        for event in self.stream(request):
+            yield event
+
+
+def _collect_stream(runtime, use_async):
+    events = []
+    messages = [{"role": "user", "content": "x"}]
+
+    async def _consume_async():
+        async for event in runtime.astream(messages=messages):
+            events.append(event)
+
+    try:
+        if use_async:
+            asyncio.run(_consume_async())
+        else:
+            for event in runtime.stream(messages=messages):
+                events.append(event)
+    except ProviderError as exc:
+        return [event.type for event in events], exc
+    return [event.type for event in events], None
+
+
+@pytest.mark.parametrize(
+    "provider_class", [_FlakyStreamProvider, _FlakyAsyncStreamProvider]
+)
+def test_native_stream_retries_only_before_first_event(provider_class):
+    use_async = provider_class is _FlakyAsyncStreamProvider
+
+    provider = provider_class(
+        [(ProviderTransportError("connect failed"), []), (None, ["he", "llo"])]
+    )
+    with _patched_sleeps():
+        types, error = _collect_stream(_runtime(provider, retries=1), use_async)
+    assert error is None
+    assert types == ["start", "delta", "delta", "final"]
+    assert provider.calls == 2
+
+    provider = provider_class(
+        [(ProviderTransportError("dropped"), ["he"]), (None, ["hello"])]
+    )
+    with _patched_sleeps() as (sleep, async_sleep):
+        types, error = _collect_stream(_runtime(provider, retries=3), use_async)
+    assert isinstance(error, ProviderTransportError)
+    assert types == ["start", "delta", "error"]
+    assert provider.calls == 1
+    sleep.assert_not_called()
+    async_sleep.assert_not_awaited()
+
+    provider = provider_class([(ProviderAuthenticationError("bad key"), [])])
+    with _patched_sleeps():
+        types, error = _collect_stream(_runtime(provider, retries=3), use_async)
+    assert isinstance(error, ProviderAuthenticationError)
+    assert error.operation == "stream"
+    assert types == ["start", "error"]
+    assert provider.calls == 1
+
+    provider = provider_class(
+        [(ProviderTransportError("a"), []), (ProviderTransportError("b"), [])]
+    )
+    with _patched_sleeps():
+        types, error = _collect_stream(_runtime(provider, retries=1), use_async)
+    assert isinstance(error, ProviderTransportError) and str(error) == "b"
+    assert types == ["start", "error"]
+    assert provider.calls == 2
+
+
+def test_native_stream_wraps_unrecognised_errors_and_passes_lone_error_events():
+    class OddStreamProvider:
+        capabilities = ProviderCapabilities(streaming=True, native_streaming=True)
+
+        def __init__(self, fail):
+            self.fail = fail
+
+        def stream(self, request):
+            yield ModelEvent(type="error", metadata={"message": "warning only"})
+            if self.fail:
+                raise KeyError("missing field")
+
+    types, error = _collect_stream(_runtime(OddStreamProvider(False)), False)
+    assert error is None
+    assert types == ["start", "error"]
+
+    types, error = _collect_stream(_runtime(OddStreamProvider(True), retries=2), False)
+    assert type(error) is ProviderError
+    assert isinstance(error.__cause__, KeyError)
+    assert types == ["start", "error"]

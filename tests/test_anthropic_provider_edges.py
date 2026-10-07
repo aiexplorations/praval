@@ -45,7 +45,10 @@ def test_anthropic_initialization_options_close_and_redaction(monkeypatch):
             )
         )
     constructor.assert_called_once_with(
-        api_key="secret-key", base_url="https://anthropic.test", timeout=9
+        api_key="secret-key",
+        base_url="https://anthropic.test",
+        timeout=9,
+        max_retries=0,
     )
     assert _redact_secrets("") == ""
     assert _redact_secrets("bad secret-key") == "bad ***"

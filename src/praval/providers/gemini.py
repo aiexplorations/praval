@@ -20,6 +20,7 @@ from ..models import (
     ToolCall,
     ToolResult,
 )
+from .errors import map_gemini_http_error, map_provider_exception
 
 
 def _redact_secret(message: str, secret: Optional[str]) -> str:
@@ -70,14 +71,8 @@ class GeminiProvider:
         payload = self._build_payload(messages, tools)
         try:
             data = self._post_json("generateContent", payload)
-        except urllib.error.URLError as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
         function_calls = self._extract_function_calls(data)
         if function_calls:
@@ -105,9 +100,7 @@ class GeminiProvider:
         try:
             data = self._post_json("generateContent", payload, timeout=request.timeout)
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
         function_calls = self._extract_function_calls(data)
         if function_calls:
@@ -158,9 +151,7 @@ class GeminiProvider:
                 timeout=request.timeout,
             )
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
         function_calls = self._extract_function_calls(
             data, id_offset=self._content_function_call_count(payload["contents"])
@@ -193,9 +184,9 @@ class GeminiProvider:
                     content_parts.append(text)
                     yield ModelEvent(type="delta", delta=text)
         except Exception as e:
-            message = _redact_secret(str(e), self.api_key)
-            yield ModelEvent(type="error", metadata={"message": message})
-            raise ProviderError(f"Gemini streaming error: {message}") from e
+            error = self._provider_error(e, "Gemini streaming error")
+            yield ModelEvent(type="error", metadata={"message": error.message})
+            raise error from e
         response = ModelResponse(
             content="".join(content_parts),
             provider=self.provider_name,
@@ -205,6 +196,22 @@ class GeminiProvider:
 
     def close(self) -> None:
         """Gemini REST provider does not hold persistent resources."""
+
+    def _provider_error(self, exc: BaseException, prefix: str) -> ProviderError:
+        """Map a REST failure, reading and redacting an HTTP error body."""
+        if isinstance(exc, urllib.error.HTTPError):
+            return map_gemini_http_error(
+                exc,
+                prefix=prefix,
+                model=self._model_name(),
+                redact=lambda text: _redact_secret(text, self.api_key),
+            )
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=f"{prefix}: {_redact_secret(str(exc), self.api_key)}",
+        )
 
     def _model_name(self) -> str:
         return str(getattr(self.config, "model", None) or "gemini-3.5-flash")

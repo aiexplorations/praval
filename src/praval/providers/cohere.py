@@ -5,6 +5,7 @@ Provides integration with Cohere's chat models through their
 Chat API with support for conversation history.
 """
 
+import inspect
 import os
 from typing import Any, Dict, List, Optional
 
@@ -26,6 +27,19 @@ from ..models import (
     ToolResult,
     ToolSpec,
 )
+from .errors import map_provider_exception, sdk_max_retries
+
+
+def _accepts_keyword(factory: Any, name: str) -> bool:
+    """Return whether ``factory`` takes ``name``; older cohere SDKs may not."""
+    try:
+        parameters = inspect.signature(factory).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
 
 
 def _redact_secrets(message: str) -> str:
@@ -58,7 +72,10 @@ class CohereProvider:
             if not api_key:
                 raise ProviderError(f"{api_key_env} environment variable not set")
 
-            self.client = cohere.Client(api_key)
+            client_kwargs: Dict[str, Any] = {}
+            if _accepts_keyword(cohere.Client, "max_retries"):
+                client_kwargs["max_retries"] = sdk_max_retries(config)
+            self.client = cohere.Client(api_key, **client_kwargs)
         except Exception as e:
             raise ProviderError(
                 f"Failed to initialize Cohere client: {_redact_secrets(str(e))}"
@@ -111,7 +128,30 @@ class CohereProvider:
         except (InterventionRequired, HITLConfigurationError):
             raise
         except Exception as e:
-            raise ProviderError(f"Cohere API error: {_redact_secrets(str(e))}") from e
+            raise self._mapped_error(
+                e, f"Cohere API error: {_redact_secrets(str(e))}"
+            ) from e
+
+    def map_provider_error(self, exc: BaseException) -> ProviderError:
+        """Map a Cohere SDK exception to a typed, redacted ``ProviderError``."""
+        message: Optional[str] = None
+        body = getattr(exc, "body", None)
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            # ApiError's own str() dumps response headers; the body is clearer.
+            message = f"HTTP {status_code}: {body['message']}"
+        return self._mapped_error(exc, message)
+
+    def _mapped_error(
+        self, exc: BaseException, message: Optional[str]
+    ) -> ProviderError:
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=message,
+            redact=_redact_secrets,
+        )
 
     def invoke(
         self,
@@ -289,7 +329,7 @@ class CohereProvider:
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         for key, value in request.provider_options.items():
-            if key != "capabilities":
+            if key not in {"capabilities", "max_retries"}:
                 call_params.setdefault(key, value)
         return call_params
 

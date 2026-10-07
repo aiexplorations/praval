@@ -32,6 +32,7 @@ from ..models import (
     TranscriptionRequest,
     Usage,
 )
+from .errors import map_provider_exception, sdk_max_retries
 
 
 def _redact_secrets(message: str) -> str:
@@ -99,6 +100,7 @@ class OpenAIProvider:
                 client_kwargs["base_url"] = config.base_url
             if getattr(config, "timeout", None):
                 client_kwargs["timeout"] = config.timeout
+            client_kwargs["max_retries"] = sdk_max_retries(config)
             self.client = openai.OpenAI(**client_kwargs)
         except Exception as e:
             raise ProviderError(
@@ -157,7 +159,9 @@ class OpenAIProvider:
         except (InterventionRequired, HITLConfigurationError):
             raise
         except Exception as e:
-            raise ProviderError(f"OpenAI API error: {_redact_secrets(str(e))}") from e
+            raise self._mapped_error(
+                e, f"OpenAI API error: {_redact_secrets(str(e))}"
+            ) from e
 
     def invoke(
         self,
@@ -183,7 +187,22 @@ class OpenAIProvider:
         except Exception as e:
             message = _redact_secrets(str(e))
             yield ModelEvent(type="error", metadata={"message": message})
-            raise ProviderError(f"OpenAI streaming error: {message}") from e
+            raise self._mapped_error(e, f"OpenAI streaming error: {message}") from e
+
+    def map_provider_error(self, exc: BaseException) -> ProviderError:
+        """Map an OpenAI SDK exception to a typed, redacted ``ProviderError``."""
+        return self._mapped_error(exc, None)
+
+    def _mapped_error(
+        self, exc: BaseException, message: Optional[str]
+    ) -> ProviderError:
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=message,
+            redact=_redact_secrets,
+        )
 
     def transcribe(self, request: TranscriptionRequest) -> AudioResponse:
         """Transcribe request-based audio through OpenAI's audio endpoint."""
@@ -828,6 +847,9 @@ class OpenAIProvider:
             "speech_model",
             "allow_experimental_tools",
             "experimental_tools",
+            # Client construction option (SDK-internal retries), not a request
+            # argument.
+            "max_retries",
         }
         for key, value in request.provider_options.items():
             if key not in reserved:
