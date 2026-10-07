@@ -184,6 +184,17 @@ class AnthropicProvider:
             for block in tool_uses
         ]
         finish_reason = self._event_value(response, "stop_reason", None)
+        metadata: Dict[str, Any] = {
+            "anthropic_assistant_content": serialized_content,
+        }
+        if tool_uses:
+            # Keep every earlier turn so later rounds resend the whole run.
+            # Assistant blocks, including signed thinking blocks, stay as
+            # received because Anthropic requires them unchanged.
+            metadata["anthropic_messages"] = [
+                *call_params["messages"],
+                {"role": "assistant", "content": serialized_content},
+            ]
         return ModelResponse(
             content=self._extract_text(response),
             provider=self.provider_name,
@@ -192,9 +203,7 @@ class AnthropicProvider:
             raw=response,
             usage=self._extract_usage(response),
             finish_reason=finish_reason if isinstance(finish_reason, str) else None,
-            metadata={
-                "anthropic_assistant_content": serialized_content,
-            },
+            metadata=metadata,
         )
 
     def continue_with_tool_results(
@@ -208,8 +217,13 @@ class AnthropicProvider:
         if not isinstance(assistant_content, list):
             raise ProviderError("Anthropic tool continuation state is missing")
         call_params = self._messages_params(request)
-        messages = list(call_params["messages"])
-        messages.append({"role": "assistant", "content": assistant_content})
+        transcript = response.metadata.get("anthropic_messages")
+        if isinstance(transcript, list):
+            messages = list(transcript)
+        else:
+            # State written by v0.8.3 has no transcript; rebuild one round.
+            messages = list(call_params["messages"])
+            messages.append({"role": "assistant", "content": assistant_content})
         messages.append(
             {
                 "role": "user",
@@ -344,6 +358,18 @@ class AnthropicProvider:
                 )
             elif block_type == "text":
                 serialized.append({"type": "text", "text": getattr(block, "text", "")})
+            elif block_type == "thinking":
+                serialized.append(
+                    {
+                        "type": "thinking",
+                        "thinking": getattr(block, "thinking", ""),
+                        "signature": getattr(block, "signature", ""),
+                    }
+                )
+            elif block_type == "redacted_thinking":
+                serialized.append(
+                    {"type": "redacted_thinking", "data": getattr(block, "data", "")}
+                )
         return serialized
 
     def _anthropic_tool_result(self, result: ToolResult) -> Dict[str, Any]:
