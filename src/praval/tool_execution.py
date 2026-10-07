@@ -8,6 +8,8 @@ Python callables are validated from their signature with pydantic (lax mode,
 so ``"3"`` becomes ``3`` for an ``int`` parameter). Tools whose handler only
 accepts ``**kwargs`` and that declare a JSON Schema object (MCP and other
 external tools) are validated with ``jsonschema``; that path does not coerce.
+Schemas from external servers are untrusted: a ``$ref`` is resolved only
+within the schema itself, never fetched from a URL or file.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ from jsonschema.exceptions import SchemaError
 from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from pydantic import TypeAdapter, ValidationError
+from referencing import Registry
+from referencing.exceptions import Unresolvable
 
 from .models import ToolResult
 
@@ -116,7 +120,23 @@ def validate_tool_arguments(
         schema_validator = cached_schema_validator(schema)
         if schema_validator is None:
             return args, None
-        coerced, errors = args, _json_schema_argument_errors(schema_validator, args)
+        try:
+            errors = _json_schema_argument_errors(schema_validator, args)
+        except Unresolvable as exc:
+            logger.warning(
+                "JSON Schema for tool '%s' has an unresolvable $ref; "
+                "skipping validation: %s",
+                tool_name(tool_def),
+                _truncate(str(exc)),
+            )
+            return args, None
+        except RecursionError:
+            return args, error_result(
+                f"{ERROR_PREFIX} Invalid arguments for tool '{tool_name(tool_def)}': "
+                "arguments are nested too deeply to validate",
+                name=tool_name(tool_def),
+            )
+        coerced = args
     if errors:
         return args, error_result(
             _format_argument_errors(tool_name(tool_def), errors),
@@ -355,7 +375,7 @@ def cached_schema_validator(schema: Dict[str, Any]) -> Optional[Validator]:
     """
     try:
         key = json.dumps(schema, sort_keys=True)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         logger.warning("JSON Schema is not serializable; skipping validation")
         return None
     return _schema_validator_for_key(key)
@@ -370,7 +390,12 @@ def _schema_validator_for_key(key: str) -> Optional[Validator]:
     except SchemaError as exc:
         logger.warning("Invalid JSON Schema; skipping validation: %s", exc.message)
         return None
-    validator: Validator = validator_class(schema)
+    except RecursionError:
+        logger.warning("JSON Schema is nested too deeply; skipping validation")
+        return None
+    # An empty registry: jsonschema would otherwise fetch remote and file
+    # ``$ref`` targets, which an untrusted (MCP) schema can point anywhere.
+    validator: Validator = validator_class(schema, registry=Registry())
     return validator
 
 

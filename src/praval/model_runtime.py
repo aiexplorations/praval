@@ -29,6 +29,7 @@ from typing import (
 )
 
 from opentelemetry import trace
+from referencing.exceptions import Unresolvable
 
 from .core.exceptions import (
     HITLConfigurationError,
@@ -467,7 +468,7 @@ def _validate_structured_content(
     source = f"provider '{provider or 'unknown'}' model '{model or 'unknown'}'"
     try:
         payload = json.loads(content)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, RecursionError) as exc:
         raise ProviderInvalidResponseError(
             f"Response from {source} is not valid JSON: {exc}"
         ) from exc
@@ -476,7 +477,16 @@ def _validate_structured_content(
         raise ProviderInvalidResponseError(
             f"response_schema for {source} is not a valid JSON Schema"
         )
-    errors = json_schema_errors(validator, payload)
+    try:
+        errors = json_schema_errors(validator, payload)
+    except Unresolvable as exc:
+        raise ProviderInvalidResponseError(
+            f"response_schema for {source} has an unresolvable $ref: {exc}"
+        ) from exc
+    except RecursionError as exc:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} is nested too deeply to validate"
+        ) from exc
     if errors:
         raise ProviderInvalidResponseError(
             f"Response from {source} does not match response_schema: "
