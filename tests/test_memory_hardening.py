@@ -31,12 +31,12 @@ from test_provider_continuation import (
 from praval import agent as agent_decorator
 from praval import decorators, tool_execution
 from praval.core.agent import Agent
-from praval.core.exceptions import InterventionRequired
+from praval.core.exceptions import InterventionRequired, StateError
 from praval.core.reef import get_reef
 from praval.core.storage import StateStorage
 from praval.core.tool_registry import reset_tool_registry
 from praval.hitl.store import reset_hitl_stores
-from praval.models import ModelResponse, ToolCall
+from praval.models import ContentPart, ModelResponse, ToolCall
 from praval.runtime_observation import use_observation_recorder
 
 OUTPUT_SIZE = 2_000
@@ -351,10 +351,77 @@ def test_changed_system_message_replaces_the_persisted_one(tmp_path):
         with patch("praval.core.agent.StateStorage", return_value=storage):
             restarted = _agent(system_message=system_message, persist_state=True)
         restarted.chat("question")
+        system_turns = [
+            m for m in restarted.conversation_history if m["role"] == "system"
+        ]
         restarted.close()
 
-    system_turns = [m for m in restarted.conversation_history if m["role"] == "system"]
     assert system_turns == [{"role": "system", "content": "New instructions."}]
+
+
+class _VisionProvider:
+    def invoke(self, request: Any, tools: Any = None) -> ModelResponse:
+        return ModelResponse(content="a cat")
+
+
+def _image_turn(index: int, size: int = 200_000) -> List[ContentPart]:
+    return [
+        ContentPart.text_part(f"describe image {index}"),
+        ContentPart.image_base64(_output(index, size)),
+    ]
+
+
+def test_multimodal_history_is_bounded_by_max_history():
+    """History counts messages, so it holds at most max_history images."""
+    vision_agent = _agent(provider=_VisionProvider(), max_history=4)
+    for index in range(20):
+        assert vision_agent.generate(_image_turn(index)).content == "a cat"
+
+    images = [
+        part
+        for message in vision_agent.conversation_history
+        if isinstance(message["content"], list)
+        for part in message["content"]
+        if part.type == "image_base64"
+    ]
+    assert len(vision_agent.conversation_history) == 4
+    assert [part.data for part in images] == [
+        _output(index, 200_000) for index in (18, 19)
+    ]
+
+
+def test_persisted_multimodal_turns_save_and_reload(tmp_path):
+    """ContentPart turns used to fail to serialise and empty the state file."""
+    storage = StateStorage(str(tmp_path / "state"))
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        vision_agent = _agent(provider=_VisionProvider(), persist_state=True)
+    vision_agent.chat("first question")
+    assert vision_agent.generate(_image_turn(1)).content == "a cat"
+
+    state_file = tmp_path / "state" / "memory-agent.json"
+    saved = json.loads(state_file.read_text(encoding="utf-8"))
+    assert [message["role"] for message in saved] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert saved[2]["content"][1]["data"] == _output(1, 200_000)
+
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        reloaded = _agent(provider=_VisionProvider(), persist_state=True)
+    assert len(reloaded.conversation_history) == 4
+    assert reloaded.generate(_image_turn(2)).content == "a cat"
+
+
+def test_failed_state_save_keeps_the_previous_state(tmp_path):
+    storage = StateStorage(str(tmp_path / "state"))
+    storage.save("keeper", [{"role": "user", "content": "kept"}])
+
+    with pytest.raises(StateError):
+        storage.save("keeper", [{"role": "user", "content": object()}])
+
+    assert storage.load("keeper") == [{"role": "user", "content": "kept"}]
 
 
 # ---------------------------------------------------------------------------
