@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from praval.core.agent import Agent, _CallToken
-from praval.core.exceptions import PravalError
+from praval.core.exceptions import PravalError, ProviderError
 from praval.models import (
     ModelEvent,
     ModelRequest,
@@ -259,8 +259,10 @@ def test_abandoned_and_failed_streams_keep_only_the_user_turn() -> None:
     ]
 
     failing = _agent(FakeProvider(fail_stream=True))
-    with pytest.raises(RuntimeError, match="stream broke"):
+    # The runtime wraps unexpected stream failures as ProviderError.
+    with pytest.raises(ProviderError, match="stream broke") as raised:
         list(failing.stream("fail"))
+    assert isinstance(raised.value.__cause__, RuntimeError)
     assert failing.conversation_history == [
         SYSTEM,
         {"role": "user", "content": "fail"},
@@ -270,7 +272,7 @@ def test_abandoned_and_failed_streams_keep_only_the_user_turn() -> None:
         async for _ in failing.astream("fail again"):
             pass
 
-    with pytest.raises(RuntimeError, match="stream broke"):
+    with pytest.raises(ProviderError, match="stream broke"):
         asyncio.run(consume_failing())
     assert failing.conversation_history[-1] == {
         "role": "user",
