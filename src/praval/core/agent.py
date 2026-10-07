@@ -27,7 +27,6 @@ from ..runtime_observation import (
     record_model_facts,
 )
 from .exceptions import (
-    InterventionRequired,
     PravalError,
     ProviderError,
     ToolError,
