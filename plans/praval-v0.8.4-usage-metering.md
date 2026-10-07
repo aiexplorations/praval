@@ -1,6 +1,6 @@
 # Praval v0.8.4: usage metering
 
-Status: draft for review, 2026-10-07. Written against the `main` branch at `2cfdd5e` (v0.8.3).
+Status: approved, revised 2026-10-07 for the v0.8.4 plan (`plans/praval-v0.8.4-plan.md`, WP5). Written against `main` at `2cfdd5e` (v0.8.3); metering builds on WP2's per-request provider wrapper.
 
 ## Background
 
@@ -35,7 +35,7 @@ Praval meters what providers report. It never estimates tokens. A call whose pro
 
 In scope: chat model calls through `ModelRuntime`, whether started by `Agent.chat`, `generate`, `agenerate`, `stream`, `astream`, `resume_run`, `aresume_run`, or used directly; the four providers above; cost calculation from caller-supplied prices.
 
-Out of scope for this release: embeddings, transcription and speech metering; built-in price lists; budget enforcement (applications build it on the meter); token estimation.
+This release meters chat-model usage only. Out of scope: embeddings, transcription, speech and image generation metering (applications such as PravalClaw that call these directly are not covered); built-in price lists; budget enforcement (applications build it on the meter); token estimation.
 
 ## Normalised usage
 
@@ -80,7 +80,10 @@ class ModelCall:
     duration_ms: float
     started_at: datetime
     agent_name: str | None
+    call_id: str                 # UUID4, unique per provider request, stable for export
     run_id: str | None           # the ExecutionObservation run, when one is active
+    parent_run_id: str | None    # the enclosing run when this run was started inside another
+    correlation_id: str | None   # caller-set, from praval.metering.correlation(...)
     response_id: str | None
 
 @dataclass(frozen=True)
@@ -94,6 +97,7 @@ class UsageTotals:
     cache_read_tokens: int
     cache_write_tokens: int
     total_tokens: int
+    complete: bool               # False if any call failed, was interrupted or reported no usage
 
 class UsageMeter:
     def record(self, call: ModelCall) -> None: ...
@@ -140,21 +144,28 @@ class CostEstimate:
     currency: str
     priced_calls: int
     unpriced_calls: int      # calls whose model has no price, or with unreported usage
+    complete: bool           # False when unpriced_calls > 0 or the totals are incomplete
 ```
 
 Cost per call is `(input - cache_read - cache_write) * input + cache_read * cache_read_price + cache_write * cache_write_price + output * output_price`, each per million. Reasoning tokens are inside `output_tokens` and are not priced again. Praval ships no prices: they change often and differ by account, so the caller supplies them. A table with more than one currency raises `ValueError`.
 
 ## Runtime changes
 
-All metering happens in `ModelRuntime`, in one private helper that every provider call site uses:
+Metering covers every request Praval sends, not every adapter call. It happens inside WP2's `ModelRuntime._call_provider` / `_acall_provider`, the single wrapper every provider request passes through. An adapter that sends more than one request in one call (the OpenAI empty-response retry, `openai.py:444`) reports each request through a context-local reporter the wrapper installs, so both requests are recorded. Call sites:
 
 - `_invoke_provider` and `_invoke_provider_async` (first call, `operation="invoke"`).
 - The native streaming path (`operation="stream"`), recording from the final event's response or the last `usage` event.
 - Each `continue_with_tool_results` call in the four tool loops (`operation="continue"`, with `round_index`).
 - `resume_tool_flow` and `resume_tool_flow_async` after a HITL decision (`operation="resume"`).
-- Each attempt inside `_invoke_with_retries` and `_ainvoke_with_retries`, with its `attempt` number. A retry that repeats tool rounds is metered as what it is: more calls.
+- Each retry attempt of one request made by the wrapper, with its `attempt` number. Praval owns retries: SDK clients are built with `max_retries=0`. A caller who sets `max_retries` explicitly gets SDK retries that the meter cannot see, and the docs say so.
 
-A failed provider call is recorded with `status="error"` and `usage=None`, then the error propagates unchanged.
+A failed provider call is recorded with `status="error"` and `usage=None`, then the error propagates unchanged. An interrupted call (a stream abandoned before its final event) is recorded with `status="error"` and whatever usage the stream reported, and marks totals incomplete.
+
+### Scopes and identities
+
+- `with meter.track():` is the documented way to meter one application request across several agents. Applications that create a fresh `Agent` per step (PravalClaw's planner does) cannot rely on `agent.usage` alone.
+- `with praval.metering.correlation("<id>"):` sets `correlation_id` on every record made inside it, so an application can join records to its own request or session.
+- `subscribe` is the hook for a durable sink: records carry `call_id`, so a sink that stores them can deduplicate.
 
 ### What responses and events report
 
@@ -173,7 +184,7 @@ A failed provider call is recorded with `status="error"` and `usage=None`, then 
 - OpenAI: read cached tokens from both Chat Completions and Responses usage shapes.
 - Anthropic: read cache read and write counts and add them into `input_tokens` as tabled above.
 - Gemini: build `Usage` from `usageMetadata` in `invoke`, `continue_with_tool_results` and `stream`.
-- Cohere: read usage from the chat response for the client version Praval pins; if that client does not report usage, record calls as unreported and say so in the docs.
+- Cohere: the v1 `chat` response carries `meta.billed_units` (input and output tokens) and `meta.tokens`; confirm against the installed SDK and map billed units. If the client does not report usage, record calls as unreported and say so in the docs.
 - Local OpenAI-compatible servers often omit usage; their calls are counted as unreported, never estimated.
 
 ## Compatibility
@@ -187,7 +198,7 @@ A failed provider call is recorded with `status="error"` and `usage=None`, then 
 - Unit, with a deterministic test provider (no network) that returns recorded responses: a tool run of N rounds produces N+1 records with the right operations and round indexes; totals equal the sum of the records; `ModelResponse.usage` equals the totals; failed calls and retries are recorded with status and attempt; unreported usage is counted; nested `track()` scopes and the agent meter each record once; executor-thread calls are metered; a raising subscriber is removed without breaking the run; storage bound keeps exact totals; cost arithmetic including cache prices, missing prices and mixed currencies.
 - Provider mapping, from responses recorded live: OpenAI Chat Completions and Responses (with and without cached tokens and reasoning), Anthropic (with prompt caching), Gemini (with thinking), Cohere.
 - Observability: `ExecutionObservation.usage` equals the meter's totals for the same run; no double counting when both the final response and per-call facts exist.
-- Live, gated by keys and marked `live`: a two-tool run on each provider, asserting three calls, totals equal to the sum of per-call usage, and totals greater than the last call's usage.
+- Live, in `examples/certification/live_provider_matrix.py` (not pytest), gated by keys: a two-tool run on each provider, asserting three calls, totals equal to the sum of per-call usage, and totals greater than the last call's usage.
 
 ## Decisions for review
 
@@ -195,8 +206,6 @@ A failed provider call is recorded with `status="error"` and `usage=None`, then 
 2. **Agent meter always on.** Recommended: yes; it is a counter and a bounded deque, with no measurable cost. Alternative: opt in with `Agent(meter=...)`.
 3. **Live `model_call` events on the tool path.** This spec delivers live updates through `subscribe`, and events at the end of the run. Streaming events between tool rounds belongs with the separate per-round streaming work.
 
-## Related v0.8.4 work, not part of this spec
+## Related v0.8.4 work
 
-- `local_preset` reserved in OpenAI provider options (the change is already in the working tree).
-- Gemini tool runs fail after the first tool result: `continue_with_tool_results` returns HTTP 400 with `gemini-3.5-flash`, with or without metering (measured 2026-10-07). The suspected cause, not yet confirmed, is that thought signatures from the model's function-call parts are not sent back. Live Gemini metering tests for tool runs depend on this fix.
-- Praval's retry wraps the whole tool loop and repeats tool calls; a per-provider-call retry would fix that and also make metered retries cheaper.
+Continuation, retry and error handling are WP1 and WP2 of `plans/praval-v0.8.4-plan.md`; metering depends on WP2's wrapper and on WP1 for live Gemini tool runs.
