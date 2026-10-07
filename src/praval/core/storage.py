@@ -5,8 +5,10 @@ Provides simple file-based storage for conversation history with automatic
 directory management and JSON serialization.
 """
 
+import contextlib
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, cast
 
@@ -47,8 +49,17 @@ class StateStorage:
         """
         try:
             file_path = self.storage_dir / f"{agent_name}.json"
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(conversation_history, f, indent=2, ensure_ascii=False)
+            # Write a private temporary file and rename it over the state
+            # file, so a concurrent reader or writer never sees a partial file.
+            temp_path = file_path.with_name(f".{file_path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                with open(temp_path, "x", encoding="utf-8") as f:
+                    json.dump(conversation_history, f, indent=2, ensure_ascii=False)
+                os.replace(temp_path, file_path)
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    temp_path.unlink()
+                raise
         except Exception as e:
             raise StateError(
                 f"Failed to save state for agent '{agent_name}': {str(e)}"
