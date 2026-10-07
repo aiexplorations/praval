@@ -19,7 +19,6 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
-from types import SimpleNamespace
 from typing import Any, Callable, Dict, Iterator, List
 from unittest.mock import patch
 
@@ -509,18 +508,32 @@ def test_reader_never_sees_a_partial_state_file(tmp_path: Any) -> None:
     half_written = threading.Event()
     finish = threading.Event()
 
-    def slow_dump(obj: Any, handle: Any, **kwargs: Any) -> None:
-        text = json.dumps(obj, **kwargs)
-        handle.write(text[: len(text) // 2])
-        handle.flush()
-        half_written.set()
-        assert finish.wait(WAIT)
-        handle.write(text[len(text) // 2 :])
+    real_open = open
 
-    slow_json = SimpleNamespace(
-        dump=slow_dump, load=json.load, JSONDecodeError=json.JSONDecodeError
-    )
-    with patch.object(storage_module, "json", slow_json):
+    class SlowHandle:
+        """Write the first half, pause, then write the rest."""
+
+        def __init__(self, handle: Any) -> None:
+            self._handle = handle
+
+        def __enter__(self) -> "SlowHandle":
+            return self
+
+        def __exit__(self, *exc: Any) -> None:
+            self._handle.close()
+
+        def write(self, text: str) -> None:
+            self._handle.write(text[: len(text) // 2])
+            self._handle.flush()
+            half_written.set()
+            assert finish.wait(WAIT)
+            self._handle.write(text[len(text) // 2 :])
+
+    def slow_open(path: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        handle = real_open(path, mode, *args, **kwargs)
+        return SlowHandle(handle) if "r" not in mode else handle
+
+    with patch.object(storage_module, "open", slow_open, create=True):
         writer = threading.Thread(target=storage.save, args=("agent", new))
         writer.start()
         try:
