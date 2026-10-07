@@ -29,6 +29,7 @@ from typing import (
 )
 
 from opentelemetry import trace
+from referencing.exceptions import Unresolvable
 
 from .core.exceptions import (
     HITLConfigurationError,
@@ -70,10 +71,13 @@ from .tool_execution import (
 
 UNSAFE_PROVIDER_OPTION_KEYS = {
     "api_key",
+    "api-key",
     "authorization",
     "default_headers",
     "headers",
     "organization",
+    "x-api-key",
+    "x-goog-api-key",
 }
 EXPERIMENTAL_TOOL_PROVIDERS = {"openai", "anthropic"}
 MAX_SCHEMA_BYTES = 65536
@@ -467,7 +471,7 @@ def _validate_structured_content(
     source = f"provider '{provider or 'unknown'}' model '{model or 'unknown'}'"
     try:
         payload = json.loads(content)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, RecursionError) as exc:
         raise ProviderInvalidResponseError(
             f"Response from {source} is not valid JSON: {exc}"
         ) from exc
@@ -476,7 +480,16 @@ def _validate_structured_content(
         raise ProviderInvalidResponseError(
             f"response_schema for {source} is not a valid JSON Schema"
         )
-    errors = json_schema_errors(validator, payload)
+    try:
+        errors = json_schema_errors(validator, payload)
+    except Unresolvable as exc:
+        raise ProviderInvalidResponseError(
+            f"response_schema for {source} has an unresolvable $ref: {exc}"
+        ) from exc
+    except RecursionError as exc:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} is nested too deeply to validate"
+        ) from exc
     if errors:
         raise ProviderInvalidResponseError(
             f"Response from {source} does not match response_schema: "
@@ -963,9 +976,18 @@ class ModelRuntime:
     def validate_request(self, request: ModelRequest) -> None:
         """Validate a model request before provider execution."""
         capabilities = self.resolve_capabilities(request)
-        unsafe = UNSAFE_PROVIDER_OPTION_KEYS.intersection(request.provider_options)
+        # Case-insensitive and at any depth: options such as ``extra_headers``
+        # and ``extra_query`` are forwarded to the SDK call as given.
+        # ``experimental_tools`` is checked, with its own message, below.
+        unsafe = _nested_unsafe_option_keys(
+            {
+                key: value
+                for key, value in request.provider_options.items()
+                if key != "experimental_tools"
+            }
+        )
         if unsafe:
-            blocked = ", ".join(sorted(unsafe))
+            blocked = ", ".join(sorted(set(unsafe)))
             raise ProviderError(f"Unsafe provider option(s): {blocked}")
         self._validate_experimental_tools(request)
         if request.reasoning is not None and not capabilities.reasoning:
@@ -1211,7 +1233,17 @@ class ModelRuntime:
         while True:
             try:
                 with self._provider_span(request, operation):
-                    return fn(*args, **kwargs)
+                    try:
+                        return fn(*args, **kwargs)
+                    except (InterventionRequired, HITLConfigurationError):
+                        raise
+                    except Exception as exc:
+                        # Map inside the span, so the span records the typed,
+                        # redacted error rather than raw SDK text.
+                        error = self._provider_error(exc, operation, request)
+                        if error is exc:
+                            raise
+                        raise error from exc
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
@@ -1241,7 +1273,17 @@ class ModelRuntime:
         while True:
             try:
                 with self._provider_span(request, operation):
-                    return await fn(*args, **kwargs)
+                    try:
+                        return await fn(*args, **kwargs)
+                    except (InterventionRequired, HITLConfigurationError):
+                        raise
+                    except Exception as exc:
+                        # Map inside the span, so the span records the typed,
+                        # redacted error rather than raw SDK text.
+                        error = self._provider_error(exc, operation, request)
+                        if error is exc:
+                            raise
+                        raise error from exc
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:

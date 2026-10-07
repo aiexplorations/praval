@@ -68,7 +68,7 @@ class HITLRuntime:
                 if isinstance(parsed, dict):
                     return parsed
                 return {}
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 return {}
         return {}
 

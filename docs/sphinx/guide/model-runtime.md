@@ -53,7 +53,9 @@ keyword and the method, for example
 unknown keyword arguments become errors.
 
 Unsafe provider options such as API keys, raw authorization headers, and custom
-default headers are rejected before provider execution.
+default headers are rejected before provider execution. Keys are matched
+case-insensitively at any depth, so `{"extra_headers": {"Authorization": ...}}`
+is rejected as well.
 
 ## Conversation History
 

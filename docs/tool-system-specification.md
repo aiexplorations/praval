@@ -37,7 +37,10 @@ checked too):
   object (tools added with `Agent.add_tool_spec`, including MCP tools) is
   validated with `jsonschema`, Draft 2020-12 unless the schema declares another
   `$schema`. This path does not coerce values. An invalid schema is skipped
-  with a warning.
+  with a warning. A `$ref` resolves only inside the schema itself: remote and
+  `file:` references are never fetched, and a schema whose `$ref` cannot be
+  resolved, or that is nested too deeply to check, is skipped with a warning.
+  Arguments nested too deeply to validate are rejected.
 
 When validation fails the handler is not called. The model receives an error
 result naming each failing field and the expected type, for example:

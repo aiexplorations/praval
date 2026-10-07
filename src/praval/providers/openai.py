@@ -17,7 +17,7 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import _nested_unsafe_option_keys, execute_legacy_tool_call
 from ..models import (
     AudioResponse,
     ContentPart,
@@ -104,7 +104,7 @@ class OpenAIProvider:
             self.client = openai.OpenAI(**client_kwargs)
         except Exception as e:
             raise ProviderError(
-                f"Failed to initialize OpenAI client: {_redact_secrets(str(e))}"
+                f"Failed to initialize OpenAI client: {self._redact(str(e))}"
             ) from e
 
     def generate(
@@ -160,7 +160,7 @@ class OpenAIProvider:
             raise
         except Exception as e:
             raise self._mapped_error(
-                e, f"OpenAI API error: {_redact_secrets(str(e))}"
+                e, f"OpenAI API error: {self._redact(str(e))}"
             ) from e
 
     def invoke(
@@ -185,9 +185,18 @@ class OpenAIProvider:
             else:
                 yield from self._stream_chat_completions(request, tools=tools)
         except Exception as e:
-            message = _redact_secrets(str(e))
+            message = self._redact(str(e))
             yield ModelEvent(type="error", metadata={"message": message})
             raise self._mapped_error(e, f"OpenAI streaming error: {message}") from e
+
+    def _redact(self, message: str) -> str:
+        """Redact known provider keys and the key from ``config.api_key_env``."""
+        redacted = _redact_secrets(message)
+        api_key_env = getattr(self.config, "api_key_env", None)
+        secret = os.getenv(api_key_env) if api_key_env else None
+        if secret and redacted:
+            redacted = redacted.replace(secret, "***")
+        return redacted
 
     def map_provider_error(self, exc: BaseException) -> ProviderError:
         """Map an OpenAI SDK exception to a typed, redacted ``ProviderError``."""
@@ -201,7 +210,7 @@ class OpenAIProvider:
             provider=self.provider_name,
             model=self._model_name(),
             message=message,
-            redact=_redact_secrets,
+            redact=self._redact,
         )
 
     def transcribe(self, request: TranscriptionRequest) -> AudioResponse:
@@ -245,7 +254,7 @@ class OpenAIProvider:
             raise
         except Exception as e:
             raise ProviderError(
-                f"OpenAI transcription error: {_redact_secrets(str(e))}"
+                f"OpenAI transcription error: {self._redact(str(e))}"
             ) from e
         finally:
             if should_close:
@@ -298,7 +307,7 @@ class OpenAIProvider:
             raise
         except Exception as e:
             raise ProviderError(
-                f"OpenAI speech generation error: {_redact_secrets(str(e))}"
+                f"OpenAI speech generation error: {self._redact(str(e))}"
             ) from e
 
     def close(self) -> None:
@@ -349,6 +358,10 @@ class OpenAIProvider:
                 "Streaming audio is outside the request-based voice API; "
                 "use a realtime or streaming adapter instead"
             )
+        unsafe = _nested_unsafe_option_keys(provider_options)
+        if unsafe:
+            blocked = ", ".join(sorted(set(unsafe)))
+            raise ProviderError(f"Unsafe provider option(s): {blocked}")
         reserved = {
             "file",
             "input",
@@ -640,7 +653,7 @@ class OpenAIProvider:
         raw_arguments = function.get("arguments") or "{}"
         try:
             arguments = json.loads(raw_arguments)
-        except (TypeError, json.JSONDecodeError):
+        except (TypeError, json.JSONDecodeError, RecursionError):
             arguments = {"raw": raw_arguments}
         return ToolCall(
             id=str(tool_call.get("id") or ""),
@@ -1005,7 +1018,7 @@ class OpenAIProvider:
                 error = self._event_value(event, "error", event)
                 yield ModelEvent(
                     type="error",
-                    metadata={"message": _redact_secrets(str(error))},
+                    metadata={"message": self._redact(str(error))},
                 )
         if final_response is None:
             final_response = ModelResponse(
@@ -1154,7 +1167,7 @@ class OpenAIProvider:
         if isinstance(raw_args, str):
             try:
                 arguments = json.loads(raw_args)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 arguments = {"raw": raw_args}
         elif isinstance(raw_args, dict):
             arguments = raw_args

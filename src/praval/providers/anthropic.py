@@ -82,7 +82,7 @@ class AnthropicProvider:
             self.client = anthropic.Anthropic(**client_kwargs)
         except Exception as e:
             raise ProviderError(
-                f"Failed to initialize Anthropic client: {_redact_secrets(str(e))}"
+                f"Failed to initialize Anthropic client: {self._redact(str(e))}"
             ) from e
 
     def generate(
@@ -142,7 +142,7 @@ class AnthropicProvider:
             raise
         except Exception as e:
             raise self._mapped_error(
-                e, f"Anthropic API error: {_redact_secrets(str(e))}"
+                e, f"Anthropic API error: {self._redact(str(e))}"
             ) from e
 
     def invoke(
@@ -253,9 +253,18 @@ class AnthropicProvider:
             call_params["stream"] = True
             yield from self._stream_messages_create(call_params)
         except Exception as e:
-            message = _redact_secrets(str(e))
+            message = self._redact(str(e))
             yield ModelEvent(type="error", metadata={"message": message})
             raise self._mapped_error(e, f"Anthropic streaming error: {message}") from e
+
+    def _redact(self, message: str) -> str:
+        """Redact known provider keys and the key from ``config.api_key_env``."""
+        redacted = _redact_secrets(message)
+        api_key_env = getattr(self.config, "api_key_env", None)
+        secret = os.getenv(api_key_env) if api_key_env else None
+        if secret and redacted:
+            redacted = redacted.replace(secret, "***")
+        return redacted
 
     def map_provider_error(self, exc: BaseException) -> ProviderError:
         """Map an Anthropic SDK exception to a typed, redacted ``ProviderError``."""
@@ -269,7 +278,7 @@ class AnthropicProvider:
             provider=self.provider_name,
             model=self._model_name(),
             message=message,
-            redact=_redact_secrets,
+            redact=self._redact,
         )
 
     def close(self) -> None:
@@ -449,7 +458,7 @@ class AnthropicProvider:
             elif event_type == "error":
                 yield ModelEvent(
                     type="error",
-                    metadata={"message": _redact_secrets(str(event))},
+                    metadata={"message": self._redact(str(event))},
                 )
         response = ModelResponse(
             content="".join(content_parts),
