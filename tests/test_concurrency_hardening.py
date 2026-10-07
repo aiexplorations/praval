@@ -41,12 +41,17 @@ from praval.hitl.models import InterventionDecision
 from praval.hitl.service import HITLService
 from praval.hitl.store import HITLStore, reset_hitl_stores
 from praval.models import (
+    ExecutionObservation,
     ModelEvent,
     ModelResponse,
     ProviderCapabilities,
     ToolCall,
     ToolResult,
     ToolSpec,
+)
+from praval.runtime_observation import (
+    has_active_observation,
+    use_observation_recorder,
 )
 
 WAIT = 5.0
@@ -240,8 +245,10 @@ async def test_concurrent_aresume_runs_async_tool_once(tmp_path: Any) -> None:
 
     # The first resumer is parked inside the tool when the second one starts.
     first = asyncio.create_task(agent.aresume_run(run_id))
-    while not executed:
-        await asyncio.sleep(0)
+    deadline = time.monotonic() + WAIT
+    while not executed and time.monotonic() < deadline:
+        await asyncio.sleep(0.001)
+    assert executed == ["release"]
     second = asyncio.create_task(agent.aresume_run(run_id))
     await asyncio.wait({second}, timeout=WAIT)
     gate.set()
@@ -275,8 +282,59 @@ def test_failed_resume_releases_run_for_retry(tmp_path: Any) -> None:
     assert executed == ["release"]
 
 
+def test_resume_that_hits_a_second_gate_stays_resumable(tmp_path: Any) -> None:
+    class TwoGateProvider(_GatedToolProvider):
+        def invoke(self, request: Any) -> ModelResponse:
+            return ModelResponse(
+                tool_calls=[
+                    ToolCall(id="call-1", name="publish", arguments={"value": "one"})
+                ]
+            )
+
+        def continue_with_tool_results(
+            self, request: Any, response: Any, tool_results: List[ToolResult]
+        ) -> ModelResponse:
+            if tool_results[-1].content == "one":
+                return ModelResponse(
+                    tool_calls=[
+                        ToolCall(
+                            id="call-2", name="publish", arguments={"value": "two"}
+                        )
+                    ]
+                )
+            return ModelResponse(content=f"Published {tool_results[-1].content}")
+
+    executed: List[str] = []
+    agent = _make_agent(
+        TwoGateProvider(), hitl_enabled=True, hitl_db_path=str(tmp_path / "h.db")
+    )
+
+    @agent.tool
+    def publish(value: str) -> str:
+        executed.append(value)
+        return value
+
+    agent.tools["publish"]["requires_approval"] = True
+    with pytest.raises(InterventionRequired) as first:
+        agent.chat("Publish both")
+    agent.approve_intervention(first.value.intervention_id, reviewer="qa")
+
+    with pytest.raises(InterventionRequired) as second:
+        agent.resume_run(first.value.run_id)
+
+    service = agent._get_hitl_service()
+    suspended = service.get_suspended_run(first.value.run_id)
+    assert suspended.status == "pending"
+    assert suspended.state["intervention_id"] == second.value.intervention_id
+    agent.approve_intervention(second.value.intervention_id, reviewer="qa")
+    assert agent.resume_run(first.value.run_id) == "Published two"
+    assert executed == ["one", "two"]
+    assert service.get_suspended_run(first.value.run_id).status == "completed"
+
+
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "Design decision: a resume whose continuation fails after the approved "
         "tool ran returns the run to 'pending', so resuming again re-runs the "
@@ -383,6 +441,7 @@ def test_parallel_calls_keep_every_turn_and_persisted_state(tmp_path: Any) -> No
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "Design decision: concurrent calls on one Agent append the user turn "
         "and the answer under separate lock holds, so overlapping calls "
@@ -529,10 +588,17 @@ def test_chat_timeout_never_half_commits(tmp_path: Any) -> None:
     outcomes = {"returned": 0, "timed_out": 0}
     for index in range(40):
         message = f"m{index}"
-        delays[message] = rng.uniform(0.0, 0.04)
+        # Five calls that always finish, five that always time out, then
+        # calls whose latency straddles the limit.
+        if index < 5:
+            delays[message], limit = 0.0, WAIT
+        elif index < 10:
+            delays[message], limit = 0.2, 0.01
+        else:
+            delays[message], limit = rng.uniform(0.0, 0.04), 0.02
         record["done"][message] = threading.Event()
         try:
-            answer = chat(message, timeout=0.02)
+            answer = chat(message, timeout=limit)
         except TimeoutError:
             answer = None
         assert record["done"][message].wait(WAIT)
@@ -548,7 +614,7 @@ def test_chat_timeout_never_half_commits(tmp_path: Any) -> None:
             outcomes["returned"] += 1
             assert answer == f"answer-{message}"
             assert len(committed) == 1
-    assert outcomes["returned"] and outcomes["timed_out"]
+    assert outcomes["returned"] >= 5 and outcomes["timed_out"] >= 5
 
 
 def test_chat_returns_answer_committed_while_the_limit_expires() -> None:
@@ -636,6 +702,7 @@ def test_context_vars_reach_chat_and_achat_workers() -> None:
 @pytest.mark.asyncio
 @pytest.mark.xfail(
     strict=True,
+    raises=TimeoutError,
     reason=(
         "Design decision: achat() runs Agent.chat() on the event loop's "
         "default executor. Timed-out calls keep their worker until the "
@@ -902,18 +969,32 @@ class _StreamingProvider:
         yield ModelEvent(type="final", response=ModelResponse(content="ab"))
 
 
+class _ObservationSink:
+    def __init__(self) -> None:
+        self.observations: List[ExecutionObservation] = []
+
+    def record(self, observation: ExecutionObservation) -> None:
+        self.observations.append(observation)
+
+
 def test_stream_closed_from_another_thread_leaves_only_the_user_turn() -> None:
     agent = _make_agent(_StreamingProvider())
-    events = agent.stream("first")
-    assert next(events).type == "start"
-    assert next(events).type == "delta"
+    sink = _ObservationSink()
+    with use_observation_recorder(sink):
+        events = agent.stream("first")
+        assert next(events).type == "start"
+        assert next(events).type == "delta"
 
-    results = _run_threads([events.close])
+        results = _run_threads([events.close])
 
-    assert results == [None]
-    assert agent.conversation_history == [{"role": "user", "content": "first"}]
-    # The agent keeps working in the original thread afterwards.
-    assert [event.type for event in agent.stream("second")][-1] == "final"
+        assert results == [None]
+        assert agent.conversation_history == [{"role": "user", "content": "first"}]
+        # The abandoned stream's scope no longer captures this thread's calls.
+        assert not has_active_observation()
+        assert agent.chat("second") == "ab"
+
+    assert [o.request_mode for o in sink.observations] == ["stream", "chat"]
+    assert sink.observations[0].run_id != sink.observations[1].run_id
     assert agent.conversation_history[-1] == {"role": "assistant", "content": "ab"}
 
 
@@ -934,6 +1015,7 @@ def test_stream_finished_in_another_thread_commits_once() -> None:
 @pytest.mark.asyncio
 async def test_astream_abandoned_by_one_task_and_closed_by_another() -> None:
     hold = asyncio.Event()
+    waiting = asyncio.Event()
 
     class AsyncStreamingProvider:
         capabilities = ProviderCapabilities(streaming=True)
@@ -945,6 +1027,7 @@ async def test_astream_abandoned_by_one_task_and_closed_by_another() -> None:
             self, request: Any, tools: Any = None
         ) -> Any:  # pragma: no cover - typed by the runtime
             yield ModelEvent(type="delta", delta="a")
+            waiting.set()
             await asyncio.wait_for(hold.wait(), WAIT)
             yield ModelEvent(type="final", response=ModelResponse(content="ab"))
 
@@ -964,8 +1047,7 @@ async def test_astream_abandoned_by_one_task_and_closed_by_another() -> None:
             pass
 
     task = asyncio.create_task(consume_all())
-    for _ in range(100):
-        await asyncio.sleep(0)
+    await asyncio.wait_for(waiting.wait(), WAIT)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, WAIT)
