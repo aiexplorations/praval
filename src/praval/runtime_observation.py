@@ -162,6 +162,8 @@ class _ObservationState:
     forced_error_type: str | None = None
     span: Span | None = None
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    # Set on exit; a closed state may linger on another context's stack.
+    closed: bool = False
 
     def matches(
         self,
@@ -231,7 +233,7 @@ class ObservationScope:
         return self._owns_scope
 
     def __enter__(self) -> "ObservationScope":
-        stack = _state_stack.get()
+        stack = _active_states()
         for state in reversed(stack):
             if state.matches(
                 self._kind,
@@ -287,14 +289,15 @@ class ObservationScope:
         if not self._owns_scope or self._state is None:
             return False
         state = self._state
+        state.closed = True
         if self._token is not None:
             try:
                 _state_stack.reset(self._token)
             except ValueError:
                 # Exited in another context, for example when a stream is
                 # closed from another thread or finalized by another task.
-                # The stack entry belongs to the original context, so there
-                # is nothing to restore here.
+                # The entry stays on the original context's stack, where
+                # ``closed`` makes readers skip it.
                 pass
 
         ended_at = datetime.now(timezone.utc)
@@ -459,7 +462,7 @@ def _finish_span_unisolated(
 
 
 def _active_states() -> tuple[_ObservationState, ...]:
-    return _state_stack.get()
+    return tuple(state for state in _state_stack.get() if not state.closed)
 
 
 def has_active_observation() -> bool:
