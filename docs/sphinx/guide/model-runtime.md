@@ -30,7 +30,8 @@ structured runtime types.
 
 ## Request Options
 
-The same options are accepted by sync, async, and streaming calls:
+`Agent.chat()`, `generate()`, `agenerate()`, `stream()`, and `astream()` accept
+the same keyword options and apply them the same way:
 
 | Option | Purpose |
 | --- | --- |
@@ -40,9 +41,61 @@ The same options are accepted by sync, async, and streaming calls:
 | `timeout` | Per-call timeout when the adapter supports it. |
 | `metadata` | User metadata for tracing and diagnostics. |
 | `stream_options` | Streaming options such as usage inclusion. |
+| `max_tool_rounds` | Tool-round limit for this call. |
+| `allowed_tool_names` | Send only these registered tools; an unknown name raises `ValueError` before anything is sent. |
+| `additional_system_message` | A system message placed first in this request only; it is not stored in history. |
+
+`chat()` and `generate()` also accept `stream`.
+
+An unknown keyword argument is ignored and logged as a warning that names the
+keyword and the method, for example
+`Agent.generate() ignored unknown keyword argument 'temprature'`. In v0.8.5
+unknown keyword arguments become errors.
 
 Unsafe provider options such as API keys, raw authorization headers, and custom
 default headers are rejected before provider execution.
+
+## Conversation History
+
+Every entry point leaves the same history for the same exchange: the user turn
+followed by the assistant's final answer. The user turn is added when the call
+starts; the answer is added only when the call succeeds, then the history is
+trimmed and, with `persist_state=True`, saved. A call that fails keeps only the
+user turn. `stream()` and `astream()` add the answer when the `final` event is
+produced, before it reaches your loop, so breaking out after `final` keeps it.
+
+`max_history` limits the number of non-system messages kept. Trimming removes
+the oldest whole units, where a unit is a user message and everything up to the
+next user message, so an assistant tool turn is never separated from its tool
+results. System messages are always kept and do not count towards the limit.
+The newest unit is always kept, even when it alone exceeds the limit; with
+`max_history=0` the agent keeps its system messages and the current exchange
+only.
+
+## Timeouts in Decorated Agents
+
+Inside an `@agent` handler, `chat(message, timeout=None, **options)` and
+`achat(...)` accept the same keyword options as `Agent.chat()`. `timeout` is a
+client-side limit in seconds. When it is not given, the agent's configured
+`timeout` applies; when neither is set there is no limit beyond the provider's
+own. On expiry `TimeoutError` is raised on time. The abandoned call keeps
+running until its provider returns, but its answer is discarded and never
+enters the conversation history, even if the handler has made further calls by
+then.
+
+```python
+from praval import agent, chat
+
+
+@agent("summarizer", responds_to=["summary_request"])
+def summarizer(spore):
+    summary = chat(
+        spore.knowledge["text"],
+        timeout=30,
+        additional_system_message="Answer in three sentences.",
+    )
+    return {"summary": summary}
+```
 
 ## Public Inspection
 

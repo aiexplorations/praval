@@ -29,7 +29,7 @@ import uuid
 from contextvars import ContextVar, copy_context
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
-from .core.agent import Agent
+from .core.agent import _CALL_TOKEN, Agent, _CallToken
 from .core.exceptions import InterventionRequired, ToolError
 from .core.reef import get_reef
 from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
@@ -591,75 +591,129 @@ def agent(
     return decorator
 
 
-def chat(message: str, timeout: float = 10.0) -> str:
+def _chat_timeout(agent_instance: Any, timeout: Optional[float]) -> Optional[float]:
+    """Return the client-side limit for chat(): the argument or agent config."""
+    if timeout is not None:
+        return timeout
+    configured = getattr(getattr(agent_instance, "config", None), "timeout", None)
+    if isinstance(configured, (int, float)) and not isinstance(configured, bool):
+        return float(configured)
+    return None
+
+
+def chat(message: str, timeout: Optional[float] = None, **options: Any) -> str:
     """
     Quick chat function that uses the current agent's LLM with timeout support.
     Can only be used within @agent decorated functions.
 
     Args:
         message: Message to send to the LLM
-        timeout: Maximum time to wait for response in seconds
+        timeout: Maximum time to wait for the response in seconds. Defaults to
+            the agent's configured ``timeout``; when neither is set, there is
+            no client-side limit beyond the provider's own.
+        **options: Per-call options forwarded to ``Agent.chat()``, such as
+            ``reasoning``, ``allowed_tool_names`` or ``provider_options``.
 
     Returns:
         LLM response as string
 
     Raises:
         RuntimeError: If called outside of an @agent function
-        TimeoutError: If LLM call exceeds timeout
+        TimeoutError: If LLM call exceeds timeout. The abandoned call keeps
+            running until its provider returns, but its answer never enters
+            the agent's conversation history.
     """
     if not hasattr(_agent_context, "agent") or _agent_context.agent is None:
         raise RuntimeError("chat() can only be used within @agent decorated functions")
 
     import concurrent.futures
 
-    def timeout_handler(signum: Any, frame: Any) -> None:
-        raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+    agent_instance = _agent_context.agent
+    limit = _chat_timeout(agent_instance, timeout)
+    if limit is None:
+        return cast(str, agent_instance.chat(message, **options))
 
-    # Use thread-based timeout for better cross-platform support
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        context = copy_context()
-        future = executor.submit(context.run, _agent_context.agent.chat, message)
+    # Run in a worker so the caller can stop waiting; the token keeps a late
+    # answer out of history once the caller has given up.
+    token = _CallToken()
+    context = copy_context()
+    context.run(_CALL_TOKEN.set, token)
+    run_in_context: Callable[..., Any] = context.run
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(
+            run_in_context, agent_instance.chat, message, **options
+        )
         try:
-            return cast(str, future.result(timeout=timeout))
+            return cast(str, future.result(timeout=limit))
         except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+            if token.cancel():
+                raise TimeoutError(
+                    f"LLM call timed out after {limit} seconds"
+                ) from None
+            # The answer was committed as the limit expired; return it.
+            return cast(str, future.result())
+    finally:
+        executor.shutdown(wait=False)
 
 
-async def achat(message: str, timeout: float = 10.0) -> str:
+async def achat(message: str, timeout: Optional[float] = None, **options: Any) -> str:
     """
     Async version of chat function for use within async agent handlers.
 
     Args:
         message: Message to send to the LLM
-        timeout: Maximum time to wait for response in seconds
+        timeout: Maximum time to wait for the response in seconds. Defaults to
+            the agent's configured ``timeout``; when neither is set, there is
+            no client-side limit beyond the provider's own.
+        **options: Per-call options forwarded to ``Agent.chat()``.
 
     Returns:
         LLM response as string
 
     Raises:
         RuntimeError: If called outside of an @agent function
-        TimeoutError: If LLM call exceeds timeout
+        TimeoutError: If LLM call exceeds timeout; the late answer never
+            enters the agent's conversation history.
     """
     if not hasattr(_agent_context, "agent") or _agent_context.agent is None:
         raise RuntimeError("achat() can only be used within @agent decorated functions")
 
     # Run the sync chat in a thread to avoid blocking the event loop
     import asyncio
+    import functools
 
+    agent_instance = _agent_context.agent
+    limit = _chat_timeout(agent_instance, timeout)
     loop = asyncio.get_event_loop()
     context = copy_context()
+    # The token also covers callers that cancel this coroutine themselves,
+    # for example through their own asyncio.wait_for().
+    token = _CallToken()
+    context.run(_CALL_TOKEN.set, token)
+    future = loop.run_in_executor(
+        None,
+        context.run,
+        functools.partial(agent_instance.chat, **options),
+        message,
+    )
     try:
-        return await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                context.run,
-                _agent_context.agent.chat,
-                message,
-            ),
-            timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+        done, _ = await asyncio.wait({future}, timeout=limit)
+    except asyncio.CancelledError:
+        token.cancel()
+        future.add_done_callback(_discard_future_outcome)
+        raise
+    if not done and token.cancel():
+        # Retrieve the abandoned call's outcome so asyncio does not log it.
+        future.add_done_callback(_discard_future_outcome)
+        raise TimeoutError(f"LLM call timed out after {limit} seconds")
+    return cast(str, await future)
+
+
+def _discard_future_outcome(future: Any) -> None:
+    """Read an abandoned future's exception so it is not reported as lost."""
+    if not future.cancelled():
+        future.exception()
 
 
 def broadcast(
