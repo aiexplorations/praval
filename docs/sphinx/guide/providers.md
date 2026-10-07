@@ -56,8 +56,12 @@ Legend:
 provider's tool calls, executes registered Praval tools, emits normalized
 `tool_call` and `tool_result` events, submits results, and continues until the
 model returns final text. This stable loop is implemented for OpenAI,
-Anthropic, Cohere, and Gemini. HITL-gated tools suspend with provider-neutral
-continuation state and can resume after approval, editing, or rejection.
+Anthropic, Cohere, and Gemini. Every continuation resends all earlier tool
+calls and results in the provider's native form, including Gemini thought
+signatures and Anthropic thinking blocks, so a tool that depends on an earlier
+round's result keeps that context. HITL-gated tools suspend with
+provider-neutral continuation state and can resume after approval, editing, or
+rejection; the resumed run continues with the same full transcript.
 
 ## Provider-Hosted Tools and MCP Descriptors
 

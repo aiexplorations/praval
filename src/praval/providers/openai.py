@@ -583,6 +583,17 @@ class OpenAIProvider:
             tool_calls = [
                 self._chat_tool_call(tool_call) for tool_call in assistant_tool_calls
             ]
+        metadata: Dict[str, Any] = {
+            "openai_endpoint": "chat.completions",
+            "assistant_tool_calls": assistant_tool_calls,
+        }
+        if assistant_tool_calls:
+            # The cumulative transcript lets every continuation round resend
+            # all earlier tool turns, not only the original request.
+            metadata["openai_chat_messages"] = [
+                *call_params["messages"],
+                self._chat_assistant_message(content, assistant_tool_calls),
+            ]
         return ModelResponse(
             content=content,
             provider=self.provider_name,
@@ -591,11 +602,19 @@ class OpenAIProvider:
             raw=response,
             usage=self._extract_usage(response),
             finish_reason=self._chat_choice_finish_reason(response),
-            metadata={
-                "openai_endpoint": "chat.completions",
-                "assistant_tool_calls": assistant_tool_calls,
-            },
+            metadata=metadata,
         )
+
+    def _chat_assistant_message(
+        self,
+        content: str,
+        assistant_tool_calls: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        return {
+            "role": "assistant",
+            "content": content or None,
+            "tool_calls": assistant_tool_calls,
+        }
 
     def _chat_tool_call(self, tool_call: Dict[str, Any]) -> ToolCall:
         function = tool_call.get("function") or {}
@@ -635,14 +654,15 @@ class OpenAIProvider:
         if not isinstance(assistant_tool_calls, list):
             raise ProviderError("OpenAI Chat Completions tool state is missing")
         call_params = self._chat_completion_params(request)
-        messages = list(call_params["messages"])
-        messages.append(
-            {
-                "role": "assistant",
-                "content": response.content or None,
-                "tool_calls": assistant_tool_calls,
-            }
-        )
+        transcript = response.metadata.get("openai_chat_messages")
+        if isinstance(transcript, list):
+            messages = list(transcript)
+        else:
+            # State written by v0.8.3 has no transcript; rebuild one round.
+            messages = list(call_params["messages"])
+            messages.append(
+                self._chat_assistant_message(response.content, assistant_tool_calls)
+            )
         messages.extend(
             {
                 "role": "tool",

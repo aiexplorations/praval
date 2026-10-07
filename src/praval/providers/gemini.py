@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 from ..core.exceptions import ProviderError
 from ..model_runtime import execute_legacy_tool_call
@@ -133,11 +134,20 @@ class GeminiProvider:
 
         payload = dict(template)
         payload["contents"] = list(contents)
+        native_ids = self._native_function_call_ids(contents)
         payload["contents"].append(
             {
                 "role": "user",
                 "parts": [
-                    self._function_response_part(result) for result in tool_results
+                    self._function_response_part(
+                        result,
+                        call_id=(
+                            result.tool_call_id
+                            if result.tool_call_id in native_ids
+                            else None
+                        ),
+                    )
+                    for result in tool_results
                 ],
             }
         )
@@ -152,7 +162,9 @@ class GeminiProvider:
                 "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
             ) from e
 
-        function_calls = self._extract_function_calls(data)
+        function_calls = self._extract_function_calls(
+            data, id_offset=self._content_function_call_count(payload["contents"])
+        )
         if function_calls:
             return self._runtime_tool_call_response(data, payload, function_calls)
         return ModelResponse(
@@ -442,27 +454,75 @@ class GeminiProvider:
         parts = content.get("parts") or []
         return "".join(str(part.get("text", "")) for part in parts)
 
-    def _extract_function_calls(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _extract_function_calls(
+        self,
+        data: Dict[str, Any],
+        *,
+        id_offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Return the first candidate's function calls with run-unique ids.
+
+        The API's ``functionCall.id`` is used when present; otherwise ids are
+        numbered from ``id_offset``, the count of earlier calls in the run.
+        """
         calls: List[Dict[str, Any]] = []
-        candidates = data.get("candidates") or []
-        for candidate in candidates:
-            content = candidate.get("content") or {}
-            for part in content.get("parts") or []:
-                function_call = part.get("functionCall") or part.get("function_call")
-                if not isinstance(function_call, dict):
-                    continue
-                name = str(function_call.get("name") or "")
-                if not name:
-                    continue
-                calls.append(
-                    {
-                        "id": f"gemini-call-{len(calls)}",
-                        "name": name,
-                        "args": function_call.get("args") or {},
-                        "raw": function_call,
-                    }
-                )
+        for part in self._candidate_content(data).get("parts") or []:
+            function_call = self._part_function_call(part)
+            if function_call is None:
+                continue
+            name = str(function_call.get("name") or "")
+            if not name:
+                continue
+            native_id = function_call.get("id")
+            calls.append(
+                {
+                    "id": (
+                        str(native_id)
+                        if native_id
+                        else f"gemini-call-{id_offset + len(calls)}"
+                    ),
+                    "name": name,
+                    "args": function_call.get("args") or {},
+                    "raw": function_call,
+                }
+            )
         return calls
+
+    def _candidate_content(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        candidates = data.get("candidates") or []
+        if not candidates or not isinstance(candidates[0], dict):
+            return {}
+        content = candidates[0].get("content")
+        return content if isinstance(content, dict) else {}
+
+    def _part_function_call(self, part: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(part, dict):
+            return None
+        function_call = part.get("functionCall") or part.get("function_call")
+        return function_call if isinstance(function_call, dict) else None
+
+    def _content_function_call_count(self, contents: List[Dict[str, Any]]) -> int:
+        return sum(
+            1
+            for content in contents
+            if isinstance(content, dict) and content.get("role") == "model"
+            for part in content.get("parts") or []
+            if self._part_function_call(part) is not None
+        )
+
+    def _native_function_call_ids(self, contents: List[Dict[str, Any]]) -> Set[str]:
+        """Return API-issued call ids from the latest model turn."""
+        for content in reversed(contents):
+            if isinstance(content, dict) and content.get("role") == "model":
+                return {
+                    str(function_call["id"])
+                    for function_call in (
+                        self._part_function_call(part)
+                        for part in content.get("parts") or []
+                    )
+                    if function_call is not None and function_call.get("id")
+                }
+        return set()
 
     def _runtime_tool_call_response(
         self,
@@ -483,20 +543,12 @@ class GeminiProvider:
         ]
         template = {key: value for key, value in payload.items() if key != "contents"}
         contents = list(payload.get("contents") or [])
-        contents.append(
-            {
-                "role": "model",
-                "parts": [
-                    {
-                        "functionCall": {
-                            "name": call.name,
-                            "args": call.arguments,
-                        }
-                    }
-                    for call in tool_calls
-                ],
-            }
-        )
+        # Return the model turn exactly as received: Gemini 3 rejects a
+        # continuation whose functionCall parts lost their thoughtSignature,
+        # and text or thought parts belong to the same turn.
+        model_content = copy.deepcopy(self._candidate_content(data))
+        model_content["role"] = model_content.get("role") or "model"
+        contents.append(model_content)
         return ModelResponse(
             provider=self.provider_name,
             model=self._model_name(),
@@ -508,16 +560,23 @@ class GeminiProvider:
             },
         )
 
-    def _function_response_part(self, result: ToolResult) -> Dict[str, Any]:
+    def _function_response_part(
+        self,
+        result: ToolResult,
+        *,
+        call_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         response: Dict[str, Any] = {"result": result.content}
         if result.is_error:
             response["is_error"] = True
-        return {
-            "functionResponse": {
-                "name": result.name,
-                "response": response,
-            }
+        function_response: Dict[str, Any] = {
+            "name": result.name,
+            "response": response,
         }
+        if call_id:
+            # Echo only ids the API issued; generated ids are Praval-local.
+            function_response["id"] = call_id
+        return {"functionResponse": function_response}
 
     def _handle_function_calls(
         self,

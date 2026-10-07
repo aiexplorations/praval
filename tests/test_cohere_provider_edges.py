@@ -4,10 +4,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from cohere.types.tool_call import ToolCall as CohereToolCall
 
 from praval.core.agent import AgentConfig
 from praval.core.exceptions import ProviderError
-from praval.models import ModelMessage, ModelRequest, ModelResponse
+from praval.models import ModelMessage, ModelRequest, ModelResponse, ToolResult
 from praval.providers.cohere import CohereProvider, _redact_secrets
 
 
@@ -143,3 +144,54 @@ def test_cohere_legacy_resume_validation(cohere_provider):
         provider.resume_tool_flow({}, tools=[])
     with pytest.raises(ProviderError, match="Missing resume intervention"):
         provider.resume_tool_flow({"schema": "cohere_tool_v1"}, tools=[])
+
+
+def test_cohere_reads_sdk_parameters_and_numbers_calls_across_rounds(
+    cohere_provider,
+):
+    provider, _ = cohere_provider
+    calls = provider._serialize_tool_calls(
+        [
+            CohereToolCall(name="lookup", parameters={"q": "x"}),
+            {"name": "lookup", "parameters": {"q": "y"}},
+        ]
+    )
+    assert calls == [
+        {"id": None, "name": "lookup", "args": {"q": "x"}},
+        {"id": None, "name": "lookup", "args": {"q": "y"}},
+    ]
+
+    history = [
+        {"role": "USER", "message": "q"},
+        {"role": "CHATBOT", "message": "", "tool_calls": [{"name": "a"}] * 2},
+        "ignored",
+    ]
+    assert provider._history_tool_call_count(history) == 2
+    assert provider._history_tool_call_count(None) == 0
+    response = provider._chat_model_response(
+        SimpleNamespace(
+            text="",
+            tool_calls=[CohereToolCall(name="lookup", parameters={"q": "z"})],
+        ),
+        {"message": "", "chat_history": history, "tool_results": [{"r": 1}]},
+    )
+    assert response.tool_calls[0].id == "cohere-call-2"
+    assert response.metadata["cohere_chat_history"][-2:] == [
+        {"role": "TOOL", "tool_results": [{"r": 1}]},
+        {
+            "role": "CHATBOT",
+            "message": "",
+            "tool_calls": [{"name": "lookup", "parameters": {"q": "z"}}],
+        },
+    ]
+
+
+def test_cohere_tool_result_shape_for_errors_and_unknown_calls(cohere_provider):
+    provider, _ = cohere_provider
+    result = ToolResult(
+        tool_call_id="missing", name="lookup", content="Error: boom", is_error=True
+    )
+    assert provider._cohere_tool_result(result, None) == {
+        "call": {"name": "lookup", "parameters": {}},
+        "outputs": [{"result": "Error: boom", "is_error": True}],
+    }

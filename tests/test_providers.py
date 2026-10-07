@@ -1823,7 +1823,22 @@ class TestCohereProvider:
         assert result.content == "hello"
         assert result.metadata["tool_results"][0]["content"] == "hello"
         followup = mock_client.chat.call_args_list[1].kwargs
-        assert followup["tool_results"] == [{"name": "echo", "result": "hello"}]
+        # Cohere v1 ToolResult shape: the originating call plus a list of outputs.
+        assert followup["tool_results"] == [
+            {
+                "call": {"name": "echo", "parameters": {"text": "hello"}},
+                "outputs": [{"result": "hello"}],
+            }
+        ]
+        assert followup["message"] == ""
+        assert followup["chat_history"] == [
+            {"role": "USER", "message": "Echo"},
+            {
+                "role": "CHATBOT",
+                "message": "",
+                "tool_calls": [{"name": "echo", "parameters": {"text": "hello"}}],
+            },
+        ]
 
     @patch.dict(os.environ, {"COHERE_API_KEY": "fake-test-key"})
     @patch("cohere.Client")
