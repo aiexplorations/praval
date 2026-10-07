@@ -193,3 +193,47 @@ def test_gemini_error_tool_results_and_legacy_followup_fallback(gemini_provider)
         )
     assert response.content == "cached"
     assert response.raw is None
+
+
+def test_gemini_call_ids_offset_native_ids_and_echo(gemini_provider):
+    data = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {"functionCall": {"name": "lookup", "args": {"q": 1}}},
+                        {"functionCall": {"id": "fc-9", "name": "lookup"}},
+                    ]
+                }
+            },
+            {"content": {"parts": [{"functionCall": {"name": "ignored"}}]}},
+        ]
+    }
+    calls = gemini_provider._extract_function_calls(data, id_offset=3)
+    assert [(call["id"], call["name"]) for call in calls] == [
+        ("gemini-call-3", "lookup"),
+        ("fc-9", "lookup"),
+    ]
+    assert gemini_provider._extract_function_calls({"candidates": ["bad"]}) == []
+
+    response = gemini_provider._runtime_tool_call_response(
+        data, {"contents": [{"role": "user", "parts": [{"text": "q"}]}]}, calls
+    )
+    contents = response.metadata["gemini_contents"]
+    assert contents[-1] == {"role": "model", **data["candidates"][0]["content"]}
+    # The received payload itself is not mutated.
+    assert "role" not in data["candidates"][0]["content"]
+    assert gemini_provider._content_function_call_count(contents) == 2
+    assert gemini_provider._native_function_call_ids(contents) == {"fc-9"}
+    assert gemini_provider._native_function_call_ids([]) == set()
+
+    result = ToolResult(tool_call_id="fc-9", name="lookup", content="ok")
+    assert gemini_provider._function_response_part(result, call_id="fc-9") == {
+        "functionResponse": {
+            "id": "fc-9",
+            "name": "lookup",
+            "response": {"result": "ok"},
+        }
+    }
+    unechoed = gemini_provider._function_response_part(result)
+    assert "id" not in unechoed["functionResponse"]
