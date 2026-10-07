@@ -4,98 +4,72 @@
 
 > *Praval (प्रवाल) - Sanskrit for coral, representing how simple agents collaborate to create complex, intelligent ecosystems.*
 
-## IMPORTANT: Always Use Virtual Environment
+`AGENTS.md` carries the same rules in short form for other coding agents. Keep the two in sync: a process change goes into both.
+
+## IMPORTANT: Always Use the Virtual Environment
 
 ```bash
 source venv/bin/activate  # Always run this first!
 ```
 
-All pytest, pip, python commands must be run within the activated venv.
+All `pytest`, `pip` and `python` commands run inside the activated `venv/`. Create it with `make setup` if it is missing.
 
 ## Project Overview
 
-- **Version**: 0.7.21
-- **Python Support**: 3.9, 3.10, 3.11, 3.12
+- **Version**: `pyproject.toml` is the only source of truth. `praval.__version__` comes from installed distribution metadata. Current release work and its plan live in `plans/` (see `plans/praval-roadmap.md`).
+- **Python support**: 3.10 to 3.14 (`requires-python = ">=3.10,<3.15"`). CI tests every version; typing is checked for 3.13 (strict) and 3.10 (compatibility).
 - **License**: MIT
 
 ## Repository Structure
 
 ```
 praval/
-├── src/praval/                    # Core framework code
-│   ├── __init__.py               # Main API exports
-│   ├── decorators.py             # @agent decorator implementation
-│   ├── composition.py            # Agent orchestration (start_agents)
-│   ├── tools.py                  # @tool decorator implementation
-│   ├── core/                     # Core components
-│   │   ├── agent.py             # Agent base class
-│   │   ├── agent_runner.py      # Agent execution engine
-│   │   ├── reef.py              # Communication system (Spore protocol)
-│   │   ├── reef_backend.py      # Reef backend implementations
-│   │   ├── registry.py          # Agent discovery
-│   │   ├── secure_reef.py       # Encrypted reef communication
-│   │   ├── secure_spore.py      # Encrypted spore handling
-│   │   ├── storage.py           # Core storage utilities
-│   │   ├── exceptions.py        # Framework exceptions
-│   │   ├── transport.py         # RabbitMQ/AMQP transport
-│   │   └── tool_registry.py     # Tool registration
-│   ├── memory/                   # Memory system
-│   │   ├── memory_manager.py    # Unified memory interface
-│   │   ├── memory_types.py      # Memory type definitions
-│   │   ├── short_term_memory.py # Working memory
-│   │   ├── long_term_memory.py  # Persistent vector storage
-│   │   ├── episodic_memory.py   # Conversation tracking
-│   │   ├── semantic_memory.py   # Knowledge retrieval
-│   │   └── embedded_store.py    # ChromaDB integration
-│   ├── storage/                  # Storage providers
-│   │   ├── providers/           # Provider implementations
-│   │   │   ├── filesystem.py    # Local filesystem
-│   │   │   ├── postgresql.py    # PostgreSQL
-│   │   │   ├── redis_provider.py # Redis
-│   │   │   ├── s3_provider.py   # AWS S3
-│   │   │   └── qdrant_provider.py # Qdrant vector DB
-│   │   ├── base_provider.py     # Provider base class
-│   │   ├── data_manager.py      # Unified data access
-│   │   ├── decorators.py        # Storage decorators
-│   │   └── storage_registry.py  # Provider registry
-│   ├── observability/           # Tracing & monitoring
-│   │   ├── tracing/             # Span & context management
-│   │   ├── instrumentation/     # Auto-instrumentation
-│   │   ├── storage/             # SQLite trace storage
-│   │   └── export/              # OTLP & console exporters
-│   └── providers/               # LLM providers (OpenAI, Anthropic, Cohere)
-├── examples/                     # Working examples
-│   ├── simple_multi_agent.py    # Basic multi-agent pattern (START HERE)
-│   ├── 001_single_agent_identity.py
-│   ├── 002_agent_communication.py
-│   ├── 003_specialist_collaboration.py
-│   ├── 004_registry_discovery.py
-│   ├── 005_memory_enabled_agents.py
-│   ├── 006_resilient_agents.py
-│   ├── 007_adaptive_agent_systems.py
-│   ├── 008_self_organizing_networks.py
-│   ├── 009_emergent_collective_intelligence.py
-│   ├── 010_unified_storage_demo.py
-│   ├── 011_secure_spore_demo.py
-│   └── distributed_agents_with_rabbitmq.py
-├── tests/                        # Test suite
-├── docs/                         # Documentation
-│   └── sphinx/                  # Sphinx documentation source
-└── pyproject.toml               # Package configuration
+├── src/praval/
+│   ├── __init__.py            # Public API; every export is listed in docs/api-surface.toml
+│   ├── decorators.py          # @agent, chat(), achat(), broadcast()
+│   ├── composition.py         # start_agents and agent composition
+│   ├── app.py                 # PravalApp application lifecycle
+│   ├── config.py              # PravalConfig / AppConfig and PRAVAL_* environment mapping
+│   ├── model_runtime.py       # ModelRuntime: requests, retries, tool loop, streaming, HITL resume
+│   ├── models/                # Provider-neutral contracts (ModelRequest, ModelResponse, Usage, ToolSpec...)
+│   ├── providers/             # openai.py, anthropic.py, gemini.py, cohere.py,
+│   │                          # openai_compatible.py (local servers), registry.py (profiles, capabilities), factory.py
+│   ├── tools.py               # @tool decorator
+│   ├── embeddings.py          # Embedding runtime
+│   ├── runtime_observation.py # ExecutionObservation (per-run aggregated facts)
+│   ├── hitl/                  # Human-in-the-loop policy, store, service, runtime
+│   ├── core/                  # Agent, Reef, Spore, registry, storage, secure reef/spore, transport
+│   ├── memory/                # Memory manager and memory types
+│   ├── storage/               # Storage providers (filesystem, PostgreSQL, Redis, S3, Qdrant)
+│   ├── observability/         # Tracing, instrumentation, OTLP/console/SQLite export
+│   ├── eval/                  # Evaluation: datasets, runner, metrics, judges, gates, stores, online eval
+│   ├── mcp/                   # MCP client and server support
+│   └── cli.py                 # praval CLI
+├── tests/                     # Pytest suite; subfolders eval/, mcp/, observability/, storage/,
+│                              # integration/ (needs services), performance/, validation/
+├── examples/                  # Examples, notebooks, and examples/certification/ (wheel and live checks)
+├── docs/                      # Markdown docs, Sphinx sources (docs/sphinx/), release notes (docs/releases/)
+│                              # and documentation contracts (api-surface.toml, feature-claims.toml,
+│                              # documentation-coverage.toml, observation-contract.toml)
+├── plans/                     # Roadmap and release plans
+├── scripts/                   # Build, release, typing, coverage, demo and smoke scripts
+├── RELEASE.md                 # Release procedure (authoritative)
+└── CONTRIBUTING.md            # Contribution workflow and PR checklist
 ```
 
 ## Core Patterns
 
-### Pattern 1: Single Agent
+### Single agent
 ```python
 from praval import Agent
 
 agent = Agent("assistant", system_message="You are a helpful assistant")
 response = agent.chat("What is machine learning?")
-print(response)
 ```
 
-### Pattern 2: Multi-Agent with @agent decorator
+`Agent` also exposes `generate`, `agenerate`, `stream` and `astream`, which return provider-neutral `ModelResponse` objects and `ModelEvent` streams.
+
+### Multi-agent with @agent
 ```python
 from praval import agent, chat, broadcast, start_agents
 
@@ -114,202 +88,136 @@ start_agents(researcher, writer,
     initial_data={"type": "research_request", "topic": "AI agents"})
 ```
 
-### Key Concepts
+### Key concepts
 
-- **`responds_to`**: Filters messages by `spore.knowledge["type"]`
-- **`broadcast()`**: Sends to all agents on "main" channel (default)
-- **`chat()`**: Calls LLM within agent context (only works inside @agent functions)
-- **`start_agents()`**: Runs the multi-agent system
+- **`responds_to`**: filters messages by `spore.knowledge["type"]`.
+- **`broadcast()`**: sends to all agents on the default channel; every broadcast needs a `type`.
+- **`chat()`**: calls the LLM in agent context; only works inside `@agent` functions.
+- **Peer-to-peer**: agents coordinate through the Reef, never through a central orchestrator.
+- **All model calls go through `ModelRuntime`**; provider adapters translate provider-neutral requests to each provider's wire format and back.
 
 ## Code Standards
 
-### Formatting & Linting
-- **Black**: Line length 88, target Python 3.9+
-- **isort**: Black-compatible profile
-- **flake8**: Standard linting
-- **mypy**: Strict type checking enabled
+- **Black** (line length 88) and **isort** (`--profile black`) over `src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py`.
+- **flake8** with `--max-line-length=88 --extend-ignore=E203,W503`.
+- **mypy** via `scripts/check_types.py`: strict for Python 3.13 and a 3.10 compatibility pass. Code must type-check on both (no 3.11+ only syntax in `src/`).
+- Comprehensive type hints on every function; specific exception types; `logging`, never `print`, in library code.
+- Match the surrounding code's naming, comment density and idioms.
 
-### Type Hints
-All functions must have comprehensive type hints:
-```python
-def process_data(items: List[str], config: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
-    ...
-```
+## Testing
 
-### Testing Requirements
-- Minimum 90% code coverage
-- Use pytest with pytest-asyncio for async tests
-- Mark tests: `@pytest.mark.unit`, `@pytest.mark.integration`
+- Frameworks: `pytest`, `pytest-asyncio`, `pytest-cov`, `pytest-timeout`.
+- Markers: `unit`, `integration` (needs external services), `performance`, `edge_case`, `knowledge_base`.
+- Test files are named `test_*.py`. Provider behaviour is tested with recorded fixtures or deterministic fake clients; unit tests never call the network.
+- Existing homes for new tests: `test_model_runtime_contracts.py` / `test_model_runtime_edges.py` (runtime), `test_<provider>_provider_edges.py` (adapters), `test_provider_streaming.py`, `test_hitl_provider_parity.py`, `test_agent_*.py`, `test_decorator_edges.py`.
+- Coverage: overall at least 90% (`--cov-fail-under=90`) plus per-file floors in `scripts/check_coverage_floors.py`.
+- Three test files are excluded by both CI and the Makefile: `test_arxiv_downloader.py`, `test_message_filtering.py`, `test_venturelens_demo.py`.
+- Live provider checks are not part of pytest. They live in `examples/certification/` (`live_provider_matrix.py`, `live_hitl.py`, `live_voice_roundtrip.py`), need real keys, and incur cost.
 
 ## Development Commands
 
 ```bash
 source venv/bin/activate
 
-# Install dev dependencies
-pip install -e .[dev]
+make setup            # create venv/ and install .[dev]
+make test             # test suite (CI exclusions applied)
+make test-cov         # coverage with --cov-fail-under=90 and coverage floors
+make format           # black + isort
+make lint             # flake8
+make type-check       # scripts/check_types.py (3.13 strict + 3.10)
+make docs-html        # Sphinx HTML into docs/_build/html
+make build            # scripts/build.sh (coverage-enforced build)
 
-# Run tests
-pytest tests/ -v
-
-# Run with coverage (must be >90%)
-pytest --cov=praval --cov-report=html --cov-fail-under=90
-
-# Format code
-black src tests
-isort src tests
-
-# Lint
-flake8 src tests
-
-# Type check
-mypy src
-
-# Run all checks before commit
-black src tests && isort src tests && flake8 src tests && mypy src && pytest tests/ -v
+# What CI runs (match it before pushing)
+pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py \
+  --ignore=tests/test_venturelens_demo.py --timeout=60 --timeout-method=thread -q
+black --check src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py
+isort --check-only src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py --profile black
+flake8 src/ tests/ scripts/ examples/certification/ examples/notebooks/*.py --max-line-length=88 --extend-ignore=E203,W503
+python scripts/check_types.py
+PRAVAL_DOCS_OFFLINE=1 sphinx-build -b html -W --keep-going docs/sphinx docs/_build/html
+python scripts/check_release_metadata.py
+python scripts/check_api_surface.py
 ```
 
-## Testing
+## Documentation Contracts
 
-### Test Structure
-```
-tests/
-├── test_agent.py              # Agent class tests
-├── test_decorators.py         # @agent decorator tests
-├── test_reef.py               # Communication system tests
-├── test_memory_manager.py     # Memory manager tests
-├── test_tool_system.py        # Tool system tests
-├── test_composition.py        # Agent composition tests
-├── test_secure_spore.py       # Secure messaging tests
-├── test_transport.py          # AMQP transport tests
-├── storage/                   # Storage provider tests
-│   ├── test_base_provider.py
-│   ├── test_data_manager.py
-│   ├── test_filesystem_provider.py
-│   ├── test_postgresql_provider.py
-│   ├── test_redis_provider.py
-│   ├── test_s3_provider.py
-│   └── test_qdrant_provider.py
-├── observability/             # Observability tests
-│   ├── test_tracer.py
-│   ├── test_span.py
-│   ├── test_context.py
-│   └── test_instrumentation.py
-├── integration/               # Integration tests
-│   └── test_rabbitmq_distributed_workflow.py
-└── validation/                # Validation scripts
-```
+These are enforced by tests (`tests/test_documentation_contracts.py`) and `scripts/check_api_surface.py`:
 
-### Running Specific Tests
-```bash
-pytest tests/test_decorators.py -v          # Single file
-pytest tests/ -k "test_agent"               # Pattern match
-pytest tests/ -m unit                       # Only unit tests
-pytest tests/ -m integration                # Only integration tests
-```
+- Every name in `praval.__all__` must appear in exactly one surface in `docs/api-surface.toml`, and that surface's Sphinx page must document it. A new public export needs both.
+- Claims in `docs/feature-claims.toml` cite the tests that prove them; update evidence when tests move.
+- Config models and fields listed in `docs/documentation-coverage.toml` must be documented in the named page.
+- The Sphinx build runs with `-W`: any warning fails CI.
+- User-facing changes go in `CHANGELOG.md` under `[Unreleased]` (Added / Changed / Fixed), and into the matching guide under `docs/sphinx/guide/`.
+
+## Branches, Commits and CI
+
+- Work on a branch from `main`, never on `main`. Earlier work used `codex/<topic>`; v0.8.4 uses `release/v0.8.4` with feature branches merged into it.
+- Commit prefixes: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`, `build:`; `BREAKING CHANGE:` for incompatible changes. Keep commits focused by concern.
+- CI (`.github/workflows/ci.yml`) runs on PRs and pushes: tests on 3.10 to 3.14; quality (coverage, floors, typing, formatting, lint, notebooks, warning-free docs, release metadata, API surface); MCP contracts; reproducible package build; exact-wheel docs; wheel and install smoke tests; offline and service demos against the built wheel.
+- `live-demos.yml` is manually dispatched from trusted `main` with protected credentials.
 
 ## Release Process
 
-### Version and release metadata
+`RELEASE.md` is authoritative; `CONTRIBUTING.md` holds the PR checklist. In short:
 
-`pyproject.toml` is the authoritative version source. Runtime
-`praval.__version__` comes from installed distribution metadata. Validate the
-contract with `python scripts/check_release_metadata.py`.
+1. One reviewable PR updates the version in `pyproject.toml`, `CHANGELOG.md`, `docs/releases/RELEASE_NOTES_X.Y.Z.md`, examples and current docs. `python scripts/check_release_metadata.py` validates them.
+2. Merge to `main`; `main` CI produces `praval-<commit>` (the sole wheel) and `praval-docs-<commit>` artifacts and runs the demo jobs.
+3. Optional live certification via `live-demos.yml`.
+4. Download the CI wheel into `dist/`, manifest and checksums into `evidence/`; verify with `shasum -c`, `twine check`, `scripts/validate_distribution.py`, `scripts/check_release_metadata.py --dist dist`.
+5. Upload only the named wheel with Twine (never `dist/*`), verify with `scripts/verify_pypi_wheel.py`, then tag `vX.Y.Z` on that exact commit. The tag workflow verifies the PyPI hash and creates the GitHub release.
+6. Prepare the `praval-ai` docs PR from the exact-wheel docs artifact; merge it only after PyPI serves the new version.
 
-Releases reuse the sole wheel from a successful `main` CI run. Optional live
-certification can add real-provider evidence. Upload the named CI wheel with
-Twine, verify it on PyPI, and then create the version tag on that exact commit.
-The tag workflow verifies the PyPI hash and creates the GitHub release. Do not
-rebuild or upload a different local artifact.
+Never rebuild locally and upload a different artifact. Any source change after the CI build needs a new CI artifact.
 
-Keep distributions in `dist/` and JSON/checksum/certification files in
-`evidence/`. Prepare the `praval-ai` documentation PR from the exact-wheel docs
-artifact, then merge it only after the version appears on PyPI. See
-`RELEASE.md` for the complete sequence.
-
-### Version Semantics
-- **Major (X)**: Breaking API changes
-- **Minor (Y)**: New features, backward compatible
-- **Patch (Z)**: Bug fixes, documentation updates
+### Version semantics
+- **Major (X)**: breaking API changes
+- **Minor (Y)**: new features, backward compatible
+- **Patch (Z)**: fixes and documentation. In the 0.8 series, point releases (0.8.3, 0.8.4) also carry backward-compatible features.
 
 ## Environment Variables
 
 ```bash
-# Required: at least one LLM API key
-OPENAI_API_KEY=your_key
-ANTHROPIC_API_KEY=your_key
-COHERE_API_KEY=your_key
+# At least one LLM key
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...        # or GOOGLE_API_KEY
+COHERE_API_KEY=...
 
-# Framework settings
 PRAVAL_DEFAULT_PROVIDER=openai
-PRAVAL_DEFAULT_MODEL=gpt-4o-mini
-PRAVAL_LOG_LEVEL=INFO
-
-# Memory system (optional)
-QDRANT_URL=http://localhost:6333
+PRAVAL_DEFAULT_MODEL=...
+PRAVAL_CONFIG_FILE=...    # optional config file
+PRAVAL_OBSERVABILITY=auto # auto | on | off
+PRAVAL_OTLP_ENDPOINT=...
+PRAVAL_SAMPLE_RATE=1.0
 ```
 
 ## Optional Dependencies
 
-Install specific features as needed:
 ```bash
-pip install praval[memory]    # ChromaDB, sentence-transformers
-pip install praval[secure]    # RabbitMQ, encryption
-pip install praval[storage]   # PostgreSQL, Redis, S3, Qdrant
-pip install praval[pdf]       # PDF knowledge base support
-pip install praval[all]       # Everything
-pip install praval[dev]       # Development tools
+pip install praval[memory]         # ChromaDB, sentence-transformers
+pip install praval[secure]         # RabbitMQ, encryption
+pip install praval[storage]        # PostgreSQL, Redis, S3, Qdrant
+pip install praval[pdf]            # PDF knowledge base
+pip install praval[mcp]            # MCP client/server
+pip install praval[observability]  # OpenTelemetry SDK and exporters
+pip install praval[eval-ragas]     # RAGAS evaluation adapter
+pip install praval[notebooks]      # Visual notebooks
+pip install praval[docs]           # Sphinx documentation build
+pip install praval[all]            # Everything
+pip install praval[dev]            # Development tools
 ```
 
-## Documentation Build
+## Documentation
 
-### Build Sphinx Docs
-```bash
-source venv/bin/activate
-
-# Clean and build
-make docs-clean
-make docs-html
-
-# Output location
-ls docs/_build/html/
-```
-
-### Serve Docs Locally
-```bash
-make docs-serve
-# Opens http://localhost:8000
-```
-
-### Deploy to praval-ai Website
-After a release, update the praval-ai repo with new docs:
-```bash
-# 1. Build docs in praval repo
-make docs-clean && make docs-html
-
-# 2. Copy to praval-ai repo (replace X.Y.Z with version)
-cp -r docs/_build/html /path/to/praval-ai/docs/vX.Y.Z
-cp -r docs/_build/html /path/to/praval-ai/docs/latest
-
-# 3. Update praval-ai/docs/versions.json with new version
-
-# 4. Commit and push praval-ai
-```
-
-## Key Documentation
-
-- `docs/quickstart.md` - Single vs multi-agent patterns
-- `docs/memory-api-reference.md` - Memory API
-- `docs/reef-communication-specification.md` - Spore protocol
-- `docs/secure_spores_architecture.md` - Secure Spores Enterprise
-- `docs/tool-system-specification.md` - Tool system (@tool decorator)
-- `docs/DEPLOYMENT.md` - Docker deployment guide
-- `docs/archive/praval-complete-guide.md` - Historical 0.7.17 generated guide
-- `examples/simple_multi_agent.py` - Reference example
+- Sphinx sources: `docs/sphinx/` (guides in `guide/`, API in `api/`, plus `observability/`, `evaluation/`, `tutorials/`).
+- `make docs-html` builds locally; `make docs-serve` opens the built `index.html`.
+- Published docs are staged into the `praval-ai` repo from the CI exact-wheel docs artifact (`make docs-deploy`, `scripts/stage_docs_artifact.py`), not from a local build.
 
 ## Related Repositories
 
-- **Website**: https://pravalagents.com (documentation and demos)
-- **praval-ai repo**: Website source (https://github.com/aiexplorations/praval-ai)
+- **Website**: https://pravalagents.com
+- **praval-ai** (website and published docs): https://github.com/aiexplorations/praval-ai
 - **PyPI**: https://pypi.org/project/praval/
 - **GitHub**: https://github.com/aiexplorations/praval
+- Downstream consumers: Praval Code (`~/Github/praval-code`) and PravalClaw (`~/Github/pravalclaw`).
