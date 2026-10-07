@@ -1233,7 +1233,17 @@ class ModelRuntime:
         while True:
             try:
                 with self._provider_span(request, operation):
-                    return fn(*args, **kwargs)
+                    try:
+                        return fn(*args, **kwargs)
+                    except (InterventionRequired, HITLConfigurationError):
+                        raise
+                    except Exception as exc:
+                        # Map inside the span, so the span records the typed,
+                        # redacted error rather than raw SDK text.
+                        error = self._provider_error(exc, operation, request)
+                        if error is exc:
+                            raise
+                        raise error from exc
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
@@ -1263,7 +1273,17 @@ class ModelRuntime:
         while True:
             try:
                 with self._provider_span(request, operation):
-                    return await fn(*args, **kwargs)
+                    try:
+                        return await fn(*args, **kwargs)
+                    except (InterventionRequired, HITLConfigurationError):
+                        raise
+                    except Exception as exc:
+                        # Map inside the span, so the span records the typed,
+                        # redacted error rather than raw SDK text.
+                        error = self._provider_error(exc, operation, request)
+                        if error is exc:
+                            raise
+                        raise error from exc
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
