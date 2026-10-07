@@ -5,6 +5,7 @@ Provides integration with Cohere's chat models through their
 Chat API with support for conversation history.
 """
 
+import inspect
 import os
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,18 @@ from ..models import (
     ToolSpec,
 )
 from .errors import map_provider_exception, sdk_max_retries
+
+
+def _accepts_keyword(factory: Any, name: str) -> bool:
+    """Return whether ``factory`` takes ``name``; older cohere SDKs may not."""
+    try:
+        parameters = inspect.signature(factory).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
 
 
 def _redact_secrets(message: str) -> str:
@@ -59,7 +72,10 @@ class CohereProvider:
             if not api_key:
                 raise ProviderError(f"{api_key_env} environment variable not set")
 
-            self.client = cohere.Client(api_key, max_retries=sdk_max_retries(config))
+            client_kwargs: Dict[str, Any] = {}
+            if _accepts_keyword(cohere.Client, "max_retries"):
+                client_kwargs["max_retries"] = sdk_max_retries(config)
+            self.client = cohere.Client(api_key, **client_kwargs)
         except Exception as e:
             raise ProviderError(
                 f"Failed to initialize Cohere client: {_redact_secrets(str(e))}"

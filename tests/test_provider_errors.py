@@ -12,7 +12,6 @@ from unittest.mock import Mock, patch
 import anthropic
 import cohere
 import httpx
-import httpx2
 import openai
 import pytest
 from cohere.core.api_error import ApiError
@@ -44,6 +43,8 @@ from praval.providers.openai_compatible import OpenAICompatibleProvider
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+# Newer anthropic SDKs build errors from httpx2 objects, older ones from httpx.
+ANTHROPIC_HTTP = getattr(anthropic._exceptions, "httpx2", httpx)
 
 
 def _request(model="test-model"):
@@ -63,10 +64,10 @@ def _openai_status_error(cls, status, body, headers=None):
 
 def _anthropic_status_error(cls, status, error_type, headers=None):
     body = {"type": "error", "error": {"type": error_type, "message": "failed"}}
-    response = httpx2.Response(
+    response = ANTHROPIC_HTTP.Response(
         status,
         headers=headers or {},
-        request=httpx2.Request("POST", ANTHROPIC_URL),
+        request=ANTHROPIC_HTTP.Request("POST", ANTHROPIC_URL),
     )
     return cls(f"Error code: {status} - {body}", response=response, body=body)
 
@@ -476,7 +477,7 @@ def test_anthropic_status_errors_map_by_status(
 
 def test_anthropic_connection_errors_are_transport_errors(anthropic_provider):
     provider, client, _ = anthropic_provider
-    request = httpx2.Request("POST", ANTHROPIC_URL)
+    request = ANTHROPIC_HTTP.Request("POST", ANTHROPIC_URL)
     mapped = provider.map_provider_error(anthropic.APIConnectionError(request=request))
     assert isinstance(mapped, ProviderTransportError)
     client.messages.create.side_effect = anthropic.APITimeoutError(request=request)
@@ -485,6 +486,20 @@ def test_anthropic_connection_errors_are_transport_errors(anthropic_provider):
 
 
 # --- Cohere --------------------------------------------------------------
+
+
+def test_cohere_client_without_max_retries_keyword_is_still_built(monkeypatch):
+    monkeypatch.setenv("COHERE_API_KEY", "co-secret")
+    built = {}
+
+    class OldCohereClient:
+        def __init__(self, api_key, timeout=120):
+            built["api_key"] = api_key
+
+    with patch("praval.providers.cohere.cohere.Client", OldCohereClient):
+        provider = CohereProvider(AgentConfig(provider="cohere"))
+    assert isinstance(provider.client, OldCohereClient)
+    assert built == {"api_key": "co-secret"}
 
 
 def test_cohere_client_disables_sdk_retries_and_reserves_option(cohere_provider):
