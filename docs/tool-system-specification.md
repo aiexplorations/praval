@@ -50,10 +50,19 @@ checked too):
   resolved, or that is nested too deeply to check, is skipped with a warning.
   Arguments nested too deeply to validate are rejected. A string longer than
   10,000 characters (`praval.tool_execution.MAX_PATTERN_STRING_CHARS`) fails a
-  `pattern` keyword without the pattern being evaluated, because Python's `re`
-  has no timeout and a schema's pattern can backtrack catastrophically. This
-  limits, but does not remove, the cost of a pathological pattern on shorter
-  strings.
+  `pattern` keyword without the pattern being evaluated. Shorter inputs use
+  the `regex` engine in compatible VERSION0 mode with a 50 ms matching timeout.
+  A timeout returns a typed validation failure and the handler does not run.
+  Patterns themselves are limited to 10,000 characters. External
+  `patternProperties` schemas are rejected before validation because
+  `jsonschema` also matches those patterns inside `additionalProperties` and
+  `unevaluatedProperties` helpers without a timeout. Nested `$schema` dialect
+  changes are also rejected so they cannot restore an untimed validator.
+  Ordinary `properties`, `propertyNames`, and nested `pattern` checks remain
+  supported. These limits
+  apply to external schemas; trusted response-schema matching retains its
+  existing behavior. The timeout applies to each match rather than the entire
+  validation operation. See [regex timeout documentation](https://github.com/mrabarnett/mrab-regex#timeout).
 
 An argument string from the model that is not a JSON object (malformed JSON,
 or a JSON array or scalar) is passed to validation as `{"raw": "<string>"}`,

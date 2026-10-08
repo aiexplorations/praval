@@ -923,9 +923,8 @@ def test_s8_response_schema_with_unresolvable_ref_is_typed_error():
 def test_s8_redos_pattern_on_long_string_does_not_hang_validation():
     """Strings over the cap fail before an external schema's pattern runs.
 
-    ``re`` has no timeout, so the cap bounds how long a catastrophic pattern
-    from an MCP server can backtrack. A short adversarial string (for example
-    ``"a" * 34 + "!"`` against ``^(a+)+$``) is still evaluated by ``re``.
+    Shorter adversarial inputs use the timed regex engine. This test checks
+    the separate early rejection of strings above the length cap.
     """
     script = textwrap.dedent(
         """
