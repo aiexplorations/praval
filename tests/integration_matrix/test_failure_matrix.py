@@ -376,14 +376,6 @@ def test_hitl_old_state_and_new_runtime_resume(
 
 
 @pytest.mark.parametrize("use_async", [False, True])
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Durable HITL resume caches only the interrupted round. A later round's "
-        "completed side effect is rerun when its continuation fails and resume "
-        "is retried."
-    ),
-)
 def test_hitl_later_round_failure_must_not_duplicate_effects(
     tmp_path: Any, use_async: bool
 ) -> None:
@@ -583,3 +575,158 @@ def test_hitl_edited_malformed_arguments_can_be_repaired(
     assert writes == [{"value": 3}]
     assert result.content == "repaired"
     assert result.is_error is False
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize("second_gate", [False, True])
+@pytest.mark.parametrize("later_tool_count", [1, 2])
+def test_hitl_later_checkpoint_survives_restart_and_second_gate(
+    tmp_path: Any, use_async: bool, second_gate: bool, later_tool_count: int
+) -> None:
+    from praval.models import ToolCall
+
+    provider = ScriptedProvider(ProviderUnavailableError("later failed"), phase="later")
+    provider.second_round = True
+    provider.later_calls = [ToolCall(id="write-2", name="later", arguments={})]
+    if later_tool_count == 2:
+        provider.later_calls.append(ToolCall(id="write-3", name="last", arguments={}))
+    writes = []
+
+    def write(value: int) -> str:
+        writes.append(("approved", value))
+        return "written"
+
+    def later() -> str:
+        writes.append(("later", 1))
+        return "written later"
+
+    def last() -> str:
+        writes.append(("last", 1))
+        return "written last"
+
+    tools = {
+        "write": {"function": write, "requires_approval": True},
+        "later": {
+            "function": later,
+            "requires_approval": second_gate and later_tool_count == 1,
+        },
+        "last": {"function": last, "requires_approval": second_gate},
+    }
+    options = dict(hitl_enabled=True, hitl_db_path=str(tmp_path / "later-restart.db"))
+    agent = make_agent(provider, retries=0, **options)
+    agent.tools.update(tools)
+    service = HITLService(db_path=options["hitl_db_path"])
+    try:
+        with pytest.raises(InterventionRequired) as pause:
+            run_agent(agent, "agenerate" if use_async else "generate")
+        run_id = pause.value.run_id
+        service.approve_intervention(pause.value.intervention_id, reviewer="matrix")
+        if second_gate:
+            with pytest.raises(InterventionRequired) as second:
+                resume_agent(agent, run_id, use_async)
+            assert writes == (
+                [("approved", 3)]
+                if later_tool_count == 1
+                else [("approved", 3), ("later", 1)]
+            )
+            assert second.value.intervention_id != pause.value.intervention_id
+            service.approve_intervention(
+                second.value.intervention_id, reviewer="matrix"
+            )
+        # Additive state owned by other concerns survives each checkpoint save.
+        stored = service.get_suspended_run(run_id)
+        additive = {
+            "model_calls": [{"call_id": "existing-call"}],
+            "capture_calls": {"source": "preserve-me"},
+        }
+        assert service.store.update_suspended_run_state(
+            run_id, {**stored.state, **additive}, expected_status="pending"
+        )
+        with pytest.raises(ProviderUnavailableError):
+            resume_agent(agent, run_id, use_async)
+        expected = [("approved", 3), ("later", 1)]
+        if later_tool_count == 2:
+            expected.append(("last", 1))
+        assert writes == expected
+        stored = service.get_suspended_run(run_id)
+        assert stored.status == "pending"
+        assert {key: stored.state[key] for key in additive} == additive
+        checkpoint = stored.state["resume_results"]["checkpoint"]
+        assert checkpoint["round"] == 1
+        assert checkpoint["current_index"] == later_tool_count
+        assert len(checkpoint["round_results"]) == later_tool_count
+        agent.close()
+        replacement = make_agent(provider, retries=0, **options)
+        replacement.tools.update(tools)
+        try:
+            assert resume_agent(replacement, run_id, use_async) == "done"
+            assert writes == expected
+            assert len(provider.initial) == 1
+            assert len(provider.continuations) == 3
+            assert provider.continuations[-2] == provider.continuations[-1]
+            assert service.get_suspended_run(run_id).status == "completed"
+        finally:
+            replacement.close()
+    finally:
+        agent.close()
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize("corruption", ["schema", "index", "results", "identity"])
+def test_hitl_corrupt_checkpoint_never_reexecutes_completed_handler(
+    tmp_path: Any, use_async: bool, corruption: str
+) -> None:
+    provider = ScriptedProvider(ProviderUnavailableError("later failed"), phase="later")
+    provider.second_round = True
+    writes = []
+
+    def write(value: int) -> str:
+        writes.append(("approved", value))
+        return "written"
+
+    def later() -> str:
+        writes.append(("later", 1))
+        return "written later"
+
+    agent = make_agent(
+        provider,
+        retries=0,
+        hitl_enabled=True,
+        hitl_db_path=str(tmp_path / "corrupt.db"),
+    )
+    agent.tools.update(
+        {
+            "write": {"function": write, "requires_approval": True},
+            "later": {"function": later},
+        }
+    )
+    service = HITLService(db_path=str(tmp_path / "corrupt.db"))
+    try:
+        with pytest.raises(InterventionRequired) as pause:
+            run_agent(agent, "agenerate" if use_async else "generate")
+        run_id = pause.value.run_id
+        service.approve_intervention(pause.value.intervention_id, reviewer="matrix")
+        with pytest.raises(ProviderUnavailableError):
+            resume_agent(agent, run_id, use_async)
+        stored = service.get_suspended_run(run_id)
+        state = json.loads(json.dumps(stored.state))
+        checkpoint = state["resume_results"]["checkpoint"]
+        if corruption == "schema":
+            checkpoint["schema"] = "unknown"
+        elif corruption == "index":
+            checkpoint["current_index"] = 99
+        elif corruption == "results":
+            checkpoint["round_results"] = []
+        else:
+            checkpoint["round_results"][0]["tool_call_id"] = "other-tool"
+        assert service.store.update_suspended_run_state(
+            run_id, state, expected_status="pending"
+        )
+        with pytest.raises(ProviderError, match="checkpoint"):
+            resume_agent(agent, run_id, use_async)
+        assert writes == [("approved", 3), ("later", 1)]
+        assert len(provider.initial) == 1
+        assert len(provider.continuations) == 2
+        assert service.get_suspended_run(run_id).status == "pending"
+    finally:
+        agent.close()

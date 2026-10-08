@@ -31,6 +31,7 @@ class ScriptedProvider:
         self.continuations: List[Any] = []
         self.streams: List[Any] = []
         self.second_round = False
+        self.later_calls = [ToolCall(id="write-2", name="later", arguments={})]
         self.arguments: Any = {"value": 3}
 
     def _fail(self, phase: str) -> None:
@@ -65,9 +66,7 @@ class ScriptedProvider:
         if results[0].tool_call_id == "write-1":
             self._fail("continue")
             if self.second_round:
-                return ModelResponse(
-                    tool_calls=[ToolCall(id="write-2", name="later", arguments={})]
-                )
+                return ModelResponse(tool_calls=self.later_calls)
         else:
             self._fail("later")
         return ModelResponse(content="done", finish_reason="stop")
