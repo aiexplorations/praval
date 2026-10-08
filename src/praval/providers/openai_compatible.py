@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import openai
 
 from ..core.exceptions import ProviderError
-from ..models import ProviderCapabilities
+from ..models import ModelRequest, ProviderCapabilities
 from .errors import sdk_max_retries
 from .openai import OpenAIProvider, _redact_secrets
 
@@ -63,6 +63,19 @@ class OpenAICompatibleProvider(OpenAIProvider):
             raise ProviderError(
                 "Failed to initialize OpenAI-compatible client: " f"{redacted_message}"
             ) from e
+
+    def _use_responses_api(self, request: ModelRequest) -> bool:
+        # Local reasoning uses Chat Completions unless Responses is explicit.
+        endpoint = str(
+            request.provider_options.get("endpoint")
+            or request.provider_options.get("api")
+            or ""
+        ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
+        return endpoint == "responses" or bool(
+            request.provider_options.get("use_responses")
+        )
 
     def _model_name(self) -> str:
         return str(getattr(self.config, "model", None) or "local-model")

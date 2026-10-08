@@ -25,6 +25,7 @@ from ..models import (
     ToolResult,
 )
 from .errors import map_gemini_http_error, map_provider_exception
+from .registry import reasoning_parameters
 
 
 def _redact_secret(message: str, secret: Optional[str]) -> str:
@@ -267,14 +268,13 @@ class GeminiProvider:
             payload["generationConfig"]["responseSchema"] = (
                 request.response_schema.json_schema or {}
             )
-        if (
-            request is not None
-            and request.reasoning is not None
-            and request.reasoning.budget_tokens is not None
-        ):
-            payload["generationConfig"]["thinkingConfig"] = {
-                "thinkingBudget": request.reasoning.budget_tokens
-            }
+        if request is not None and request.reasoning is not None:
+            thinking = dict(reasoning_parameters(request))
+            if request.reasoning.budget_tokens is not None:
+                thinking.pop("thinkingLevel", None)
+                thinking["thinkingBudget"] = request.reasoning.budget_tokens
+            if thinking:
+                payload["generationConfig"]["thinkingConfig"] = thinking
         if request is not None:
             generation_config = request.provider_options.get("generation_config")
             if isinstance(generation_config, dict):

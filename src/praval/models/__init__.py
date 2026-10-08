@@ -6,7 +6,7 @@ without binding the rest of Praval to one provider's wire format.
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Protocol
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -243,6 +243,7 @@ class AudioResponse(BaseModel):
 class ReasoningConfig(BaseModel):
     """Reasoning controls for providers that support them."""
 
+    level: Optional[Literal["none", "low", "medium", "high"]] = None
     effort: Optional[str] = None
     summary: Optional[str] = None
     encrypted: bool = False
@@ -311,6 +312,8 @@ class ProviderProfile(BaseModel):
     max_output_tokens: Optional[int] = None
     default_parameters: Dict[str, Any] = Field(default_factory=dict)
     unsupported_combinations: List[Dict[str, Any]] = Field(default_factory=list)
+    reasoning_levels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    reasoning_source: str = ""
     downgrade_policy: str = "error"
     notes: str = ""
 

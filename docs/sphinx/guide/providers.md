@@ -205,3 +205,74 @@ release and captured in tests. The 0.8 audit used the official
 When a provider releases a new model, add or update a `ProviderProfile`, record
 the endpoint and capability assumptions, and add a registry test. Do not add
 placeholder model names to docs or defaults.
+
+## Portable Reasoning Levels
+
+Set `reasoning="low"`, `"medium"`, `"high"`, or `"none"` on an agent or an
+individual call. The decorator accepts the same default:
+
+```python
+from praval import Agent, agent, chat
+
+assistant = Agent("assistant", model="openai:gpt-5.4", reasoning="medium")
+answer = assistant.chat("Check this calculation", reasoning="high")
+
+@agent("reviewer", model="anthropic:claude-sonnet-5", reasoning="low")
+def reviewer(spore):
+    return {"review": chat("Review the proposal", reasoning="high")}
+```
+
+Defaults may also be supplied in `config={"reasoning": "medium"}`. Per-call
+values override that default on `chat`, `generate`, `agenerate`, `stream`, and
+`astream`, including calls through decorator `chat` and `achat`. A string
+normalizes to `ReasoningConfig(level=...)`. Dicts and existing
+`ReasoningConfig(effort=..., budget_tokens=...)` controls remain supported;
+explicit effort or budget overrides the mapped value.
+
+Levels express intent, not equivalent compute or answer quality across models.
+The model profile's `reasoning_levels` stores native mappings and
+`reasoning_source` records their documentation. Unsupported levels fail before
+a provider request with the provider, model, and accepted levels in the error.
+Unknown models require a registered profile to use portable levels.
+
+| Model family | Mapping | Supported portable levels |
+| --- | --- | --- |
+| OpenAI GPT-5.1/5.2/5.4/5.5 | Responses `reasoning.effort`; Chat Completions `reasoning_effort` | none, low, medium, high |
+| OpenAI GPT-5 and o1/o3/o4-mini | Same effort parameters | low, medium, high |
+| Claude Sonnet 5, Opus 4.6/4.7/4.8, Sonnet 4.6 | `thinking.type=adaptive`, `output_config.effort`; none disables thinking | none, low, medium, high |
+| Claude Fable 5 | Adaptive thinking and output effort | low, medium, high |
+| Claude Haiku 4.5 and Sonnet 4.5 | Enabled thinking with budgets 1024/4096/8192; none disables thinking | none, low, medium, high |
+| Gemini 3.5 Flash, 3.1 Flash-Lite and 3.1 Pro | `thinkingConfig.thinkingLevel` | low, medium, high |
+| Gemini 2.5 Flash and Flash-Lite | `thinkingBudget`: 0/1024/4096/8192 | none, low, medium, high |
+| Gemini 2.5 Pro | `thinkingBudget`: 1024/4096/8192 | low, medium, high |
+| Cohere Command A Reasoning | v2 `thinking` with disabled or enabled and budgets 512/2048/8192 | none, low, medium, high |
+| vLLM preset | Chat Completions `reasoning_effort` | none, low, medium, high |
+
+Budgets in this table are Praval's choices within the providers' documented
+ranges. Give reasoning sufficient output space, for example
+`config={"max_output_tokens": 16384}`. Claude manual thinking requires its output
+limit to exceed the thinking budget; Praval checks this for portable budgets.
+Gemini's output limit includes thinking tokens. Gemini 3's `minimal` setting
+still permits thinking, so Praval rejects `none` for that family. Gemini 2.5
+Pro and Claude Fable 5 also cannot disable thinking.
+
+An explicit `provider_options={"endpoint": "chat.completions"}` stays on
+OpenAI Chat Completions when reasoning is enabled. Portable OpenAI and Claude
+requests omit sampling parameters that conflict with thinking and use provider
+default sampling. Existing explicit provider controls keep their original
+parameter behavior.
+
+Cohere `command-a-reasoning-08-2025` uses the installed SDK's `ClientV2` because
+v1 `Client.chat` has no `thinking` parameter. The normal Command A profile
+retains v1. V2 reasoning preserves native thinking and tool-call blocks through
+continuation and HITL state; returned content contains the text answer.
+`stream` and `astream` on that profile replay the completed response rather
+than use native streaming.
+
+Mappings were checked on 2026-10-08 against [OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning),
+[Claude thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting),
+[Gemini generateContent thinking](https://ai.google.dev/gemini-api/docs/generate-content/thinking),
+[Cohere reasoning](https://docs.cohere.com/docs/reasoning), and
+[vLLM reasoning](https://docs.vllm.ai/en/latest/features/reasoning_outputs/).
+Deterministic tests verify payloads; live model behavior requires separate
+provider certification.

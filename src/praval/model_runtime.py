@@ -278,9 +278,13 @@ def normalize_reasoning_config(value: Any) -> Optional[ReasoningConfig]:
         return None
     if isinstance(value, ReasoningConfig):
         return value
+    if isinstance(value, str):
+        if value not in {"none", "low", "medium", "high"}:
+            raise TypeError("reasoning level must be none, low, medium or high")
+        return ReasoningConfig.model_validate({"level": value})
     if isinstance(value, dict):
         return ReasoningConfig(**value)
-    raise TypeError("reasoning must be a dict or ReasoningConfig")
+    raise TypeError("reasoning must be a level string, dict or ReasoningConfig")
 
 
 def normalize_content_parts(value: Any) -> Any:
@@ -742,7 +746,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -798,7 +802,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -832,7 +836,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -900,7 +904,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -1085,7 +1089,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]],
         hitl_context: Optional[Dict[str, Any]],
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -1206,6 +1210,10 @@ class ModelRuntime:
             blocked = ", ".join(sorted(set(unsafe)))
             raise ProviderError(f"Unsafe provider option(s): {blocked}")
         self._validate_experimental_tools(request)
+        if request.reasoning is not None and request.reasoning.level is not None:
+            from .providers.registry import reasoning_parameters
+
+            reasoning_parameters(request)
         if request.reasoning is not None and not capabilities.reasoning:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support reasoning config"
@@ -1299,6 +1307,8 @@ class ModelRuntime:
             or request.provider_options.get("api")
             or ""
         ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
         return endpoint == "responses" or bool(
             request.provider_options.get("use_responses", False)
         )

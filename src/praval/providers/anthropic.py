@@ -33,6 +33,7 @@ from ..models import (
     Usage,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .registry import reasoning_parameters
 
 
 def _redact_secrets(message: str) -> str:
@@ -348,6 +349,11 @@ class AnthropicProvider:
         for key, value in request.provider_options.items():
             if key not in reserved:
                 call_params.setdefault(key, value)
+        if request.reasoning is not None and request.reasoning.level is not None:
+            # Thinking requires provider-default sampling. New adaptive-only
+            # families require it even when thinking is explicitly disabled.
+            for key in ("temperature", "top_p", "top_k"):
+                call_params.pop(key, None)
         return call_params
 
     def _experimental_tools(self, request: ModelRequest) -> List[Dict[str, Any]]:
@@ -494,9 +500,14 @@ class AnthropicProvider:
         if request.reasoning is None:
             return {}
         reasoning = request.reasoning
-        if reasoning.budget_tokens is None and not reasoning.mode:
+        native = reasoning_parameters(request)
+        thinking: Dict[str, Any] = dict(native.get("thinking") or {})
+        if reasoning.budget_tokens is None and not reasoning.mode and not thinking:
             return {}
-        thinking: Dict[str, Any] = {"type": reasoning.mode or "enabled"}
+        if reasoning.mode:
+            thinking["type"] = reasoning.mode
+        elif reasoning.budget_tokens is not None:
+            thinking["type"] = "enabled"
         if reasoning.budget_tokens is not None:
             thinking["budget_tokens"] = reasoning.budget_tokens
         if reasoning.display:
@@ -510,6 +521,7 @@ class AnthropicProvider:
                 "type": "json_schema",
                 "schema": request.response_schema.json_schema or {},
             }
+        output_config.update(reasoning_parameters(request).get("output_config", {}))
         if request.reasoning is not None and request.reasoning.effort:
             output_config["effort"] = request.reasoning.effort
         return output_config

@@ -50,6 +50,7 @@ from .core.agent import _CALL_TOKEN, Agent, _CallToken
 from .core.exceptions import InterventionRequired, ToolError
 from .core.reef import get_reef
 from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
+from .models import ReasoningConfig
 from .models.observation import ContentKind, ObservationKind
 from .runtime_observation import (
     ObservationScope,
@@ -291,6 +292,7 @@ def agent(
     auto_discover_tools: bool = True,
     on_error: Union[str, Callable[[Exception, Any], None]] = "log",
     hitl: bool = False,
+    reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
 ) -> Callable[[Callable], Callable]:
     """
     Decorator that turns a function into an autonomous agent.
@@ -301,6 +303,7 @@ def agent(
         provider: LLM provider to use
         model: Provider model name or compact provider:model value
         config: Additional Agent configuration
+        reasoning: Portable level or provider-specific reasoning controls
         system_message: System message (defaults to function docstring)
         auto_broadcast: Whether to auto-broadcast return values
         responds_to: List of message types this agent responds to (None = all messages)
@@ -389,6 +392,8 @@ def agent(
             agent_kwargs["model"] = model
         if config is not None:
             agent_kwargs["config"] = config
+        if reasoning is not None:
+            agent_kwargs["reasoning"] = reasoning
 
         underlying_agent = Agent(**agent_kwargs)
 
