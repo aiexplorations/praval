@@ -416,3 +416,51 @@ def test_streamed_schema_validation_precedes_final_and_history_commit(
         assert log == ([("lookup", "Paris")] if with_tools else [])
     finally:
         agent.close()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ['{"code":"PX-1"}', '{"code":7}', "not-json"],
+    ids=["valid", "schema-mismatch", "invalid-json"],
+)
+def test_concrete_async_provider_stream_validates_before_committing_final(
+    monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    """Exercise native async dispatch with real OpenAI stream event translation.
+
+    Shipped SDK adapters currently expose synchronous streams. An async shim
+    retains their real wire conversion while exercising the runtime contract
+    used by providers that implement astream themselves.
+    """
+    harness = OpenAIHarness()
+    agent = build_agent(harness, monkeypatch)
+    harness.responses = [harness.final_turn(answer)]
+
+    async def astream(provider: Any, request: ModelRequest, **options: Any) -> Any:
+        for event in provider.stream(request, **options):
+            yield event
+
+    monkeypatch.setattr(type(agent.provider), "astream", astream, raising=False)
+    events: List[Any] = []
+    schema = StructuredOutputConfig(
+        schema={"type": "object", "properties": {"code": {"type": "string"}}},
+        validate_locally=True,
+    )
+
+    async def collect() -> None:
+        async for event in agent.astream(QUESTION, response_schema=schema):
+            events.append(event)
+
+    try:
+        if answer == '{"code":"PX-1"}':
+            asyncio.run(collect())
+            assert events[-1].type == "final"
+            assert agent.conversation_history[-1]["content"] == answer
+        else:
+            with pytest.raises(ProviderError, match="schema|JSON"):
+                asyncio.run(collect())
+            assert [event.type for event in events] == ["start", "delta"]
+            assert agent.conversation_history[-1]["role"] == "user"
+        assert len(harness.requests) == 1 and harness.requests[0]["stream"] is True
+    finally:
+        agent.close()
