@@ -34,7 +34,7 @@ A run that uses tools must work on every supported adapter, never repeat a side 
 ### Features
 
 1. **Usage metering.** Every provider request Praval makes is metered with normalised usage; tool runs report true totals; callers compute cost from their own prices. Covers chat-model calls only. Spec: `plans/praval-v0.8.4-usage-metering.md`, with the changes listed in the v0.8.4 plan.
-2. **Reasoning controls.** A portable reasoning level accepted by `Agent`, `@agent`, `chat()` and every generate and stream method, mapped per model family to the native setting (for example Gemini 3 `thinkingLevel` versus Gemini 2.5 `thinkingBudget`). An unsupported level fails with a precise error and is never silently weakened. Explicit endpoint selection stops being overridden by reasoning settings, so local Chat Completions servers can receive reasoning effort. This is the item to move to v0.8.5 if v0.8.4 has to shrink.
+2. **Reasoning controls.** A portable reasoning level accepted by `Agent`, `@agent`, `chat()` and every generate and stream method, mapped per model family to the native setting (for example Gemini 3 `thinkingLevel` versus Gemini 2.5 `thinkingBudget`). An unsupported level fails with a precise error and is never silently weakened. Explicit endpoint selection stops being overridden by reasoning settings, so local Chat Completions servers can receive reasoning effort. Required for v0.8.4, confirmed 2026-10-08.
 
 ### Release gate
 

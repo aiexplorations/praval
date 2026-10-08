@@ -6,7 +6,7 @@ Roadmap: `plans/praval-roadmap.md`. Metering spec: `plans/praval-v0.8.4-usage-me
 
 ## Objective
 
-A run with tools works on every supported adapter, keeps its full conversation, never repeats a completed side effect, reports typed failures, and reports what it used. Reasoning controls are the last work package; they can move to v0.8.5 without affecting the rest.
+A run with tools works on every supported adapter, keeps its full conversation, never repeats a completed side effect, reports typed failures, and reports what it used. Usage metering and portable reasoning controls are required for v0.8.4. Jev decision-model support remains in v0.8.5 (confirmed 2026-10-08).
 
 ## Decisions taken
 

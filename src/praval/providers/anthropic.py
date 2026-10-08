@@ -33,6 +33,7 @@ from ..models import (
     Usage,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .usage import anthropic_usage
 
 
 def _redact_secrets(message: str) -> str:
@@ -515,24 +516,7 @@ class AnthropicProvider:
         return output_config
 
     def _extract_usage(self, response: Any) -> Optional[Usage]:
-        usage = getattr(response, "usage", None)
-        if usage is None and isinstance(response, dict):
-            usage = response.get("usage")
-        if usage is None:
-            return None
-
-        def getter(key: str, default: int = 0) -> Any:
-            if isinstance(usage, dict):
-                return usage.get(key, default)
-            return getattr(usage, key, default)
-
-        input_tokens = int(getter("input_tokens", 0) or 0)
-        output_tokens = int(getter("output_tokens", 0) or 0)
-        return Usage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-        )
+        return anthropic_usage(response)
 
     def _extract_system_message(self, messages: List[Dict[str, Any]]) -> Optional[str]:
         for message in messages:

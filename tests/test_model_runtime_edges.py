@@ -356,7 +356,13 @@ def test_runtime_non_native_stream_fallback_emits_usage_and_final():
     events = list(
         _runtime(Provider()).stream(messages=[{"role": "user", "content": "x"}])
     )
-    assert [event.type for event in events] == ["start", "delta", "usage", "final"]
+    assert [event.type for event in events] == [
+        "start",
+        "delta",
+        "model_call",
+        "usage",
+        "final",
+    ]
 
 
 @pytest.mark.asyncio
@@ -374,7 +380,7 @@ async def test_runtime_native_and_fallback_async_streams():
             messages=[{"role": "user", "content": "x"}]
         )
     ]
-    assert [event.type for event in native] == ["start", "delta", "final"]
+    assert [event.type for event in native] == ["start", "delta", "model_call", "final"]
 
     class FallbackProvider:
         capabilities = ProviderCapabilities(streaming=True)
@@ -388,7 +394,12 @@ async def test_runtime_native_and_fallback_async_streams():
             messages=[{"role": "user", "content": "x"}]
         )
     ]
-    assert [event.type for event in fallback] == ["start", "delta", "final"]
+    assert [event.type for event in fallback] == [
+        "start",
+        "delta",
+        "model_call",
+        "final",
+    ]
 
 
 def test_runtime_resume_rejects_corrupted_continuation_state():
@@ -868,7 +879,7 @@ def test_native_stream_retries_only_before_first_event(provider_class):
     with _patched_sleeps():
         types, error = _collect_stream(_runtime(provider, retries=1), use_async)
     assert error is None
-    assert types == ["start", "delta", "delta", "final"]
+    assert types == ["start", "delta", "delta", "model_call", "model_call", "final"]
     assert provider.calls == 2
 
     provider = provider_class(
@@ -877,7 +888,7 @@ def test_native_stream_retries_only_before_first_event(provider_class):
     with _patched_sleeps() as (sleep, async_sleep):
         types, error = _collect_stream(_runtime(provider, retries=3), use_async)
     assert isinstance(error, ProviderTransportError)
-    assert types == ["start", "delta", "error"]
+    assert types == ["start", "delta", "error", "model_call"]
     assert provider.calls == 1
     sleep.assert_not_called()
     async_sleep.assert_not_awaited()
@@ -887,7 +898,7 @@ def test_native_stream_retries_only_before_first_event(provider_class):
         types, error = _collect_stream(_runtime(provider, retries=3), use_async)
     assert isinstance(error, ProviderAuthenticationError)
     assert error.operation == "stream"
-    assert types == ["start", "error"]
+    assert types == ["start", "error", "model_call"]
     assert provider.calls == 1
 
     provider = provider_class(
@@ -896,7 +907,7 @@ def test_native_stream_retries_only_before_first_event(provider_class):
     with _patched_sleeps():
         types, error = _collect_stream(_runtime(provider, retries=1), use_async)
     assert isinstance(error, ProviderTransportError) and str(error) == "b"
-    assert types == ["start", "error"]
+    assert types == ["start", "error", "model_call", "model_call"]
     assert provider.calls == 2
 
 
@@ -914,9 +925,9 @@ def test_native_stream_wraps_unrecognised_errors_and_passes_lone_error_events():
 
     types, error = _collect_stream(_runtime(OddStreamProvider(False)), False)
     assert error is None
-    assert types == ["start", "error"]
+    assert types == ["start", "error", "model_call"]
 
     types, error = _collect_stream(_runtime(OddStreamProvider(True), retries=2), False)
     assert type(error) is ProviderError
     assert isinstance(error.__cause__, KeyError)
-    assert types == ["start", "error"]
+    assert types == ["start", "error", "model_call"]

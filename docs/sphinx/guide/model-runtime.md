@@ -153,6 +153,7 @@ Streaming emits normalized `ModelEvent` values:
 | `tool_call` | Complete tool call request. |
 | `tool_result` | Tool result emitted by runtime-owned orchestration. |
 | `usage` | Token usage update. |
+| `model_call` | Completed actual request, including attempt and reported usage. |
 | `error` | Provider or stream error, with redacted metadata. |
 | `final` | Final `ModelResponse`. |
 
@@ -177,3 +178,5 @@ continuation schemas remain readable for compatibility.
 
 Provider-hosted tools are a separate experimental pass-through. See
 {doc}`providers` for the explicit opt-in and security restrictions.
+
+See {doc}`usage-metering` for aggregate response usage and per-request accounting.

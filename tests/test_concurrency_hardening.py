@@ -1154,6 +1154,10 @@ def test_signature_validator_cache_under_concurrent_first_use_and_gc() -> None:
         barrier.wait(WAIT)
         while not stop.is_set():
             gc.collect()
+            # Yield between full collections: the probe stresses concurrent
+            # cache access and collection, rather than starving workers under
+            # coverage tracing. Keep the same worker completion deadline.
+            stop.wait(0.01)
 
     collector_thread = threading.Thread(target=collector, daemon=True)
     collector_thread.start()
@@ -1251,7 +1255,7 @@ def test_stream_finished_in_another_thread_commits_once() -> None:
 
     results = _run_threads([lambda: [event.type for event in events]])
 
-    assert results == [["delta", "delta", "final"]]
+    assert results == [["delta", "delta", "model_call", "final"]]
     assert agent.conversation_history == [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "ab"},

@@ -788,7 +788,13 @@ def test_native_stream_records_ttft_and_does_not_double_count_usage(
                 )
             )
 
-    assert [event.type for event in events] == ["start", "delta", "usage", "final"]
+    assert [event.type for event in events] == [
+        "start",
+        "delta",
+        "usage",
+        "model_call",
+        "final",
+    ]
     assert recorder.observations[0].usage.total_tokens == 5
     model_span = next(
         span
