@@ -256,6 +256,9 @@ class Agent:
         # Lifecycle management
         self._closed = False
         self._subscribed_channels: List[str] = []
+        # Channels this agent owns (an @agent's "<name>_channel"); close()
+        # removes each from the Reef once nothing else subscribes to it.
+        self._owned_channels: List[str] = []
 
         # Setup configuration
         config_dict = dict(config or {})
@@ -1426,7 +1429,8 @@ class Agent:
         Release all resources held by the agent.
 
         This method:
-        - Unsubscribes from all reef channels
+        - Unsubscribes from all reef channels, and removes the channel an
+          ``@agent`` owns (``<name>_channel``) once it has no other subscribers
         - Unregisters the tools this agent added to the global tool registry
         - Shuts down the memory system
         - Clears conversation history
@@ -1468,6 +1472,9 @@ class Agent:
                         f"Error unsubscribing {self.name} from {channel_name}: {e}"
                     )
             self._subscribed_channels.clear()
+            for channel_name in self._owned_channels:
+                reef.remove_channel_if_unused(channel_name)
+            self._owned_channels.clear()
         except Exception as e:
             logger.warning(f"Error during reef cleanup for {self.name}: {e}")
 

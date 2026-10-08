@@ -504,6 +504,9 @@ def agent(
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
+        if agent_channel == f"{agent_name}_channel":
+            # The agent's own channel; close() removes it once it is unused.
+            underlying_agent._owned_channels.append(agent_channel)
 
         # CRITICAL FIX for reef broadcast invocation:
         # Subscribe agent to the default broadcast channel so it receives

@@ -710,13 +710,6 @@ def test_closed_decorated_agent_leaves_the_reef_and_is_collected():
     assert ref() is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: an @agent's own '<name>_channel' stays in the reef "
-        "after close(), so creating uniquely named agents grows reef.channels"
-    ),
-)
 def test_closed_decorated_agents_do_not_accumulate_channels():
     reef = get_reef()
     baseline = len(reef.channels)
@@ -733,6 +726,96 @@ def test_closed_decorated_agents_do_not_accumulate_channels():
             short_lived._praval_agent.close()
 
     assert len(reef.channels) == baseline
+
+
+def test_close_keeps_an_owned_channel_that_has_other_subscribers():
+    reef = get_reef()
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_ScriptedProvider(),
+    ):
+
+        @agent_decorator("busy_owner")
+        def busy_owner(spore: Any) -> None:
+            return None
+
+    def listener(spore: Any) -> None:
+        return None
+
+    reef.subscribe("listener", listener, channel="busy_owner_channel")
+    try:
+        busy_owner._praval_agent.close()
+        channel = reef.get_channel("busy_owner_channel")
+        assert channel is not None
+        assert not channel.subscribers.get("busy_owner")
+    finally:
+        channel = reef.get_channel("busy_owner_channel")
+        if channel is not None:
+            channel.unsubscribe("listener")
+        assert reef.remove_channel_if_unused("busy_owner_channel")
+    assert reef.get_channel("busy_owner_channel") is None
+
+
+def test_close_keeps_an_explicitly_named_channel():
+    reef = get_reef()
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_ScriptedProvider(),
+    ):
+
+        @agent_decorator("named_channel_agent", channel="team_channel")
+        def named_channel_agent(spore: Any) -> None:
+            return None
+
+    named_channel_agent._praval_agent.close()
+    try:
+        assert reef.get_channel("team_channel") is not None
+    finally:
+        assert reef.remove_channel_if_unused("team_channel")
+
+
+def test_reef_never_removes_the_default_channel():
+    reef = get_reef()
+    reef.create_channel(reef.default_channel)
+    assert not reef.remove_channel_if_unused(reef.default_channel)
+    assert reef.get_channel(reef.default_channel) is not None
+    assert not reef.remove_channel_if_unused("no_such_channel")
+
+
+def test_concurrent_subscribe_and_remove_never_orphan_a_subscriber():
+    reef = get_reef()
+
+    def handler(spore: Any) -> None:
+        return None
+
+    for iteration in range(50):
+        name = f"race_channel_{iteration}"
+        created = reef.create_channel(name)
+        barrier = threading.Barrier(2)
+
+        def subscribe() -> None:
+            barrier.wait(5)
+            reef.subscribe("racer", handler, channel=name)
+
+        def remove() -> None:
+            barrier.wait(5)
+            reef.remove_channel_if_unused(name)
+
+        threads = [threading.Thread(target=subscribe), threading.Thread(target=remove)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(5)
+        channel = reef.get_channel(name)
+        # Either the subscriber landed first and the channel stays, or the
+        # channel was removed first and the subscription was a no-op.
+        if channel is not None:
+            assert channel.subscribers.get("racer")
+            channel.unsubscribe("racer")
+            assert reef.remove_channel_if_unused(name)
+        else:
+            assert not created.subscribers.get("racer")
+        assert reef.get_channel(name) is None
 
 
 # ---------------------------------------------------------------------------
