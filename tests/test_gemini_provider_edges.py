@@ -15,6 +15,7 @@ from praval.models import (
     ReasoningConfig,
     StructuredOutputConfig,
     ToolResult,
+    ToolSpec,
 )
 from praval.providers.gemini import GeminiProvider, _redact_secret
 
@@ -201,6 +202,57 @@ def test_gemini_content_mime_tool_schema_and_function_call_edges(gemini_provider
         }
     )
     assert calls[0]["name"] == "lookup"
+
+
+@pytest.mark.parametrize("entry", ["invoke", "stream"])
+def test_gemini_neutral_tool_specs_reach_http_payload(gemini_provider, entry):
+    schema = {
+        "type": "object",
+        "properties": {"offset": {"type": "integer"}, "enabled": {"type": "boolean"}},
+        "required": ["offset"],
+        "additionalProperties": False,
+    }
+    request = ModelRequest(
+        messages=[ModelMessage(role="user", content="Read")],
+        tools=[ToolSpec(name="read", description="Read", parameters=schema)],
+    )
+    response = {"candidates": [{"content": {"parts": [{"text": "ready"}]}}]}
+    method = "_post_stream" if entry == "stream" else "_post_json"
+    with patch.object(
+        gemini_provider,
+        method,
+        return_value=iter([response]) if entry == "stream" else response,
+    ) as post:
+        if entry == "stream":
+            assert list(gemini_provider.stream(request))[-1].response.content == "ready"
+        else:
+            assert gemini_provider.invoke(request).content == "ready"
+    declaration = post.call_args.args[1]["tools"][0]["functionDeclarations"][0]
+    assert declaration == {
+        "name": "read",
+        "description": "Read",
+        "parametersJsonSchema": schema,
+    }
+    assert declaration["parametersJsonSchema"] is not request.tools[0].parameters
+
+
+@pytest.mark.parametrize(
+    "json_type,gemini_type",
+    [
+        ("string", "STRING"),
+        ("integer", "INTEGER"),
+        ("number", "NUMBER"),
+        ("boolean", "BOOLEAN"),
+        ("array", "ARRAY"),
+        ("object", "OBJECT"),
+    ],
+)
+def test_gemini_legacy_parameter_mapping_accepts_json_types(
+    gemini_provider, json_type, gemini_type
+):
+    assert gemini_provider._gemini_parameter_schema({"type": json_type}) == {
+        "type": gemini_type
+    }
 
 
 def test_gemini_error_tool_results_and_legacy_followup_fallback(gemini_provider):

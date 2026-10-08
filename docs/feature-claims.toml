@@ -1,6 +1,11 @@
 schema_version = 1
 
 [[claims]]
+id = "registered-tool-schema-parity"
+statement = "Full object JSON Schemas registered with Agent.add_tool_spec retain typed declarations across dependent requests on OpenAI, compatible servers, Anthropic, Gemini and Cohere."
+evidence = ["tests/integration_matrix/test_registered_tool_schema_matrix.py", "tests/test_gemini_provider_edges.py", "examples/certification/live_provider_tools.py"]
+
+[[claims]]
 id = "provider-discovery-and-robustness"
 statement = "Provider catalogues supply model metadata; request recovery preserves required controls, Anthropic supports opt-in caching, and OpenRouter preserves strict routing and reported charges."
 evidence = ["tests/test_provider_robustness.py", "examples/certification/live_provider_tools.py"]

@@ -22,6 +22,34 @@ Tool declarations are normalized into `ToolSpec` objects with JSON Schema
 parameters. HITL metadata such as `requires_approval`, `risk_level`, and
 `approval_reason` is preserved when legacy tool dictionaries are converted.
 
+Register an existing JSON Schema, including an MCP tool's input schema, with
+`Agent.add_tool_spec(ToolSpec(...), handler)`. Object schemas retain their
+properties, required fields, nested arrays/objects, integer and boolean types,
+enums and constraints. Anthropic sends them as `input_schema`; Gemini sends
+them through its native `parametersJsonSchema` field, separate from the older
+`parameters` representation. OpenAI and Cohere also retain the JSON Schema.
+Provider APIs may reject schema features outside their supported subset.
+See [Gemini function declarations](https://ai.google.dev/api/generate-content#FunctionDeclaration)
+and [Anthropic tool schemas](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+
+The registration contract tests exercise `add_tool_spec` through real adapters
+with fake SDK/HTTP clients and inspect declarations on every dependent request.
+The live certificate in `examples/certification/live_provider_tools.py` also
+uses this registration path, requires integer and boolean arguments, and checks
+actual handler execution and per-request usage. For a Gemini release-branch
+check with a configured key and model:
+
+```bash
+source venv/bin/activate
+export PRAVAL_GEMINI_MODEL="gemini-3.1-flash-lite"
+export PRAVAL_DEMO_REPORT_DIR="/tmp/praval-gemini-tools"
+python examples/certification/live_provider_tools.py --provider gemini
+```
+
+For Anthropic, set `ANTHROPIC_API_KEY` and `PRAVAL_ANTHROPIC_MODEL`, select a
+separate report directory, and use `--provider anthropic`. These checks call
+paid APIs and require available quota.
+
 `Agent.tool` and `Agent.add_tool_spec` also add the tool to the global tool
 registry for discovery, unless that name is already registered. `close()`
 removes the entries the agent added; entries registered elsewhere, including

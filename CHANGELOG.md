@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Included in the pending 0.8.4 release: full JSON Schema tools registered
+  through `Agent.add_tool_spec` retain their parameters on Anthropic, Gemini
+  and Cohere. Gemini uses its native JSON Schema field; empty object schemas
+  are preserved by the runtime. Contract tests inspect every dependent request.
 - Included in the pending 0.8.4 release: service certification builds its
   pinned MinIO source because the upstream binary image is unavailable.
 - Included in the pending 0.8.4 release: Agent cleanup no longer creates or
@@ -56,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Anthropic and Cohere pre-request crashes and Gemini malformed tool
+  declarations for tools registered with full JSON Schema, including MCP tools.
 - Fixed OpenAI GPT-6 compatibility on Chat Completions and Responses, including
   dependent tools, default endpoint selection and model-specific reasoning levels.
 - Fixed a Python 3.10 CI deadlock where Agent finalization waited for the Reef

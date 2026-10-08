@@ -295,6 +295,15 @@ class GeminiProvider:
                 "parts": [{"text": "\n\n".join(system_parts)}]
             }
         formatted_tools = self._format_tools(tools or [])
+        if not formatted_tools and request is not None and request.tools:
+            formatted_tools = [
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parametersJsonSchema": copy.deepcopy(spec.parameters),
+                }
+                for spec in request.tools
+            ]
         if formatted_tools:
             payload["tools"] = [{"functionDeclarations": formatted_tools}]
         return payload
@@ -430,6 +439,19 @@ class GeminiProvider:
             func = tool.get("function")
             if not callable(func):
                 continue
+            parameters = tool.get("parameters") or {}
+            if parameters.get("type") == "object":
+                # The REST API accepts JSON Schema directly. Using its dedicated
+                # field preserves nested types/constraints without a lossy
+                # conversion to the older Google Schema representation.
+                declarations.append(
+                    {
+                        "name": getattr(func, "__name__", ""),
+                        "description": tool.get("description", ""),
+                        "parametersJsonSchema": copy.deepcopy(parameters),
+                    }
+                )
+                continue
             declarations.append(
                 {
                     "name": getattr(func, "__name__", ""),
@@ -470,6 +492,12 @@ class GeminiProvider:
 
     def _python_type_to_gemini_schema_type(self, python_type: str) -> str:
         mapping = {
+            "string": "STRING",
+            "integer": "INTEGER",
+            "number": "NUMBER",
+            "boolean": "BOOLEAN",
+            "array": "ARRAY",
+            "object": "OBJECT",
             "str": "STRING",
             "int": "INTEGER",
             "float": "NUMBER",

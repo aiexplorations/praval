@@ -11,6 +11,14 @@ state. OpenAI Responses chains preserve response identity; Anthropic signed
 thinking and Gemini thought signatures survive tool rounds. All configured system
 messages are preserved across provider serializers.
 
+Full object JSON Schemas registered through `Agent.add_tool_spec`, including
+MCP input schemas, now survive the Anthropic, Gemini and Cohere callable-tool
+paths. Anthropic and Cohere no longer crash before sending these requests;
+Gemini uses `parametersJsonSchema` to preserve actual argument names, nested
+types and constraints. Empty object schemas also survive runtime normalization.
+The contract matrix inspects each dependent request across public entry points,
+and live tool checks require integer and boolean arguments with usage accounting.
+
 Retries apply to individual provider requests, with typed errors, bounded backoff
 and SDK retry control. Completed tool results are reused during approval recovery,
 including later rounds and a second approval gate. Replay protection starts after

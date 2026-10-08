@@ -178,7 +178,8 @@ def certify_tool_rounds(
         assert value == first
         return second
 
-    def confirm_value(value: int) -> str:
+    def confirm_value(value: int, approved: bool) -> str:
+        assert approved is True
         executions.append(("confirm_value", value))
         assert executions == [
             ("next_value", 0),
@@ -204,11 +205,21 @@ def certify_tool_rounds(
             ("next_value", next_value),
             ("confirm_value", confirm_value),
         ):
+            parameters = schema
+            if name == "confirm_value":
+                parameters = {
+                    **schema,
+                    "properties": {
+                        **schema["properties"],
+                        "approved": {"type": "boolean"},
+                    },
+                    "required": ["value", "approved"],
+                }
             agent.add_tool_spec(
                 ToolSpec(
                     name=name,
                     description="Use this tool for the requested certification step.",
-                    parameters=schema,
+                    parameters=parameters,
                     strict=True,
                 ),
                 handler,
@@ -216,7 +227,8 @@ def certify_tool_rounds(
         response = agent.generate(
             "First call next_value with value=0. Wait for its result, call next_value "
             "again with that result, then wait and call confirm_value with the second "
-            "result. Use one tool at a time. Finish by saying certified.",
+            "result and approved=true. Use one tool at a time. "
+            "Finish by saying certified.",
             max_tool_rounds=4,
             provider_options={"endpoint": endpoint} if endpoint else None,
             reasoning=reasoning,
