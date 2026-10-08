@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 from unittest.mock import patch
 
 import pytest
-from test_provider_continuation import (
+from provider_harnesses import (
     HARNESSES,
     AnthropicHarness,
     CohereHarness,
