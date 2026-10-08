@@ -785,20 +785,19 @@ def test_s8_response_schema_with_unresolvable_ref_is_typed_error():
         _validate_structured_content("[" * 200_000, config, provider="p", model="m")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: jsonschema evaluates 'pattern' with the stdlib re module, "
-        "which has no timeout, so a catastrophic pattern from an MCP server "
-        "plus a model-chosen string blocks the run (and holds the GIL). "
-        "Options: skip 'pattern' for external schemas, cap string length "
-        "before pattern checks, or use a timeout-capable regex engine."
-    ),
-)
-def test_s8_redos_pattern_does_not_hang_validation():
+def test_s8_redos_pattern_on_long_string_does_not_hang_validation():
+    """Strings over the cap fail before an external schema's pattern runs.
+
+    ``re`` has no timeout, so the cap bounds how long a catastrophic pattern
+    from an MCP server can backtrack. A short adversarial string (for example
+    ``"a" * 34 + "!"`` against ``^(a+)+$``) is still evaluated by ``re``.
+    """
     script = textwrap.dedent(
         """
-        from praval.tool_execution import validate_tool_arguments
+        from praval.tool_execution import (
+            MAX_PATTERN_STRING_CHARS,
+            validate_tool_arguments,
+        )
 
         def proxy(**kwargs):
             return "ok"
@@ -807,16 +806,53 @@ def test_s8_redos_pattern_does_not_hang_validation():
             "type": "object",
             "properties": {"s": {"type": "string", "pattern": "^(a+)+$"}},
         }
-        validate_tool_arguments(
+        _, error = validate_tool_arguments(
             {"name": "t", "function": proxy, "parameters": schema},
-            {"s": "a" * 34 + "!"},
+            {"s": "a" * MAX_PATTERN_STRING_CHARS + "!"},
         )
+        assert error is not None and error.is_error, error
+        assert "s: string of 10001 characters" in error.content, error.content
+        assert str(MAX_PATTERN_STRING_CHARS) in error.content, error.content
         """
     )
     try:
         subprocess.run([sys.executable, "-c", script], timeout=5, check=True)
     except subprocess.TimeoutExpired:
         pytest.fail("pattern validation did not finish within 5 s")
+
+
+def test_s8_pattern_still_applies_to_strings_within_the_cap():
+    from praval.tool_execution import MAX_PATTERN_STRING_CHARS, validate_tool_arguments
+
+    tool = _kwargs_tool(
+        {
+            "type": "object",
+            "properties": {"code": {"type": "string", "pattern": "^[A-Z]+$"}},
+        }
+    )
+    assert validate_tool_arguments(tool, {"code": "ABC"})[1] is None
+    _, error = validate_tool_arguments(tool, {"code": "abc"})
+    assert error is not None and "code:" in error.content
+    at_cap = "A" * MAX_PATTERN_STRING_CHARS
+    assert validate_tool_arguments(tool, {"code": at_cap})[1] is None
+    _, error = validate_tool_arguments(tool, {"code": at_cap + "A"})
+    assert error is not None and "limit for pattern checks" in error.content
+
+
+def test_s8_pattern_cap_does_not_apply_to_response_schemas():
+    """Response schemas come from the application, not an external server."""
+    from praval.model_runtime import _validate_structured_content
+    from praval.models import StructuredOutputConfig
+    from praval.tool_execution import MAX_PATTERN_STRING_CHARS
+
+    config = StructuredOutputConfig(
+        schema={
+            "type": "object",
+            "properties": {"s": {"type": "string", "pattern": "^A+$"}},
+        }
+    )
+    content = json.dumps({"s": "A" * (MAX_PATTERN_STRING_CHARS + 1)})
+    _validate_structured_content(content, config, provider="p", model="m")
 
 
 # --- S9 Untrusted Retry-After and error bodies ------------------------------

@@ -40,7 +40,12 @@ checked too):
   with a warning. A `$ref` resolves only inside the schema itself: remote and
   `file:` references are never fetched, and a schema whose `$ref` cannot be
   resolved, or that is nested too deeply to check, is skipped with a warning.
-  Arguments nested too deeply to validate are rejected.
+  Arguments nested too deeply to validate are rejected. A string longer than
+  10,000 characters (`praval.tool_execution.MAX_PATTERN_STRING_CHARS`) fails a
+  `pattern` keyword without the pattern being evaluated, because Python's `re`
+  has no timeout and a schema's pattern can backtrack catastrophically. This
+  limits, but does not remove, the cost of a pathological pattern on shorter
+  strings.
 
 When validation fails the handler is not called. The model receives an error
 result naming each failing field and the expected type, for example:
