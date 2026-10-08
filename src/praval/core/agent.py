@@ -16,6 +16,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+from ..metering import UsageMeter
 from ..model_runtime import ModelRuntime
 from ..models import AudioResponse, SpeechRequest, ToolSpec, TranscriptionRequest
 from ..models.observation import ContentKind, ObservationKind
@@ -237,6 +238,7 @@ class Agent:
             raise ValueError("Agent name cannot be empty")
 
         self.name = name
+        self.usage = UsageMeter()
         self.persist_state = persist_state
         self.memory_enabled = memory_enabled
         self.knowledge_base = knowledge_base
@@ -281,6 +283,8 @@ class Agent:
             provider=self.provider,
             provider_name=self.provider_name,
             config=self.config,
+            usage=self.usage,
+            agent_name=self.name,
         )
 
         # Setup memory system
@@ -1444,6 +1448,7 @@ class Agent:
         Release all resources held by the agent.
 
         This method:
+
         - Unsubscribes from all reef channels, and removes the channel an
           ``@agent`` owns (``<name>_channel``) once it has no other subscribers
         - Unregisters the tools this agent added to the global tool registry

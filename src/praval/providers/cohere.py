@@ -32,6 +32,7 @@ from ..models import (
     ToolSpec,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .usage import cohere_usage
 
 
 def _accepts_keyword(factory: Any, name: str) -> bool:
@@ -217,6 +218,7 @@ class CohereProvider:
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=response,
+            usage=cohere_usage(response),
             finish_reason=finish_reason,
             metadata=metadata,
         )

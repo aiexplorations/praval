@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import openai
 
+from .._metering_runtime import provider_request
 from ..core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
@@ -38,6 +39,7 @@ from ..models import (
     Usage,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .usage import openai_usage
 
 
 def _redact_secrets(message: str) -> str:
@@ -530,11 +532,18 @@ class OpenAIProvider:
         self,
         call_params: Dict[str, Any],
     ) -> Any:
-        response = self.client.chat.completions.create(**call_params)
+        with provider_request() as report:
+            response = self.client.chat.completions.create(**call_params)
+            if report is not None:
+                report.finish(ModelResponse(usage=self._extract_usage(response)))
         retry_params = self._empty_text_retry_params(call_params, response)
         if retry_params is None:
             return response
-        return self.client.chat.completions.create(**retry_params)
+        with provider_request() as report:
+            response = self.client.chat.completions.create(**retry_params)
+            if report is not None:
+                report.finish(ModelResponse(usage=self._extract_usage(response)))
+            return response
 
     def _empty_text_retry_params(
         self,
@@ -1162,35 +1171,7 @@ class OpenAIProvider:
         return "".join(text_parts)
 
     def _extract_usage(self, response: Any) -> Optional[Usage]:
-        usage = getattr(response, "usage", None)
-        if usage is None and isinstance(response, dict):
-            usage = response.get("usage")
-        if usage is None:
-            return None
-
-        def getter(key: str, default: int = 0) -> Any:
-            if isinstance(usage, dict):
-                return usage.get(key, default)
-            return getattr(usage, key, default)
-
-        input_tokens = int(getter("input_tokens", getter("prompt_tokens", 0)) or 0)
-        output_tokens = int(
-            getter("output_tokens", getter("completion_tokens", 0)) or 0
-        )
-        total_tokens = int(getter("total_tokens", input_tokens + output_tokens) or 0)
-        output_details = getter("output_tokens_details", {})
-        if not output_details:
-            output_details = getter("completion_tokens_details", {})
-        if isinstance(output_details, dict):
-            reasoning_tokens = int(output_details.get("reasoning_tokens", 0) or 0)
-        else:
-            reasoning_tokens = int(getattr(output_details, "reasoning_tokens", 0) or 0)
-        return Usage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            reasoning_tokens=reasoning_tokens,
-        )
+        return openai_usage(response)
 
     def _event_value(self, value: Any, key: str, default: Any = None) -> Any:
         if isinstance(value, dict):

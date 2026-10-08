@@ -1154,6 +1154,10 @@ def test_signature_validator_cache_under_concurrent_first_use_and_gc() -> None:
         barrier.wait(WAIT)
         while not stop.is_set():
             gc.collect()
+            # Yield between full collections: the probe stresses concurrent
+            # cache access and collection, rather than starving workers under
+            # coverage tracing. Keep the same worker completion deadline.
+            stop.wait(0.01)
 
     collector_thread = threading.Thread(target=collector, daemon=True)
     collector_thread.start()

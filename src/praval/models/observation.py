@@ -188,6 +188,7 @@ class ExecutionObservation(_ObservationModel):
     model: str | None = Field(default=None, min_length=1, max_length=512)
     request_mode: str | None = Field(default=None, min_length=1, max_length=128)
     usage: TokenUsageObservation | None = None
+    model_calls: int = Field(default=0, ge=0)
 
     tool_calls: tuple[ToolCallObservation, ...] = Field(
         default_factory=tuple, max_length=128

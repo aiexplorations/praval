@@ -23,8 +23,10 @@ from ..models import (
     ProviderCapabilities,
     ToolCall,
     ToolResult,
+    Usage,
 )
 from .errors import map_gemini_http_error, map_provider_exception
+from .usage import gemini_usage
 
 
 def _redact_secret(message: str, secret: Optional[str]) -> str:
@@ -119,6 +121,7 @@ class GeminiProvider:
             provider=self.provider_name,
             model=self._model_name(),
             raw=data,
+            usage=gemini_usage(data),
         )
 
     def continue_with_tool_results(
@@ -171,6 +174,7 @@ class GeminiProvider:
             provider=self.provider_name,
             model=self._model_name(),
             raw=data,
+            usage=gemini_usage(data),
         )
 
     def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
@@ -181,12 +185,14 @@ class GeminiProvider:
             request=request,
         )
         content_parts: List[str] = []
+        usage: Optional[Usage] = None
         try:
             for data in self._post_stream(
                 "streamGenerateContent",
                 payload,
                 timeout=request.timeout,
             ):
+                usage = gemini_usage(data) or usage
                 text = self._extract_text(data)
                 if text:
                     content_parts.append(text)
@@ -199,8 +205,11 @@ class GeminiProvider:
             content="".join(content_parts),
             provider=self.provider_name,
             model=self._model_name(),
+            usage=usage,
         )
-        yield ModelEvent(type="final", response=response)
+        if usage is not None:
+            yield ModelEvent(type="usage", usage=usage)
+        yield ModelEvent(type="final", response=response, usage=usage)
 
     def close(self) -> None:
         """Gemini REST provider does not hold persistent resources."""
@@ -576,6 +585,7 @@ class GeminiProvider:
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=data,
+            usage=gemini_usage(data),
             metadata={
                 "gemini_payload": template,
                 "gemini_contents": contents,
@@ -686,6 +696,7 @@ class GeminiProvider:
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=data,
+            usage=gemini_usage(data),
             metadata={"tool_results": tool_results},
         )
 

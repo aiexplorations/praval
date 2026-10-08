@@ -32,6 +32,12 @@ from typing import (
 from opentelemetry import trace
 from referencing.exceptions import Unresolvable
 
+from ._metering_runtime import (
+    ProviderCallScope,
+    capture_calls,
+    complete_metered_response,
+    metered_run,
+)
 from .core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
@@ -42,6 +48,7 @@ from .core.exceptions import (
 from .hitl.policy import requires_approval
 from .hitl.runtime import HITLRuntime
 from .hitl.store import get_hitl_store
+from .metering import UsageMeter
 from .models import (
     ContentPart,
     ModelEvent,
@@ -722,7 +729,11 @@ class ModelRuntime:
         provider: Any,
         provider_name: str,
         config: Any,
+        usage: Optional[UsageMeter] = None,
+        agent_name: Optional[str] = None,
     ) -> None:
+        self.usage = usage if usage is not None else UsageMeter()
+        self.agent_name = agent_name
         self.provider = provider
         self.provider_name = provider_name
         self.config = config
@@ -735,6 +746,7 @@ class ModelRuntime:
             return capabilities
         return ProviderCapabilities()
 
+    @metered_run
     def invoke(
         self,
         *,
@@ -791,6 +803,7 @@ class ModelRuntime:
             **kwargs,
         ).content
 
+    @metered_run
     async def ainvoke(
         self,
         *,
@@ -825,6 +838,7 @@ class ModelRuntime:
             self._validate_final_response(request, response)
             return response
 
+    @metered_run
     def stream(
         self,
         *,
@@ -893,6 +907,7 @@ class ModelRuntime:
                 yield event
             self._finish_stream_facts(stream_state)
 
+    @metered_run
     async def astream(
         self,
         *,
@@ -1001,12 +1016,6 @@ class ModelRuntime:
             stream_state["usage"] = event.usage
         if event.type == "final" and event.response is not None:
             self._record_response_facts(event.response)
-            if event.response.usage is None and stream_state["usage"] is not None:
-                record_model_facts(
-                    provider=self.provider_name,
-                    model=event.response.model,
-                    usage=stream_state["usage"],
-                )
             stream_state["final"] = True
             return
 
@@ -1015,7 +1024,6 @@ class ModelRuntime:
             record_model_facts(
                 provider=self.provider_name,
                 model=getattr(self.config, "model", None),
-                usage=stream_state["usage"],
             )
 
     def _record_response_facts(self, response: ModelResponse) -> None:
@@ -1029,7 +1037,6 @@ class ModelRuntime:
             model=response.model or getattr(self.config, "model", None),
             response_id=response_id,
             terminal_outcome=response.finish_reason,
-            usage=response.usage,
         )
         try:
             span = trace.get_current_span()
@@ -1434,6 +1441,7 @@ class ModelRuntime:
         request: ModelRequest,
         fn: Callable[..., _T],
         *args: Any,
+        _round_index: Optional[int] = None,
         **kwargs: Any,
     ) -> _T:
         """Send one provider request, retrying only that request.
@@ -1445,10 +1453,19 @@ class ModelRuntime:
         times; anything else is raised at once.
         """
 
+        attempt_number = 0
+
         def attempt() -> _T:
-            with self._provider_span(request, operation):
+            nonlocal attempt_number
+            attempt_number += 1
+            call_scope = ProviderCallScope(
+                self, operation, request, attempt_number, _round_index
+            )
+            with call_scope.activate(), self._provider_span(request, operation):
                 try:
-                    return fn(*args, **kwargs)
+                    result = fn(*args, **kwargs)
+                    call_scope.finish(result)
+                    return result
                 except (InterventionRequired, HITLConfigurationError):
                     raise
                 except Exception as exc:
@@ -1473,14 +1490,24 @@ class ModelRuntime:
         request: ModelRequest,
         fn: Callable[..., Awaitable[_T]],
         *args: Any,
+        _round_index: Optional[int] = None,
         **kwargs: Any,
     ) -> _T:
         """Async ``_call_provider``: ``fn`` is called afresh for each attempt."""
 
+        attempt_number = 0
+
         async def attempt() -> _T:
-            with self._provider_span(request, operation):
+            nonlocal attempt_number
+            attempt_number += 1
+            call_scope = ProviderCallScope(
+                self, operation, request, attempt_number, _round_index
+            )
+            with call_scope.activate(), self._provider_span(request, operation):
                 try:
-                    return await fn(*args, **kwargs)
+                    result = await fn(*args, **kwargs)
+                    call_scope.finish(result)
+                    return result
                 except (InterventionRequired, HITLConfigurationError):
                     raise
                 except Exception as exc:
@@ -1516,6 +1543,7 @@ class ModelRuntime:
         while True:
             emitted = False
             held_error: Optional[ModelEvent] = None
+            call_scope = ProviderCallScope(self, "stream", request, attempt)
             try:
                 with self._provider_span(request, "stream"):
                     try:
@@ -1530,13 +1558,21 @@ class ModelRuntime:
                             yield held_error
                             held_error = None
                         emitted = True
+                        if event.usage is not None:
+                            call_scope.usage = event.usage
+                        if event.type == "final" and event.response is not None:
+                            if event.response.usage is None:
+                                event.response.usage = call_scope.usage
+                            call_scope.finish(event.response)
                         yield event
                 if held_error is not None:
                     yield held_error
+                call_scope.finish()
                 return
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
+                call_scope.finish(status="error")
                 error = self._provider_error(exc, "stream", request)
                 if emitted or not error.retryable or attempt > retries:
                     if held_error is not None:
@@ -1549,6 +1585,9 @@ class ModelRuntime:
                     attempt, error, operation="stream", backoff_seconds=delay
                 )
                 _sleep(delay)
+            finally:
+                if not call_scope.finished:
+                    call_scope.finish(status="error")
             attempt += 1
 
     async def _astream_provider_events(
@@ -1563,6 +1602,7 @@ class ModelRuntime:
         while True:
             emitted = False
             held_error: Optional[ModelEvent] = None
+            call_scope = ProviderCallScope(self, "stream", request, attempt)
             try:
                 with self._provider_span(request, "stream"):
                     try:
@@ -1577,13 +1617,21 @@ class ModelRuntime:
                             yield held_error
                             held_error = None
                         emitted = True
+                        if event.usage is not None:
+                            call_scope.usage = event.usage
+                        if event.type == "final" and event.response is not None:
+                            if event.response.usage is None:
+                                event.response.usage = call_scope.usage
+                            call_scope.finish(event.response)
                         yield event
                 if held_error is not None:
                     yield held_error
+                call_scope.finish()
                 return
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
+                call_scope.finish(status="error")
                 error = self._provider_error(exc, "stream", request)
                 if emitted or not error.retryable or attempt > retries:
                     if held_error is not None:
@@ -1596,6 +1644,9 @@ class ModelRuntime:
                     attempt, error, operation="stream", backoff_seconds=delay
                 )
                 await _async_sleep(delay)
+            finally:
+                if not call_scope.finished:
+                    call_scope.finish(status="error")
             attempt += 1
 
     def _max_provider_retries(self) -> int:
@@ -1700,7 +1751,13 @@ class ModelRuntime:
                 )
             all_results.extend(round_results)
             continued = self._call_provider(
-                "continue", request, continuation, request, current, round_results
+                "continue",
+                request,
+                continuation,
+                request,
+                current,
+                round_results,
+                _round_index=round_index,
             )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
@@ -1780,6 +1837,7 @@ class ModelRuntime:
                 request,
                 current,
                 round_results,
+                _round_index=round_index,
             )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
@@ -1826,6 +1884,7 @@ class ModelRuntime:
             return await continued
         return continued
 
+    @metered_run
     def resume_tool_flow(
         self,
         suspended_state: Dict[str, Any],
@@ -1921,7 +1980,13 @@ class ModelRuntime:
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
         continued = self._call_provider(
-            "continue", request, continuation, request, current, round_results
+            "resume",
+            request,
+            continuation,
+            request,
+            current,
+            round_results,
+            _round_index=round_index,
         )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
@@ -1941,6 +2006,7 @@ class ModelRuntime:
         self._validate_final_response(request, resumed)
         return resumed
 
+    @metered_run
     async def resume_tool_flow_async(
         self,
         suspended_state: Dict[str, Any],
@@ -2036,13 +2102,14 @@ class ModelRuntime:
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
         continued = await self._acall_provider(
-            "continue",
+            "resume",
             request,
             self._continue_with_tool_results_async,
             continuation,
             request,
             current,
             round_results,
+            _round_index=round_index,
         )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
@@ -2074,6 +2141,7 @@ class ModelRuntime:
     ) -> ToolResult:
         state = continuation_state or {
             "schema": "model_runtime_tool_v1",
+            "model_calls": capture_calls(),
             "provider": self.provider_name,
             "model": request.model,
             "round": round_index,
@@ -2156,6 +2224,7 @@ class ModelRuntime:
     ) -> Dict[str, Any]:
         return {
             "schema": "model_runtime_tool_v1",
+            "model_calls": capture_calls(),
             "provider": self.provider_name,
             "model": request.model,
             "round": round_index,
@@ -2248,7 +2317,7 @@ class ModelRuntime:
             response.provider = self.provider_name
         if not response.model:
             response.model = request.model
-        return response
+        return complete_metered_response(response)
 
     def _tool_round_limit(self, request: ModelRequest) -> int:
         """Resolve the validated request override or typed agent default."""

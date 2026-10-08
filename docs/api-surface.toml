@@ -340,3 +340,8 @@ documentation = "guide/storage"
 [[submodules]]
 name = "praval.tools"
 documentation = "guide/tool-system"
+
+[[submodules]]
+name = "praval.metering"
+documentation = "guide/usage-metering"
+exports = ["ModelCall", "UsageMeter", "UsageTotals", "Price", "PriceTable", "CostEstimate", "correlation"]

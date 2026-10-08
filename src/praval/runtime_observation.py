@@ -190,6 +190,7 @@ class _ObservationState:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     total_tokens: int = 0
+    model_calls: int = 0
     has_usage: bool = False
     tool_calls: list[ToolCallObservation] = field(default_factory=list)
     retries: list[RetryObservation] = field(default_factory=list)
@@ -441,6 +442,7 @@ def _freeze_observation(
             model=state.model,
             request_mode=state.request_mode,
             usage=usage,
+            model_calls=state.model_calls,
             tool_calls=tuple(state.tool_calls[:128]),
             retries=tuple(state.retries[:32]),
             hitl_decisions=tuple(state.hitl_decisions[:32]),
@@ -529,6 +531,7 @@ def record_model_facts(
     request_mode: str | None = None,
     terminal_outcome: str | None = None,
     usage: Any = None,
+    count_call: bool = False,
 ) -> None:
     """Aggregate one model call into every active agent/workflow boundary."""
     try:
@@ -547,6 +550,7 @@ def record_model_facts(
             state.terminal_outcome = (
                 _bounded_string(terminal_outcome, 256) or state.terminal_outcome
             )
+            state.model_calls += int(count_call)
             if normalized_usage is not None:
                 state.has_usage = True
                 state.input_tokens += normalized_usage.input_tokens

@@ -23,6 +23,7 @@ execution_observation_fields = [
   "model",
   "request_mode",
   "usage",
+  "model_calls",
   "tool_calls",
   "retries",
   "hitl_decisions",

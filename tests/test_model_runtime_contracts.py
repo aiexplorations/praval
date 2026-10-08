@@ -396,7 +396,7 @@ def test_runtime_stream_emits_start_before_provider_events():
 
     events = list(runtime.stream(messages=[{"role": "user", "content": "hello"}]))
 
-    assert [event.type for event in events] == ["start", "delta", "final"]
+    assert [event.type for event in events] == ["start", "delta", "model_call", "final"]
     assert events[0].metadata["native_streaming"] is True
 
 
@@ -641,6 +641,8 @@ def test_runtime_tool_stream_emits_normalized_call_and_result_events():
         "tool_call",
         "tool_result",
         "delta",
+        "model_call",
+        "model_call",
         "final",
     ]
     assert events[1].tool_call.name == "echo"
@@ -682,6 +684,8 @@ async def test_runtime_async_tool_stream_emits_normalized_events():
         "tool_call",
         "tool_result",
         "delta",
+        "model_call",
+        "model_call",
         "final",
     ]
 

@@ -69,3 +69,8 @@ evidence = ["tests/eval/test_metric_plugins.py", "tests/eval/test_ragas.py", "do
 id = "evaluation-online"
 statement = "Opt-in sampled online evaluation isolates request enqueue work from durable PostgreSQL workers and post-hoc linked evaluator telemetry."
 evidence = ["tests/eval/test_online.py", "tests/eval/test_postgres_store.py", "docs/sphinx/evaluation/online.md"]
+
+[[claims]]
+id = "chat-model-usage-metering"
+statement = "Chat-model requests expose bounded per-request records, exact reported totals and caller-supplied cost estimates across retries, tools and approval resumes."
+evidence = ["tests/test_metering.py", "tests/test_provider_usage.py", "tests/test_metering_hitl.py", "tests/test_metering_cancellation.py", "docs/sphinx/guide/usage-metering.md"]

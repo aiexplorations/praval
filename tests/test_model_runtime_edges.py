@@ -356,7 +356,13 @@ def test_runtime_non_native_stream_fallback_emits_usage_and_final():
     events = list(
         _runtime(Provider()).stream(messages=[{"role": "user", "content": "x"}])
     )
-    assert [event.type for event in events] == ["start", "delta", "usage", "final"]
+    assert [event.type for event in events] == [
+        "start",
+        "delta",
+        "model_call",
+        "usage",
+        "final",
+    ]
 
 
 @pytest.mark.asyncio
@@ -374,7 +380,7 @@ async def test_runtime_native_and_fallback_async_streams():
             messages=[{"role": "user", "content": "x"}]
         )
     ]
-    assert [event.type for event in native] == ["start", "delta", "final"]
+    assert [event.type for event in native] == ["start", "delta", "model_call", "final"]
 
     class FallbackProvider:
         capabilities = ProviderCapabilities(streaming=True)
@@ -388,7 +394,12 @@ async def test_runtime_native_and_fallback_async_streams():
             messages=[{"role": "user", "content": "x"}]
         )
     ]
-    assert [event.type for event in fallback] == ["start", "delta", "final"]
+    assert [event.type for event in fallback] == [
+        "start",
+        "delta",
+        "model_call",
+        "final",
+    ]
 
 
 def test_runtime_resume_rejects_corrupted_continuation_state():
@@ -868,7 +879,7 @@ def test_native_stream_retries_only_before_first_event(provider_class):
     with _patched_sleeps():
         types, error = _collect_stream(_runtime(provider, retries=1), use_async)
     assert error is None
-    assert types == ["start", "delta", "delta", "final"]
+    assert types == ["start", "delta", "delta", "model_call", "model_call", "final"]
     assert provider.calls == 2
 
     provider = provider_class(

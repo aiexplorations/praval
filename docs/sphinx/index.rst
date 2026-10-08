@@ -91,6 +91,7 @@ What To Read
    guide/application-lifecycle
    guide/configuration
    guide/model-runtime
+   guide/usage-metering
    guide/providers
    guide/local-llms
    guide/streaming
