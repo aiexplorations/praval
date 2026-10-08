@@ -1,0 +1,23 @@
+{
+  "artifact_kind": "local-service-fixture-validation",
+  "checked_at": "2026-10-08T15:50:44.475448+00:00",
+  "checks": {
+    "build": "passed",
+    "health_http_200": "passed",
+    "s3_bucket_create_delete": "passed",
+    "s3_object_put_get_delete": "passed",
+    "workflow_yaml": "passed"
+  },
+  "ci_prior_failure": "MinIO upstream binary image pull denied before service demos",
+  "ci_prior_passed_jobs": 15,
+  "ci_run": 37801179586,
+  "local_image_id": "sha256:a82b74da8d84e45dc80a864fcefed721c3903ca4c47ced504ead0cee20a5ff92",
+  "provider_validation_commit": "864379574df1536d06e7a0947dc9ea689c16ea7d",
+  "source_commit": "cefc43e4daa4cbb490ef6726ea374e26a93eb85e",
+  "source_release": "RELEASE.2024-11-07T00-52-20Z",
+  "source_repository": "https://github.com/minio/minio",
+  "source_sha256": {
+    ".github/minio-ci.Dockerfile": "64f110451b3a1db235f75ea2239f1e924bb1683e84e282dccc010a31e43b5b8c",
+    ".github/workflows/ci.yml": "51a1ece76cbbf6a6e673a445ef52675e6176f227765c54cc6da0ba2c94b86a6d"
+  }
+}

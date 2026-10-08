@@ -7,6 +7,11 @@ artifacts.
 
 ## Offline and service checks
 
+CI builds the MinIO test fixture from the verified source commit for
+`RELEASE.2024-11-07T00-52-20Z` using `.github/minio-ci.Dockerfile`. Its upstream
+binary image is unavailable. The fixture remains disposable and health-checked;
+it is not a Praval release artifact.
+
 Run deterministic checks locally or in normal CI with a built wheel:
 
 ```bash
