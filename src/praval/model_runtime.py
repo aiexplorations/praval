@@ -39,6 +39,7 @@ from .core.exceptions import (
     ToolRoundLimitError,
 )
 from .hitl.runtime import HITLRuntime
+from .hitl.store import get_hitl_store
 from .models import (
     ContentPart,
     ModelEvent,
@@ -84,6 +85,8 @@ MAX_SCHEMA_BYTES = 65536
 RETRY_BASE_SECONDS = 0.5
 RETRY_CAP_SECONDS = 30.0
 RETRY_AFTER_CAP_SECONDS = 60.0
+# Suspended-state key holding the round results a resume already executed.
+RESUME_RESULTS_KEY = "resume_results"
 
 logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
@@ -428,6 +431,57 @@ def _build_hitl_runtime(
         db_path=hitl_context.get("db_path"),
         trace_id=hitl_context.get("trace_id"),
     )
+
+
+def _saved_resume_results(
+    suspended_state: Dict[str, Any], intervention_id: str
+) -> Optional[List[ToolResult]]:
+    """Return the round results an earlier resume of this decision stored.
+
+    ``None`` means the approved tool has not run yet for this intervention.
+    """
+    saved = suspended_state.get(RESUME_RESULTS_KEY)
+    if (
+        not intervention_id
+        or not isinstance(saved, dict)
+        or saved.get("intervention_id") != intervention_id
+        or not isinstance(saved.get("round_results"), list)
+    ):
+        return None
+    return [ToolResult.model_validate(result) for result in saved["round_results"]]
+
+
+def _save_resume_results(
+    suspended_state: Dict[str, Any],
+    hitl_context: Optional[Dict[str, Any]],
+    intervention_id: str,
+    round_results: List[ToolResult],
+) -> None:
+    """Store the round results executed by a resume with its suspended run.
+
+    A resume whose continuation then fails returns the run to ``pending``;
+    the next resume reuses these results instead of running the tools again.
+    The write only applies while the run is claimed (``resuming``).
+    """
+    context = hitl_context or {}
+    run_id = context.get("run_id")
+    if not run_id or not intervention_id:
+        return
+    state = dict(suspended_state)
+    state[RESUME_RESULTS_KEY] = {
+        "intervention_id": intervention_id,
+        "round_results": [
+            _json_safe(result.model_dump(exclude_none=True)) for result in round_results
+        ],
+    }
+    stored = get_hitl_store(context.get("db_path")).update_suspended_run_state(
+        str(run_id), state, expected_status="resuming"
+    )
+    if not stored:
+        logger.debug(
+            "Suspended run %s is not claimed; resume results were not stored",
+            run_id,
+        )
 
 
 def _tool_map(available_tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -1669,17 +1723,27 @@ class ModelRuntime:
         ]
 
         blocked_call = round_calls[current_index]
-        blocked_result = _execute_legacy_tool_call_result(
-            hitl_context=hitl_context,
-            tool_call_id=blocked_call.id,
-            function_name=blocked_call.name,
-            raw_args=blocked_call.arguments,
-            available_tools=available_tools,
-            resume_intervention=resume_intervention,
-        )
-        round_results.append(self._tool_result(blocked_call, blocked_result))
+        intervention_id = str(resume_intervention.get("id") or "")
+        saved = _saved_resume_results(suspended_state, intervention_id)
+        if saved is None:
+            blocked_result = _execute_legacy_tool_call_result(
+                hitl_context=hitl_context,
+                tool_call_id=blocked_call.id,
+                function_name=blocked_call.name,
+                raw_args=blocked_call.arguments,
+                available_tools=available_tools,
+                resume_intervention=resume_intervention,
+            )
+            round_results.append(self._tool_result(blocked_call, blocked_result))
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
+            )
+            next_start = current_index + 1
+        else:
+            next_start = current_index + len(saved) - len(round_results)
+            round_results = saved
 
-        for next_index in range(current_index + 1, len(round_calls)):
+        for next_index in range(next_start, len(round_calls)):
             tool_call = round_calls[next_index]
             continuation_state = self._runtime_continuation_state(
                 request,
@@ -1700,6 +1764,9 @@ class ModelRuntime:
                     previous_results=all_results + round_results,
                     continuation_state=continuation_state,
                 )
+            )
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
             )
 
         continuation = self._get_concrete_provider_method("continue_with_tool_results")
@@ -1771,17 +1838,27 @@ class ModelRuntime:
         ]
 
         blocked_call = round_calls[current_index]
-        blocked_result = await execute_legacy_tool_call_async(
-            hitl_context=hitl_context,
-            tool_call_id=blocked_call.id,
-            function_name=blocked_call.name,
-            raw_args=blocked_call.arguments,
-            available_tools=available_tools,
-            resume_intervention=resume_intervention,
-        )
-        round_results.append(self._tool_result(blocked_call, blocked_result))
+        intervention_id = str(resume_intervention.get("id") or "")
+        saved = _saved_resume_results(suspended_state, intervention_id)
+        if saved is None:
+            blocked_result = await execute_legacy_tool_call_async(
+                hitl_context=hitl_context,
+                tool_call_id=blocked_call.id,
+                function_name=blocked_call.name,
+                raw_args=blocked_call.arguments,
+                available_tools=available_tools,
+                resume_intervention=resume_intervention,
+            )
+            round_results.append(self._tool_result(blocked_call, blocked_result))
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
+            )
+            next_start = current_index + 1
+        else:
+            next_start = current_index + len(saved) - len(round_results)
+            round_results = saved
 
-        for next_index in range(current_index + 1, len(round_calls)):
+        for next_index in range(next_start, len(round_calls)):
             tool_call = round_calls[next_index]
             continuation_state = self._runtime_continuation_state(
                 request,
@@ -1802,6 +1879,9 @@ class ModelRuntime:
                     previous_results=all_results + round_results,
                     continuation_state=continuation_state,
                 )
+            )
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
             )
 
         continuation = self._get_concrete_provider_method("continue_with_tool_results")

@@ -399,6 +399,27 @@ class HITLStore:
             conn.commit()
             return int(cursor.rowcount) == 1
 
+    def update_suspended_run_state(
+        self, run_id: str, state: Dict[str, Any], *, expected_status: str
+    ) -> bool:
+        """Replace a run's state only while it is in ``expected_status``.
+
+        Returns:
+            False when the run does not exist or has moved to another status,
+            for example because a new intervention re-pended it.
+        """
+        with self._lock, self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE suspended_runs
+                SET state_json = ?, updated_at = ?
+                WHERE run_id = ? AND status = ?
+                """,
+                (json.dumps(state), self._now_ts(), run_id, expected_status),
+            )
+            conn.commit()
+            return int(cursor.rowcount) == 1
+
     def delete_suspended_run(self, run_id: str) -> None:
         """Delete suspended run state."""
         with self._lock, self._connect() as conn:

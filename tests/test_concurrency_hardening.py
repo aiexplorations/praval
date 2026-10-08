@@ -331,19 +331,10 @@ def test_resume_that_hits_a_second_gate_stays_resumable(tmp_path: Any) -> None:
     assert service.get_suspended_run(first.value.run_id).status == "completed"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "Design decision: a resume whose continuation fails after the approved "
-        "tool ran returns the run to 'pending', so resuming again re-runs the "
-        "tool (at-least-once). At-most-once needs the tool result kept with "
-        "the run, or the run left in a failed state."
-    ),
-)
 def test_resume_retry_after_failed_continuation_runs_tool_once(
     tmp_path: Any,
 ) -> None:
+    """The second resume reuses the stored tool result (at-most-once)."""
     executed: List[str] = []
     agent = _gated_agent(str(tmp_path / "hitl.db"), executed, fail_continuations=1)
     run_id = _suspend_and_approve(agent)
@@ -351,12 +342,132 @@ def test_resume_retry_after_failed_continuation_runs_tool_once(
     with pytest.raises(PravalError):
         agent.resume_run(run_id)
     assert executed == ["release"]
-    try:
-        agent.resume_run(run_id)
-    except ValueError:
-        pass  # refusing the second resume would also be acceptable
+    service = agent._get_hitl_service()
+    suspended = service.get_suspended_run(run_id)
+    assert suspended.status == "pending"
+    stored = suspended.state["resume_results"]
+    assert stored["intervention_id"] == suspended.state["intervention_id"]
+    assert [r["content"] for r in stored["round_results"]] == ["release"]
 
+    assert agent.resume_run(run_id) == "Published release"
     assert executed == ["release"]
+    assert service.get_suspended_run(run_id).status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_aresume_retry_after_failed_continuation_runs_tool_once(
+    tmp_path: Any,
+) -> None:
+    executed: List[str] = []
+    agent = _gated_agent(str(tmp_path / "hitl.db"), executed, fail_continuations=1)
+    with pytest.raises(InterventionRequired) as raised:
+        await agent.agenerate("Publish the release")
+    agent.approve_intervention(raised.value.intervention_id, reviewer="qa")
+    run_id = raised.value.run_id
+
+    with pytest.raises(PravalError):
+        await agent.aresume_run(run_id)
+    assert executed == ["release"]
+    assert await agent.aresume_run(run_id) == "Published release"
+    assert executed == ["release"]
+
+
+def test_resume_with_a_stale_decision_is_refused_and_released(
+    tmp_path: Any,
+) -> None:
+    """A run that moved on to a newer intervention is not resumed with the old one."""
+    executed: List[str] = []
+    agent = _gated_agent(str(tmp_path / "hitl.db"), executed)
+    run_id = _suspend_and_approve(agent)
+    service = agent._get_hitl_service()
+    stale = service.get_suspended_run(run_id)
+    service.store.upsert_suspended_run(
+        run_id=run_id,
+        agent_name=stale.agent_name,
+        provider_name=stale.provider_name,
+        state={**stale.state, "intervention_id": "newer"},
+    )
+    service.get_suspended_run = lambda _run_id: stale  # type: ignore[method-assign]
+
+    with pytest.raises(ValueError, match="now waits on intervention 'newer'"):
+        agent.resume_run(run_id)
+
+    assert executed == []
+    assert service.store.get_suspended_run(run_id).status == "pending"
+
+
+class _GatedThenLoggedProvider(_GatedToolProvider):
+    """Asks for a gated ``publish`` and an ungated ``log`` in one round."""
+
+    def invoke(self, request: Any) -> ModelResponse:
+        return ModelResponse(
+            tool_calls=[
+                ToolCall(id="call-1", name="publish", arguments={"value": "release"}),
+                ToolCall(id="call-2", name="log", arguments={"value": "note"}),
+            ]
+        )
+
+    def continue_with_tool_results(
+        self, request: Any, response: Any, tool_results: List[ToolResult]
+    ) -> ModelResponse:
+        if self.fail_continuations > 0:
+            self.fail_continuations -= 1
+            raise ProviderInvalidRequestError("continuation rejected")
+        return ModelResponse(
+            content=" + ".join(result.content for result in tool_results)
+        )
+
+
+def test_resume_retry_reuses_later_calls_in_the_same_round(tmp_path: Any) -> None:
+    executed: List[str] = []
+    agent = _make_agent(
+        _GatedThenLoggedProvider(fail_continuations=1),
+        hitl_enabled=True,
+        hitl_db_path=str(tmp_path / "hitl.db"),
+    )
+
+    @agent.tool
+    def publish(value: str) -> str:
+        executed.append(f"publish:{value}")
+        return value
+
+    @agent.tool
+    def log(value: str) -> str:
+        executed.append(f"log:{value}")
+        return value
+
+    agent.tools["publish"]["requires_approval"] = True
+    run_id = _suspend_and_approve(agent)
+
+    with pytest.raises(PravalError):
+        agent.resume_run(run_id)
+    assert agent.resume_run(run_id) == "release + note"
+    assert executed == ["publish:release", "log:note"]
+
+
+def test_stored_results_are_ignored_for_a_different_intervention(
+    tmp_path: Any,
+) -> None:
+    """Results stored for one decision never stand in for another one."""
+    executed: List[str] = []
+    agent = _gated_agent(str(tmp_path / "hitl.db"), executed, fail_continuations=1)
+    run_id = _suspend_and_approve(agent)
+    with pytest.raises(PravalError):
+        agent.resume_run(run_id)
+
+    store = agent._get_hitl_service().store
+    suspended = store.get_suspended_run(run_id)
+    state = dict(suspended.state)
+    state["resume_results"] = {**state["resume_results"], "intervention_id": "other"}
+    store.upsert_suspended_run(
+        run_id=run_id,
+        agent_name=suspended.agent_name,
+        provider_name=suspended.provider_name,
+        state=state,
+    )
+
+    assert agent.resume_run(run_id) == "Published release"
+    assert executed == ["release", "release"]
 
 
 @pytest.mark.parametrize("separate_stores", [False, True])
