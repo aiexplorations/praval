@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+from pydantic import BaseModel
 
 from praval import Agent
 from praval.core.agent import AgentConfig
@@ -185,6 +186,96 @@ def test_python_defaults_are_left_to_the_handler() -> None:
 
     assert result.content == "3"
     assert recorder.calls == [{"x": 2, "y": 1}]
+
+
+class Recipient(BaseModel):
+    """Module-level model so postponed annotations resolve."""
+
+    name: str
+
+
+def test_numbers_are_accepted_for_str_parameters() -> None:
+    seen: List[Any] = []
+
+    def lookup(order_id: str, tags: List[str]) -> str:
+        seen.append((order_id, tags))
+        return "ok"
+
+    result = _call([{"function": lookup}], "lookup", {"order_id": 42, "tags": [1.5]})
+
+    assert result.is_error is False
+    assert seen == [("42", ["1.5"])]
+
+
+def test_number_to_str_is_skipped_when_pydantic_lacks_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from praval import tool_execution
+
+    monkeypatch.setattr(tool_execution, "_NUMBER_TO_STR_CONFIG", None)
+
+    def lookup(order_id: str) -> str:
+        return order_id
+
+    result = _call([{"function": lookup}], "lookup", {"order_id": 42})
+
+    assert result.is_error is True
+    assert "order_id: Input should be a valid string" in result.content
+
+
+def test_bool_is_not_coerced_to_str() -> None:
+    seen: List[Any] = []
+
+    def lookup(order_id: str) -> str:
+        seen.append(order_id)
+        return "ok"
+
+    # Measured with the installed pydantic: coerce_numbers_to_str does not
+    # apply to bool, so a JSON true for a str parameter stays an error.
+    result = _call([{"function": lookup}], "lookup", {"order_id": True})
+
+    assert seen == []
+    assert result.is_error is True
+    assert "order_id: Input should be a valid string, expected str" in result.content
+
+
+def test_model_parameters_are_still_validated_with_number_coercion() -> None:
+    seen: List[Any] = []
+
+    def send(to: Recipient, note: str) -> str:
+        seen.append((to, note))
+        return "sent"
+
+    result = _call([{"function": send}], "send", {"to": {"name": "Ada"}, "note": 7})
+    assert result.is_error is False
+    assert seen == [(Recipient(name="Ada"), "7")]
+
+    invalid = _call([{"function": send}], "send", {"to": {"nom": "Ada"}, "note": "x"})
+    assert invalid.is_error is True
+    assert "to.name: Field required" in invalid.content
+    assert len(seen) == 1
+
+
+def test_none_default_makes_a_parameter_optional() -> None:
+    seen: List[Any] = []
+
+    def search(query: str, limit: int = None) -> str:  # type: ignore[assignment]
+        seen.append((query, limit))
+        return "ok"
+
+    assert _call([{"function": search}], "search", {"query": "a", "limit": None}) == (
+        ToolResult(tool_call_id="call-1", name="search", content="ok")
+    )
+    assert _call([{"function": search}], "search", {"query": "b", "limit": "3"}) == (
+        ToolResult(tool_call_id="call-1", name="search", content="ok")
+    )
+    invalid = _call([{"function": search}], "search", {"query": "c", "limit": "x"})
+    assert invalid.is_error is True
+    assert "limit:" in invalid.content
+    # A parameter without a None default does not admit None.
+    required_type = _call([{"function": search}], "search", {"query": None})
+    assert required_type.is_error is True
+    assert seen == [("a", None), ("b", 3)]
 
 
 def test_var_keyword_handlers_accept_extra_arguments() -> None:

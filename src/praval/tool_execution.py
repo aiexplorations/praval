@@ -5,11 +5,15 @@ runtime goes through this module. Model-supplied arguments are validated before
 the handler runs, and every outcome is normalized to a single ``ToolResult``.
 
 Python callables are validated from their signature with pydantic (lax mode,
-so ``"3"`` becomes ``3`` for an ``int`` parameter). Tools whose handler only
+so ``"3"`` becomes ``3`` for an ``int`` parameter, and a number becomes a
+string for a ``str`` parameter). A parameter whose default is ``None`` also
+accepts ``None``. Tools whose handler only
 accepts ``**kwargs`` and that declare a JSON Schema object (MCP and other
 external tools) are validated with ``jsonschema``; that path does not coerce.
 Schemas from external servers are untrusted: a ``$ref`` is resolved only
-within the schema itself, never fetched from a URL or file.
+within the schema itself, never fetched from a URL or file, and a string
+longer than ``MAX_PATTERN_STRING_CHARS`` fails validation before a ``pattern``
+is evaluated against it, which bounds the cost of a backtracking pattern.
 """
 
 from __future__ import annotations
@@ -22,13 +26,14 @@ import json
 import logging
 import weakref
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
+from jsonschema.exceptions import ValidationError as SchemaValidationError
 from jsonschema.protocols import Validator
-from jsonschema.validators import validator_for
-from pydantic import TypeAdapter, ValidationError
+from jsonschema.validators import extend, validator_for
+from pydantic import ConfigDict, PydanticUserError, TypeAdapter, ValidationError
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 
@@ -44,6 +49,9 @@ LEGACY_ERROR_PREFIXES = (
 )
 MAX_ERROR_DETAIL_CHARS = 200
 SCHEMA_CACHE_SIZE = 256
+# Longest string an external (JSON-Schema-only) tool schema's ``pattern`` is
+# evaluated against. ``re`` has no timeout, so this bounds backtracking cost.
+MAX_PATTERN_STRING_CHARS = 10_000
 
 # (field path, expected type or None for an unexpected field, problem)
 ArgumentError = Tuple[str, Optional[str], str]
@@ -117,7 +125,7 @@ def validate_tool_arguments(
         schema = tool_def.get("parameters")
         if not isinstance(schema, dict) or schema.get("type") != "object":
             return args, None
-        schema_validator = cached_schema_validator(schema)
+        schema_validator = cached_schema_validator(schema, external=True)
         if schema_validator is None:
             return args, None
         try:
@@ -298,7 +306,9 @@ def _build_signature_validator(
     for param in named:
         annotation = _resolve_annotation(func, param.annotation)
         checks[param.name] = _ParameterCheck(
-            adapter=_type_adapter(func, param.name, annotation),
+            adapter=_type_adapter(
+                func, param.name, _optional_if_none_default(annotation, param)
+            ),
             required=param.default is inspect.Parameter.empty,
             expected=_annotation_name(annotation),
         )
@@ -326,6 +336,40 @@ def _resolve_annotation(func: Callable[..., Any], annotation: Any) -> Any:
         return annotation
 
 
+def _number_to_str_config() -> Optional[ConfigDict]:
+    """Return a config that accepts numbers for ``str``, if pydantic has it.
+
+    ``coerce_numbers_to_str`` is not in every pydantic 2 release, and older
+    releases ignore unknown config keys, so support is detected by behaviour.
+    """
+    config = ConfigDict(coerce_numbers_to_str=True)
+    try:
+        if TypeAdapter(str, config=config).validate_python(1) == "1":
+            return config
+    except Exception:  # any failure means the option is unsupported
+        pass
+    return None
+
+
+# Models send numbers for string parameters (an ID of 42 for ``id: str``).
+_NUMBER_TO_STR_CONFIG = _number_to_str_config()
+
+
+def _optional_if_none_default(annotation: Any, param: inspect.Parameter) -> Any:
+    """Treat ``x: T = None`` as ``Optional[T]``, as the default implies."""
+    if (
+        param.default is not None
+        or annotation is inspect.Parameter.empty
+        or annotation is Any
+        or isinstance(annotation, str)
+    ):
+        return annotation
+    try:
+        return Optional[annotation]
+    except TypeError:
+        return annotation
+
+
 def _type_adapter(
     func: Callable[..., Any], parameter: str, annotation: Any
 ) -> Optional[TypeAdapter[Any]]:
@@ -334,6 +378,20 @@ def _type_adapter(
     if isinstance(annotation, str):
         # Unresolvable forward reference; the handler receives the raw value.
         return None
+    if _NUMBER_TO_STR_CONFIG is not None:
+        try:
+            return TypeAdapter(annotation, config=_NUMBER_TO_STR_CONFIG)
+        except PydanticUserError:
+            # BaseModel, dataclass and TypedDict types carry their own config.
+            pass
+        except Exception as exc:
+            logger.debug(
+                "Skipping argument validation for %s.%s: %s",
+                getattr(func, "__name__", "tool"),
+                parameter,
+                exc,
+            )
+            return None
     try:
         return TypeAdapter(annotation)
     except Exception as exc:
@@ -367,22 +425,27 @@ def _pydantic_errors(
     return errors
 
 
-def cached_schema_validator(schema: Dict[str, Any]) -> Optional[Validator]:
+def cached_schema_validator(
+    schema: Dict[str, Any], *, external: bool = False
+) -> Optional[Validator]:
     """Return a cached validator for a JSON Schema, or ``None`` if invalid.
 
     The schema's own ``$schema`` dialect is honoured; Draft 2020-12 is used
-    when none is declared.
+    when none is declared. ``external`` marks a schema from an untrusted
+    source (an MCP server or other external tool): its ``pattern`` keyword
+    rejects strings longer than ``MAX_PATTERN_STRING_CHARS`` without
+    evaluating the pattern.
     """
     try:
         key = json.dumps(schema, sort_keys=True)
     except (TypeError, ValueError, RecursionError):
         logger.warning("JSON Schema is not serializable; skipping validation")
         return None
-    return _schema_validator_for_key(key)
+    return _schema_validator_for_key(key, external)
 
 
 @functools.lru_cache(maxsize=SCHEMA_CACHE_SIZE)
-def _schema_validator_for_key(key: str) -> Optional[Validator]:
+def _schema_validator_for_key(key: str, external: bool = False) -> Optional[Validator]:
     schema = json.loads(key)
     validator_class = validator_for(schema, default=Draft202012Validator)
     try:
@@ -395,8 +458,30 @@ def _schema_validator_for_key(key: str) -> Optional[Validator]:
         return None
     # An empty registry: jsonschema would otherwise fetch remote and file
     # ``$ref`` targets, which an untrusted (MCP) schema can point anywhere.
+    if external:
+        validator_class = _with_pattern_length_cap(validator_class)
     validator: Validator = validator_class(schema, registry=Registry())
     return validator
+
+
+def _with_pattern_length_cap(validator_class: Any) -> Any:
+    """Return ``validator_class`` with a length check before ``pattern``."""
+    check_pattern = validator_class.VALIDATORS.get("pattern")
+    if check_pattern is None:
+        return validator_class
+
+    def capped_pattern(
+        validator: Any, pattern: Any, instance: Any, schema: Any
+    ) -> Iterator[SchemaValidationError]:
+        if isinstance(instance, str) and len(instance) > MAX_PATTERN_STRING_CHARS:
+            yield SchemaValidationError(
+                f"string of {len(instance)} characters is longer than "
+                f"{MAX_PATTERN_STRING_CHARS}, the limit for pattern checks"
+            )
+            return
+        yield from check_pattern(validator, pattern, instance, schema)
+
+    return extend(validator_class, {"pattern": capped_pattern})
 
 
 def json_schema_errors(validator: Validator, instance: Any) -> List[str]:

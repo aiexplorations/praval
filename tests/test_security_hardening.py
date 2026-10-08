@@ -654,9 +654,10 @@ def _deep_json(depth: int) -> str:
 
 
 def test_s7_parse_args_survives_deeply_nested_json():
-    result = HITLRuntime._parse_args("[" * 200_000)
-    assert result == {}
-    assert HITLRuntime._parse_args(_deep_json(200_000)) == {}
+    brackets = "[" * 200_000
+    assert HITLRuntime._parse_args(brackets) == {"raw": brackets}
+    deep = _deep_json(200_000)
+    assert HITLRuntime._parse_args(deep) == {"raw": deep}
 
 
 def test_s7_openai_tool_call_parse_survives_deeply_nested_json(monkeypatch):
@@ -741,17 +742,6 @@ def test_s7_duplicate_keys_resolve_the_same_for_review_and_execution(tmp_path):
     assert intervention.original_args == {"path": "/etc/passwd"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: HITLRuntime._parse_args turns invalid or non-object JSON "
-        "argument strings into {}, so on the legacy generate() path a tool "
-        "whose parameters all have defaults runs with those defaults instead "
-        "of returning an error. tests/test_hitl_runtime_edges.py pins the {} "
-        "result. The runtime tool loop instead keeps {'raw': ...}, which "
-        "fails validation."
-    ),
-)
 @pytest.mark.parametrize("raw_args", ["not-json", '["/etc/passwd"]', '{"path": '])
 def test_s7_malformed_argument_string_does_not_run_tool_with_defaults(raw_args):
     executed = []
@@ -769,6 +759,26 @@ def test_s7_malformed_argument_string_does_not_run_tool_with_defaults(raw_args):
     )
     assert executed == []
     assert content.startswith("Error:")
+    assert "raw: unexpected argument" in content
+
+
+@pytest.mark.parametrize("raw_args", ["", "  ", None, "{}"])
+def test_s7_empty_argument_string_still_runs_tool_with_defaults(raw_args):
+    executed = []
+
+    def cleanup(path: str = "/tmp/default") -> str:
+        executed.append(path)
+        return "cleaned"
+
+    content = execute_legacy_tool_call(
+        hitl_context=None,
+        tool_call_id="c",
+        function_name="cleanup",
+        raw_args=raw_args,
+        available_tools=[{"function": cleanup}],
+    )
+    assert content == "cleaned"
+    assert executed == ["/tmp/default"]
 
 
 # --- S8 Untrusted JSON Schemas (MCP) ----------------------------------------
@@ -910,20 +920,19 @@ def test_s8_response_schema_with_unresolvable_ref_is_typed_error():
         _validate_structured_content("[" * 200_000, config, provider="p", model="m")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: jsonschema evaluates 'pattern' with the stdlib re module, "
-        "which has no timeout, so a catastrophic pattern from an MCP server "
-        "plus a model-chosen string blocks the run (and holds the GIL). "
-        "Options: skip 'pattern' for external schemas, cap string length "
-        "before pattern checks, or use a timeout-capable regex engine."
-    ),
-)
-def test_s8_redos_pattern_does_not_hang_validation():
+def test_s8_redos_pattern_on_long_string_does_not_hang_validation():
+    """Strings over the cap fail before an external schema's pattern runs.
+
+    ``re`` has no timeout, so the cap bounds how long a catastrophic pattern
+    from an MCP server can backtrack. A short adversarial string (for example
+    ``"a" * 34 + "!"`` against ``^(a+)+$``) is still evaluated by ``re``.
+    """
     script = textwrap.dedent(
         """
-        from praval.tool_execution import validate_tool_arguments
+        from praval.tool_execution import (
+            MAX_PATTERN_STRING_CHARS,
+            validate_tool_arguments,
+        )
 
         def proxy(**kwargs):
             return "ok"
@@ -932,16 +941,53 @@ def test_s8_redos_pattern_does_not_hang_validation():
             "type": "object",
             "properties": {"s": {"type": "string", "pattern": "^(a+)+$"}},
         }
-        validate_tool_arguments(
+        _, error = validate_tool_arguments(
             {"name": "t", "function": proxy, "parameters": schema},
-            {"s": "a" * 34 + "!"},
+            {"s": "a" * MAX_PATTERN_STRING_CHARS + "!"},
         )
+        assert error is not None and error.is_error, error
+        assert "s: string of 10001 characters" in error.content, error.content
+        assert str(MAX_PATTERN_STRING_CHARS) in error.content, error.content
         """
     )
     try:
         subprocess.run([sys.executable, "-c", script], timeout=5, check=True)
     except subprocess.TimeoutExpired:
         pytest.fail("pattern validation did not finish within 5 s")
+
+
+def test_s8_pattern_still_applies_to_strings_within_the_cap():
+    from praval.tool_execution import MAX_PATTERN_STRING_CHARS, validate_tool_arguments
+
+    tool = _kwargs_tool(
+        {
+            "type": "object",
+            "properties": {"code": {"type": "string", "pattern": "^[A-Z]+$"}},
+        }
+    )
+    assert validate_tool_arguments(tool, {"code": "ABC"})[1] is None
+    _, error = validate_tool_arguments(tool, {"code": "abc"})
+    assert error is not None and "code:" in error.content
+    at_cap = "A" * MAX_PATTERN_STRING_CHARS
+    assert validate_tool_arguments(tool, {"code": at_cap})[1] is None
+    _, error = validate_tool_arguments(tool, {"code": at_cap + "A"})
+    assert error is not None and "limit for pattern checks" in error.content
+
+
+def test_s8_pattern_cap_does_not_apply_to_response_schemas():
+    """Response schemas come from the application, not an external server."""
+    from praval.model_runtime import _validate_structured_content
+    from praval.models import StructuredOutputConfig
+    from praval.tool_execution import MAX_PATTERN_STRING_CHARS
+
+    config = StructuredOutputConfig(
+        schema={
+            "type": "object",
+            "properties": {"s": {"type": "string", "pattern": "^A+$"}},
+        }
+    )
+    content = json.dumps({"s": "A" * (MAX_PATTERN_STRING_CHARS + 1)})
+    _validate_structured_content(content, config, provider="p", model="m")
 
 
 # --- S9 Untrusted Retry-After and error bodies ------------------------------

@@ -1005,6 +1005,21 @@ class Agent:
         # resume the run and execute the approved tool.
         if not service.claim_run(run_id):
             raise ValueError(f"Suspended run '{run_id}' is not pending")
+        # Re-read under the claim: an earlier resume that ran the tool and then
+        # failed may have stored its results after the first read.
+        from ..hitl.models import SuspendedRunState
+
+        claimed = service.store.get_suspended_run(run_id)
+        if isinstance(claimed, SuspendedRunState):
+            if claimed.state.get("intervention_id") != intervention_id:
+                # Another resume moved the run on to a new intervention after
+                # the first read; this decision no longer applies to it.
+                service.release_run(run_id)
+                raise ValueError(
+                    f"Suspended run '{run_id}' now waits on intervention "
+                    f"'{claimed.state.get('intervention_id')}'"
+                )
+            suspended = claimed
         return service, suspended, hitl_context
 
     def _complete_resume_run(self, run_id: str, response: str, service: Any) -> str:
