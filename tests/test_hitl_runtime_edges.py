@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Iterator, List
 from unittest.mock import Mock, patch
 
 import pytest
 
+import praval.hitl.store as hitl_store_module
+from praval.core.agent import Agent
 from praval.core.exceptions import HITLConfigurationError, InterventionRequired
 from praval.hitl.models import (
     InterventionDecision,
@@ -17,6 +21,9 @@ from praval.hitl.models import (
 from praval.hitl.policy import approval_reason, requires_approval, risk_level
 from praval.hitl.runtime import HITLRuntime
 from praval.hitl.service import HITLService
+from praval.hitl.store import reset_hitl_stores
+from praval.model_runtime import _build_hitl_runtime
+from praval.models import ModelResponse, ProviderCapabilities, ToolCall, ToolResult
 
 
 def _runtime(*, enabled: bool = False, store: Mock | None = None) -> HITLRuntime:
@@ -375,3 +382,116 @@ def test_hitl_service_delegates_and_updates_suspended_runs():
     store.get_suspended_run.return_value = None
     service.mark_run_completed("missing", "ignored")
     service.cancel_run("missing", "ignored")
+
+
+class _OneToolProvider:
+    """Asks for one ``lookup`` call, then answers with its result."""
+
+    capabilities = ProviderCapabilities(tools=True)
+
+    def invoke(self, request: Any) -> ModelResponse:
+        return ModelResponse(
+            tool_calls=[ToolCall(id="call-1", name="lookup", arguments={"key": "a"})]
+        )
+
+    def continue_with_tool_results(
+        self, request: Any, response: Any, tool_results: List[ToolResult]
+    ) -> ModelResponse:
+        return ModelResponse(content=f"found {tool_results[0].content}")
+
+
+@pytest.fixture
+def isolated_hitl_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Path]:
+    """Point every HITL database location (env, default, HOME) at tmp_path."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("PRAVAL_HITL_DB_PATH", str(tmp_path / "env-hitl.db"))
+    monkeypatch.setattr(
+        "praval.hitl.store._DEFAULT_DB_PATH", str(tmp_path / "default-hitl.db")
+    )
+    reset_hitl_stores()
+    yield tmp_path
+    reset_hitl_stores()
+
+
+def _db_files(root: Path) -> List[Path]:
+    return sorted(root.rglob("*.db"))
+
+
+def _tool_agent(**kwargs: Any) -> Agent:
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_OneToolProvider(),
+    ):
+        agent = Agent("no-hitl", provider="fake", model="fake-model", **kwargs)
+
+    @agent.tool
+    def lookup(key: str) -> str:
+        return key.upper()
+
+    return agent
+
+
+def test_tool_call_without_hitl_never_opens_a_hitl_store(
+    isolated_hitl_paths: Path,
+) -> None:
+    agent = _tool_agent()
+
+    assert agent.chat("look it up") == "found A"
+    assert _db_files(isolated_hitl_paths) == []
+    assert hitl_store_module._store_by_path == {}
+
+
+@pytest.mark.asyncio
+async def test_async_tool_call_without_hitl_never_opens_a_hitl_store(
+    isolated_hitl_paths: Path,
+) -> None:
+    agent = _tool_agent()
+
+    response = await agent.agenerate("look it up")
+    assert response.content == "found A"
+    assert _db_files(isolated_hitl_paths) == []
+
+
+def test_gated_tool_without_hitl_still_raises_and_opens_no_store(
+    isolated_hitl_paths: Path,
+) -> None:
+    agent = _tool_agent()
+    agent.tools["lookup"]["requires_approval"] = True
+
+    with pytest.raises(HITLConfigurationError, match="has hitl=False"):
+        agent.chat("look it up")
+    assert _db_files(isolated_hitl_paths) == []
+
+
+def test_gated_tool_with_hitl_still_suspends_and_resumes(
+    isolated_hitl_paths: Path,
+) -> None:
+    agent = _tool_agent(hitl_enabled=True)
+    agent.tools["lookup"]["requires_approval"] = True
+
+    with pytest.raises(InterventionRequired) as raised:
+        agent.chat("look it up")
+    assert _db_files(isolated_hitl_paths) == [isolated_hitl_paths / "env-hitl.db"]
+    agent.approve_intervention(raised.value.intervention_id, reviewer="qa")
+    assert agent.resume_run(raised.value.run_id) == "found A"
+
+
+def test_hitl_runtime_is_built_only_when_enabled_or_resuming() -> None:
+    context = {
+        "enabled": False,
+        "run_id": "run-1",
+        "agent_name": "agent-1",
+        "provider_name": "provider-1",
+    }
+    with patch("praval.hitl.runtime.get_hitl_store", return_value=Mock()) as store:
+        assert _build_hitl_runtime(context) is None
+        assert _build_hitl_runtime(None) is None
+        assert _build_hitl_runtime({**context, "enabled": True, "run_id": ""}) is None
+        store.assert_not_called()
+
+        enabled = _build_hitl_runtime({**context, "enabled": True})
+        assert enabled is not None and enabled.hitl_enabled is True
+        resuming = _build_hitl_runtime(context, for_resume=True)
+        assert resuming is not None and resuming.hitl_enabled is False

@@ -24,6 +24,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Tuple,
     TypeVar,
     Union,
 )
@@ -38,6 +39,7 @@ from .core.exceptions import (
     ProviderInvalidResponseError,
     ToolRoundLimitError,
 )
+from .hitl.policy import requires_approval
 from .hitl.runtime import HITLRuntime
 from .hitl.store import get_hitl_store
 from .models import (
@@ -327,7 +329,9 @@ def _execute_legacy_tool_call_impl(
         raise ProviderError(
             "This tool is async-only; use Agent.agenerate() or Agent.astream()."
         )
-    runtime = _build_hitl_runtime(hitl_context)
+    runtime = _build_hitl_runtime(
+        hitl_context, for_resume=resume_intervention is not None
+    )
     if resume_intervention is not None and runtime is not None:
         return runtime.execute_with_decision_result(
             intervention=resume_intervention,
@@ -344,6 +348,8 @@ def _execute_legacy_tool_call_impl(
 
     if tool_def is None:
         return error_result(f"Unknown function: {function_name}")
+    if continuation_state is not None:
+        _require_hitl_for_gated_tool(hitl_context, function_name, tool_def)
     return _execute_tool_direct(tool_def, HITLRuntime._parse_args(raw_args))
 
 
@@ -392,7 +398,9 @@ async def _execute_legacy_tool_call_async_impl(
     resume_intervention: Optional[Dict[str, Any]] = None,
 ) -> ToolResult:
     """Execute an asynchronous tool after observation setup."""
-    runtime = _build_hitl_runtime(hitl_context)
+    runtime = _build_hitl_runtime(
+        hitl_context, for_resume=resume_intervention is not None
+    )
     if resume_intervention is not None and runtime is not None:
         return await runtime.execute_with_decision_async(
             intervention=resume_intervention,
@@ -410,12 +418,15 @@ async def _execute_legacy_tool_call_async_impl(
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is None:
         return error_result(f"Unknown function: {function_name}")
+    if continuation_state is not None:
+        _require_hitl_for_gated_tool(hitl_context, function_name, tool_def)
     return await _execute_tool_direct_async(tool_def, HITLRuntime._parse_args(raw_args))
 
 
-def _build_hitl_runtime(
+def _hitl_identity(
     hitl_context: Optional[Dict[str, Any]],
-) -> Optional[HITLRuntime]:
+) -> Optional[Tuple[str, str, str]]:
+    """Return ``(run_id, agent_name, provider_name)`` when all are present."""
     if not hitl_context:
         return None
     run_id = hitl_context.get("run_id")
@@ -423,13 +434,54 @@ def _build_hitl_runtime(
     provider_name = hitl_context.get("provider_name")
     if not run_id or not agent_name or not provider_name:
         return None
+    return str(run_id), str(agent_name), str(provider_name)
+
+
+def _build_hitl_runtime(
+    hitl_context: Optional[Dict[str, Any]],
+    *,
+    for_resume: bool = False,
+) -> Optional[HITLRuntime]:
+    """Build the HITL runtime for a tool call, or ``None`` without HITL.
+
+    A runtime (and with it the HITL store) is only built when HITL is enabled,
+    or to apply a recorded decision during a resume, so agents without HITL
+    never open the HITL database.
+    """
+    identity = _hitl_identity(hitl_context)
+    if identity is None or hitl_context is None:
+        return None
+    enabled = bool(hitl_context.get("enabled", False))
+    if not enabled and not for_resume:
+        return None
+    run_id, agent_name, provider_name = identity
     return HITLRuntime(
         run_id=run_id,
         agent_name=agent_name,
         provider_name=provider_name,
-        hitl_enabled=bool(hitl_context.get("enabled", False)),
+        hitl_enabled=enabled,
         db_path=hitl_context.get("db_path"),
         trace_id=hitl_context.get("trace_id"),
+    )
+
+
+def _require_hitl_for_gated_tool(
+    hitl_context: Optional[Dict[str, Any]],
+    function_name: str,
+    tool_def: Dict[str, Any],
+) -> None:
+    """Refuse an approval-gated tool on a run that has HITL disabled.
+
+    Raises:
+        HITLConfigurationError: If the tool requires approval and the run's
+            HITL context identifies an agent with HITL disabled.
+    """
+    identity = _hitl_identity(hitl_context)
+    if identity is None or not requires_approval(tool_def):
+        return
+    raise HITLConfigurationError(
+        f"Tool '{function_name}' requires approval but agent "
+        f"'{identity[1]}' has hitl=False"
     )
 
 

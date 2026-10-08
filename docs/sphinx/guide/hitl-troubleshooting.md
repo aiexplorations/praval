@@ -9,6 +9,8 @@ A tool call fails immediately with `HITLConfigurationError`.
 
 **Cause:**
 Tool metadata has `requires_approval=True` but the agent is decorated/configured with `hitl=False`.
+The check needs no database: an agent with `hitl=False` never opens the HITL
+database (the default path or `PRAVAL_HITL_DB_PATH`) for its tool calls.
 
 **Fix:**
 Enable HITL for that agent:
