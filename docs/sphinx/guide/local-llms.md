@@ -61,10 +61,24 @@ Ollama discovery can replace manual tool overrides. Use
 `/api/show` capabilities and context limits; `/api/ps` supplies
 `metadata["loaded_context_window"]`. Supported context and loaded context differ.
 Set `required_context_tokens` in provider options to warn when loaded context is
-insufficient. Configure a Modelfile with `PARAMETER num_ctx` and reload the model
-to increase it; the OpenAI endpoint cannot set context per request. Discovery can
+insufficient. To change the default used by ordinary requests, create a model
+variant with `PARAMETER num_ctx`, select that variant's name in Praval, and check
+its loaded context after a request. A one-time native preload does not ensure
+that later OpenAI-compatible requests use the same context. The OpenAI endpoint
+cannot set context per request; see
+[Ollama's context configuration](https://docs.ollama.com/api/openai-compatibility#setting-the-local-context-size).
+`OLLAMA_CONTEXT_LENGTH` can instead set the server default for models without
+an overriding context setting and requires a server restart. Discovery can
 fail when the server is down or the model is missing. Output budgets above a
 discovered limit fail before inference.
+
+Native per-request context control is planned for Praval v0.8.5. The proposed
+`provider_options={"context_tokens": 32768}` will map to `options.num_ctx` on
+Ollama's native `/api/chat`, including subsequent tool rounds. This setting is
+not implemented in v0.8.4. Applications choose the allocation and budget their
+prompts and generation against it. Model maximum, requested context and observed
+loaded context must remain separate. See the
+[v0.8.5 context plan](https://github.com/aiexplorations/praval/blob/release/v0.8.4/plans/praval-v0.8.5-ollama-context.md).
 
 The OpenAI-compatible provider validates base URLs before creating the SDK
 client. It rejects non-HTTP schemes, embedded credentials, and metadata

@@ -13,7 +13,7 @@ coding prompts and semantic tool decisions remain with applications and agents.
 | Gemini unavailable models | Non-retryable HTTP 404 adds availability guidance. Availability can vary by endpoint and key; do not assert universal retirement. |
 | Flash-Lite repeated calls | Existing tests preserve histories, distinct IDs and repeated calls. Live certificates require ordered dependent calls. Intentional repeats remain agent-owned; no argument-based deduplication. |
 | Ollama capabilities | Tags/show profiles expose tools, vision, thinking and model context. Discovery registers profiles without manual tool overrides. |
-| Ollama context | Loaded context is separate from the model maximum. Warn against application requirements; reject excessive output budgets. OpenAI endpoint context requires num_ctx in a Modelfile. |
+| Ollama context | Loaded context is separate from the model maximum. v0.8.4 warns against application requirements and validates output budgets. A Modelfile variant or server default provides interim context configuration. Native per-request context control is planned for v0.8.5; a preload alone is insufficient. See `plans/praval-v0.8.5-ollama-context.md`. |
 | Ollama thinking | Preserve separate reasoning fields in assistant tool transcripts. |
 | OpenRouter | Dedicated key/base URL/attribution, unified reasoning, intact vendor/model:variant IDs, strict require_parameters routing and typed HTTP 402 quota errors. |
 | OpenRouter metadata | Public catalogue supplies supported parameters, limits and price strings. No runtime prices are hard-coded. |
