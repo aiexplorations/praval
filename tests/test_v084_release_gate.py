@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Tuple
 from unittest.mock import patch
 
 import pytest
-from test_provider_continuation import (
+from provider_harnesses import (
     HARNESSES,
     QUESTION,
     Harness,
