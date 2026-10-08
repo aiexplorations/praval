@@ -290,12 +290,17 @@ class Agent:
         else:
             self._storage = None
 
-        # Add system message to conversation if provided. History loaded by
-        # persist_state already holds it; trimming keeps every system message,
-        # so appending it again would grow the state on every restart.
-        system_turn = {"role": "system", "content": self.config.system_message}
-        if self.config.system_message and system_turn not in self.conversation_history:
-            self.conversation_history.append(system_turn)
+        # The configured system message replaces any system turns loaded by
+        # persist_state, so a changed system_message takes effect and restarts
+        # never add copies (trimming keeps every system message). Without a
+        # configured one, persisted system turns are kept as they are.
+        if self.config.system_message:
+            system_turn = {"role": "system", "content": self.config.system_message}
+            self.conversation_history[:] = [system_turn] + [
+                message
+                for message in self.conversation_history
+                if message.get("role") != "system"
+            ]
             self._trim_history()
 
     # ==========================================

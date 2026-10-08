@@ -81,6 +81,11 @@ The newest unit is always kept, even when it alone exceeds the limit; with
 `max_history=0` the agent keeps its system messages and the current exchange
 only.
 
+With `persist_state=True`, an agent that has a `system_message` replaces the
+system messages in the loaded history with its own, placed first, so a changed
+`system_message` takes effect on restart and restarts never add copies. An agent
+without a `system_message` keeps the persisted ones.
+
 ## Timeouts in Decorated Agents
 
 Inside an `@agent` handler, `chat(message, timeout=None, **options)` and

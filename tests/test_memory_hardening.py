@@ -338,13 +338,6 @@ def test_persisted_restarts_do_not_duplicate_the_system_message(tmp_path):
     assert lengths == [3, 5, 7, 9, 11, 13]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: when system_message changes between restarts, the "
-        "persisted old system message is kept alongside the new one forever"
-    ),
-)
 def test_changed_system_message_replaces_the_persisted_one(tmp_path):
     storage = StateStorage(str(tmp_path / "state"))
     for system_message in ("Old instructions.", "New instructions."):
@@ -354,9 +347,33 @@ def test_changed_system_message_replaces_the_persisted_one(tmp_path):
         system_turns = [
             m for m in restarted.conversation_history if m["role"] == "system"
         ]
+        history = list(restarted.conversation_history)
         restarted.close()
 
     assert system_turns == [{"role": "system", "content": "New instructions."}]
+    assert history[0] == {"role": "system", "content": "New instructions."}
+    assert [m["role"] for m in history] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+
+
+def test_persisted_system_message_is_kept_when_none_is_configured(tmp_path):
+    storage = StateStorage(str(tmp_path / "state"))
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        first = _agent(system_message="Persisted.", persist_state=True)
+    first.chat("question")
+    first.close()
+
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        restarted = _agent(persist_state=True)
+    system_turns = [m for m in restarted.conversation_history if m["role"] == "system"]
+    restarted.close()
+
+    assert system_turns == [{"role": "system", "content": "Persisted."}]
 
 
 class _VisionProvider:
