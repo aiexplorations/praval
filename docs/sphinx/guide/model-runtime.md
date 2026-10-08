@@ -92,6 +92,14 @@ running until its provider returns, but its answer is discarded and never
 enters the conversation history, even if the handler has made further calls by
 then.
 
+`achat()` runs calls on a Praval-owned pool of daemon threads rather than the
+event loop's default executor, so hung calls cannot starve other
+`run_in_executor` users, and a hung call does not keep the process alive at
+exit. The pool is shared by every event loop in the process and has 32 threads;
+set `PRAVAL_ACHAT_MAX_WORKERS` to change that. A timed-out call holds its thread
+until the provider returns, so once every thread is held by such calls, later
+`achat()` calls wait for a free thread and may time out themselves.
+
 ```python
 from praval import agent, chat
 
