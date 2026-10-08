@@ -34,7 +34,12 @@ from praval.core.agent import Agent
 from praval.core.exceptions import InterventionRequired, StateError
 from praval.core.reef import get_reef
 from praval.core.storage import StateStorage
-from praval.core.tool_registry import reset_tool_registry
+from praval.core.tool_registry import (
+    Tool,
+    ToolMetadata,
+    get_tool_registry,
+    reset_tool_registry,
+)
 from praval.hitl.store import reset_hitl_stores
 from praval.models import ContentPart, ModelResponse, ToolCall
 from praval.runtime_observation import use_observation_recorder
@@ -549,14 +554,6 @@ def test_signature_validator_cache_does_not_keep_agents_alive():
     assert len(tool_execution._FUNCTION_VALIDATORS) == baseline
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: Agent.tool() registers the function in the global "
-        "tool registry and close() never unregisters it, so a tool closure "
-        "keeps its agent alive for the life of the process"
-    ),
-)
 def test_closed_agent_is_not_kept_alive_by_the_global_tool_registry():
     def build_and_close() -> weakref.ReferenceType[Any]:
         tool_agent = _agent("registry-owner")
@@ -572,6 +569,63 @@ def test_closed_agent_is_not_kept_alive_by_the_global_tool_registry():
     gc.collect()
 
     assert ref() is None
+
+
+def test_close_leaves_tools_registered_by_others_in_the_registry():
+    reset_tool_registry()
+    registry = get_tool_registry()
+
+    def shared_lookup(city: str) -> str:
+        return city
+
+    registry.register_tool(
+        Tool(
+            shared_lookup,
+            ToolMetadata(tool_name="shared_lookup", owned_by="owner", shared=True),
+        )
+    )
+    first = _agent("owner")
+    second = _agent("other")
+
+    def own_lookup(city: str) -> str:
+        return city
+
+    def collide(city: str) -> str:
+        return city
+
+    collide.__name__ = "own_lookup"
+    first.tool(shared_lookup)
+    first.tool(own_lookup)
+    second.tool(collide)
+    assert registry.get_tool("own_lookup").func is own_lookup
+
+    second.close()
+    assert registry.get_tool("own_lookup").func is own_lookup
+    first.close()
+
+    assert registry.get_tool("own_lookup") is None
+    assert registry.get_tool("shared_lookup").func is shared_lookup
+    reset_tool_registry()
+
+
+def test_registry_keeps_an_entry_that_is_not_the_given_function():
+    reset_tool_registry()
+    registry = get_tool_registry()
+
+    def lookup(city: str) -> str:
+        return city
+
+    def other(city: str) -> str:
+        return city
+
+    registry.register_tool(Tool(lookup, ToolMetadata("lookup", owned_by="a")))
+    assert not registry.unregister_owned_tool("lookup", other, "a")
+    assert not registry.unregister_owned_tool("lookup", lookup, "b")
+    assert not registry.unregister_owned_tool("missing", lookup, "a")
+    assert registry.unregister_owned_tool("lookup", lookup, "a")
+    assert registry.get_tool("lookup") is None
+    assert registry.get_registry_stats()["agents_with_tools"] == 0
+    reset_tool_registry()
 
 
 def test_schema_validator_cache_is_bounded():

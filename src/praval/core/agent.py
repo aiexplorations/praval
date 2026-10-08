@@ -241,6 +241,9 @@ class Agent:
         self.memory_enabled = memory_enabled
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
+        # Functions this agent added to the global tool registry, by name, so
+        # close() can remove exactly those entries.
+        self._registry_tools: Dict[str, Callable[..., Any]] = {}
         self.conversation_history: List[Dict[str, Any]] = []
         self.max_history = max_history
         self._hitl_enabled = hitl_enabled
@@ -1135,6 +1138,7 @@ class Agent:
                 approval_reason="",
             )
             registry.register_tool(Tool(func, metadata))
+            self._registry_tools[tool_name] = func
         except ToolError as e:
             logger.debug("Tool registry registration failed for '%s': %s", tool_name, e)
         except Exception as e:
@@ -1209,6 +1213,7 @@ class Agent:
                 approval_reason=spec.approval_reason,
             )
             get_tool_registry().register_tool(Tool(registered_handler, metadata))
+            self._registry_tools[spec.name] = registered_handler
         except ToolError as e:
             logger.debug(
                 "External tool registry registration failed for '%s': %s",
@@ -1422,6 +1427,7 @@ class Agent:
 
         This method:
         - Unsubscribes from all reef channels
+        - Unregisters the tools this agent added to the global tool registry
         - Shuts down the memory system
         - Clears conversation history
 
@@ -1464,6 +1470,17 @@ class Agent:
             self._subscribed_channels.clear()
         except Exception as e:
             logger.warning(f"Error during reef cleanup for {self.name}: {e}")
+
+        # Remove the tools this agent registered globally; a tool closure
+        # that captures the agent would otherwise keep it alive.
+        if self._registry_tools:
+            try:
+                registry = get_tool_registry()
+                for tool_name, func in self._registry_tools.items():
+                    registry.unregister_owned_tool(tool_name, func, self.name)
+            except Exception as e:
+                logger.warning(f"Error unregistering tools for {self.name}: {e}")
+            self._registry_tools.clear()
 
         # Shutdown memory system
         if self.memory:
