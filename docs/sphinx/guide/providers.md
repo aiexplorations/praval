@@ -131,8 +131,7 @@ the provider reported: `provider`, `model`, `operation` (`invoke`, `continue`
 or `stream`), `status_code`, `error_code` (for example `insufficient_quota`,
 `overloaded_error` or Gemini's `RESOURCE_EXHAUSTED`), `request_id`,
 `retryable` and `retry_after_seconds`. Gemini error bodies are read, redacted
-and kept in the message; the request URL, which carries the API key, is never
-copied into an error. An exception the adapter does not recognise becomes a
+and kept in the message. An exception the adapter does not recognise becomes a
 plain, non-retryable `ProviderError` with the original exception as its
 `__cause__`.
 
@@ -164,6 +163,17 @@ OpenAI-compatible client) are built with `max_retries=0`, so SDK-internal
 retries no longer multiply Praval's. To restore them, set
 `provider_options={"max_retries": N}` in the agent configuration; the value is
 used for client construction only and is not sent with requests.
+
+## Gemini Authentication
+
+The Gemini adapter and Gemini embeddings send the API key (`GEMINI_API_KEY`,
+`GOOGLE_API_KEY`, or the variable named by `api_key_env`) in the
+`x-goog-api-key` request header. Earlier releases appended it to the URL as
+`?key=...`, where any exception, log line or proxy that quoted the URL could
+expose it. A custom `base_url` keeps working as long as the proxy or gateway
+forwards the `x-goog-api-key` header to Google; one that only forwarded query
+parameters needs that header added to its configuration. When no key is set
+(a gateway that injects its own credentials), no header is sent.
 
 ## Provider Profile Fields
 

@@ -164,18 +164,10 @@ def test_s1_gemini_stream_error_event_has_no_key(gemini_provider):
     assert GEMINI_KEY not in _all_text(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: the Gemini adapter (and Gemini embeddings) put the API key in "
-        "the request URL. Exceptions that quote the URL (an invalid base_url, "
-        "a model name with whitespace) are redacted in the ProviderError text "
-        "but stay unredacted on the chained __cause__, so tracebacks, "
-        "exc_info logs and span stacktraces carry the key. Moving the key to "
-        "the x-goog-api-key header removes the class of leak."
-    ),
-)
 def test_s1_gemini_key_absent_from_traceback_on_malformed_url(monkeypatch):
+    # The key travels in the x-goog-api-key header, so an exception that
+    # quotes the request URL (here http.client rejecting the path) cannot
+    # carry it on the chained __cause__ either.
     monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY)
     provider = GeminiProvider(
         AgentConfig(

@@ -288,7 +288,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -307,7 +307,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method, stream=True),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -325,16 +325,23 @@ class GeminiProvider:
                 yield json.loads(line)
 
     def _method_url(self, method: str, *, stream: bool = False) -> str:
+        """Build the endpoint URL; the API key travels in a header, never here."""
         url = f"{self.base_url}/models/{self._model_name()}:{method}"
-        params = []
         if stream:
-            params.append("alt=sse")
-        if self.api_key:
-            params.append(f"key={self.api_key}")
-        if params:
             separator = "&" if "?" in url else "?"
-            url = f"{url}{separator}{'&'.join(params)}"
+            url = f"{url}{separator}alt=sse"
         return url
+
+    def _request_headers(self) -> Dict[str, str]:
+        """JSON headers plus ``x-goog-api-key`` when a key is configured.
+
+        Sending the key as a header keeps it out of the URL, so exceptions,
+        logs and proxies that quote the URL never carry it.
+        """
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["x-goog-api-key"] = self.api_key
+        return headers
 
     def _content_to_parts(self, content: Any) -> List[Dict[str, Any]]:
         if not isinstance(content, list):
