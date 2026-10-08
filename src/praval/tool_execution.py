@@ -13,7 +13,9 @@ external tools) are validated with ``jsonschema``; that path does not coerce.
 Schemas from external servers are untrusted: a ``$ref`` is resolved only
 within the schema itself, never fetched from a URL or file, and a string
 longer than ``MAX_PATTERN_STRING_CHARS`` fails validation before a ``pattern``
-is evaluated against it, which bounds the cost of a backtracking pattern.
+is evaluated against it. Shorter strings use a timed regex search, and
+``patternProperties`` is rejected because jsonschema also evaluates those
+patterns through untimed additional/unevaluated-property helper paths.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ import json
 import logging
 import weakref
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from jsonschema import Draft202012Validator
@@ -40,6 +43,8 @@ from referencing.exceptions import Unresolvable
 from .models import ToolResult
 
 logger = logging.getLogger(__name__)
+# regex has no bundled type stubs; keep its API isolated at this boundary.
+regex = import_module("regex")
 
 ERROR_PREFIX = "Error:"
 LEGACY_ERROR_PREFIXES = (
@@ -50,8 +55,15 @@ LEGACY_ERROR_PREFIXES = (
 MAX_ERROR_DETAIL_CHARS = 200
 SCHEMA_CACHE_SIZE = 256
 # Longest string an external (JSON-Schema-only) tool schema's ``pattern`` is
-# evaluated against. ``re`` has no timeout, so this bounds backtracking cost.
+# evaluated against. Matching also has a time limit for shorter strings.
 MAX_PATTERN_STRING_CHARS = 10_000
+MAX_PATTERN_CHARS = 10_000
+PATTERN_TIMEOUT_SECONDS = 0.05
+
+
+class _ExternalPatternSchemaError(ValueError):
+    """An external schema requests an unsupported or oversized regex path."""
+
 
 # (field path, expected type or None for an unexpected field, problem)
 ArgumentError = Tuple[str, Optional[str], str]
@@ -125,11 +137,17 @@ def validate_tool_arguments(
         schema = tool_def.get("parameters")
         if not isinstance(schema, dict) or schema.get("type") != "object":
             return args, None
-        schema_validator = cached_schema_validator(schema, external=True)
-        if schema_validator is None:
-            return args, None
         try:
+            schema_validator = cached_schema_validator(schema, external=True)
+            if schema_validator is None:
+                return args, None
             errors = _json_schema_argument_errors(schema_validator, args)
+        except _ExternalPatternSchemaError as exc:
+            return args, error_result(
+                f"{ERROR_PREFIX} Invalid schema for tool '{tool_name(tool_def)}': "
+                f"{exc}",
+                name=tool_name(tool_def),
+            )
         except Unresolvable as exc:
             logger.warning(
                 "JSON Schema for tool '%s' has an unresolvable $ref; "
@@ -434,7 +452,8 @@ def cached_schema_validator(
     when none is declared. ``external`` marks a schema from an untrusted
     source (an MCP server or other external tool): its ``pattern`` keyword
     rejects strings longer than ``MAX_PATTERN_STRING_CHARS`` without
-    evaluating the pattern.
+    evaluating the pattern. Shorter strings have a regex matching timeout.
+    Unsupported ``patternProperties`` raises ``_ExternalPatternSchemaError``.
     """
     try:
         key = json.dumps(schema, sort_keys=True)
@@ -447,6 +466,8 @@ def cached_schema_validator(
 @functools.lru_cache(maxsize=SCHEMA_CACHE_SIZE)
 def _schema_validator_for_key(key: str, external: bool = False) -> Optional[Validator]:
     schema = json.loads(key)
+    if external:
+        _check_external_pattern_schema(schema)
     validator_class = validator_for(schema, default=Draft202012Validator)
     try:
         validator_class.check_schema(schema)
@@ -459,27 +480,107 @@ def _schema_validator_for_key(key: str, external: bool = False) -> Optional[Vali
     # An empty registry: jsonschema would otherwise fetch remote and file
     # ``$ref`` targets, which an untrusted (MCP) schema can point anywhere.
     if external:
+        # The chosen root dialect is retained by the validator class. Removing
+        # its annotation prevents local $ref evolution from selecting an
+        # untimed built-in class when the referenced root declares $schema.
+        schema.pop("$schema", None)
         validator_class = _with_pattern_length_cap(validator_class)
     validator: Validator = validator_class(schema, registry=Registry())
     return validator
 
 
+def _check_external_pattern_schema(schema: Any, *, root: bool = True) -> None:
+    """Reject untimed regex helper paths before jsonschema sees the schema."""
+    if not isinstance(schema, dict):
+        return
+    if not root and "$schema" in schema:
+        raise _ExternalPatternSchemaError(
+            "nested $schema dialect changes are unsupported for external tool schemas"
+        )
+    if schema.get("patternProperties"):
+        raise _ExternalPatternSchemaError(
+            "patternProperties is unsupported for external tool schemas; "
+            "use explicit properties with timed pattern checks"
+        )
+    pattern = schema.get("pattern")
+    if isinstance(pattern, str) and len(pattern) > MAX_PATTERN_CHARS:
+        raise _ExternalPatternSchemaError(
+            f"pattern exceeds the {MAX_PATTERN_CHARS} character limit"
+        )
+    # Walk schema-bearing keywords, not instance data in const/default/examples.
+    for keyword in (
+        "properties",
+        "$defs",
+        "definitions",
+        "dependentSchemas",
+        "dependencies",
+    ):
+        children = schema.get(keyword)
+        if isinstance(children, dict):
+            for child in children.values():
+                _check_external_pattern_schema(child, root=False)
+    for keyword in (
+        "items",
+        "additionalItems",
+        "contains",
+        "propertyNames",
+        "not",
+        "if",
+        "then",
+        "else",
+        "additionalProperties",
+        "unevaluatedProperties",
+        "unevaluatedItems",
+        "contentSchema",
+    ):
+        child = schema.get(keyword)
+        if isinstance(child, list):
+            for item in child:
+                _check_external_pattern_schema(item, root=False)
+        else:
+            _check_external_pattern_schema(child, root=False)
+    for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+        children = schema.get(keyword)
+        if isinstance(children, list):
+            for child in children:
+                _check_external_pattern_schema(child, root=False)
+
+
 def _with_pattern_length_cap(validator_class: Any) -> Any:
-    """Return ``validator_class`` with a length check before ``pattern``."""
-    check_pattern = validator_class.VALIDATORS.get("pattern")
-    if check_pattern is None:
+    """Return a validator with bounded external ``pattern`` matching."""
+    if "pattern" not in validator_class.VALIDATORS:
         return validator_class
 
     def capped_pattern(
         validator: Any, pattern: Any, instance: Any, schema: Any
     ) -> Iterator[SchemaValidationError]:
-        if isinstance(instance, str) and len(instance) > MAX_PATTERN_STRING_CHARS:
+        if not isinstance(instance, str):
+            return
+        if len(instance) > MAX_PATTERN_STRING_CHARS:
             yield SchemaValidationError(
                 f"string of {len(instance)} characters is longer than "
                 f"{MAX_PATTERN_STRING_CHARS}, the limit for pattern checks"
             )
             return
-        yield from check_pattern(validator, pattern, instance, schema)
+        try:
+            matched = regex.search(
+                pattern,
+                instance,
+                flags=regex.VERSION0,
+                timeout=PATTERN_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            yield SchemaValidationError(
+                f"pattern evaluation exceeded {PATTERN_TIMEOUT_SECONDS} seconds"
+            )
+            return
+        except regex.error:
+            yield SchemaValidationError(
+                "pattern is not supported by the timed regex engine"
+            )
+            return
+        if matched is None:
+            yield SchemaValidationError(f"{instance!r} does not match {pattern!r}")
 
     return extend(validator_class, {"pattern": capped_pattern})
 
