@@ -30,9 +30,12 @@ checked too):
 
 - A Python function is validated against its signature with pydantic in lax
   mode, so `"3"` becomes `3` for an `int` parameter and the handler receives
-  the coerced values. Unknown arguments are rejected unless the function takes
-  `**kwargs`. A parameter whose annotation cannot be resolved, or has none, is
-  passed through unchanged.
+  the coerced values. A number is accepted for a `str` parameter and passed as
+  a string (`42` becomes `"42"`; `true` is still rejected), when the installed
+  pydantic supports `coerce_numbers_to_str`. A parameter whose default is
+  `None` accepts `None`, as if annotated `Optional[...]`. Unknown arguments are
+  rejected unless the function takes `**kwargs`. A parameter whose annotation
+  cannot be resolved, or has none, is passed through unchanged.
 - A tool whose handler only accepts `**kwargs` and that declares a JSON Schema
   object (tools added with `Agent.add_tool_spec`, including MCP tools) is
   validated with `jsonschema`, Draft 2020-12 unless the schema declares another

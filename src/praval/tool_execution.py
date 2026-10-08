@@ -5,7 +5,9 @@ runtime goes through this module. Model-supplied arguments are validated before
 the handler runs, and every outcome is normalized to a single ``ToolResult``.
 
 Python callables are validated from their signature with pydantic (lax mode,
-so ``"3"`` becomes ``3`` for an ``int`` parameter). Tools whose handler only
+so ``"3"`` becomes ``3`` for an ``int`` parameter, and a number becomes a
+string for a ``str`` parameter). A parameter whose default is ``None`` also
+accepts ``None``. Tools whose handler only
 accepts ``**kwargs`` and that declare a JSON Schema object (MCP and other
 external tools) are validated with ``jsonschema``; that path does not coerce.
 Schemas from external servers are untrusted: a ``$ref`` is resolved only
@@ -31,7 +33,7 @@ from jsonschema.exceptions import SchemaError
 from jsonschema.exceptions import ValidationError as SchemaValidationError
 from jsonschema.protocols import Validator
 from jsonschema.validators import extend, validator_for
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ConfigDict, PydanticUserError, TypeAdapter, ValidationError
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 
@@ -304,7 +306,9 @@ def _build_signature_validator(
     for param in named:
         annotation = _resolve_annotation(func, param.annotation)
         checks[param.name] = _ParameterCheck(
-            adapter=_type_adapter(func, param.name, annotation),
+            adapter=_type_adapter(
+                func, param.name, _optional_if_none_default(annotation, param)
+            ),
             required=param.default is inspect.Parameter.empty,
             expected=_annotation_name(annotation),
         )
@@ -332,6 +336,40 @@ def _resolve_annotation(func: Callable[..., Any], annotation: Any) -> Any:
         return annotation
 
 
+def _number_to_str_config() -> Optional[ConfigDict]:
+    """Return a config that accepts numbers for ``str``, if pydantic has it.
+
+    ``coerce_numbers_to_str`` is not in every pydantic 2 release, and older
+    releases ignore unknown config keys, so support is detected by behaviour.
+    """
+    config = ConfigDict(coerce_numbers_to_str=True)
+    try:
+        if TypeAdapter(str, config=config).validate_python(1) == "1":
+            return config
+    except Exception:  # any failure means the option is unsupported
+        pass
+    return None
+
+
+# Models send numbers for string parameters (an ID of 42 for ``id: str``).
+_NUMBER_TO_STR_CONFIG = _number_to_str_config()
+
+
+def _optional_if_none_default(annotation: Any, param: inspect.Parameter) -> Any:
+    """Treat ``x: T = None`` as ``Optional[T]``, as the default implies."""
+    if (
+        param.default is not None
+        or annotation is inspect.Parameter.empty
+        or annotation is Any
+        or isinstance(annotation, str)
+    ):
+        return annotation
+    try:
+        return Optional[annotation]
+    except TypeError:
+        return annotation
+
+
 def _type_adapter(
     func: Callable[..., Any], parameter: str, annotation: Any
 ) -> Optional[TypeAdapter[Any]]:
@@ -340,6 +378,20 @@ def _type_adapter(
     if isinstance(annotation, str):
         # Unresolvable forward reference; the handler receives the raw value.
         return None
+    if _NUMBER_TO_STR_CONFIG is not None:
+        try:
+            return TypeAdapter(annotation, config=_NUMBER_TO_STR_CONFIG)
+        except PydanticUserError:
+            # BaseModel, dataclass and TypedDict types carry their own config.
+            pass
+        except Exception as exc:
+            logger.debug(
+                "Skipping argument validation for %s.%s: %s",
+                getattr(func, "__name__", "tool"),
+                parameter,
+                exc,
+            )
+            return None
     try:
         return TypeAdapter(annotation)
     except Exception as exc:
