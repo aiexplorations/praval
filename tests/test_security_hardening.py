@@ -941,19 +941,26 @@ def test_s8_redos_pattern_on_long_string_does_not_hang_validation():
             "type": "object",
             "properties": {"s": {"type": "string", "pattern": "^(a+)+$"}},
         }
+        import time
+
+        started = time.perf_counter()
         _, error = validate_tool_arguments(
             {"name": "t", "function": proxy, "parameters": schema},
             {"s": "a" * MAX_PATTERN_STRING_CHARS + "!"},
         )
+        elapsed = time.perf_counter() - started
+        assert elapsed < 2.0, f"validation took {elapsed:.2f} s"
         assert error is not None and error.is_error, error
         assert "s: string of 10001 characters" in error.content, error.content
         assert str(MAX_PATTERN_STRING_CHARS) in error.content, error.content
         """
     )
     try:
-        subprocess.run([sys.executable, "-c", script], timeout=5, check=True)
+        # The timeout covers interpreter start and importing praval; the
+        # script itself bounds the validation call.
+        subprocess.run([sys.executable, "-c", script], timeout=60, check=True)
     except subprocess.TimeoutExpired:
-        pytest.fail("pattern validation did not finish within 5 s")
+        pytest.fail("pattern validation did not finish within 60 s")
 
 
 def test_s8_pattern_still_applies_to_strings_within_the_cap():
