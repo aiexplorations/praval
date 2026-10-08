@@ -153,6 +153,10 @@ napoleon_attr_annotations = True
 autosummary_generate = True
 autosummary_imported_members = False
 
+# Imported aliases otherwise make viewcode's back-links combine the defining
+# module's anchor with the alias module's page. Keep source links on definitions.
+viewcode_follow_imported_members = False
+
 # -- intersphinx configuration
 intersphinx_mapping = (
     {}

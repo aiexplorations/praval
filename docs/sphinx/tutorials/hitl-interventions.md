@@ -62,15 +62,24 @@ The model must actually request the tool for an intervention to be created.
 The SQLite store permits the pending intervention and suspended run to be
 inspected from another process before resumption.
 
+`critical_write` is a harmless simulated handler. The example's programmatic
+approval illustrates the API; a real application must obtain its reviewer's
+decision before approving a protected action.
+
 ## CLI review
 
 ```bash
-praval hitl pending
-praval hitl show <intervention_id>
-praval hitl approve <intervention_id> --reviewer oncall
-praval hitl reject <intervention_id> --reason "Unsafe"
-praval hitl resume <run_id>
+praval --hitl-db-path ./interventions.sqlite3 hitl pending
+praval --hitl-db-path ./interventions.sqlite3 hitl show <intervention_id>
+praval --hitl-db-path ./interventions.sqlite3 hitl approve <intervention_id> --reviewer oncall
+praval --hitl-db-path ./interventions.sqlite3 hitl reject <intervention_id> --reason "Unsafe"
+praval --hitl-db-path ./interventions.sqlite3 hitl resume <run_id> --module your_project.agents
 ```
+
+The global `--hitl-db-path` option must precede `hitl` and must match the agent's
+database. These are alternative review actions for a pending run; the example
+above already approves and resumes its own run. For CLI resume, replace
+`your_project.agents` with a module that registers the same agent and tools.
 
 If a tool requires approval while HITL is disabled, Praval raises
 `HITLConfigurationError`. It does not execute the tool autonomously.

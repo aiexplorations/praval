@@ -38,8 +38,9 @@ Agent("assistant", provider="openai", model="gpt-5.4-mini")
 ## Tool Behavior
 
 Legacy provider tool-call handling remains compatible. New calls use
-provider-neutral runtime orchestration for OpenAI, Anthropic, Cohere, and
-Gemini. Provider-hosted tools and provider-hosted MCP descriptors are not
+provider-neutral runtime orchestration for OpenAI, Anthropic, Cohere, Gemini,
+OpenRouter and compatible local servers with tools enabled. Provider-hosted tools
+and provider-hosted MCP descriptors are not
 inferred from client tools; they require the experimental opt-in documented in
 {doc}`providers`. Direct stdio and Streamable HTTP MCP connections use the
 first-class tools-only client documented in {doc}`mcp`.

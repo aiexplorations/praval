@@ -355,9 +355,10 @@ Done!
 - Ensure you call `get_reef().wait_for_completion()` to wait for agents
 
 **No LLM response**:
-- Verify API key is set: `echo $OPENAI_API_KEY`
+- Check key presence without printing its value:
+  `python -c "import os; print(bool(os.getenv('OPENAI_API_KEY')))"`
 - Check internet connection
 
 **Import errors**:
 - Ensure Praval is installed: `pip install praval`
-- Check Python version: `python --version` (need 3.9+)
+- Check Python version: `python --version` (need 3.10+)

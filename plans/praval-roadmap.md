@@ -1,6 +1,6 @@
 # Praval roadmap
 
-Status: updated for review on 2026-10-09. Initial candidate checks used `release/v0.8.4` at `c48e3fa`; live Cohere checks then exposed timeout and v1 tool declaration defects. The corrections passed live v1/v2 checks against a local candidate wheel and need a new CI artifact. The original v0.8.4 defect inventory below describes `main` at `2cfdd5e` (v0.8.3); its numbered code references are historical. Publication remains on hold. Native Ollama context control is planned for v0.8.5.
+Status: updated for review on 2026-10-09. Initial candidate checks used `release/v0.8.4` at `c48e3fa`; live Cohere checks then exposed timeout and v1 tool declaration defects. The corrections passed live v1/v2 checks and all 16 subsequent CI checks at `294971e`. Documentation corrections are under final candidate validation; see `evidence/v084-documentation-review.md`. The original v0.8.4 defect inventory below describes `main` at `2cfdd5e` (v0.8.3); its numbered code references are historical. Publication remains on hold. Native Ollama context control is planned for v0.8.5.
 
 Each release gets a plan in `plans/` before work starts:
 
@@ -46,6 +46,8 @@ Current evidence: the release-branch CI wheel passed OpenAI GPT-5.4 Mini on both
 ## v0.8.5: operational control
 
 v0.8.4 makes a run correct. v0.8.5 makes it observable while it happens, stoppable, and resumable, and then adds decisions and budgets on top.
+
+- **Provider diagnostics.** Add OpenRouter credential-presence reporting to the framework's `praval doctor` output without displaying key values. The v0.8.4 documentation review found that its provider table omits OpenRouter even though the adapter works.
 
 - **Ollama context control on every request.** Praval will accept the context size selected by the application, proposed as `provider_options={"context_tokens": 32768}`, and send `options.num_ctx` through native `/api/chat`. The adapter must retain it on tool continuations, retries, streams and HITL resume. It must preserve tools, images, thinking and usage contracts. `required_context_tokens` remains a diagnostic setting. The option is planned and is not supported by v0.8.4. Details and acceptance checks are in the [native context plan](praval-v0.8.5-ollama-context.md).
 - **Praval Code context policy.** Praval Code will start with a proposed coding default of 32,768 tokens and bound it by the model's supported context and a measured or configured memory budget. It will reserve space for output and thinking and allow per-model overrides. Its `/provider`, `/model` and `doctor` views should distinguish model maximum, requested context and observed loaded context. This application work is tracked here as a dependency; implementation belongs in the Praval Code repository.

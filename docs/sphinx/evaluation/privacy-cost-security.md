@@ -11,7 +11,7 @@ Default persistence and telemetry are metadata-only.
 - Use a separate judge model profile and credentials with the minimum provider
   permissions.
 - Give evaluator agents only explicitly allowlisted read-only or
-  `evaluation_safe` tools. v0.8.3 does not support evaluator side effects.
+  `evaluation_safe` tools. v0.8.4 does not support evaluator side effects.
 - Isolate evaluator memory by namespace and retention. Do not expose target
   operational memory or conversation history.
 - Treat candidate text as data. The evaluator system prompt and rubric outrank

@@ -20,9 +20,9 @@ Application
   registered tools, and optional memory/HITL state.
 - **ModelRuntime** translates provider-neutral requests into an adapter call
   and normalizes responses, usage, tool calls, and stream events.
-- **Provider adapter** handles the actual OpenAI, Anthropic, Cohere, Gemini, or
+- **Provider adapter** handles the actual OpenAI, Anthropic, Cohere, Gemini, OpenRouter, or
   OpenAI-compatible wire format.
-- **Spore** is the immutable message envelope used for agent-to-agent delivery.
+- **Spore** is the message envelope used for agent-to-agent delivery.
 - **Reef** routes Spores locally or through its RabbitMQ distributed backend.
 - **Decorated agent** connects a Python handler and an underlying `Agent` to
   Reef delivery.
@@ -89,7 +89,8 @@ A Spore includes:
 - timestamps, priority, reply/correlation metadata, and optional references.
 - optional content parts and knowledge/data references in the newer wire form.
 
-Treat Spores as immutable. Create a derived Spore rather than changing a
+Treat Spores as immutable by convention; the dataclass does not enforce freezing.
+Create a derived Spore rather than changing a
 received one. Keep payloads serializable when a workflow may move to RabbitMQ.
 
 ## Reef delivery

@@ -7,6 +7,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import unquote
 
 try:
@@ -141,6 +142,69 @@ def test_readme_python_blocks_compile():
     assert len(blocks) >= 3
     for index, block in enumerate(blocks):
         ast.parse(block, filename=f"README.md:python-block-{index}")
+
+
+def test_getting_started_model_examples_execute_and_close_clients(monkeypatch):
+    """Run the published snippets through the real adapter with a fake SDK."""
+    clients = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            self.closed = False
+            self.requests = []
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+            self.responses = SimpleNamespace(create=self.create)
+            clients.append(self)
+
+        def create(self, **kwargs):
+            assert not self.closed, "documentation reused a closed client"
+            self.requests.append(kwargs)
+            return {
+                "output_text": '{"fact":"Reef routes Spores."}',
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"fact":"Reef routes Spores."}',
+                            }
+                        ],
+                    }
+                ],
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": '{"fact":"Reef routes Spores."}',
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 8,
+                    "input_tokens": 5,
+                    "output_tokens": 8,
+                    "total_tokens": 13,
+                },
+            }
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setenv("OPENAI_API_KEY", "documentation-test-key")
+    monkeypatch.setattr("praval.providers.openai.openai.OpenAI", Client)
+    guide = (ROOT / "docs/sphinx/guide/getting-started.md").read_text()
+    blocks = re.findall(r"```python\n(.*?)```", guide, flags=re.DOTALL)
+    for index, block in enumerate(blocks[:3]):
+        exec(compile(block, f"getting-started.md:python-block-{index}", "exec"), {})
+
+    assert len(clients) == 3
+    assert all(client.closed and len(client.requests) == 1 for client in clients)
+    request = clients[2].requests[0]
+    output_format = request.get("response_format") or request["text"]["format"]
+    assert output_format["type"] == "json_schema"
 
 
 def test_readme_has_layered_navigation_and_resolving_links():

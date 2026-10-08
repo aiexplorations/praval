@@ -1942,7 +1942,7 @@
   "published": false,
   "release_gate_status": {
     "direct_anthropic_live_check": "deferred by owner; optional",
-    "fresh_candidate_ci": "pending after the corrections and evidence update",
+    "fresh_candidate_ci": "passed at 294971e; subsequent documentation review edits require fresh CI",
     "publication": "on hold",
     "test_isolation_corrections": "validated locally"
   },
@@ -2029,5 +2029,15 @@
     ],
     "commit": "5326776d4294723e4d7e98e1ef57e634182b7047",
     "source_date_epoch": "1791481261"
+  },
+  "ci_at_294971e": {
+    "run_id": 37833138900,
+    "url": "https://github.com/aiexplorations/praval/actions/runs/37833138900",
+    "head": "294971eff8d4df8095d188c120ff3dcf92201c62",
+    "artifact_commit": "db0bad66307d58c1e4b91353633e2cb0c73f0b66",
+    "conclusion": "success",
+    "passed_jobs": 16,
+    "documentation_wheel_sha256": "d6645ef3c8eed1c490595838b2a260ce7c80a4dc52d2a615dbbd79843ba37cef",
+    "note": "Includes Cohere and throttle-clock fixes. Documentation review edits are subsequent work and require fresh candidate CI. Publication remains on hold."
   }
 }

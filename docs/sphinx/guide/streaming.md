@@ -43,9 +43,22 @@ only the user turn in history.
 
 ## Native and fallback streaming
 
-OpenAI, Anthropic, Gemini, and OpenAI-compatible providers use native streaming
+OpenAI, Anthropic, Gemini, OpenRouter, and OpenAI-compatible providers use native streaming
 paths. If a profile advertises `native_streaming=True` but the adapter does not
 implement streaming, the runtime raises a provider error before execution.
 
 Fallback streaming is allowed only for providers that explicitly describe
 streaming as non-native or emulated.
+
+When a request offers client tools, `stream()` and `astream()` complete the
+runtime tool loop before emitting its tool-call/result events and final text.
+These events describe completed work; they are not live progress notifications
+before each handler runs. The final text is emitted as a complete delta rather
+than a token-by-token stream, and text between tool rounds is not exposed.
+Native text streaming applies to requests without client tools. To stream a
+text-only turn from an agent that has tools registered, pass
+`allowed_tool_names=[]`.
+
+If `response_schema` enables `validate_locally`, the runtime validates the answer
+before emitting `final` or committing it to history. Text deltas remain
+provisional until that final event; see {doc}`structured-outputs`.

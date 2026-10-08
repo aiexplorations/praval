@@ -27,7 +27,10 @@ Register an existing JSON Schema, including an MCP tool's input schema, with
 properties, required fields, nested arrays/objects, integer and boolean types,
 enums and constraints. Anthropic sends them as `input_schema`; Gemini sends
 them through its native `parametersJsonSchema` field, separate from the older
-`parameters` representation. OpenAI and Cohere also retain the JSON Schema.
+`parameters` representation. OpenAI and Cohere v2 send JSON Schema. Cohere v1
+translates it into native parameter definitions and includes the complete schema
+in the tool description; runtime argument validation still uses the original
+schema.
 Provider APIs may reject schema features outside their supported subset.
 See [Gemini function declarations](https://ai.google.dev/api/generate-content#FunctionDeclaration)
 and [Anthropic tool schemas](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).

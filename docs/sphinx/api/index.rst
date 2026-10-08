@@ -62,6 +62,7 @@ Providers
    praval.providers.cohere
    praval.providers.gemini
    praval.providers.openai_compatible
+   praval.providers.openrouter
 
 Tool System
 ===========

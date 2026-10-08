@@ -10,23 +10,55 @@ Prefer this path for new code:
 ```python
 from praval import Agent
 
-agent = Agent("planner", provider="openai", model="gpt-5.4-mini")
-response = agent.generate(
-    "Return a JSON task list.",
-    response_schema={
-        "type": "object",
-        "properties": {"tasks": {"type": "array", "items": {"type": "string"}}},
-        "required": ["tasks"],
-    },
-    metadata={"workflow": "planning"},
-)
-
-print(response.content)
+with Agent("planner", provider="openai", model="gpt-5.4-mini") as agent:
+    response = agent.generate(
+        "Return a JSON task list.",
+        response_schema={
+            "type": "object",
+            "properties": {"tasks": {"type": "array", "items": {"type": "string"}}},
+            "required": ["tasks"],
+        },
+        metadata={"workflow": "planning"},
+    )
+    print(response.content)
 ```
 
 `Agent.chat()` remains compatible and returns only a string. `Agent.generate()`,
 `Agent.agenerate()`, `Agent.stream()`, and `Agent.astream()` return or emit
 structured runtime types.
+
+## Agent configuration and per-call options
+
+Put model defaults and client configuration inside the constructor's `config`
+dictionary. They are not arbitrary top-level `Agent` keywords:
+
+```python
+from praval import Agent
+
+with Agent(
+    "assistant",
+    provider="openai",
+    model="gpt-5.4-mini",
+    config={
+        "temperature": None,
+        "max_output_tokens": 4096,
+        "timeout": 60,
+        "retries": 2,
+        "provider_options": {"endpoint": "responses"},
+    },
+) as assistant:
+    response = assistant.generate("Explain Reef briefly.", timeout=30)
+```
+
+`max_output_tokens` overrides the older `max_tokens` configuration field.
+`retries=2` permits an initial attempt and at most two retries for each provider
+request. Per-call `timeout` and `provider_options` override their configured
+defaults; provider-option dictionaries are merged. `temperature` and
+`max_output_tokens` are configured on the agent, not supported per-call keywords.
+`reasoning` is accepted both directly on the constructor and per call.
+
+The typed `PravalConfig`/`praval.toml` schema is a separate application
+configuration surface; see {doc}`configuration` for its supported fields.
 
 ## Request Options
 

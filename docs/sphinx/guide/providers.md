@@ -113,7 +113,7 @@ Legend:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | OpenAI | Native | Native | Native | Native | Native | Unsupported by default | Unsupported by default | Native | Native | Native | No |
 | Anthropic | Native | Native | Native | Native | Native | Unsupported by default | Unsupported | Unsupported | Unsupported | Native | No |
-| Cohere | Native | Unsupported | Native | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | No |
+| Cohere | Native | Depends (emulated) | Native | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Depends (v2) | No |
 | Gemini | Native | Native | Native | Native | Native | Native | Native | Unsupported | Unsupported | Native | No |
 | OpenRouter | Native | Native | Depends | Depends | Depends | Unsupported by default | Unsupported by default | Unsupported | Unsupported | Depends | No |
 | Ollama | Native | Native | Unsupported by default | Depends | Depends | Unsupported by default | Depends | Unsupported | Unsupported | Depends | Yes |
@@ -122,17 +122,25 @@ Legend:
 | llama.cpp | Native | Native | Unsupported by default | Depends | Depends | Unsupported by default | Depends | Unsupported | Unsupported | Depends | Yes |
 | Generic OpenAI-compatible | Native | Native | Depends | Depends | Depends | Depends | Depends | Unsupported by default | Unsupported by default | Depends | Depends |
 
+Cohere's default `command-a-03-2025` profile rejects streaming and reasoning.
+The `command-a-reasoning-08-2025` profile supports portable reasoning on v2
+and emulated streaming: the full response arrives before text events are emitted.
+Selecting `chat.v2` alone does not enable unsupported model capabilities.
+
 "Tools" in this table means client/function tools. `ModelRuntime` parses the
 provider's tool calls, executes registered Praval tools, emits normalized
 `tool_call` and `tool_result` events, submits results, and continues until the
 model returns final text. This stable loop is implemented for OpenAI,
 Anthropic, Cohere, Gemini, OpenRouter and compatible local servers with tools
-enabled by discovery or explicit capabilities. Every continuation resends all earlier tool
-calls and results in the provider's native form, including Gemini thought
+enabled by discovery or explicit capabilities. Each continuation retains earlier
+tool context in the provider's native form, including Gemini thought
 signatures and Anthropic thinking blocks, so a tool that depends on an earlier
 round's result keeps that context. HITL-gated tools suspend with
 provider-neutral continuation state and can resume after approval, editing, or
-rejection; the resumed run continues with the same full transcript.
+rejection; the resumed run continues with the same full transcript. OpenAI
+Responses may retain prior context by chaining response IDs instead of resending
+the whole transcript. Turns that offer client tools buffer streaming output
+until orchestration completes; see {doc}`streaming`.
 
 ## Provider-Hosted Tools and MCP Descriptors
 

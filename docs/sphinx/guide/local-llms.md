@@ -53,7 +53,7 @@ response = agent.generate(
 Only override capabilities you have verified on the specific server, model, and
 endpoint.
 
-## Base URL Safety
+## Ollama discovery and context
 
 Ollama discovery can replace manual tool overrides. Use
 `config={"provider_options": {"discover_model": True}}` or explicitly call
@@ -79,6 +79,8 @@ not implemented in v0.8.4. Applications choose the allocation and budget their
 prompts and generation against it. Model maximum, requested context and observed
 loaded context must remain separate. See the
 [v0.8.5 context plan](https://github.com/aiexplorations/praval/blob/release/v0.8.4/plans/praval-v0.8.5-ollama-context.md).
+
+## Base URL Safety
 
 The OpenAI-compatible provider validates base URLs before creating the SDK
 client. It rejects non-HTTP schemes, embedded credentials, and metadata

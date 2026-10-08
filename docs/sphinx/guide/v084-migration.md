@@ -3,6 +3,23 @@
 Usage metering and portable reasoning controls ship in v0.8.4. Jev is planned for
 v0.8.5. See {doc}`usage-metering` and {doc}`providers` for configuration.
 
+## Provider and application setup
+
+OpenRouter is available with `provider="openrouter"` and
+`OPENROUTER_API_KEY`. Keep its full model ID, for example
+`anthropic/claude-haiku-4.5`. Capability profiles and account availability are
+separate; see {doc}`providers` for discovery and portable reasoning controls.
+
+For Ollama tools, enable `config={"provider_options": {"discover_model": True}}`
+or explicitly configure verified capabilities. Discovery reports the loaded
+context separately from the model maximum. Per-request native Ollama context
+configuration remains planned for 0.8.5; see {doc}`local-llms`.
+
+Put client defaults such as timeout, retries and endpoint selection in an
+agent's `config` dictionary. Per-call options have a narrower contract; see
+{doc}`model-runtime`. Registered full object JSON Schema tools, including MCP
+tools, now preserve their argument names and types across supported adapters.
+
 ## Observable behavior changes
 
 - `ModelResponse.usage` is the sum of reported requests in the logical invocation,
