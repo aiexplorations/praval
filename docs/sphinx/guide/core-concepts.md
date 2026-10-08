@@ -153,6 +153,11 @@ Every example and service should close what it opens:
 - close MCP clients and storage providers;
 - use `PravalApp` when retaining several agents under one cleanup owner helps.
 
+`Agent.close()` unsubscribes the agent from its Reef channels and removes the
+tools it added to the global tool registry. For an `@agent`, it also removes the
+agent's own `<name>_channel` from the Reef once nothing else subscribes to it;
+a channel named with `channel=` and the default channel are kept.
+
 ## Design for evaluability
 
 An agent or workflow is easiest to evaluate when its runtime contract is

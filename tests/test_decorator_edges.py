@@ -193,8 +193,8 @@ def _context_agent(
     slow_finished = threading.Event()
     commit_answer = agent._commit_answer
 
-    def spy(content: Any, token: Any = None) -> bool:
-        committed = commit_answer(content, token)
+    def spy(content: Any, token: Any = None, **kwargs: Any) -> bool:
+        committed = commit_answer(content, token, **kwargs)
         commits.append((content, committed))
         if str(content).startswith("answer:slow"):
             slow_finished.set()

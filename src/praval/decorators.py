@@ -22,12 +22,29 @@ Example::
     get_reef().shutdown()
 """
 
+import atexit
 import logging
+import os
+import queue
 import sys
+import threading
 import time
 import uuid
+from concurrent.futures import Executor, Future
 from contextvars import ContextVar, copy_context
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from .core.agent import _CALL_TOKEN, Agent, _CallToken
 from .core.exceptions import InterventionRequired, ToolError
@@ -487,6 +504,9 @@ def agent(
         # Set up the agent
         underlying_agent.set_spore_handler(agent_handler)
         underlying_agent.subscribe_to_channel(agent_channel)
+        if agent_channel == f"{agent_name}_channel":
+            # The agent's own channel; close() removes it once it is unused.
+            underlying_agent._owned_channels.append(agent_channel)
 
         # CRITICAL FIX for reef broadcast invocation:
         # Subscribe agent to the default broadcast channel so it receives
@@ -598,6 +618,134 @@ def _chat_timeout(agent_instance: Any, timeout: Optional[float]) -> Optional[flo
     return None
 
 
+#: Environment variable that sets the number of ``achat()`` worker threads.
+ACHAT_MAX_WORKERS_ENV = "PRAVAL_ACHAT_MAX_WORKERS"
+#: Default number of ``achat()`` worker threads, shared by all event loops.
+DEFAULT_ACHAT_MAX_WORKERS = 32
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+_WorkItem = Tuple["Future[Any]", Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]
+
+
+class _DaemonThreadExecutor(Executor):
+    """Bounded executor whose daemon workers never hold up interpreter exit.
+
+    ``ThreadPoolExecutor`` joins its workers at interpreter exit, so one hung
+    provider call would keep the process alive. These workers are daemon
+    threads, started on demand up to ``max_workers`` and reused when idle.
+    """
+
+    def __init__(self, max_workers: int, thread_name_prefix: str) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least 1")
+        self._max_workers = max_workers
+        self._thread_name_prefix = thread_name_prefix
+        self._work: "queue.SimpleQueue[Optional[_WorkItem]]" = queue.SimpleQueue()
+        self._idle = threading.Semaphore(0)
+        self._lock = threading.Lock()
+        self._threads: Set[threading.Thread] = set()
+        self._shutdown = False
+
+    def submit(
+        self, fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs
+    ) -> "Future[_T]":
+        """Schedule ``fn(*args, **kwargs)`` and return its future."""
+        with self._lock:
+            if self._shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
+            future: "Future[_T]" = Future()
+            self._work.put((future, fn, args, kwargs))
+            if (
+                not self._idle.acquire(blocking=False)
+                and len(self._threads) < self._max_workers
+            ):
+                worker = threading.Thread(
+                    target=self._run_worker,
+                    name=f"{self._thread_name_prefix}_{len(self._threads)}",
+                    daemon=True,
+                )
+                self._threads.add(worker)
+                worker.start()
+            return future
+
+    def _run_worker(self) -> None:
+        try:
+            while True:
+                item = self._work.get()
+                if item is None:
+                    return
+                future, fn, args, kwargs = item
+                del item
+                if future.set_running_or_notify_cancel():
+                    try:
+                        result = fn(*args, **kwargs)
+                    except BaseException as error:
+                        future.set_exception(error)
+                    else:
+                        future.set_result(result)
+                del future, fn, args, kwargs
+                self._idle.release()
+        finally:
+            with self._lock:
+                self._threads.discard(threading.current_thread())
+
+    def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
+        """Stop accepting work and let idle workers exit."""
+        with self._lock:
+            self._shutdown = True
+            if cancel_futures:
+                while True:
+                    try:
+                        item = self._work.get_nowait()
+                    except queue.Empty:
+                        break
+                    if item is not None:
+                        item[0].cancel()
+            threads = list(self._threads)
+            for _ in threads:
+                self._work.put(None)
+        if wait:
+            for worker in threads:
+                worker.join()
+
+
+_achat_executor: Optional[_DaemonThreadExecutor] = None
+_achat_executor_lock = threading.Lock()
+
+
+def _achat_max_workers() -> int:
+    """Return the configured ``achat()`` worker count."""
+    raw = os.environ.get(ACHAT_MAX_WORKERS_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_ACHAT_MAX_WORKERS
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        logger.warning(
+            "Ignoring %s=%r; expected a positive integer, using %d",
+            ACHAT_MAX_WORKERS_ENV,
+            raw,
+            DEFAULT_ACHAT_MAX_WORKERS,
+        )
+        return DEFAULT_ACHAT_MAX_WORKERS
+    return value
+
+
+def _get_achat_executor() -> _DaemonThreadExecutor:
+    """Return the executor that runs ``achat()`` calls, creating it once."""
+    global _achat_executor
+    with _achat_executor_lock:
+        if _achat_executor is None:
+            _achat_executor = _DaemonThreadExecutor(
+                _achat_max_workers(), thread_name_prefix="praval-achat"
+            )
+            atexit.register(_achat_executor.shutdown, wait=False)
+        return _achat_executor
+
+
 def chat(message: str, timeout: Optional[float] = None, **options: Any) -> str:
     """
     Quick chat function that uses the current agent's LLM with timeout support.
@@ -672,6 +820,16 @@ async def achat(message: str, timeout: Optional[float] = None, **options: Any) -
         RuntimeError: If called outside of an @agent function
         TimeoutError: If LLM call exceeds timeout; the late answer never
             enters the agent's conversation history.
+
+    Note:
+        Calls run on a Praval-owned pool of daemon threads, not on the event
+        loop's default executor, so hung calls cannot starve other
+        ``run_in_executor`` users. The pool is shared by every event loop in
+        the process and holds ``DEFAULT_ACHAT_MAX_WORKERS`` (32) threads, or
+        the number set in ``PRAVAL_ACHAT_MAX_WORKERS``. A call that times out
+        keeps its thread until the provider returns; once every thread is
+        held by such calls, later calls wait for a free thread and may time
+        out themselves.
     """
     if not hasattr(_agent_context, "agent") or _agent_context.agent is None:
         raise RuntimeError("achat() can only be used within @agent decorated functions")
@@ -689,7 +847,7 @@ async def achat(message: str, timeout: Optional[float] = None, **options: Any) -
     token = _CallToken()
     context.run(_CALL_TOKEN.set, token)
     future = loop.run_in_executor(
-        None,
+        _get_achat_executor(),
         context.run,
         functools.partial(agent_instance.chat, **options),
         message,

@@ -66,6 +66,13 @@ trimmed and, with `persist_state=True`, saved. A call that fails keeps only the
 user turn. `stream()` and `astream()` add the answer when the `final` event is
 produced, before it reaches your loop, so breaking out after `final` keeps it.
 
+Calls on one agent may overlap, for example when the Reef delivers spores on
+several threads. Each answer is inserted directly after its own user turn, so
+the history reads user A, answer A, user B, answer B regardless of which call
+finishes first. If later calls have trimmed a user turn away before its answer
+arrives, that answer is returned to its caller but not stored, since there is
+no question left to pair it with.
+
 `max_history` limits the number of non-system messages kept. Trimming removes
 the oldest whole units, where a unit is a user message and everything up to the
 next user message, so an assistant tool turn is never separated from its tool
@@ -73,6 +80,11 @@ results. System messages are always kept and do not count towards the limit.
 The newest unit is always kept, even when it alone exceeds the limit; with
 `max_history=0` the agent keeps its system messages and the current exchange
 only.
+
+With `persist_state=True`, an agent that has a `system_message` replaces the
+system messages in the loaded history with its own, placed first, so a changed
+`system_message` takes effect on restart and restarts never add copies. An agent
+without a `system_message` keeps the persisted ones.
 
 ## Timeouts in Decorated Agents
 
@@ -84,6 +96,14 @@ own. On expiry `TimeoutError` is raised on time. The abandoned call keeps
 running until its provider returns, but its answer is discarded and never
 enters the conversation history, even if the handler has made further calls by
 then.
+
+`achat()` runs calls on a Praval-owned pool of daemon threads rather than the
+event loop's default executor, so hung calls cannot starve other
+`run_in_executor` users, and a hung call does not keep the process alive at
+exit. The pool is shared by every event loop in the process and has 32 threads;
+set `PRAVAL_ACHAT_MAX_WORKERS` to change that. A timed-out call holds its thread
+until the provider returns, so once every thread is held by such calls, later
+`achat()` calls wait for a free thread and may time out themselves.
 
 ```python
 from praval import agent, chat

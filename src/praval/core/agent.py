@@ -241,6 +241,9 @@ class Agent:
         self.memory_enabled = memory_enabled
         self.knowledge_base = knowledge_base
         self.tools: Dict[str, Dict[str, Any]] = {}
+        # Functions this agent added to the global tool registry, by name, so
+        # close() can remove exactly those entries.
+        self._registry_tools: Dict[str, Callable[..., Any]] = {}
         self.conversation_history: List[Dict[str, Any]] = []
         self.max_history = max_history
         self._hitl_enabled = hitl_enabled
@@ -253,6 +256,9 @@ class Agent:
         # Lifecycle management
         self._closed = False
         self._subscribed_channels: List[str] = []
+        # Channels this agent owns (an @agent's "<name>_channel"); close()
+        # removes each from the Reef once nothing else subscribes to it.
+        self._owned_channels: List[str] = []
 
         # Setup configuration
         config_dict = dict(config or {})
@@ -290,12 +296,17 @@ class Agent:
         else:
             self._storage = None
 
-        # Add system message to conversation if provided. History loaded by
-        # persist_state already holds it; trimming keeps every system message,
-        # so appending it again would grow the state on every restart.
-        system_turn = {"role": "system", "content": self.config.system_message}
-        if self.config.system_message and system_turn not in self.conversation_history:
-            self.conversation_history.append(system_turn)
+        # The configured system message replaces any system turns loaded by
+        # persist_state, so a changed system_message takes effect and restarts
+        # never add copies (trimming keeps every system message). Without a
+        # configured one, persisted system turns are kept as they are.
+        if self.config.system_message:
+            system_turn = {"role": "system", "content": self.config.system_message}
+            self.conversation_history[:] = [system_turn] + [
+                message
+                for message in self.conversation_history
+                if message.get("role") != "system"
+            ]
             self._trim_history()
 
     # ==========================================
@@ -378,25 +389,64 @@ class Agent:
             runtime_kwargs=runtime_kwargs,
         )
 
-    def _append_user_turn(self, message: Any) -> List[Dict[str, Any]]:
-        """Append a user turn, trim, and return a snapshot of the history."""
-        with self._history_lock:
-            self.conversation_history.append({"role": "user", "content": message})
-            self._trim_history()
-            return list(self.conversation_history)
+    def _append_user_turn(
+        self, message: Any
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Append a user turn, trim, and return the turn and a history snapshot.
 
-    def _commit_answer(self, content: Any, token: Optional[_CallToken] = None) -> bool:
-        """Append an accepted assistant answer, trim, and persist state.
+        The returned turn is the dict stored in history; pass it to
+        ``_commit_answer`` so the answer is placed directly after it.
+        """
+        turn: Dict[str, Any] = {"role": "user", "content": message}
+        with self._history_lock:
+            self.conversation_history.append(turn)
+            self._trim_history()
+            return turn, list(self.conversation_history)
+
+    def _commit_answer(
+        self,
+        content: Any,
+        token: Optional[_CallToken] = None,
+        *,
+        user_turn: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Insert an accepted assistant answer, trim, and persist state.
+
+        With ``user_turn``, the answer goes directly after that turn (matched
+        by identity), so overlapping calls on one agent keep each question
+        next to its answer. If the turn has left the history before the
+        answer arrives (trimmed away by later calls, or the history was
+        cleared), the answer is dropped: placing it anywhere else would pair
+        it with another question. Without ``user_turn`` the answer is
+        appended at the end.
 
         Returns:
             False when ``token`` was cancelled and the answer was discarded.
         """
 
         def commit() -> None:
+            answer = {"role": "assistant", "content": content}
             with self._history_lock:
-                self.conversation_history.append(
-                    {"role": "assistant", "content": content}
-                )
+                history = self.conversation_history
+                if user_turn is None:
+                    history.append(answer)
+                else:
+                    position = next(
+                        (
+                            index
+                            for index in range(len(history) - 1, -1, -1)
+                            if history[index] is user_turn
+                        ),
+                        None,
+                    )
+                    if position is None:
+                        logger.debug(
+                            "Agent %s dropped an answer whose user turn is no "
+                            "longer in history",
+                            self.name,
+                        )
+                        return
+                    history.insert(position + 1, answer)
                 self._trim_history()
                 if self.persist_state:
                     self._save_state()
@@ -518,7 +568,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="chat")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "chat"):
@@ -531,7 +581,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 )
-                self._commit_answer(response, token)
+                self._commit_answer(response, token, user_turn=user_turn)
                 record_content_reference(ContentKind.RESPONSE, response)
                 return response
 
@@ -566,7 +616,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="generate")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate"):
@@ -578,7 +628,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 )
-                self._commit_answer(response.content, token)
+                self._commit_answer(response.content, token, user_turn=user_turn)
                 record_content_reference(ContentKind.RESPONSE, response.content)
                 return response
             except PravalError:
@@ -725,7 +775,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="agenerate")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate_async"):
@@ -736,7 +786,7 @@ class Agent:
                 hitl_context=self._build_hitl_context(run_id),
                 **options.runtime_kwargs,
             )
-            self._commit_answer(response.content)
+            self._commit_answer(response.content, user_turn=user_turn)
             record_content_reference(ContentKind.RESPONSE, response.content)
             return response
 
@@ -750,7 +800,7 @@ class Agent:
         if not message:
             raise ValueError("Message cannot be empty")
         options = self._runtime_call_options(kwargs, entry_point="stream")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         def observed_stream() -> Any:
@@ -763,7 +813,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 ):
-                    self._observe_stream_event(event, deltas)
+                    self._observe_stream_event(event, deltas, user_turn)
                     yield event
 
         return observed_stream()
@@ -776,7 +826,7 @@ class Agent:
         if not message:
             raise ValueError("Message cannot be empty")
         options = self._runtime_call_options(kwargs, entry_point="astream")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
         deltas: List[str] = []
         with self._observation_scope(run_id, "stream_async"):
@@ -787,10 +837,12 @@ class Agent:
                 hitl_context=self._build_hitl_context(run_id),
                 **options.runtime_kwargs,
             ):
-                self._observe_stream_event(event, deltas)
+                self._observe_stream_event(event, deltas, user_turn)
                 yield event
 
-    def _observe_stream_event(self, event: Any, deltas: List[str]) -> None:
+    def _observe_stream_event(
+        self, event: Any, deltas: List[str], user_turn: Dict[str, Any]
+    ) -> None:
         """Collect text deltas and commit the answer on the ``final`` event."""
         event_type = getattr(event, "type", None)
         if event_type == "delta":
@@ -798,7 +850,7 @@ class Agent:
         elif event_type == "final":
             response = getattr(event, "response", None)
             content = response.content if response is not None else "".join(deltas)
-            self._commit_answer(content)
+            self._commit_answer(content, user_turn=user_turn)
 
     def configure_hitl(
         self,
@@ -1104,6 +1156,7 @@ class Agent:
                 approval_reason="",
             )
             registry.register_tool(Tool(func, metadata))
+            self._registry_tools[tool_name] = func
         except ToolError as e:
             logger.debug("Tool registry registration failed for '%s': %s", tool_name, e)
         except Exception as e:
@@ -1178,6 +1231,7 @@ class Agent:
                 approval_reason=spec.approval_reason,
             )
             get_tool_registry().register_tool(Tool(registered_handler, metadata))
+            self._registry_tools[spec.name] = registered_handler
         except ToolError as e:
             logger.debug(
                 "External tool registry registration failed for '%s': %s",
@@ -1390,7 +1444,9 @@ class Agent:
         Release all resources held by the agent.
 
         This method:
-        - Unsubscribes from all reef channels
+        - Unsubscribes from all reef channels, and removes the channel an
+          ``@agent`` owns (``<name>_channel``) once it has no other subscribers
+        - Unregisters the tools this agent added to the global tool registry
         - Shuts down the memory system
         - Clears conversation history
 
@@ -1431,8 +1487,22 @@ class Agent:
                         f"Error unsubscribing {self.name} from {channel_name}: {e}"
                     )
             self._subscribed_channels.clear()
+            for channel_name in self._owned_channels:
+                reef.remove_channel_if_unused(channel_name)
+            self._owned_channels.clear()
         except Exception as e:
             logger.warning(f"Error during reef cleanup for {self.name}: {e}")
+
+        # Remove the tools this agent registered globally; a tool closure
+        # that captures the agent would otherwise keep it alive.
+        if self._registry_tools:
+            try:
+                registry = get_tool_registry()
+                for tool_name, func in self._registry_tools.items():
+                    registry.unregister_owned_tool(tool_name, func, self.name)
+            except Exception as e:
+                logger.warning(f"Error unregistering tools for {self.name}: {e}")
+            self._registry_tools.clear()
 
         # Shutdown memory system
         if self.memory:

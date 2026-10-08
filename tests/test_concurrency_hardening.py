@@ -14,6 +14,9 @@ import gc
 import json
 import logging
 import random
+import subprocess
+import sys
+import textwrap
 import threading
 import time
 import warnings
@@ -25,7 +28,7 @@ from unittest.mock import patch
 import pytest
 
 import praval.core.storage as storage_module
-from praval import tool_execution
+from praval import decorators, tool_execution
 from praval.core.agent import Agent
 from praval.core.exceptions import (
     InterventionRequired,
@@ -549,19 +552,8 @@ def test_parallel_calls_keep_every_turn_and_persisted_state(tmp_path: Any) -> No
     assert saved == history
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "Design decision: concurrent calls on one Agent append the user turn "
-        "and the answer under separate lock holds, so overlapping calls "
-        "interleave (user A, user B, answer B, answer A) and trimming then "
-        "pairs answers with the wrong user turn. Options: serialise calls per "
-        "agent, insert each answer after its own user turn, or document an "
-        "Agent as single-caller."
-    ),
-)
 def test_overlapping_calls_keep_answers_next_to_their_questions() -> None:
+    """Each answer is inserted directly after its own user turn."""
     entered = {"A": threading.Event(), "B": threading.Event()}
     release = {"A": threading.Event(), "B": threading.Event()}
 
@@ -590,6 +582,35 @@ def test_overlapping_calls_keep_answers_next_to_their_questions() -> None:
             question = history[index - 1]
             assert question["role"] == "user"
             assert message["content"] == f"answer-{question['content']}"
+
+
+def test_answer_whose_user_turn_was_trimmed_away_is_dropped() -> None:
+    """A late answer is not attached to another call's question."""
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Provider:
+        def invoke(self, request: Any) -> ModelResponse:
+            text = _last_user_text(request)
+            if text == "A":
+                entered.set()
+                assert release.wait(WAIT)
+            return ModelResponse(content=f"answer-{text}")
+
+    agent = _make_agent(Provider(), max_history=2)
+    first = threading.Thread(target=agent.chat, args=("A",), daemon=True)
+    first.start()
+    assert entered.wait(WAIT)
+    agent.chat("B")
+    agent.chat("C")
+    release.set()
+    first.join(WAIT)
+    assert not first.is_alive()
+
+    assert agent.conversation_history == [
+        {"role": "user", "content": "C"},
+        {"role": "assistant", "content": "answer-C"},
+    ]
 
 
 def test_unknown_keyword_warns_once_per_call_under_concurrency(
@@ -824,18 +845,8 @@ def test_context_vars_reach_chat_and_achat_workers() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    raises=TimeoutError,
-    reason=(
-        "Design decision: achat() runs Agent.chat() on the event loop's "
-        "default executor. Timed-out calls keep their worker until the "
-        "provider returns, so a few hung calls starve every later achat() "
-        "and every other run_in_executor user on that loop. Options: a "
-        "dedicated, bounded executor for achat(), or document the limit."
-    ),
-)
 async def test_hung_achat_calls_do_not_starve_later_calls() -> None:
+    """achat() uses its own pool, not the loop's two-worker default executor."""
     release = threading.Event()
 
     class Provider:
@@ -856,6 +867,117 @@ async def test_hung_achat_calls_do_not_starve_later_calls() -> None:
         assert await achat("fast", timeout=0.5) == "ok"
     finally:
         release.set()
+
+
+class _RefusingExecutor(ThreadPoolExecutor):
+    def submit(self, *args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("achat() used the loop's default executor")
+
+
+@pytest.mark.asyncio
+async def test_achat_never_uses_the_loops_default_executor() -> None:
+    class Provider:
+        def invoke(self, request: Any) -> ModelResponse:
+            return ModelResponse(content="ok")
+
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(_RefusingExecutor(max_workers=1))
+    agent = _make_agent(Provider())
+    _bind_agent_context(agent)
+    assert await achat("q", timeout=WAIT) == "ok"
+    assert await achat("q") == "ok"
+
+
+def test_achat_pool_size_comes_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv(decorators.ACHAT_MAX_WORKERS_ENV, raising=False)
+    assert decorators._achat_max_workers() == decorators.DEFAULT_ACHAT_MAX_WORKERS
+    monkeypatch.setenv(decorators.ACHAT_MAX_WORKERS_ENV, "3")
+    assert decorators._achat_max_workers() == 3
+    for invalid in ("0", "-2", "many"):
+        monkeypatch.setenv(decorators.ACHAT_MAX_WORKERS_ENV, invalid)
+        with caplog.at_level(logging.WARNING, logger="praval.decorators"):
+            assert (
+                decorators._achat_max_workers() == decorators.DEFAULT_ACHAT_MAX_WORKERS
+            )
+        assert invalid in caplog.text
+
+
+def test_achat_pool_is_bounded_and_reuses_idle_workers() -> None:
+    executor = decorators._DaemonThreadExecutor(2, thread_name_prefix="probe-pool")
+    release = threading.Event()
+    try:
+        held = [executor.submit(release.wait, WAIT) for _ in range(2)]
+        queued = executor.submit(threading.current_thread)
+        time.sleep(0.05)
+        assert not queued.done()
+        release.set()
+        worker = queued.result(WAIT)
+        assert all(future.result(WAIT) for future in held)
+        assert worker.daemon and worker.name.startswith("probe-pool")
+        names = {
+            executor.submit(lambda: threading.current_thread().name).result(WAIT)
+            for _ in range(10)
+        }
+        assert len(executor._threads) == 2
+        assert names <= {t.name for t in executor._threads}
+        failing = executor.submit(int, "not a number")
+        with pytest.raises(ValueError):
+            failing.result(WAIT)
+    finally:
+        release.set()
+        executor.shutdown(wait=True)
+    assert executor._threads == set()
+    with pytest.raises(RuntimeError):
+        executor.submit(int, "1")
+
+
+def test_hung_achat_call_does_not_block_interpreter_exit(tmp_path: Any) -> None:
+    script = tmp_path / "hung_achat.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import asyncio
+            import threading
+            from unittest.mock import patch
+
+            from praval.core.agent import Agent
+            from praval.decorators import _agent_context, achat
+            from praval.models import ModelResponse
+
+            class Provider:
+                def invoke(self, request):
+                    threading.Event().wait(120)
+                    return ModelResponse(content="late")
+
+            with patch(
+                "praval.core.agent.ProviderFactory.create_provider",
+                return_value=Provider(),
+            ):
+                agent = Agent("exit-probe", provider="fake", model="fake-model")
+            _agent_context.agent = agent
+
+            async def main():
+                try:
+                    await achat("hang", timeout=0.05)
+                except TimeoutError:
+                    print("timed out", flush=True)
+
+            asyncio.run(main())
+            """
+        )
+    )
+    started = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "timed out" in result.stdout
+    assert time.monotonic() - started < 30
 
 
 # ---------------------------------------------------------------------------

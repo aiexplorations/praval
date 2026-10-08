@@ -34,7 +34,12 @@ from praval.core.agent import Agent
 from praval.core.exceptions import InterventionRequired, StateError
 from praval.core.reef import get_reef
 from praval.core.storage import StateStorage
-from praval.core.tool_registry import reset_tool_registry
+from praval.core.tool_registry import (
+    Tool,
+    ToolMetadata,
+    get_tool_registry,
+    reset_tool_registry,
+)
 from praval.hitl.store import reset_hitl_stores
 from praval.models import ContentPart, ModelResponse, ToolCall
 from praval.runtime_observation import use_observation_recorder
@@ -338,13 +343,6 @@ def test_persisted_restarts_do_not_duplicate_the_system_message(tmp_path):
     assert lengths == [3, 5, 7, 9, 11, 13]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: when system_message changes between restarts, the "
-        "persisted old system message is kept alongside the new one forever"
-    ),
-)
 def test_changed_system_message_replaces_the_persisted_one(tmp_path):
     storage = StateStorage(str(tmp_path / "state"))
     for system_message in ("Old instructions.", "New instructions."):
@@ -354,9 +352,33 @@ def test_changed_system_message_replaces_the_persisted_one(tmp_path):
         system_turns = [
             m for m in restarted.conversation_history if m["role"] == "system"
         ]
+        history = list(restarted.conversation_history)
         restarted.close()
 
     assert system_turns == [{"role": "system", "content": "New instructions."}]
+    assert history[0] == {"role": "system", "content": "New instructions."}
+    assert [m["role"] for m in history] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+
+
+def test_persisted_system_message_is_kept_when_none_is_configured(tmp_path):
+    storage = StateStorage(str(tmp_path / "state"))
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        first = _agent(system_message="Persisted.", persist_state=True)
+    first.chat("question")
+    first.close()
+
+    with patch("praval.core.agent.StateStorage", return_value=storage):
+        restarted = _agent(persist_state=True)
+    system_turns = [m for m in restarted.conversation_history if m["role"] == "system"]
+    restarted.close()
+
+    assert system_turns == [{"role": "system", "content": "Persisted."}]
 
 
 class _VisionProvider:
@@ -532,14 +554,6 @@ def test_signature_validator_cache_does_not_keep_agents_alive():
     assert len(tool_execution._FUNCTION_VALIDATORS) == baseline
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: Agent.tool() registers the function in the global "
-        "tool registry and close() never unregisters it, so a tool closure "
-        "keeps its agent alive for the life of the process"
-    ),
-)
 def test_closed_agent_is_not_kept_alive_by_the_global_tool_registry():
     def build_and_close() -> weakref.ReferenceType[Any]:
         tool_agent = _agent("registry-owner")
@@ -555,6 +569,63 @@ def test_closed_agent_is_not_kept_alive_by_the_global_tool_registry():
     gc.collect()
 
     assert ref() is None
+
+
+def test_close_leaves_tools_registered_by_others_in_the_registry():
+    reset_tool_registry()
+    registry = get_tool_registry()
+
+    def shared_lookup(city: str) -> str:
+        return city
+
+    registry.register_tool(
+        Tool(
+            shared_lookup,
+            ToolMetadata(tool_name="shared_lookup", owned_by="owner", shared=True),
+        )
+    )
+    first = _agent("owner")
+    second = _agent("other")
+
+    def own_lookup(city: str) -> str:
+        return city
+
+    def collide(city: str) -> str:
+        return city
+
+    collide.__name__ = "own_lookup"
+    first.tool(shared_lookup)
+    first.tool(own_lookup)
+    second.tool(collide)
+    assert registry.get_tool("own_lookup").func is own_lookup
+
+    second.close()
+    assert registry.get_tool("own_lookup").func is own_lookup
+    first.close()
+
+    assert registry.get_tool("own_lookup") is None
+    assert registry.get_tool("shared_lookup").func is shared_lookup
+    reset_tool_registry()
+
+
+def test_registry_keeps_an_entry_that_is_not_the_given_function():
+    reset_tool_registry()
+    registry = get_tool_registry()
+
+    def lookup(city: str) -> str:
+        return city
+
+    def other(city: str) -> str:
+        return city
+
+    registry.register_tool(Tool(lookup, ToolMetadata("lookup", owned_by="a")))
+    assert not registry.unregister_owned_tool("lookup", other, "a")
+    assert not registry.unregister_owned_tool("lookup", lookup, "b")
+    assert not registry.unregister_owned_tool("missing", lookup, "a")
+    assert registry.unregister_owned_tool("lookup", lookup, "a")
+    assert registry.get_tool("lookup") is None
+    assert registry.get_registry_stats()["agents_with_tools"] == 0
+    reset_tool_registry()
 
 
 def test_schema_validator_cache_is_bounded():
@@ -639,13 +710,6 @@ def test_closed_decorated_agent_leaves_the_reef_and_is_collected():
     assert ref() is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design decision: an @agent's own '<name>_channel' stays in the reef "
-        "after close(), so creating uniquely named agents grows reef.channels"
-    ),
-)
 def test_closed_decorated_agents_do_not_accumulate_channels():
     reef = get_reef()
     baseline = len(reef.channels)
@@ -662,6 +726,96 @@ def test_closed_decorated_agents_do_not_accumulate_channels():
             short_lived._praval_agent.close()
 
     assert len(reef.channels) == baseline
+
+
+def test_close_keeps_an_owned_channel_that_has_other_subscribers():
+    reef = get_reef()
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_ScriptedProvider(),
+    ):
+
+        @agent_decorator("busy_owner")
+        def busy_owner(spore: Any) -> None:
+            return None
+
+    def listener(spore: Any) -> None:
+        return None
+
+    reef.subscribe("listener", listener, channel="busy_owner_channel")
+    try:
+        busy_owner._praval_agent.close()
+        channel = reef.get_channel("busy_owner_channel")
+        assert channel is not None
+        assert not channel.subscribers.get("busy_owner")
+    finally:
+        channel = reef.get_channel("busy_owner_channel")
+        if channel is not None:
+            channel.unsubscribe("listener")
+        assert reef.remove_channel_if_unused("busy_owner_channel")
+    assert reef.get_channel("busy_owner_channel") is None
+
+
+def test_close_keeps_an_explicitly_named_channel():
+    reef = get_reef()
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider",
+        return_value=_ScriptedProvider(),
+    ):
+
+        @agent_decorator("named_channel_agent", channel="team_channel")
+        def named_channel_agent(spore: Any) -> None:
+            return None
+
+    named_channel_agent._praval_agent.close()
+    try:
+        assert reef.get_channel("team_channel") is not None
+    finally:
+        assert reef.remove_channel_if_unused("team_channel")
+
+
+def test_reef_never_removes_the_default_channel():
+    reef = get_reef()
+    reef.create_channel(reef.default_channel)
+    assert not reef.remove_channel_if_unused(reef.default_channel)
+    assert reef.get_channel(reef.default_channel) is not None
+    assert not reef.remove_channel_if_unused("no_such_channel")
+
+
+def test_concurrent_subscribe_and_remove_never_orphan_a_subscriber():
+    reef = get_reef()
+
+    def handler(spore: Any) -> None:
+        return None
+
+    for iteration in range(50):
+        name = f"race_channel_{iteration}"
+        created = reef.create_channel(name)
+        barrier = threading.Barrier(2)
+
+        def subscribe() -> None:
+            barrier.wait(5)
+            reef.subscribe("racer", handler, channel=name)
+
+        def remove() -> None:
+            barrier.wait(5)
+            reef.remove_channel_if_unused(name)
+
+        threads = [threading.Thread(target=subscribe), threading.Thread(target=remove)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(5)
+        channel = reef.get_channel(name)
+        # Either the subscriber landed first and the channel stays, or the
+        # channel was removed first and the subscription was a no-op.
+        if channel is not None:
+            assert channel.subscribers.get("racer")
+            channel.unsubscribe("racer")
+            assert reef.remove_channel_if_unused(name)
+        else:
+            assert not created.subscribers.get("racer")
+        assert reef.get_channel(name) is None
 
 
 # ---------------------------------------------------------------------------

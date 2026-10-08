@@ -22,6 +22,11 @@ Tool declarations are normalized into `ToolSpec` objects with JSON Schema
 parameters. HITL metadata such as `requires_approval`, `risk_level`, and
 `approval_reason` is preserved when legacy tool dictionaries are converted.
 
+`Agent.tool` and `Agent.add_tool_spec` also add the tool to the global tool
+registry for discovery, unless that name is already registered. `close()`
+removes the entries the agent added; entries registered elsewhere, including
+shared tools attached to the agent, stay in the registry.
+
 ## Argument validation
 
 Model-supplied arguments are validated before the handler runs, on the sync,

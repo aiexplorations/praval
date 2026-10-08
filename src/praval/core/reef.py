@@ -1473,6 +1473,36 @@ class ReefCore:
         """Get a reef channel by name."""
         return self.channels.get(name)
 
+    def _channel_snapshot(self) -> List[ReefChannel]:
+        """Return the current channels; safe to iterate while others change."""
+        with self.lock:
+            return list(self.channels.values())
+
+    def remove_channel_if_unused(self, name: str) -> bool:
+        """Remove a channel that has no subscribers and shut it down.
+
+        The default channel is never removed. The subscriber check and the
+        removal happen under the reef lock, which ``subscribe()`` also holds
+        while registering a local handler, so a concurrent subscription is
+        never left on a removed channel.
+
+        Args:
+            name: Channel name
+
+        Returns:
+            True if the channel was removed, False if it does not exist, is
+            the default channel, or still has subscribers.
+        """
+        if name == self.default_channel:
+            return False
+        with self.lock:
+            channel = self.channels.get(name)
+            if channel is None or any(channel._subscriptions.counts().values()):
+                return False
+            del self.channels[name]
+        channel.shutdown(wait=False)
+        return True
+
     async def initialize_backend(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize the Reef backend (async operation for distributed backends).
@@ -2307,10 +2337,13 @@ class ReefCore:
 
         self._authorize("subscribe", {"agent_name": agent_name, "channel": channel})
 
-        reef_channel = self.get_channel(channel)
-        if reef_channel:
-            # Always register locally (needed for local message tracking)
-            reef_channel.subscribe(agent_name, handler, replace=replace)
+        # Always register locally (needed for local message tracking). The
+        # lock keeps remove_channel_if_unused() from dropping the channel
+        # between the lookup and the registration.
+        with self.lock:
+            reef_channel = self.get_channel(channel)
+            if reef_channel:
+                reef_channel.subscribe(agent_name, handler, replace=replace)
 
         # Also subscribe through distributed backend if active
         if self._is_distributed_backend():
@@ -2361,7 +2394,7 @@ class ReefCore:
         """
         start_time = time.time()
 
-        for channel in self.channels.values():
+        for channel in self._channel_snapshot():
             # Calculate remaining timeout for this channel
             remaining_timeout = None
             if timeout is not None:
@@ -2409,7 +2442,7 @@ class ReefCore:
         remaining_timeout = timeout
 
         # Shutdown all channels, distributing timeout
-        for channel in self.channels.values():
+        for channel in self._channel_snapshot():
             start = time.time()
             if not channel.shutdown(wait=wait, timeout=remaining_timeout):
                 all_clean = False
@@ -2534,7 +2567,7 @@ class ReefCore:
                     time.sleep(1)
 
                 if not self._shutdown:
-                    for channel in self.channels.values():
+                    for channel in self._channel_snapshot():
                         try:
                             expired = channel.cleanup_expired()
                             if expired > 0:
