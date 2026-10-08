@@ -885,6 +885,7 @@ class ModelRuntime:
         if tools:
             with self._span(request) as span:
                 response = self._invoke_with_retries(request, tools=tools)
+                self._validate_final_response(request, response)
                 stream_state = self._new_stream_state()
                 for event in self._response_events(response):
                     self._record_stream_event(event, span, started, stream_state)
@@ -898,6 +899,8 @@ class ModelRuntime:
                 for event in self._stream_provider_events(
                     request, provider_stream, tools
                 ):
+                    if event.type == "final" and event.response is not None:
+                        self._validate_final_response(request, event.response)
                     self._record_stream_event(event, span, started, stream_state)
                     yield event
                 self._finish_stream_facts(stream_state)
@@ -905,6 +908,7 @@ class ModelRuntime:
 
         with self._span(request) as span:
             response = self._invoke_with_retries(request, tools=tools)
+            self._validate_final_response(request, response)
             stream_state = self._new_stream_state()
             for event in self._response_events(response):
                 self._record_stream_event(event, span, started, stream_state)
@@ -954,6 +958,7 @@ class ModelRuntime:
             )
             with self._span(request) as span:
                 response = await self._ainvoke_with_retries(request, tools=tools)
+                self._validate_final_response(request, response)
                 stream_state = self._new_stream_state()
                 for event in self._response_events(response):
                     self._record_stream_event(event, span, started, stream_state)
@@ -977,6 +982,8 @@ class ModelRuntime:
                 async for event in self._astream_provider_events(
                     request, concrete_astream, tools
                 ):
+                    if event.type == "final" and event.response is not None:
+                        self._validate_final_response(request, event.response)
                     self._record_stream_event(event, span, started, stream_state)
                     yield event
                 self._finish_stream_facts(stream_state)
@@ -992,6 +999,7 @@ class ModelRuntime:
         )
         with self._span(request) as span:
             response = await self._ainvoke_with_retries(request, tools=tools)
+            self._validate_final_response(request, response)
             stream_state = self._new_stream_state()
             for event in self._response_events(response):
                 self._record_stream_event(event, span, started, stream_state)

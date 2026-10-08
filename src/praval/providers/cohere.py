@@ -522,10 +522,12 @@ class CohereProvider:
         return current_message, chat_history
 
     def _extract_system_message(self, messages: List[Dict[str, str]]) -> Optional[str]:
-        for message in messages:
-            if message.get("role") == "system":
-                return message.get("content", "")
-        return None
+        parts = [
+            message.get("content", "")
+            for message in messages
+            if message.get("role") == "system"
+        ]
+        return "\n\n".join(parts) if parts else None
 
     def _format_tools_for_cohere(
         self, tools: List[Dict[str, Any]]

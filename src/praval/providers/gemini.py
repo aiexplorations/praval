@@ -247,12 +247,12 @@ class GeminiProvider:
         request: Optional[ModelRequest] = None,
     ) -> Dict[str, Any]:
         contents = []
-        system_text = None
+        system_parts: List[str] = []
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
             if role == "system":
-                system_text = self._content_to_text(content)
+                system_parts.append(self._content_to_text(content))
                 continue
             gemini_role = "model" if role == "assistant" else "user"
             contents.append(
@@ -288,8 +288,10 @@ class GeminiProvider:
             generation_config = request.provider_options.get("generation_config")
             if isinstance(generation_config, dict):
                 payload["generationConfig"].update(generation_config)
-        if system_text:
-            payload["systemInstruction"] = {"parts": [{"text": system_text}]}
+        if system_parts:
+            payload["systemInstruction"] = {
+                "parts": [{"text": "\n\n".join(system_parts)}]
+            }
         formatted_tools = self._format_tools(tools or [])
         if formatted_tools:
             payload["tools"] = [{"functionDeclarations": formatted_tools}]

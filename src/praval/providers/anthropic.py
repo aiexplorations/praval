@@ -531,10 +531,12 @@ class AnthropicProvider:
         return anthropic_usage(response)
 
     def _extract_system_message(self, messages: List[Dict[str, Any]]) -> Optional[str]:
-        for message in messages:
-            if message.get("role") == "system":
-                return self._content_to_text(message.get("content", ""))
-        return None
+        parts = [
+            self._content_to_text(message.get("content", ""))
+            for message in messages
+            if message.get("role") == "system"
+        ]
+        return "\n\n".join(parts) if parts else None
 
     def _filter_conversation_messages(
         self, messages: List[Dict[str, Any]]
