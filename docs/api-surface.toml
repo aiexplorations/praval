@@ -41,6 +41,7 @@ exports = [
   "ProviderError",
   "ProviderAuthenticationError",
   "ProviderInvalidRequestError",
+  "ProviderInvalidResponseError",
   "ProviderQuotaError",
   "ProviderRateLimitError",
   "ProviderUnavailableError",

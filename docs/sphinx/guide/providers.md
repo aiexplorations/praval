@@ -124,6 +124,7 @@ branch on the kind of failure instead of parsing messages:
 | `ProviderUnavailableError` | 5xx, Anthropic 529 overloaded, 409 conflict | Yes |
 | `ProviderTransportError` | Connection failure or timeout, HTTP 408 | Yes |
 | `ToolRoundLimitError` | The tool loop exceeded `max_tool_rounds` | No |
+| `ProviderInvalidResponseError` | The final response failed local structured-output validation (`validate_locally=True`): not JSON, or not matching the schema | No |
 
 `except ProviderError` still catches all of them. Each error carries the fields
 the provider reported: `provider`, `model`, `operation` (`invoke`, `continue`

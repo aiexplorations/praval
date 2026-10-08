@@ -20,6 +20,7 @@ from praval import (
     ProviderAuthenticationError,
     ProviderError,
     ProviderInvalidRequestError,
+    ProviderInvalidResponseError,
     ProviderQuotaError,
     ProviderRateLimitError,
     ProviderTransportError,
@@ -126,6 +127,7 @@ def test_provider_error_keeps_positional_message_and_defaults():
     [
         (ProviderAuthenticationError, False),
         (ProviderInvalidRequestError, False),
+        (ProviderInvalidResponseError, False),
         (ProviderQuotaError, False),
         (ProviderRateLimitError, True),
         (ProviderUnavailableError, True),
