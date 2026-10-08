@@ -14,6 +14,7 @@ import logging
 import sys
 import threading
 import time
+import traceback
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
@@ -52,6 +53,44 @@ _state_stack: ContextVar[tuple["_ObservationState", ...]] = ContextVar(
 _tool_call_depth: ContextVar[int] = ContextVar("praval_tool_call_depth", default=0)
 _default_recorder: ObservationRecorder = NOOP_OBSERVATION_RECORDER
 _recorder_lock = threading.RLock()
+
+
+def record_span_exception(span: Span | None, exc: BaseException | None) -> None:
+    """Add an OpenTelemetry ``exception`` event without the cause chain.
+
+    OpenTelemetry's ``Span.record_exception`` formats the full chain, so a
+    redacted ``ProviderError`` would still carry the raw SDK exception (and
+    any secret it quotes) through ``__cause__``. This records the semantic
+    convention attributes for the outer exception only: its type, its message
+    (already redacted for provider errors) and a stacktrace with
+    ``chain=False``. Like OpenTelemetry's ``use_span``, only ``Exception``
+    instances are recorded, not ``GeneratorExit`` or cancellation.
+    """
+    if span is None or not isinstance(exc, Exception) or not span.is_recording():
+        return
+    try:
+        exception_type = type(exc)
+        module = exception_type.__module__
+        qualname = exception_type.__qualname__
+        span.add_event(
+            "exception",
+            {
+                "exception.type": (
+                    f"{module}.{qualname}"
+                    if module and module != "builtins"
+                    else qualname
+                ),
+                "exception.message": str(exc),
+                "exception.stacktrace": "".join(
+                    traceback.format_exception(
+                        exception_type, exc, exc.__traceback__, chain=False
+                    )
+                ),
+                "exception.escaped": "False",
+            },
+        )
+    except Exception as telemetry_error:
+        logger.warning("Span exception recording failed: %s", telemetry_error)
 
 
 def _bounded_string(value: Any, limit: int) -> str | None:
@@ -268,11 +307,13 @@ class ObservationScope:
         )
         attributes = _identity_attributes(state)
         try:
+            # Exceptions are recorded by record_span_exception, without the
+            # cause chain that OpenTelemetry's default recording includes.
             self._span_manager = _get_tracer().start_as_current_span(
                 span_name,
                 kind=SpanKind.INTERNAL,
                 attributes=attributes,
-                record_exception=True,
+                record_exception=False,
                 set_status_on_exception=True,
             )
             state.span = self._span_manager.__enter__()
@@ -320,6 +361,7 @@ class ObservationScope:
         except Exception as observation_error:
             logger.warning("Observation finalization failed: %s", observation_error)
         if self._span_manager is not None:
+            record_span_exception(state.span, exc)
             try:
                 self._span_manager.__exit__(exc_type, exc, traceback)
             except Exception as telemetry_error:
@@ -784,7 +826,7 @@ def operation_span(
             name,
             kind=kind,
             attributes=clean_attributes,
-            record_exception=True,
+            record_exception=False,
             set_status_on_exception=True,
         )
         span = manager.__enter__()
@@ -796,6 +838,7 @@ def operation_span(
         yield span
     except BaseException:
         exception_info = sys.exc_info()
+        record_span_exception(span, exception_info[1])
         try:
             manager.__exit__(*exception_info)
         except Exception as telemetry_error:

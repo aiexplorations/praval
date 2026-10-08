@@ -123,6 +123,37 @@ def test_gemini_stream_parser_handles_sse_blanks_and_done(gemini_provider):
     assert gemini_provider._extract_text(chunks[0]) == "hi"
     assert "alt=sse" in urlopen.call_args.args[0].full_url
     assert "key=" not in urlopen.call_args.args[0].full_url
+    assert urlopen.call_args.args[0].get_header("X-goog-api-key") is None
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_gemini_sends_api_key_in_header_not_url(monkeypatch, stream):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-header-key")
+    provider = GeminiProvider(
+        AgentConfig(
+            provider="gemini",
+            model="gemini-test",
+            base_url="https://proxy.test/gemini/v1beta",
+        )
+    )
+    response = Mock()
+    response.read.return_value = b'{"candidates": []}'
+    response.__iter__ = Mock(return_value=iter([b"data: [DONE]\n"]))
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    with patch("urllib.request.urlopen", return_value=response) as urlopen:
+        if stream:
+            list(provider._post_stream("streamGenerateContent", {"contents": []}))
+        else:
+            provider._post_json("generateContent", {"contents": []})
+    request = urlopen.call_args.args[0]
+    assert "AIza-header-key" not in request.full_url
+    assert "key=" not in request.full_url
+    assert request.full_url.startswith(
+        "https://proxy.test/gemini/v1beta/models/gemini-test:"
+    )
+    assert request.get_header("X-goog-api-key") == "AIza-header-key"
+    assert request.get_header("Content-type") == "application/json"
 
 
 def test_gemini_stream_emits_error_before_raising(gemini_provider):

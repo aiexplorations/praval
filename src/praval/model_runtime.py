@@ -109,6 +109,116 @@ def _retry_backoff_seconds(attempt: int, error: ProviderError) -> float:
     return _jitter(min(RETRY_CAP_SECONDS, RETRY_BASE_SECONDS * (2**exponent)))
 
 
+def max_provider_retries(config: Any) -> int:
+    """Retries Praval allows for one provider request (``config.retries``)."""
+    return max(0, int(getattr(config, "retries", 0) or 0))
+
+
+def record_provider_retry(
+    attempt: int,
+    error: BaseException,
+    *,
+    operation: str = "invoke",
+    backoff_seconds: float = 0.0,
+) -> None:
+    """Log a provider retry and record it as a fact and a span event.
+
+    Only the error type is recorded, never its message.
+    """
+    backoff_ms = max(0.0, backoff_seconds * 1000.0)
+    logger.info(
+        "Retrying provider %s request (retry %d) after %s; waiting %.0f ms",
+        operation,
+        attempt,
+        type(error).__name__,
+        backoff_ms,
+    )
+    fact = RetryObservation(
+        attempt=attempt,
+        operation=f"model.{operation}",
+        reason_type=type(error).__name__,
+        backoff_ms=backoff_ms,
+    )
+    record_retry(fact)
+    span = trace.get_current_span()
+    if span.is_recording():
+        span.add_event(
+            "praval.retry",
+            {
+                "praval.retry.attempt": attempt,
+                "praval.retry.operation": operation,
+                "praval.retry.reason_type": type(error).__name__,
+                "praval.retry.backoff_ms": backoff_ms,
+            },
+        )
+
+
+def call_with_retries(
+    operation: str,
+    fn: Callable[[], _T],
+    *,
+    retries: int,
+    map_error: Callable[[Exception], ProviderError],
+    on_retry: Optional[Callable[..., None]] = None,
+) -> _T:
+    """Call ``fn`` (one provider request), retrying it while it is retryable.
+
+    ``map_error`` turns any exception from ``fn`` into a typed
+    ``ProviderError``. A retryable error is retried up to ``retries`` times
+    after ``_retry_backoff_seconds``; anything else is raised at once, with
+    the original exception as its cause when it was mapped. HITL signals pass
+    through unchanged. ``fn`` must be safe to repeat: it should send one
+    request and must not run tools.
+    """
+    attempt = 1
+    while True:
+        try:
+            return fn()
+        except (InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            error = map_error(exc)
+            if not error.retryable or attempt > retries:
+                if error is exc:
+                    raise
+                raise error from exc
+            delay = _retry_backoff_seconds(attempt, error)
+            (on_retry or record_provider_retry)(
+                attempt, error, operation=operation, backoff_seconds=delay
+            )
+            _sleep(delay)
+        attempt += 1
+
+
+async def acall_with_retries(
+    operation: str,
+    fn: Callable[[], Awaitable[_T]],
+    *,
+    retries: int,
+    map_error: Callable[[Exception], ProviderError],
+    on_retry: Optional[Callable[..., None]] = None,
+) -> _T:
+    """Async ``call_with_retries``: ``fn`` is awaited afresh for each attempt."""
+    attempt = 1
+    while True:
+        try:
+            return await fn()
+        except (InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            error = map_error(exc)
+            if not error.retryable or attempt > retries:
+                if error is exc:
+                    raise
+                raise error from exc
+            delay = _retry_backoff_seconds(attempt, error)
+            (on_retry or record_provider_retry)(
+                attempt, error, operation=operation, backoff_seconds=delay
+            )
+            await _async_sleep(delay)
+        attempt += 1
+
+
 def _tool_parameter_schema(parameters: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize legacy tool parameters to JSON Schema shape."""
     if parameters.get("type") == "object" and "properties" in parameters:
@@ -1228,36 +1338,28 @@ class ModelRuntime:
         a retryable ``ProviderError`` is retried up to ``config.retries``
         times; anything else is raised at once.
         """
-        retries = self._max_provider_retries()
-        attempt = 1
-        while True:
-            try:
-                with self._provider_span(request, operation):
-                    try:
-                        return fn(*args, **kwargs)
-                    except (InterventionRequired, HITLConfigurationError):
-                        raise
-                    except Exception as exc:
-                        # Map inside the span, so the span records the typed,
-                        # redacted error rather than raw SDK text.
-                        error = self._provider_error(exc, operation, request)
-                        if error is exc:
-                            raise
-                        raise error from exc
-            except (InterventionRequired, HITLConfigurationError):
-                raise
-            except Exception as exc:
-                error = self._provider_error(exc, operation, request)
-                if not error.retryable or attempt > retries:
+
+        def attempt() -> _T:
+            with self._provider_span(request, operation):
+                try:
+                    return fn(*args, **kwargs)
+                except (InterventionRequired, HITLConfigurationError):
+                    raise
+                except Exception as exc:
+                    # Map inside the span, so the span records the typed,
+                    # redacted error rather than raw SDK text.
+                    error = self._provider_error(exc, operation, request)
                     if error is exc:
                         raise
                     raise error from exc
-                delay = _retry_backoff_seconds(attempt, error)
-                self._record_retry(
-                    attempt, error, operation=operation, backoff_seconds=delay
-                )
-                _sleep(delay)
-            attempt += 1
+
+        return call_with_retries(
+            operation,
+            attempt,
+            retries=self._max_provider_retries(),
+            map_error=lambda exc: self._provider_error(exc, operation, request),
+            on_retry=self._record_retry,
+        )
 
     async def _acall_provider(
         self,
@@ -1268,36 +1370,28 @@ class ModelRuntime:
         **kwargs: Any,
     ) -> _T:
         """Async ``_call_provider``: ``fn`` is called afresh for each attempt."""
-        retries = self._max_provider_retries()
-        attempt = 1
-        while True:
-            try:
-                with self._provider_span(request, operation):
-                    try:
-                        return await fn(*args, **kwargs)
-                    except (InterventionRequired, HITLConfigurationError):
-                        raise
-                    except Exception as exc:
-                        # Map inside the span, so the span records the typed,
-                        # redacted error rather than raw SDK text.
-                        error = self._provider_error(exc, operation, request)
-                        if error is exc:
-                            raise
-                        raise error from exc
-            except (InterventionRequired, HITLConfigurationError):
-                raise
-            except Exception as exc:
-                error = self._provider_error(exc, operation, request)
-                if not error.retryable or attempt > retries:
+
+        async def attempt() -> _T:
+            with self._provider_span(request, operation):
+                try:
+                    return await fn(*args, **kwargs)
+                except (InterventionRequired, HITLConfigurationError):
+                    raise
+                except Exception as exc:
+                    # Map inside the span, so the span records the typed,
+                    # redacted error rather than raw SDK text.
+                    error = self._provider_error(exc, operation, request)
                     if error is exc:
                         raise
                     raise error from exc
-                delay = _retry_backoff_seconds(attempt, error)
-                self._record_retry(
-                    attempt, error, operation=operation, backoff_seconds=delay
-                )
-                await _async_sleep(delay)
-            attempt += 1
+
+        return await acall_with_retries(
+            operation,
+            attempt,
+            retries=self._max_provider_retries(),
+            map_error=lambda exc: self._provider_error(exc, operation, request),
+            on_retry=self._record_retry,
+        )
 
     def _stream_provider_events(
         self,
@@ -1399,7 +1493,7 @@ class ModelRuntime:
             attempt += 1
 
     def _max_provider_retries(self) -> int:
-        return max(0, int(getattr(self.config, "retries", 0) or 0))
+        return max_provider_retries(self.config)
 
     def _provider_error(
         self,
@@ -2041,32 +2135,9 @@ class ModelRuntime:
         operation: str = "invoke",
         backoff_seconds: float = 0.0,
     ) -> None:
-        backoff_ms = max(0.0, backoff_seconds * 1000.0)
-        logger.info(
-            "Retrying provider %s request (retry %d) after %s; waiting %.0f ms",
-            operation,
-            attempt,
-            type(error).__name__,
-            backoff_ms,
+        record_provider_retry(
+            attempt, error, operation=operation, backoff_seconds=backoff_seconds
         )
-        fact = RetryObservation(
-            attempt=attempt,
-            operation=f"model.{operation}",
-            reason_type=type(error).__name__,
-            backoff_ms=backoff_ms,
-        )
-        record_retry(fact)
-        span = trace.get_current_span()
-        if span.is_recording():
-            span.add_event(
-                "praval.retry",
-                {
-                    "praval.retry.attempt": attempt,
-                    "praval.retry.operation": operation,
-                    "praval.retry.reason_type": type(error).__name__,
-                    "praval.retry.backoff_ms": backoff_ms,
-                },
-            )
 
     def _record_limit_reached(self, limit_name: str, limit: int) -> None:
         span = trace.get_current_span()

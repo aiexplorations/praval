@@ -124,14 +124,14 @@ branch on the kind of failure instead of parsing messages:
 | `ProviderUnavailableError` | 5xx, Anthropic 529 overloaded, 409 conflict | Yes |
 | `ProviderTransportError` | Connection failure or timeout, HTTP 408 | Yes |
 | `ToolRoundLimitError` | The tool loop exceeded `max_tool_rounds` | No |
+| `ProviderInvalidResponseError` | The final response failed local structured-output validation (`validate_locally=True`): not JSON, or not matching the schema | No |
 
 `except ProviderError` still catches all of them. Each error carries the fields
 the provider reported: `provider`, `model`, `operation` (`invoke`, `continue`
 or `stream`), `status_code`, `error_code` (for example `insufficient_quota`,
 `overloaded_error` or Gemini's `RESOURCE_EXHAUSTED`), `request_id`,
 `retryable` and `retry_after_seconds`. Gemini error bodies are read, redacted
-and kept in the message; the request URL, which carries the API key, is never
-copied into an error. An exception the adapter does not recognise becomes a
+and kept in the message. An exception the adapter does not recognise becomes a
 plain, non-retryable `ProviderError` with the original exception as its
 `__cause__`.
 
@@ -158,11 +158,35 @@ starting at 0.5 seconds and capped at 30 seconds. A stream is retried only
 before its first event reaches the caller. Each retry is recorded as a retry
 fact on the execution observation with its real backoff.
 
+The same policy covers provider requests made outside the runtime's tool loop:
+OpenAI `transcribe` and `speak` (an audio file is rewound and resent whole; a
+stream that cannot seek is not retried), and the follow-up request that each
+adapter's legacy `generate()` tool flow sends after running tools, which is
+also the request a HITL resume of a v0.8.3 suspended run ends with. Only that
+follow-up is retried, never the tools; if it still fails, the adapter returns
+the tool output as before.
+
 SDK clients (`openai.OpenAI`, `anthropic.Anthropic`, `cohere.Client`, and the
 OpenAI-compatible client) are built with `max_retries=0`, so SDK-internal
 retries no longer multiply Praval's. To restore them, set
 `provider_options={"max_retries": N}` in the agent configuration; the value is
 used for client construction only and is not sent with requests.
+
+## Gemini Authentication
+
+The Gemini adapter and Gemini embeddings send the API key in the
+`x-goog-api-key` request header. Earlier releases appended it to the URL as
+`?key=...`, where any exception, log line or proxy that quoted the URL could
+expose it. Surrounding whitespace, such as a trailing newline from an env
+file, is stripped from the key. A custom `base_url` keeps working as long as
+the proxy or gateway forwards the `x-goog-api-key` header to Google; one that
+only forwarded query parameters needs that header added to its configuration.
+
+The chat adapter reads the key from the variable named by `api_key_env`
+(default `GEMINI_API_KEY`) or `GOOGLE_API_KEY`. With a custom `base_url` the
+key is optional: when none is set (a gateway that injects its own
+credentials), no header is sent. Embeddings read `provider_options["api_key"]`,
+`GEMINI_API_KEY` or `GOOGLE_API_KEY` and require one of them.
 
 ## Provider Profile Fields
 

@@ -16,7 +16,11 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ContentPart,
     ModelEvent,
@@ -776,7 +780,13 @@ class AnthropicProvider:
             call_params["system"] = system_message
 
         try:
-            response = self.client.messages.create(**call_params)
+            # The tools have already run: retry only this request.
+            response = call_with_retries(
+                "follow_up",
+                lambda: self.client.messages.create(**call_params),
+                retries=max_provider_retries(self.config),
+                map_error=self.map_provider_error,
+            )
             if response.content and len(response.content) > 0:
                 for block in response.content:
                     block_type = getattr(block, "type", None) or (

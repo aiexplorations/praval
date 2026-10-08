@@ -10,7 +10,11 @@ import urllib.request
 from typing import Any, Dict, Iterator, List, Optional, Set
 
 from ..core.exceptions import ProviderError
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ContentPart,
     ModelEvent,
@@ -51,7 +55,11 @@ class GeminiProvider:
     def __init__(self, config: Any):
         self.config = config
         api_key_env = getattr(config, "api_key_env", None) or "GEMINI_API_KEY"
-        self.api_key = os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY")
+        # Strip whitespace from keys read from env files: http.client rejects
+        # a header value ending in a newline and quotes it in the error.
+        self.api_key = (
+            os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY") or ""
+        ).strip() or None
         if not self.api_key and not getattr(config, "base_url", None):
             raise ProviderError(
                 f"{api_key_env} or GOOGLE_API_KEY environment variable not set"
@@ -288,7 +296,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -307,7 +315,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method, stream=True),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -325,16 +333,23 @@ class GeminiProvider:
                 yield json.loads(line)
 
     def _method_url(self, method: str, *, stream: bool = False) -> str:
+        """Build the endpoint URL; the API key travels in a header, never here."""
         url = f"{self.base_url}/models/{self._model_name()}:{method}"
-        params = []
         if stream:
-            params.append("alt=sse")
-        if self.api_key:
-            params.append(f"key={self.api_key}")
-        if params:
             separator = "&" if "?" in url else "?"
-            url = f"{url}{separator}{'&'.join(params)}"
+            url = f"{url}{separator}alt=sse"
         return url
+
+    def _request_headers(self) -> Dict[str, str]:
+        """JSON headers plus ``x-goog-api-key`` when a key is configured.
+
+        Sending the key as a header keeps it out of the URL, so exceptions,
+        logs and proxies that quote the URL never carry it.
+        """
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["x-goog-api-key"] = self.api_key
+        return headers
 
     def _content_to_parts(self, content: Any) -> List[Dict[str, Any]]:
         if not isinstance(content, list):
@@ -649,10 +664,16 @@ class GeminiProvider:
             request=request,
         )
         try:
-            data = self._post_json(
-                "generateContent",
-                followup_payload,
-                timeout=request.timeout if request is not None else None,
+            # The tools have already run: retry only this request.
+            data = call_with_retries(
+                "follow_up",
+                lambda: self._post_json(
+                    "generateContent",
+                    followup_payload,
+                    timeout=request.timeout if request is not None else None,
+                ),
+                retries=max_provider_retries(self.config),
+                map_error=lambda exc: self._provider_error(exc, "Gemini API error"),
             )
             content = self._extract_text(data)
         except Exception:

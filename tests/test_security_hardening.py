@@ -164,18 +164,10 @@ def test_s1_gemini_stream_error_event_has_no_key(gemini_provider):
     assert GEMINI_KEY not in _all_text(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: the Gemini adapter (and Gemini embeddings) put the API key in "
-        "the request URL. Exceptions that quote the URL (an invalid base_url, "
-        "a model name with whitespace) are redacted in the ProviderError text "
-        "but stay unredacted on the chained __cause__, so tracebacks, "
-        "exc_info logs and span stacktraces carry the key. Moving the key to "
-        "the x-goog-api-key header removes the class of leak."
-    ),
-)
 def test_s1_gemini_key_absent_from_traceback_on_malformed_url(monkeypatch):
+    # The key travels in the x-goog-api-key header, so an exception that
+    # quotes the request URL (here http.client rejecting the path) cannot
+    # carry it on the chained __cause__ either.
     monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY)
     provider = GeminiProvider(
         AgentConfig(
@@ -193,6 +185,49 @@ def test_s1_gemini_key_absent_from_traceback_on_malformed_url(monkeypatch):
             )
     assert GEMINI_KEY not in str(info.value)  # redacted at this level
     assert GEMINI_KEY not in _traceback_text(info.value)
+
+
+def test_s1_gemini_key_with_trailing_newline_is_stripped(monkeypatch):
+    # An env-file key ending in a newline is an invalid header value, and
+    # http.client quotes it (escaped, so redaction misses it) in the error.
+    monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY + "\n")
+    provider = GeminiProvider(
+        AgentConfig(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            base_url="http://127.0.0.1:9/v1beta",
+        )
+    )
+    assert provider.api_key == GEMINI_KEY
+    with patch.object(
+        socket.socket, "connect", side_effect=ConnectionRefusedError("refused")
+    ):
+        with pytest.raises(ProviderError) as info:
+            provider.invoke(
+                ModelRequest(messages=[ModelMessage(role="user", content="x")])
+            )
+    assert GEMINI_KEY not in _traceback_text(info.value)
+
+
+def test_s1_gemini_embedding_key_with_trailing_newline_is_stripped(monkeypatch):
+    from praval.embeddings import EmbeddingRuntime
+
+    monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY + "\n")
+    sent: List[urllib.request.Request] = []
+
+    def fake_urlopen(request: urllib.request.Request) -> Any:
+        sent.append(request)
+        response = Mock()
+        response.read.return_value = b'{"embedding": {"values": [0.1, 0.2]}}'
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        return response
+
+    runtime = EmbeddingRuntime(provider="gemini", model="embed-test", dimensions=2)
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        runtime.embed("hello")
+    assert sent[0].get_header("X-goog-api-key") == GEMINI_KEY
+    assert GEMINI_KEY not in sent[0].full_url
 
 
 # --- S2 / S3 Error body size ------------------------------------------------
@@ -380,23 +415,113 @@ def test_s5_provider_span_exception_message_is_redacted(monkeypatch, span_export
         assert secret not in str(attributes.get("exception.message"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: spans record exceptions with OpenTelemetry's default "
-        "record_exception, whose exception.stacktrace includes the chained "
-        "__cause__ (the raw SDK exception) unredacted. Fixing it means "
-        "choosing between dropping the cause chain from recorded "
-        "stacktraces (chain=False plus redaction) and scrubbing causes."
-    ),
-)
 def test_s5_span_stacktrace_does_not_carry_raw_cause(monkeypatch, span_exporter):
     secret = "plain-canary-openai-key-0042"
     runtime = _openai_runtime_with_failing_client(monkeypatch, secret)
+    with pytest.raises(ProviderError) as info:
+        runtime.invoke(messages=_messages())
+    # The raw SDK error, with the secret, is still the cause for the caller.
+    assert secret in _traceback_text(info.value.__cause__)
+    events = _exception_events(span_exporter)
+    assert events
+    for attributes in events:
+        assert secret not in str(attributes.get("exception.stacktrace"))
+        assert "direct cause" not in str(attributes.get("exception.stacktrace"))
+        assert attributes["exception.type"].endswith("ProviderAuthenticationError")
+        assert attributes["exception.escaped"] == "False"
+
+
+def test_s5_each_span_records_its_exception_once(monkeypatch, span_exporter):
+    runtime = _openai_runtime_with_failing_client(monkeypatch, "canary-0043")
     with pytest.raises(ProviderError):
         runtime.invoke(messages=_messages())
-    for attributes in _exception_events(span_exporter):
-        assert secret not in str(attributes.get("exception.stacktrace"))
+    spans = span_exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        names = [event.name for event in span.events]
+        assert names.count("exception") <= 1, span.name
+
+
+def _redacted_error_with_raw_cause(secret: str) -> ProviderError:
+    try:
+        try:
+            raise RuntimeError(f"raw sdk failure {secret}")
+        except RuntimeError as raw:
+            raise ProviderError("redacted failure") from raw
+    except ProviderError as error:
+        return error
+
+
+def _assert_chain_free(exporter: InMemorySpanExporter, secret: str) -> None:
+    events = _exception_events(exporter)
+    assert len(events) == 1
+    assert events[0]["exception.type"] == "praval.core.exceptions.ProviderError"
+    assert events[0]["exception.message"] == "redacted failure"
+    assert "redacted failure" in events[0]["exception.stacktrace"]
+    assert secret not in str(events)
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+def test_s5_instrumented_function_span_drops_cause_chain(monkeypatch, is_async):
+    import asyncio
+
+    from praval.observability.instrumentation import utils
+
+    secret = "canary-instrumented-0044"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider(shutdown_on_exit=False)
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(utils, "get_tracer", lambda: provider.get_tracer("t"))
+
+    if is_async:
+
+        @utils.instrument_function("agent.test.execute")
+        async def handler() -> None:
+            raise _redacted_error_with_raw_cause(secret)
+
+        with pytest.raises(ProviderError):
+            asyncio.run(handler())
+    else:
+
+        @utils.instrument_function("agent.test.execute")
+        def handler() -> None:
+            raise _redacted_error_with_raw_cause(secret)
+
+        with pytest.raises(ProviderError):
+            handler()
+    _assert_chain_free(exporter, secret)
+
+
+def test_s5_post_hoc_evaluation_span_drops_cause_chain(monkeypatch):
+    from datetime import datetime, timezone
+
+    from praval.models import ExecutionObservation
+    from praval.models.observation import ObservationStatus
+    from praval.observability import evaluation
+
+    secret = "canary-evaluation-0045"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider(shutdown_on_exit=False)
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(evaluation, "get_tracer", provider.get_tracer)
+    now = datetime.now(timezone.utc)
+    observation = ExecutionObservation(
+        observation_id="o",
+        run_id="r",
+        kind=ObservationKind.AGENT,
+        agent_name="a",
+        started_at=now,
+        ended_at=now,
+        duration_ms=0,
+        status=ObservationStatus.OK,
+    )
+    telemetry = evaluation.OnlineEvaluationTelemetry(
+        suite_id="s", queue_depth=lambda: 0
+    )
+    with pytest.raises(ProviderError):
+        with telemetry.start_post_hoc_span(observation, {"praval.test": "x"}):
+            raise _redacted_error_with_raw_cause(secret)
+    _assert_chain_free(exporter, secret)
 
 
 def test_s5_retry_log_and_event_carry_type_only(monkeypatch, span_exporter, caplog):

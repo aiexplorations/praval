@@ -7,7 +7,7 @@ for conversation history, tool calling, and streaming responses.
 
 import json
 import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import openai
 
@@ -17,7 +17,12 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import _nested_unsafe_option_keys, execute_legacy_tool_call
+from ..model_runtime import (
+    _nested_unsafe_option_keys,
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     AudioResponse,
     ContentPart,
@@ -238,7 +243,23 @@ class OpenAIProvider:
                 call_params["timeout"] = request.timeout
             self._apply_audio_provider_options(call_params, request.provider_options)
 
-            response = self.client.audio.transcriptions.create(**call_params)
+            # Praval owns retries (SDK retries are off). An upload can only be
+            # resent when its stream can be rewound to where it started.
+            rewind = self._audio_rewind(file_value)
+
+            def create_transcription() -> Any:
+                if rewind is not None:
+                    rewind()
+                return self.client.audio.transcriptions.create(**call_params)
+
+            response = call_with_retries(
+                "transcribe",
+                create_transcription,
+                retries=max_provider_retries(self.config) if rewind else 0,
+                map_error=lambda exc: self._mapped_error(
+                    exc, f"OpenAI transcription error: {self._redact(str(exc))}"
+                ),
+            )
             text = self._transcription_text(response)
             if not text:
                 raise ProviderError("OpenAI transcription returned no text")
@@ -253,8 +274,8 @@ class OpenAIProvider:
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(
-                f"OpenAI transcription error: {self._redact(str(e))}"
+            raise self._mapped_error(
+                e, f"OpenAI transcription error: {self._redact(str(e))}"
             ) from e
         finally:
             if should_close:
@@ -290,7 +311,14 @@ class OpenAIProvider:
                 call_params["timeout"] = request.timeout
             self._apply_audio_provider_options(call_params, request.provider_options)
 
-            response = self.client.audio.speech.create(**call_params)
+            response = call_with_retries(
+                "speak",
+                lambda: self.client.audio.speech.create(**call_params),
+                retries=max_provider_retries(self.config),
+                map_error=lambda exc: self._mapped_error(
+                    exc, f"OpenAI speech generation error: {self._redact(str(exc))}"
+                ),
+            )
             data = self._speech_bytes(response)
             if not data:
                 raise ProviderError("OpenAI speech generation returned no audio")
@@ -306,8 +334,8 @@ class OpenAIProvider:
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(
-                f"OpenAI speech generation error: {self._redact(str(e))}"
+            raise self._mapped_error(
+                e, f"OpenAI speech generation error: {self._redact(str(e))}"
             ) from e
 
     def close(self) -> None:
@@ -315,6 +343,31 @@ class OpenAIProvider:
         close = getattr(self.client, "close", None)
         if callable(close):
             close()
+
+    @staticmethod
+    def _audio_rewind(file_value: Any) -> Optional[Callable[[], None]]:
+        """Return a callable restoring the upload's start, or ``None``.
+
+        Bytes need no rewinding. A file object (alone or inside an SDK file
+        tuple) is rewound to its current position; one that cannot seek
+        cannot be resent, so it gets ``None`` and is not retried.
+        """
+        stream = file_value
+        if isinstance(file_value, tuple):
+            stream = file_value[1] if len(file_value) > 1 else None
+        if not hasattr(stream, "read"):
+            return lambda: None
+        try:
+            if not stream.seekable():
+                return None
+            position = stream.tell()
+        except (AttributeError, OSError, ValueError):
+            return None
+
+        def rewind() -> None:
+            stream.seek(position)
+
+        return rewind
 
     def _audio_file_value(self, request: TranscriptionRequest) -> Tuple[Any, bool]:
         audio = request.audio
@@ -1360,8 +1413,12 @@ class OpenAIProvider:
                 temperature=self.config.temperature,
                 max_output_tokens=self._max_output_tokens(),
             )
-            follow_up_response = self._create_chat_completion_with_empty_retry(
-                call_params
+            # The tools have already run: retry only this request.
+            follow_up_response = call_with_retries(
+                "follow_up",
+                lambda: self._create_chat_completion_with_empty_retry(call_params),
+                retries=max_provider_retries(self.config),
+                map_error=self.map_provider_error,
             )
 
             if follow_up_response.choices and follow_up_response.choices[0].message:

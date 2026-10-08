@@ -55,8 +55,7 @@ dialect). Content that is not JSON, or does not match, raises
 failing path:
 
 ```python
-from praval import StructuredOutputConfig
-from praval.core.exceptions import ProviderInvalidResponseError
+from praval import ProviderInvalidResponseError, StructuredOutputConfig
 
 config = StructuredOutputConfig(
     schema={

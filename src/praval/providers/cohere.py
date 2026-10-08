@@ -17,7 +17,11 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ModelEvent,
     ModelRequest,
@@ -562,7 +566,13 @@ class CohereProvider:
                 call_params["preamble"] = system_message
 
             call_params["tool_results"] = tool_results
-            response = self.client.chat(**call_params)
+            # The tools have already run: retry only this request.
+            response = call_with_retries(
+                "follow_up",
+                lambda: self.client.chat(**call_params),
+                retries=max_provider_retries(self.config),
+                map_error=self.map_provider_error,
+            )
             return response.text if hasattr(response, "text") else ""
         except Exception:
             return "\n".join([str(r["result"]) for r in tool_results])

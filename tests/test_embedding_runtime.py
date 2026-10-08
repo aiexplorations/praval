@@ -204,6 +204,10 @@ def test_gemini_embedding_serializes_multimodal_parts(monkeypatch):
         )
         for request in requests
     )
+    assert all("gemini-key" not in request.full_url for request in requests)
+    assert all(
+        request.get_header("X-goog-api-key") == "gemini-key" for request in requests
+    )
     payloads = [json.loads(request.data.decode()) for request in requests]
     assert payloads[0]["content"]["parts"] == [{"text": "hello"}]
     assert payloads[1]["content"]["parts"][0]["inlineData"]["data"] == "AAA"
