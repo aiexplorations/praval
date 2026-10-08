@@ -191,7 +191,10 @@ def test_hitl_request_history_survives_failed_resume_without_rebilling(
         assert writes == [1]
         stored = service.get_suspended_run(run_id)
         assert stored.status == "completed"
-        assert stored.state["model_calls"] == calls
+        assert [
+            {key: value for key, value in call.items() if value is not None}
+            for call in calls
+        ] == stored.state["model_calls"]
         checkpoint = stored.state.get("resume_results", {}).get("checkpoint")
         if checkpoint is not None:
             assert checkpoint["model_calls"] == calls
@@ -305,7 +308,10 @@ def test_legacy_hitl_unknown_history_stays_incomplete_after_resume(
         assert agent.usage.totals.calls == 1
         stored = service.get_suspended_run(run_id)
         assert stored.state["model_call_history_complete"] is False
-        assert stored.state["model_calls"] == calls
+        assert [
+            {key: value for key, value in call.items() if value is not None}
+            for call in calls
+        ] == stored.state["model_calls"]
     finally:
         agent.close()
         original_agent.close()

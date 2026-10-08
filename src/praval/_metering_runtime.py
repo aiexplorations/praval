@@ -25,17 +25,32 @@ _provider_scope: ContextVar[Optional["ProviderCallScope"]] = ContextVar(
 )
 
 
-def call_dict(call: ModelCall) -> Dict[str, Any]:
+def call_dict(call: ModelCall, *, compact: bool = False) -> Dict[str, Any]:
     """Serialize a content-free call for responses and HITL state."""
-    return {
+    data = {
         **vars(call),
         "usage": call.usage.model_dump() if call.usage is not None else None,
         "started_at": call.started_at.isoformat(),
     }
+    return (
+        {key: value for key, value in data.items() if value is not None}
+        if compact
+        else data
+    )
 
 
 def _restore_call(value: Dict[str, Any]) -> ModelCall:
     data = dict(value)
+    for field in (
+        "round_index",
+        "usage",
+        "agent_name",
+        "run_id",
+        "parent_run_id",
+        "correlation_id",
+        "response_id",
+    ):
+        data.setdefault(field, None)
     data["started_at"] = datetime.fromisoformat(data["started_at"])
     if data.get("usage") is not None:
         data["usage"] = Usage.model_validate(data["usage"])
@@ -115,7 +130,7 @@ class RunCapture:
         calls = {call.call_id: call for call in self._restore_history(state)}
         calls.update({call.call_id: call for call in self.meter.calls})
         values = [
-            call_dict(call)
+            call_dict(call, compact=True)
             for call in sorted(calls.values(), key=lambda call: call.started_at)
         ]
         state["model_calls"] = values
@@ -167,7 +182,9 @@ class RunCapture:
 def capture_calls() -> List[Dict[str, Any]]:
     capture = _capture.get()
     return (
-        [call_dict(call) for call in capture.meter.calls] if capture is not None else []
+        [call_dict(call, compact=True) for call in capture.meter.calls]
+        if capture is not None
+        else []
     )
 
 

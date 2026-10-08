@@ -2293,7 +2293,15 @@ class ModelRuntime:
                 else None
             ),
             "finish_reason": response.finish_reason,
-            "metadata": _json_safe(response.metadata),
+            # Request accounting is stored once in the outer continuation
+            # state; copying it into the response duplicates every record.
+            "metadata": _json_safe(
+                {
+                    key: value
+                    for key, value in response.metadata.items()
+                    if key not in {"model_calls", "usage_complete"}
+                }
+            ),
         }
 
     def _restore_runtime_response(self, value: Any) -> ModelResponse:

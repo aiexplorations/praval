@@ -1255,7 +1255,7 @@ def test_stream_finished_in_another_thread_commits_once() -> None:
 
     results = _run_threads([lambda: [event.type for event in events]])
 
-    assert results == [["delta", "delta", "final"]]
+    assert results == [["delta", "delta", "model_call", "final"]]
     assert agent.conversation_history == [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "ab"},
