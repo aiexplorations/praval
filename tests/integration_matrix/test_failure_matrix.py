@@ -62,6 +62,26 @@ def retryable(error: Exception) -> bool:
     return isinstance(error, ProviderError) and error.retryable
 
 
+def without_none(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: without_none(item) for key, item in value.items() if item is not None
+        }
+    if isinstance(value, (list, tuple)):
+        return [without_none(item) for item in value]
+    return value
+
+
+def continuation_payload(value: Any) -> Any:
+    payload = without_none(value)
+    # Durable state stores accounting once outside the provider transcript.
+    # These two response facts are verified by the metering/checkpoint tests.
+    metadata = payload[1].get("metadata", {})
+    metadata.pop("model_calls", None)
+    metadata.pop("usage_complete", None)
+    return payload
+
+
 def assert_failure(exc: ProviderError, original: Exception, operation: str) -> None:
     assert type(exc) is expected_error(original)
     assert (exc.provider, exc.model, exc.operation) == (
@@ -141,7 +161,9 @@ def test_agent_request_failure_isolated_from_side_effects(
         if len(requests) == 2:
             assert requests[0] == requests[1]
         if len(provider.continuations) == 2:
-            assert provider.continuations[0] == provider.continuations[1]
+            assert continuation_payload(
+                provider.continuations[0]
+            ) == continuation_payload(provider.continuations[1])
     finally:
         agent.close()
 
@@ -163,7 +185,11 @@ def test_native_stream_failure_obeys_visible_event_boundary(
         with use_observation_recorder(recorder):
             if recovered:
                 events = run_agent(agent, mode, visible_events)
-                assert [e.type for e in events] == ["start", "delta", "final"]
+                assert [e.type for e in events if e.type != "model_call"] == [
+                    "start",
+                    "delta",
+                    "final",
+                ]
                 assert events[1].delta == "partial"
             else:
                 with pytest.raises(ProviderError) as caught:
@@ -172,7 +198,21 @@ def test_native_stream_failure_obeys_visible_event_boundary(
         assert len(provider.streams) == 1 + int(recovered)
         assert provider.initial == provider.continuations == []
         assert_retry_facts(recorder, int(recovered), "stream")
-        assert [event.type for event in visible_events] == (
+        call_events = [event for event in visible_events if event.type == "model_call"]
+        assert len(call_events) == len(provider.streams)
+        assert [event.metadata["status"] for event in call_events] == (
+            ["error", "ok"] if recovered else ["error"]
+        )
+        assert [event.metadata["attempt"] for event in call_events] == list(
+            range(1, len(call_events) + 1)
+        )
+        assert len({event.metadata["call_id"] for event in call_events}) == len(
+            call_events
+        )
+        assert all(event.metadata["operation"] == "stream" for event in call_events)
+        assert [
+            event.type for event in visible_events if event.type != "model_call"
+        ] == (
             ["start", "delta", "final"]
             if recovered
             else ["start", "delta"] if phase == "midstream" else ["start"]
@@ -269,7 +309,7 @@ def test_hitl_failed_resume_reuses_durable_completed_result(
                 else:
                     with pytest.raises(ProviderError) as caught:
                         resume_agent(agent, run_id, use_async)
-                    assert_failure(caught.value, error, "continue")
+                    assert_failure(caught.value, error, "resume")
         assert writes == [3]
         stored = service.get_suspended_run(run_id)
         assert stored.status == ("completed" if recovered else "pending")
@@ -280,8 +320,10 @@ def test_hitl_failed_resume_reuses_durable_completed_result(
         assert writes == [3]
         assert len(provider.initial) == 1
         assert len(provider.continuations) == 2
-        assert provider.continuations[0] == provider.continuations[1]
-        assert_retry_facts(recorder, int(recovered), "continue")
+        assert continuation_payload(provider.continuations[0]) == continuation_payload(
+            provider.continuations[1]
+        )
+        assert_retry_facts(recorder, int(recovered), "resume")
         assert service.get_suspended_run(run_id).status == "completed"
         assert agent.conversation_history[-1] == {
             "role": "assistant",
@@ -368,7 +410,9 @@ def test_hitl_old_state_and_new_runtime_resume(
             assert resume_agent(replacement, run_id, use_async) == "done"
             assert writes == [3]
             assert service.get_suspended_run(run_id).status == "completed"
-            assert provider.continuations[0] == provider.continuations[1]
+            assert continuation_payload(
+                provider.continuations[0]
+            ) == continuation_payload(provider.continuations[1])
         finally:
             replacement.close()
     finally:
@@ -636,7 +680,7 @@ def test_hitl_later_checkpoint_survives_restart_and_second_gate(
         # Additive state owned by other concerns survives each checkpoint save.
         stored = service.get_suspended_run(run_id)
         additive = {
-            "model_calls": [{"call_id": "existing-call"}],
+            "external_ledger": [{"call_id": "existing-call"}],
             "capture_calls": {"source": "preserve-me"},
         }
         assert service.store.update_suspended_run_state(
@@ -663,7 +707,9 @@ def test_hitl_later_checkpoint_survives_restart_and_second_gate(
             assert writes == expected
             assert len(provider.initial) == 1
             assert len(provider.continuations) == 3
-            assert provider.continuations[-2] == provider.continuations[-1]
+            assert continuation_payload(
+                provider.continuations[-2]
+            ) == continuation_payload(provider.continuations[-1])
             assert service.get_suspended_run(run_id).status == "completed"
         finally:
             replacement.close()
@@ -741,7 +787,7 @@ def test_hitl_approved_handler_ledger_update_is_not_overwritten(
     run_ids = []
     writes = []
     ledger = {
-        "model_calls": [{"call_id": "nested-agent-call"}],
+        "external_ledger": [{"call_id": "nested-agent-call"}],
         "capture_calls": {"nested": True},
     }
 

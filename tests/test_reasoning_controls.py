@@ -727,3 +727,35 @@ def test_unknown_vllm_model_cannot_promise_disabled_thinking():
                 reasoning=ReasoningConfig(level="none"),
             )
         )
+
+
+@pytest.mark.parametrize("model", ["claude-sonnet-4-5", "claude-haiku-4-5"])
+@pytest.mark.parametrize("level", ["low", "medium", "high"])
+def test_manual_claude_levels_reject_default_output_limit_before_dispatch(
+    monkeypatch, model, level
+):
+    harness = AnthropicHarness()
+    harness.model = model
+    provider = harness.build(monkeypatch)
+    with patch(
+        "praval.core.agent.ProviderFactory.create_provider", return_value=provider
+    ):
+        instance = Agent("manual-thinking-limit", provider="anthropic", model=model)
+    try:
+        assert instance.config.max_tokens == 1000
+        assert instance.config.max_output_tokens == 1000
+        request = ModelRequest(
+            provider="anthropic",
+            model=model,
+            messages=[],
+            reasoning=ReasoningConfig(level=level),
+        )
+        with pytest.raises(ProviderError, match="requires max_output_tokens greater"):
+            instance.runtime.validate_request(request)
+        assert request.max_output_tokens is None
+        with pytest.raises(ProviderError, match="requires max_output_tokens greater"):
+            instance.generate("Question", reasoning=level)
+        assert harness.requests == []
+        provider.client.messages.create.assert_not_called()
+    finally:
+        instance.close()

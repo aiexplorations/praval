@@ -44,5 +44,7 @@ evidence. These tests do not establish live-provider compatibility by themselves
 
 Live Anthropic, Gemini, Cohere and local-provider validation has not been run in
 this handoff because credentials or configured endpoints were unavailable. OpenAI
-live validation and the exact main-CI wheel certification remain release gates.
+Chat Completions and Responses passed local dependent-tool and usage checks;
+portable low reasoning also passed. Exact main-CI wheel certification remains a
+release gate.
 Publication follows RELEASE.md using only the wheel produced by successful main CI.

@@ -152,9 +152,8 @@ def test_hitl_request_history_survives_failed_resume_without_rebilling(
                 "ok",
                 "error",
             ]
-            checkpoint = failed_state.state.get("resume_results", {}).get("checkpoint")
-            if checkpoint is not None:
-                assert checkpoint["model_calls"] == failed_state.state["model_calls"]
+            checkpoint = failed_state.state["resume_results"]["checkpoint"]
+            assert checkpoint["model_calls"] == failed_state.state["model_calls"]
         if restart:
             agent.close()
             agent = make_agent(provider, path, writes, retry_budget)
@@ -195,9 +194,8 @@ def test_hitl_request_history_survives_failed_resume_without_rebilling(
             {key: value for key, value in call.items() if value is not None}
             for call in calls
         ] == stored.state["model_calls"]
-        checkpoint = stored.state.get("resume_results", {}).get("checkpoint")
-        if checkpoint is not None:
-            assert checkpoint["model_calls"] == calls
+        checkpoint = stored.state["resume_results"]["checkpoint"]
+        assert checkpoint["model_calls"] == stored.state["model_calls"]
         # The current resume observation meters current attempts, not restored calls.
         assert recorder.observations[0].usage.total_tokens == 14
     finally:

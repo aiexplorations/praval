@@ -211,7 +211,10 @@ def test_v084_release_gate(
         assert agent.usage.totals.total_tokens == 24
         stored = HITLService(db_path=db).get_suspended_run(run_id)
         assert stored.status == "completed"
-        assert stored.state["model_calls"] == calls
+        assert stored.state["model_calls"] == [
+            {key: value for key, value in call.items() if value is not None}
+            for call in calls
+        ]
         assert agent.conversation_history[-1] == {
             "role": "assistant",
             "content": answer,

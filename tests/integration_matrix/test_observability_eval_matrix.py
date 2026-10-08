@@ -93,6 +93,13 @@ def test_agent_observation_matches_wire_execution_without_private_content(
                 for fact in observation.tool_calls
             )
         assert len(model.requests) == SHAPES.index(shape) + 1
+        assert observation.model_calls == len(model.requests)
+        assert current.usage.totals.calls == len(model.requests)
+        assert current.usage.totals.failed_calls == int(outcome == "provider-error")
+        assert [call.status for call in current.usage.calls] == (
+            ["ok"] * (len(model.requests) - int(outcome == "provider-error"))
+            + (["error"] if outcome == "provider-error" else [])
+        )
         prompt = next(
             reference
             for reference in observation.content_references

@@ -299,8 +299,10 @@ def test_dist_policy_is_documented_as_distributions_only():
 
     assert "`dist/` contains exactly one `.whl` file" in release
     assert "`evidence/` contains checksums" in release
-    assert "twine upload dist/praval-0.8.3-py3-none-any.whl" in release
-    assert "after every observability and evaluation gate" in release
+    version = release_metadata.project_version(ROOT)
+    assert f"twine upload dist/praval-{version}-py3-none-any.whl" in release
+    assert "after every gate" in release
+    assert f"v{release_metadata.project_version(ROOT)} plan passes" in release
     assert "Do not use a wildcard" in release
 
 

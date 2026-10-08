@@ -366,7 +366,7 @@ def legacy_tool_to_spec(
         name=name,
         description=str(tool.get("description", "") or ""),
         parameters=_tool_parameter_schema(dict(tool.get("parameters") or {})),
-        strict=strict,
+        strict=strict or bool(tool.get("strict", False)),
         requires_approval=bool(tool.get("requires_approval", False)),
         risk_level=str(tool.get("risk_level", "low") or "low"),
         approval_reason=str(tool.get("approval_reason", "") or ""),
@@ -1239,7 +1239,17 @@ class ModelRuntime:
         if request.reasoning is not None and request.reasoning.level is not None:
             from .providers.registry import reasoning_parameters
 
-            reasoning_parameters(request)
+            reasoning_request = request
+            if self.provider_name == "anthropic" and request.max_output_tokens is None:
+                reasoning_request = request.model_copy(
+                    update={
+                        "max_output_tokens": getattr(
+                            self.config, "max_output_tokens", None
+                        )
+                        or getattr(self.config, "max_tokens", 1000)
+                    }
+                )
+            reasoning_parameters(reasoning_request)
         if request.reasoning is not None and not capabilities.reasoning:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support reasoning config"

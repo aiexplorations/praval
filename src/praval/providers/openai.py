@@ -1253,6 +1253,13 @@ class OpenAIProvider:
             }
 
             if "parameters" in tool:
+                if tool["parameters"].get("type") == "object":
+                    # Agent.add_tool_spec already supplies JSON Schema.
+                    formatted_tool["function"]["parameters"] = tool["parameters"]
+                    if tool.get("strict"):
+                        formatted_tool["function"]["strict"] = True
+                    formatted_tools.append(formatted_tool)
+                    continue
                 for param_name, param_info in tool["parameters"].items():
                     python_type = param_info.get("type", "str")
                     json_type = self._python_type_to_json_schema(python_type)

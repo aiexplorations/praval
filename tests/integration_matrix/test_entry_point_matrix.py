@@ -411,7 +411,16 @@ def test_streamed_schema_validation_precedes_final_and_history_commit(
                 "content": QUESTION,
             }
             if with_tools:
-                assert [event.type for event in events] == ["start"]
+                assert [event.type for event in events] == [
+                    "start",
+                    "model_call",
+                    "model_call",
+                ]
+        calls = [event for event in events if event.type == "model_call"]
+        assert len(calls) == (2 if with_tools else 1)
+        assert [event.metadata["status"] for event in calls] == ["ok"] * len(calls)
+        assert len({event.metadata["call_id"] for event in calls}) == len(calls)
+        assert all(event.usage is None for event in calls)
         assert len(harness.requests) == (2 if with_tools else 1)
         assert log == ([("lookup", "Paris")] if with_tools else [])
     finally:
@@ -459,8 +468,11 @@ def test_concrete_async_provider_stream_validates_before_committing_final(
         else:
             with pytest.raises(ProviderError, match="schema|JSON"):
                 asyncio.run(collect())
-            assert [event.type for event in events] == ["start", "delta"]
+            assert [event.type for event in events] == ["start", "delta", "model_call"]
             assert agent.conversation_history[-1]["role"] == "user"
+        calls = [event for event in events if event.type == "model_call"]
+        assert len(calls) == 1
+        assert calls[0].metadata["status"] == "ok" and calls[0].usage is None
         assert len(harness.requests) == 1 and harness.requests[0]["stream"] is True
     finally:
         agent.close()

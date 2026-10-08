@@ -29,7 +29,8 @@ import logging
 import weakref
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple
+from urllib.parse import unquote
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -489,10 +490,47 @@ def _schema_validator_for_key(key: str, external: bool = False) -> Optional[Vali
     return validator
 
 
-def _check_external_pattern_schema(schema: Any, *, root: bool = True) -> None:
-    """Reject untimed regex helper paths before jsonschema sees the schema."""
+def _check_external_pattern_schema(
+    schema: Any,
+    *,
+    root: bool = True,
+    document: Optional[Dict[str, Any]] = None,
+    visited: Optional[Set[int]] = None,
+) -> None:
+    """Reject untimed paths, including schemas reached through local pointers."""
     if not isinstance(schema, dict):
         return
+    if document is None:
+        document = schema
+    if visited is None:
+        visited = set()
+    if id(schema) in visited:
+        return
+    visited.add(id(schema))
+
+    def visit(child: Any) -> None:
+        _check_external_pattern_schema(
+            child, root=child is document, document=document, visited=visited
+        )
+
+    # A pointer may turn ordinary default/enum/custom-keyword data into a
+    # schema. Only referenced targets are checked; unrelated instance data
+    # remains untouched. jsonschema handles invalid or remote references.
+    for keyword in ("$ref", "$dynamicRef", "$recursiveRef"):
+        reference = schema.get(keyword)
+        if not isinstance(reference, str) or not reference.startswith("#"):
+            continue
+        pointer = unquote(reference[1:])
+        if not pointer.startswith("/"):
+            continue
+        target: Any = document
+        try:
+            for part in pointer[1:].split("/"):
+                part = part.replace("~1", "/").replace("~0", "~")
+                target = target[int(part)] if isinstance(target, list) else target[part]
+        except (KeyError, IndexError, ValueError, TypeError):
+            continue
+        visit(target)
     if not root and "$schema" in schema:
         raise _ExternalPatternSchemaError(
             "nested $schema dialect changes are unsupported for external tool schemas"
@@ -518,7 +556,7 @@ def _check_external_pattern_schema(schema: Any, *, root: bool = True) -> None:
         children = schema.get(keyword)
         if isinstance(children, dict):
             for child in children.values():
-                _check_external_pattern_schema(child, root=False)
+                visit(child)
     for keyword in (
         "items",
         "additionalItems",
@@ -536,14 +574,14 @@ def _check_external_pattern_schema(schema: Any, *, root: bool = True) -> None:
         child = schema.get(keyword)
         if isinstance(child, list):
             for item in child:
-                _check_external_pattern_schema(item, root=False)
+                visit(item)
         else:
-            _check_external_pattern_schema(child, root=False)
+            visit(child)
     for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
         children = schema.get(keyword)
         if isinstance(children, list):
             for child in children:
-                _check_external_pattern_schema(child, root=False)
+                visit(child)
 
 
 def _with_pattern_length_cap(validator_class: Any) -> Any:

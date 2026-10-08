@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   across repeated tool continuations, including OpenAI Responses chains.
 - Preserved committed tool results and usage histories across failed approval
   resumes, later rounds, second approval gates and process restart.
+- Fixed JSON Schema tool declarations and strict schemas on OpenAI Chat
+  Completions, including subsequent tool continuations.
 - Unified typed tool outcomes, argument validation, restrictions and local
   structured-output validation across sync, async and streaming paths.
 - Fixed canceled-worker request double counting, async decorated-handler

@@ -167,3 +167,54 @@ def test_nested_schema_dialect_cannot_bypass_timed_validator():
         {"function": handler, "parameters": schema}, {"name": "a" * 40 + "!"}
     )
     assert result.is_error and "nested $schema" in result.content
+
+
+@pytest.mark.parametrize("location", ["default", "custom", "enum/0"])
+@pytest.mark.parametrize(
+    "referenced_schema",
+    [
+        {"type": "object", "patternProperties": {"^(a|aa)+$": {}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "string",
+            "pattern": "^(a|aa)+$",
+        },
+    ],
+)
+def test_local_pointer_targets_are_preflighted(location, referenced_schema):
+    schema = {
+        "type": "object",
+        "properties": {"x": {"$ref": f"#/{location}"}},
+    }
+    key = location.split("/")[0]
+    schema[key] = [referenced_schema] if key == "enum" else referenced_schema
+    invoked = []
+
+    def handler(**kwargs):
+        invoked.append(kwargs)
+        return "unsafe"
+
+    result = run_tool({"function": handler, "parameters": schema}, {"x": {}})
+    assert result.is_error and "Invalid schema" in result.content
+    assert not invoked
+
+
+def test_local_pointer_cycles_and_escaped_keys_are_preflighted():
+    schema = {
+        "type": "object",
+        "properties": {"x": {"$ref": "#/custom~1key"}},
+        "custom/key": {"$ref": "#/other"},
+        "other": {"$ref": "#/custom~1key", "patternProperties": {"bad": {}}},
+    }
+    with pytest.raises(ValueError, match="patternProperties is unsupported"):
+        cached_schema_validator(schema, external=True)
+
+
+def test_percent_encoded_local_pointer_is_preflighted():
+    schema = {
+        "type": "object",
+        "properties": {"x": {"$ref": "#%2Fdefault"}},
+        "default": {"patternProperties": {"bad": {}}},
+    }
+    with pytest.raises(ValueError, match="patternProperties is unsupported"):
+        cached_schema_validator(schema, external=True)
