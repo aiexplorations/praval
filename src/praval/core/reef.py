@@ -2596,6 +2596,16 @@ _global_reef: Optional[Reef] = None
 _global_reef_lock = threading.RLock()
 
 
+def _get_existing_reef() -> Optional[Reef]:
+    """Snapshot the existing Reef for cleanup without creating or locking it.
+
+    Finalizers can run during another thread's startup while get_reef holds
+    the global lock. Acquiring that lock from cleanup can deadlock startup.
+    The reference keeps a concurrently reset Reef alive until cleanup finishes.
+    """
+    return _global_reef
+
+
 def get_reef() -> Reef:
     """Get the global reef instance."""
     global _global_reef

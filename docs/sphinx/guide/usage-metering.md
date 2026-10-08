@@ -4,6 +4,13 @@ Every `Agent` exposes `agent.usage`, a thread-safe `UsageMeter`. It records each
 actual chat-model request, including retries, tool continuations, streams and
 approval resumes. It excludes embeddings, transcription, speech and image generation.
 
+OpenRouter's `usage.cost` is separate from estimates. Each `ModelCall` may have
+`reported_cost_usd`; meter totals include `reported_cost_usd` and
+`cost_reported_calls`. The final response's `metadata["reported_cost"]` aggregates
+charges with `amount`, `currency="USD"` and `complete`. Missing reports do not
+become zero-priced calls. `PriceTable` estimates remain separate. Reported-cost
+totals survive bounded record eviction and persisted approval history.
+
 ```python
 from praval import Agent
 from praval.metering import Price, PriceTable, UsageMeter, correlation

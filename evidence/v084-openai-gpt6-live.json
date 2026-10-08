@@ -1,0 +1,123 @@
+{
+  "artifact_kind": "editable-checkout-live-validation",
+  "base_commit": "b8f953e8f9711996096381a5d2c3b9ac1a6e91ee",
+  "checked_at": "2026-10-08T15:24:49.934498+00:00",
+  "checks": {
+    "automatic": {
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": null,
+      "model": "gpt-6-luna",
+      "model_requests": 4,
+      "reasoning": null,
+      "resolved_endpoint": "responses",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "input_tokens": 649,
+        "output_tokens": 64,
+        "reasoning_tokens": 0,
+        "total_tokens": 713
+      },
+      "usage_complete": true
+    },
+    "automatic_low": {
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": null,
+      "model": "gpt-6-luna",
+      "model_requests": 4,
+      "reasoning": "low",
+      "resolved_endpoint": "responses",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "input_tokens": 649,
+        "output_tokens": 64,
+        "reasoning_tokens": 0,
+        "total_tokens": 713
+      },
+      "usage_complete": true
+    },
+    "chat_none": {
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": "chat.completions",
+      "model": "gpt-6-luna",
+      "model_requests": 4,
+      "reasoning": "none",
+      "resolved_endpoint": "chat.completions",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "input_tokens": 971,
+        "output_tokens": 60,
+        "reasoning_tokens": 0,
+        "total_tokens": 1031
+      },
+      "usage_complete": true
+    },
+    "responses": {
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": "responses",
+      "model": "gpt-6-luna",
+      "model_requests": 4,
+      "reasoning": null,
+      "resolved_endpoint": "responses",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "input_tokens": 649,
+        "output_tokens": 64,
+        "reasoning_tokens": 0,
+        "total_tokens": 713
+      },
+      "usage_complete": true
+    },
+    "responses_low": {
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": "responses",
+      "model": "gpt-6-luna",
+      "model_requests": 4,
+      "reasoning": "low",
+      "resolved_endpoint": "responses",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "input_tokens": 649,
+        "output_tokens": 64,
+        "reasoning_tokens": 0,
+        "total_tokens": 713
+      },
+      "usage_complete": true
+    }
+  },
+  "exact_main_ci_wheel_certified": false,
+  "source_sha256": {
+    "examples/certification/live_openai_gpt6.py": "fd1719bc8f93e35acf84cc84e85002799d3aef50405fa1e76fe48c989e21ea16",
+    "examples/certification/live_provider_matrix.py": "0e279199fcd55fe12c28173b9ba98ca4777b26a96f051cfcc0380ecdee68c6e0",
+    "examples/certification/live_provider_tools.py": "a746f342da8e544e329774fecd263ff682b118510e5080349519948d0764d90c",
+    "src/praval/_metering_runtime.py": "4f7ced94f7aab1ba0948998b9d13e2b89b67610801f2dac8c81a1fd393b5a610",
+    "src/praval/core/agent.py": "5f33ba36b3fbbcd83974172dd4145ea745bdb07cd60266dba652609058c5d425",
+    "src/praval/core/reef.py": "232aa6f1920c490a14d67b840cce0d3d849b88d28f63159ffb757ccf0c638498",
+    "src/praval/metering.py": "33d6ca32c6ccac3fb31ca82b656700dcbbe9c782b9d60063127ab2ec77cfcb98",
+    "src/praval/model_runtime.py": "710b8428bfc5dfe280d0624a58d2bcef869ad6cdb338738938b726f35604b997",
+    "src/praval/models/__init__.py": "f83a6378182c55ba197aa209b6223142fe828083a15fc5e7ac35917591d40e83",
+    "src/praval/providers/anthropic.py": "2b3b318d6659c7f4239019a67428c2846074e35a3cecfdbac53f80d23a4454b1",
+    "src/praval/providers/catalog.py": "a06d6b3a34320faf7c18b07a1d9350b4af96ac33a2c28166fd356075c8238b00",
+    "src/praval/providers/errors.py": "63dae0e0cdd39dadf9830a4483bb650729806d7f7a35cbf345bd25ef5b91a6ff",
+    "src/praval/providers/gemini.py": "4fe21a0a2493ad4dc1163b523d85f8c4f7b52b56cad1e59b9d17a47e7c33c3a5",
+    "src/praval/providers/openai.py": "9ae0db47059cf5fb7b1eeb56457358cd5be6f3c5ed2f88471341920684d3af3c",
+    "src/praval/providers/openai_compatible.py": "9d6b586f3467f3070b013e95ecfca42296c8c9a7ebd0466026e1f089598ff93f",
+    "src/praval/providers/openrouter.py": "5861f27703ac432b47b0c73e2f686c8c0e2e2bfafefa69ff11f520bbf6e7b54c",
+    "src/praval/providers/registry.py": "cf6750f7f2d4f70fd7a216ec35240ad6be959adf55c83e446ad875e002681585"
+  },
+  "version": "0.8.4"
+}

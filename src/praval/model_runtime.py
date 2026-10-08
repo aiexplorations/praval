@@ -42,6 +42,7 @@ from .core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
     ProviderError,
+    ProviderInvalidRequestError,
     ProviderInvalidResponseError,
     ToolRoundLimitError,
 )
@@ -1222,6 +1223,20 @@ class ModelRuntime:
     def validate_request(self, request: ModelRequest) -> None:
         """Validate a model request before provider execution."""
         capabilities = self.resolve_capabilities(request)
+        from .providers.registry import get_provider_registry
+
+        profile = get_provider_registry().resolve_profile(
+            request.provider or self.provider_name, request.model
+        )
+        if profile is not None and request.max_output_tokens is not None:
+            ceiling = profile.max_output_tokens or profile.context_window
+            if ceiling is not None and request.max_output_tokens > ceiling:
+                raise ProviderInvalidRequestError(
+                    f"Model '{request.model}' output budget "
+                    f"{request.max_output_tokens} exceeds its discovered limit "
+                    f"{ceiling}; lower max_output_tokens or, for Ollama, "
+                    "configure a larger num_ctx and rediscover the model."
+                )
         # Case-insensitive and at any depth: options such as ``extra_headers``
         # and ``extra_query`` are forwarded to the SDK call as given.
         # ``experimental_tools`` is checked, with its own message, below.
@@ -1589,7 +1604,7 @@ class ModelRuntime:
                         events = provider_stream(request, tools=tools)
                     except TypeError:
                         events = provider_stream(request)
-                    for event in events:
+                    for event in self._scoped_stream_events(events, call_scope):
                         if not emitted and held_error is None and event.type == "error":
                             held_error = event
                             continue
@@ -1648,7 +1663,7 @@ class ModelRuntime:
                         events = provider_astream(request, tools=tools)
                     except TypeError:
                         events = provider_astream(request)
-                    async for event in events:
+                    async for event in self._scoped_astream_events(events, call_scope):
                         if not emitted and held_error is None and event.type == "error":
                             held_error = event
                             continue
@@ -1690,6 +1705,44 @@ class ModelRuntime:
 
     def _max_provider_retries(self) -> int:
         return max_provider_retries(self.config)
+
+    @staticmethod
+    def _scoped_stream_events(
+        events: Iterator[ModelEvent], scope: ProviderCallScope
+    ) -> Iterator[ModelEvent]:
+        """Activate request metering for each pull without leaking caller context."""
+        try:
+            while True:
+                with scope.activate():
+                    try:
+                        event = next(events)
+                    except StopIteration:
+                        return
+                yield event
+        finally:
+            close = getattr(events, "close", None)
+            if callable(close):
+                with scope.activate():
+                    close()
+
+    @staticmethod
+    async def _scoped_astream_events(
+        events: AsyncIterator[ModelEvent], scope: ProviderCallScope
+    ) -> AsyncIterator[ModelEvent]:
+        """Async equivalent of per-pull request metering."""
+        try:
+            while True:
+                with scope.activate():
+                    try:
+                        event = await events.__anext__()
+                    except StopAsyncIteration:
+                        return
+                yield event
+        finally:
+            close = getattr(events, "aclose", None)
+            if callable(close):
+                with scope.activate():
+                    await close()
 
     def _provider_error(
         self,

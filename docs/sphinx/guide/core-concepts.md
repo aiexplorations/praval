@@ -157,6 +157,8 @@ Every example and service should close what it opens:
 tools it added to the global tool registry. For an `@agent`, it also removes the
 agent's own `<name>_channel` from the Reef once nothing else subscribes to it;
 a channel named with `channel=` and the default channel are kept.
+Cleanup uses an existing Reef and never creates one or waits for its global
+initialization lock. This keeps Agent finalization safe during Reef thread startup.
 
 ## Design for evaluability
 

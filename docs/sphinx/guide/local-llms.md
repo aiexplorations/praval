@@ -55,6 +55,17 @@ endpoint.
 
 ## Base URL Safety
 
+Ollama discovery can replace manual tool overrides. Use
+`config={"provider_options": {"discover_model": True}}` or explicitly call
+`get_provider_registry().discover_models("ollama", config)`. Profiles read
+`/api/show` capabilities and context limits; `/api/ps` supplies
+`metadata["loaded_context_window"]`. Supported context and loaded context differ.
+Set `required_context_tokens` in provider options to warn when loaded context is
+insufficient. Configure a Modelfile with `PARAMETER num_ctx` and reload the model
+to increase it; the OpenAI endpoint cannot set context per request. Discovery can
+fail when the server is down or the model is missing. Output budgets above a
+discovered limit fail before inference.
+
 The OpenAI-compatible provider validates base URLs before creating the SDK
 client. It rejects non-HTTP schemes, embedded credentials, and metadata
 service/link-local targets. Put secrets in environment variables instead of

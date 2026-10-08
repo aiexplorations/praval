@@ -1,5 +1,7 @@
 """Synthetic documented wire/SDK shapes; live certification is separate."""
 
+import threading
+from collections import OrderedDict
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -144,6 +146,8 @@ def test_explicit_zero_usage_is_reported(normalize, key):
 @pytest.mark.parametrize("failed_second", [False, True])
 def test_empty_openai_answer_expansion_counts_both_requests(failed_second):
     provider = OpenAIProvider.__new__(OpenAIProvider)
+    provider._parameter_lock = threading.Lock()
+    provider._parameter_policies = OrderedDict()
     provider.config = AgentConfig(
         provider="openai", model="gpt-5-test", max_tokens=100, retries=0
     )

@@ -6,6 +6,7 @@ Messages API with support for conversation history and system messages.
 """
 
 import os
+import re
 from typing import Any, Dict, Iterator, List, Optional
 
 import anthropic
@@ -346,15 +347,53 @@ class AnthropicProvider:
             "allow_experimental_tools",
             "experimental_tools",
             "max_retries",
+            "discover_model",
+            "prompt_caching",
         }
         for key, value in request.provider_options.items():
             if key not in reserved:
                 call_params.setdefault(key, value)
-        if request.reasoning is not None and request.reasoning.level is not None:
+        model_name = str(call_params["model"])
+        if call_params.get("temperature") is None:
+            call_params.pop("temperature", None)
+        modern_sampling = any(
+            model_name == family
+            or re.fullmatch(re.escape(family) + r"-\d{4}-?\d{2}-?\d{2}", model_name)
+            for family in (
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5",
+                "claude-sonnet-5",
+                "claude-opus-4-8",
+                "claude-opus-4-7",
+            )
+        )
+        if modern_sampling or (
+            request.reasoning is not None and request.reasoning.level is not None
+        ):
             # Thinking requires provider-default sampling. New adaptive-only
             # families require it even when thinking is explicitly disabled.
             for key in ("temperature", "top_p", "top_k"):
                 call_params.pop(key, None)
+        caching = request.provider_options.get("prompt_caching", False)
+        if caching is not False:
+            if caching is True:
+                control = {"type": "ephemeral"}
+            elif (
+                isinstance(caching, dict)
+                and caching.get("type") == "ephemeral"
+                and set(caching) <= {"type", "ttl"}
+                and caching.get("ttl", "5m") in {"5m", "1h"}
+            ):
+                control = dict(caching)
+            else:
+                raise ProviderError(
+                    "prompt_caching must be True, False or an ephemeral "
+                    "cache_control with ttl 5m/1h"
+                )
+            # extra_body works with SDK versions predating automatic caching.
+            body = dict(call_params.get("extra_body") or {})
+            body.setdefault("cache_control", control)
+            call_params["extra_body"] = body
         return call_params
 
     def _experimental_tools(self, request: ModelRequest) -> List[Dict[str, Any]]:

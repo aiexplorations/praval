@@ -52,6 +52,7 @@ class ModelCall:
     parent_run_id: Optional[str]
     correlation_id: Optional[str]
     response_id: Optional[str]
+    reported_cost_usd: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ class UsageTotals:
     cache_write_tokens: int = 0
     total_tokens: int = 0
     complete: bool = True
+    reported_cost_usd: float = 0.0
+    cost_reported_calls: int = 0
 
 
 @dataclass(frozen=True)
@@ -132,6 +135,9 @@ def _add(totals: UsageTotals, call: ModelCall) -> UsageTotals:
         unreported_calls=totals.unreported_calls
         + int(call.status == "ok" and call.usage is None),
         complete=totals.complete and call.status == "ok" and call.usage is not None,
+        reported_cost_usd=totals.reported_cost_usd + (call.reported_cost_usd or 0.0),
+        cost_reported_calls=totals.cost_reported_calls
+        + int(call.reported_cost_usd is not None),
         **tokens,
     )
 
