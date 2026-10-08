@@ -629,14 +629,25 @@ def _save_resume_results(
     run_id = context.get("run_id")
     if not run_id or not intervention_id:
         return
-    state = dict(suspended_state)
+    store = get_hitl_store(context.get("db_path"))
+    claimed = store.get_suspended_run(str(run_id))
+    if claimed is None or claimed.status != "resuming":
+        logger.debug(
+            "Suspended run %s is not claimed; resume results were not stored", run_id
+        )
+        return
+    if claimed.state.get("intervention_id") != intervention_id:
+        raise ProviderError("Runtime resume results require the claimed decision")
+    # A tool can run another agent or update the ledger while it executes.
+    # Preserve those changes, rather than overwriting them with the old snapshot.
+    state = dict(claimed.state)
     state[RESUME_RESULTS_KEY] = {
         "intervention_id": intervention_id,
         "round_results": [
             _json_safe(result.model_dump(exclude_none=True)) for result in round_results
         ],
     }
-    stored = get_hitl_store(context.get("db_path")).update_suspended_run_state(
+    stored = store.update_suspended_run_state(
         str(run_id), state, expected_status="resuming"
     )
     if not stored:

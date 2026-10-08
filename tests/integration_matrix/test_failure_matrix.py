@@ -730,3 +730,47 @@ def test_hitl_corrupt_checkpoint_never_reexecutes_completed_handler(
         assert service.get_suspended_run(run_id).status == "pending"
     finally:
         agent.close()
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_hitl_approved_handler_ledger_update_is_not_overwritten(
+    tmp_path: Any, use_async: bool
+) -> None:
+    provider = ScriptedProvider(ProviderUnavailableError("failed"), phase="continue")
+    service = HITLService(db_path=str(tmp_path / "ledger.db"))
+    run_ids = []
+    writes = []
+    ledger = {
+        "model_calls": [{"call_id": "nested-agent-call"}],
+        "capture_calls": {"nested": True},
+    }
+
+    def write(value: int) -> str:
+        writes.append(value)
+        stored = service.get_suspended_run(run_ids[0])
+        assert service.store.update_suspended_run_state(
+            run_ids[0], {**stored.state, **ledger}, expected_status="resuming"
+        )
+        return "written"
+
+    agent = make_agent(
+        provider, retries=0, hitl_enabled=True, hitl_db_path=str(tmp_path / "ledger.db")
+    )
+    agent.tools["write"] = {"function": write, "requires_approval": True}
+    try:
+        with pytest.raises(InterventionRequired) as pause:
+            run_agent(agent, "agenerate" if use_async else "generate")
+        run_id = pause.value.run_id
+        run_ids.append(run_id)
+        service.approve_intervention(pause.value.intervention_id, reviewer="matrix")
+        with pytest.raises(ProviderUnavailableError):
+            resume_agent(agent, run_id, use_async)
+        state = service.get_suspended_run(run_id).state
+        assert {key: state[key] for key in ledger} == ledger
+        assert writes == [3]
+        assert resume_agent(agent, run_id, use_async) == "done"
+        state = service.get_suspended_run(run_id).state
+        assert {key: state[key] for key in ledger} == ledger
+        assert writes == [3]
+    finally:
+        agent.close()
