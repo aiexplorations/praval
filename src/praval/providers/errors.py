@@ -371,6 +371,12 @@ def map_gemini_http_error(
     text = f"{prefix}: {summary}"
     if detail_message:
         text = f"{text}: {detail_message}"
+    if status_code == 404:
+        text += (
+            f". Model '{redact(model or 'unknown')}' is not available on this "
+            "endpoint or key; choose an available model from the provider's "
+            "model catalogue."
+        )
 
     if status_code == 429 and _gemini_quota_exhausted(error):
         error_class: Type[ProviderError] = ProviderQuotaError

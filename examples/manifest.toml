@@ -16,6 +16,7 @@ stable_features = [
   "provider.cohere",
   "provider.gemini",
   "provider.openai-compatible",
+  "provider.openrouter",
   "tools",
   "hitl",
   "reef.delivery",
@@ -469,6 +470,17 @@ required_secrets = [
 ]
 
 [[demo]]
+id = "certification-live-openai-gpt6"
+path = "certification/live_openai_gpt6.py"
+features = ["runtime.sync", "runtime.reasoning", "provider.openai", "tools", "packaging.exact-wheel"]
+modes = ["live"]
+execution = "run"
+providers = ["openai"]
+timeout_seconds = 900
+expected_artifacts = ["live-openai-gpt6.json"]
+required_secrets = ["OPENAI_API_KEY"]
+
+[[demo]]
 id = "certification-live-hitl"
 path = "certification/live_hitl.py"
 features = ["hitl", "tools"]
@@ -499,3 +511,14 @@ required_secrets = [
   "PRAVAL_OPENAI_TTS_MODEL",
   "PRAVAL_OPENAI_TTS_VOICE",
 ]
+
+[[demo]]
+id = "certification-live-provider-tools"
+path = "certification/live_provider_tools.py"
+features = ["runtime.sync", "tools", "provider.openai-compatible", "provider.openrouter", "provider.gemini", "provider.anthropic"]
+modes = ["live"]
+execution = "run"
+providers = ["ollama", "gemini", "anthropic", "openrouter"]
+timeout_seconds = 900
+expected_artifacts = ["live-provider-tools.json"]
+required_secrets = ["PRAVAL_OLLAMA_MODEL", "PRAVAL_GEMINI_MODEL", "PRAVAL_ANTHROPIC_MODEL", "PRAVAL_OPENROUTER_MODEL", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]

@@ -7,6 +7,9 @@ for conversation history, tool calling, and streaming responses.
 
 import json
 import os
+import re
+import threading
+from collections import OrderedDict
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import openai
@@ -96,6 +99,10 @@ class OpenAIProvider:
             ProviderError: If OpenAI client initialization fails
         """
         self.config = config
+        self._parameter_lock = threading.RLock()
+        self._parameter_policies: OrderedDict[
+            Tuple[str, str], Dict[str, Optional[str]]
+        ] = OrderedDict()
 
         try:
             api_key_env = getattr(config, "api_key_env", None) or "OPENAI_API_KEY"
@@ -148,6 +155,7 @@ class OpenAIProvider:
                 if formatted_tools:
                     call_params["tools"] = formatted_tools
                     call_params["tool_choice"] = "auto"
+                    self._apply_chat_completion_model_constraints(call_params)
 
             response = self._create_chat_completion_with_empty_retry(call_params)
 
@@ -498,6 +506,8 @@ class OpenAIProvider:
             "temperature": temperature,
             "max_tokens": max_output_tokens,
         }
+        if temperature is None:
+            call_params.pop("temperature", None)
         self._apply_chat_completion_model_constraints(call_params)
         return call_params
 
@@ -515,15 +525,40 @@ class OpenAIProvider:
                 call_params["max_completion_tokens"] = max_tokens
         else:
             call_params.pop("max_tokens", None)
-        call_params.pop("temperature", None)
+        for key in ("temperature", "top_p", "top_logprobs", "logprobs"):
+            call_params.pop(key, None)
+        if self._gpt_generation(model) >= 6 and call_params.get("tools"):
+            normalized = self._normalized_model_name(model)
+            supports_nonreasoning_tools = any(
+                normalized == name
+                or re.fullmatch(re.escape(name) + r"-\d{4}-?\d{2}-?\d{2}", normalized)
+                for name in ("gpt-6-luna", "gpt-6-sol")
+            )
+            if (
+                not supports_nonreasoning_tools
+                or call_params.get("reasoning_effort", "none") != "none"
+            ):
+                raise ProviderError(
+                    f"OpenAI model '{model}' requires the Responses API for "
+                    "this tool request; set provider_options={'endpoint': 'responses'}"
+                )
+            call_params.setdefault("reasoning_effort", "none")
 
-    def _uses_max_completion_tokens(self, model: str) -> bool:
+    def _normalized_model_name(self, model: str) -> str:
         normalized = model.strip().lower().replace("_", "-")
         if ":" in normalized:
             normalized = normalized.rsplit(":", 1)[-1]
         if "/" in normalized:
             normalized = normalized.rsplit("/", 1)[-1]
-        return normalized.startswith("gpt-5") or (
+        return normalized
+
+    def _gpt_generation(self, model: str) -> int:
+        match = re.match(r"gpt-(\d+)(?=[.-]|$)", self._normalized_model_name(model))
+        return int(match.group(1)) if match else 0
+
+    def _uses_max_completion_tokens(self, model: str) -> bool:
+        normalized = self._normalized_model_name(model)
+        return self._gpt_generation(model) >= 5 or (
             normalized.startswith("o")
             and len(normalized) > 1
             and normalized[1].isdigit()
@@ -533,18 +568,162 @@ class OpenAIProvider:
         self,
         call_params: Dict[str, Any],
     ) -> Any:
-        with provider_request() as report:
-            response = self.client.chat.completions.create(**call_params)
-            if report is not None:
-                report.finish(ModelResponse(usage=self._extract_usage(response)))
+        response = self._create_model_request("chat.completions", call_params)
         retry_params = self._empty_text_retry_params(call_params, response)
         if retry_params is None:
             return response
-        with provider_request() as report:
-            response = self.client.chat.completions.create(**retry_params)
-            if report is not None:
-                report.finish(ModelResponse(usage=self._extract_usage(response)))
-            return response
+        return self._create_model_request("chat.completions", retry_params)
+
+    def _parameter_repair(
+        self, exc: BaseException, params: Dict[str, Any]
+    ) -> Optional[Dict[str, Optional[str]]]:
+        """Repair only explicit sampling rejections or the token-limit rename."""
+        options = getattr(self.config, "provider_options", {}) or {}
+        if options.get("parameter_recovery", True) is not True:
+            return None
+        if getattr(exc, "status_code", None) != 400:
+            return None
+        body = getattr(exc, "body", None)
+        error = body.get("error", body) if isinstance(body, dict) else {}
+        if not isinstance(error, dict):
+            error = {}
+        parameter = error.get("param") or getattr(exc, "param", None)
+        message = str(error.get("message") or str(exc))[:2000]
+        code = error.get("code") or getattr(exc, "code", None)
+        if code not in {"unsupported_parameter", "unsupported_value"} and not re.search(
+            r"unsupported (?:parameter|value)", message, re.IGNORECASE
+        ):
+            return None
+        if not isinstance(parameter, str):
+            match = re.search(
+                r"(?:parameter|value):?\s*['\"]([^'\"]+)['\"]", message, re.IGNORECASE
+            )
+            parameter = match.group(1) if match else None
+        if parameter not in params:
+            return None
+        if parameter in {"temperature", "top_p", "top_logprobs", "logprobs"}:
+            return {parameter: None}
+        if parameter == "max_tokens" and "max_completion_tokens" in message:
+            return {"max_tokens": "max_completion_tokens"}
+        return None
+
+    @staticmethod
+    def _apply_parameter_policy(
+        params: Dict[str, Any], policy: Dict[str, Optional[str]]
+    ) -> None:
+        for parameter, replacement in policy.items():
+            if parameter in params:
+                value = params.pop(parameter)
+                if replacement is not None:
+                    params.setdefault(replacement, value)
+
+    def _model_request_params(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prepared = dict(params)
+        enabled = prepared.pop("_praval_parameter_recovery", True)
+        options = getattr(self.config, "provider_options", {}) or {}
+        if enabled is not True or options.get("parameter_recovery", True) is not True:
+            return prepared
+        key = (endpoint, str(params.get("model") or ""))
+        with self._parameter_lock:
+            self._apply_parameter_policy(
+                prepared, self._parameter_policies.get(key, {})
+            )
+        return prepared
+
+    def _remember_parameter_policy(
+        self, endpoint: str, params: Dict[str, Any], policy: Dict[str, Optional[str]]
+    ) -> None:
+        key = (endpoint, str(params.get("model") or ""))
+        with self._parameter_lock:
+            self._parameter_policies.setdefault(key, {}).update(policy)
+            self._parameter_policies.move_to_end(key)
+            while len(self._parameter_policies) > 128:
+                self._parameter_policies.popitem(last=False)
+
+    def _create_model_request(self, endpoint: str, params: Dict[str, Any]) -> Any:
+        """Negotiate once per rejected request, preserving tools and metering."""
+        prepared = self._model_request_params(endpoint, params)
+        create = (
+            self.client.responses.create
+            if endpoint == "responses"
+            else self.client.chat.completions.create
+        )
+        policy: Optional[Dict[str, Optional[str]]] = None
+        for attempt in range(2):
+            try:
+                with provider_request() as report:
+                    response = create(**prepared)
+                    if report is not None:
+                        report.finish(self._request_usage_response(response))
+                if policy is not None:
+                    self._remember_parameter_policy(endpoint, params, policy)
+                return response
+            except Exception as exc:
+                policy = (
+                    self._parameter_repair(exc, prepared)
+                    if attempt == 0
+                    and params.get("_praval_parameter_recovery", True) is True
+                    else None
+                )
+                if policy is None:
+                    raise
+                self._apply_parameter_policy(prepared, policy)
+        raise AssertionError("Unreachable parameter recovery state")
+
+    def _request_usage_response(self, response: Any) -> ModelResponse:
+        return ModelResponse(usage=self._extract_usage(response))
+
+    def _stream_model_request(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> Iterator[Any]:
+        """Recover only before any stream data is emitted, and meter each request."""
+        prepared = self._model_request_params(endpoint, params)
+        create = (
+            self.client.responses.create
+            if endpoint == "responses"
+            else self.client.chat.completions.create
+        )
+        policy: Optional[Dict[str, Optional[str]]] = None
+        for attempt in range(2):
+            opened = False
+            try:
+                with provider_request() as report:
+                    chunks = create(**prepared)
+                    opened = True
+                    if policy is not None:
+                        self._remember_parameter_policy(endpoint, params, policy)
+                    usage_response = ModelResponse()
+                    try:
+                        for chunk in chunks:
+                            raw = self._event_value(chunk, "response", None) or chunk
+                            observed = self._request_usage_response(raw)
+                            if observed.usage is not None:
+                                usage_response = observed
+                            yield chunk
+                    except BaseException:
+                        if report is not None:
+                            report.finish(usage_response, status="error")
+                        raise
+                    finally:
+                        close = getattr(chunks, "close", None)
+                        if callable(close):
+                            close()
+                    if report is not None:
+                        report.finish(usage_response)
+                return
+            except Exception as exc:
+                policy = (
+                    self._parameter_repair(exc, prepared)
+                    if attempt == 0
+                    and not opened
+                    and params.get("_praval_parameter_recovery", True) is True
+                    else None
+                )
+                if policy is None:
+                    raise
+                self._apply_parameter_policy(prepared, policy)
 
     def _empty_text_retry_params(
         self,
@@ -650,6 +829,10 @@ class OpenAIProvider:
             endpoint == "responses"
             or bool(request.provider_options.get("use_responses", False))
             or request.reasoning is not None
+            or (
+                self._gpt_generation(request.model or self._model_name()) >= 6
+                and bool(request.tools)
+            )
         )
 
     def _invoke_chat_completions(
@@ -791,12 +974,12 @@ class OpenAIProvider:
             }
             for result in tool_results
         ]
-        continued = self.client.responses.create(**call_params)
+        continued = self._create_model_request("responses", call_params)
         return self._responses_model_response(continued, call_params)
 
     def _invoke_responses(self, request: ModelRequest) -> ModelResponse:
         call_params = self._responses_params(request)
-        response = self.client.responses.create(**call_params)
+        response = self._create_model_request("responses", call_params)
         return self._responses_model_response(response, call_params)
 
     def _responses_model_response(
@@ -887,6 +1070,8 @@ class OpenAIProvider:
             "temperature": request.temperature,
             "max_output_tokens": request.max_output_tokens or self._max_output_tokens(),
         }
+        if request.temperature is None:
+            call_params.pop("temperature", None)
         formatted_tools = self._format_tool_specs_for_responses(request.tools)
         formatted_tools.extend(self._experimental_tools(request))
         if formatted_tools:
@@ -912,7 +1097,10 @@ class OpenAIProvider:
             if request.stream_options:
                 call_params["stream_options"] = request.stream_options
         self._apply_provider_options(call_params, request)
-        if request.reasoning is not None and request.reasoning.level is not None:
+        if self._uses_max_completion_tokens(str(call_params["model"])) or (
+            request.reasoning is not None
+            and (request.reasoning.level is not None or request.reasoning.effort)
+        ):
             for key in ("temperature", "top_p", "top_logprobs"):
                 call_params.pop(key, None)
         return call_params
@@ -937,10 +1125,18 @@ class OpenAIProvider:
             # Client construction option (SDK-internal retries), not a request
             # argument.
             "max_retries",
+            "parameter_recovery",
+            "discover_model",
+            "required_context_tokens",
         }
         for key, value in request.provider_options.items():
             if key not in reserved:
                 call_params.setdefault(key, value)
+        if "parameter_recovery" in request.provider_options:
+            recovery = request.provider_options["parameter_recovery"]
+            if not isinstance(recovery, bool):
+                raise ProviderError("parameter_recovery must be a bool")
+            call_params["_praval_parameter_recovery"] = recovery
 
     def _experimental_tools(self, request: ModelRequest) -> List[Dict[str, Any]]:
         value = request.provider_options.get("experimental_tools")
@@ -1020,11 +1216,13 @@ class OpenAIProvider:
             tools=tools,
             stream=True,
         )
-        chunks = self.client.chat.completions.create(**call_params)
+        chunks = self._stream_model_request("chat.completions", call_params)
         content_parts: List[str] = []
+        request_metadata: Dict[str, Any] = {}
         usage: Optional[Usage] = None
         finish_reason: Optional[str] = None
         for chunk in chunks:
+            request_metadata.update(self._request_usage_response(chunk).metadata)
             usage = self._extract_usage(chunk) or usage
             choices = getattr(chunk, "choices", None) or []
             if not choices and isinstance(chunk, dict):
@@ -1050,6 +1248,7 @@ class OpenAIProvider:
             model=call_params["model"],
             usage=usage,
             finish_reason=finish_reason,
+            metadata=request_metadata,
         )
         if usage:
             yield ModelEvent(type="usage", usage=usage)
@@ -1057,7 +1256,7 @@ class OpenAIProvider:
 
     def _stream_responses(self, request: ModelRequest) -> Iterator[ModelEvent]:
         call_params = self._responses_params(request, stream=True)
-        events = self.client.responses.create(**call_params)
+        events = self._stream_model_request("responses", call_params)
         content_parts: List[str] = []
         final_response: Optional[ModelResponse] = None
         usage: Optional[Usage] = None

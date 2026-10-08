@@ -139,7 +139,7 @@ class AgentConfig:
     model: Optional[str] = None
     base_url: Optional[str] = None
     api_key_env: Optional[str] = None
-    temperature: float = 0.7
+    temperature: Optional[float] = 0.7
     max_tokens: int = 1000
     max_output_tokens: Optional[int] = None
     system_message: Optional[str] = None
@@ -157,11 +157,16 @@ class AgentConfig:
 
     def __post_init__(self):
         """Validate configuration parameters."""
-        if self.model and ":" in self.model and not self.provider:
+        if (
+            self.model
+            and ":" in self.model
+            and not self.provider
+            and "/" not in self.model.split(":", 1)[0]
+        ):
             provider, model = self.model.split(":", 1)
             self.provider = provider
             self.model = model
-        if not (0 <= self.temperature <= 2):
+        if self.temperature is not None and not (0 <= self.temperature <= 2):
             raise ValueError("temperature must be between 0 and 2")
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
@@ -497,7 +502,11 @@ class Agent:
         if os.getenv("PRAVAL_DEFAULT_MODEL") and not self.config.model:
             self.config.model = str(os.getenv("PRAVAL_DEFAULT_MODEL"))
 
-        if self.config.model and ":" in self.config.model:
+        if (
+            self.config.model
+            and ":" in self.config.model
+            and "/" not in self.config.model.split(":", 1)[0]
+        ):
             provider, model = self.config.model.split(":", 1)
             self.config.provider = provider
             self.config.model = model
@@ -513,6 +522,8 @@ class Agent:
             return "anthropic"
         elif os.getenv("COHERE_API_KEY"):
             return "cohere"
+        elif os.getenv("OPENROUTER_API_KEY"):
+            return "openrouter"
         else:
             raise ProviderError(
                 "No LLM provider credentials found. Set OPENAI_API_KEY, "
@@ -1487,14 +1498,16 @@ class Agent:
 
         # Unsubscribe from reef channels
         try:
-            from .reef import get_reef
+            from .reef import _get_existing_reef
 
-            reef = get_reef()
+            reef = _get_existing_reef()
             for channel_name in self._subscribed_channels[
                 :
             ]:  # Copy to avoid mutation during iteration
                 try:
-                    channel = reef.get_channel(channel_name)
+                    channel = (
+                        reef.get_channel(channel_name) if reef is not None else None
+                    )
                     if channel:
                         channel.unsubscribe(self.name, self.on_spore_received)
                 except Exception as e:
@@ -1503,7 +1516,8 @@ class Agent:
                     )
             self._subscribed_channels.clear()
             for channel_name in self._owned_channels:
-                reef.remove_channel_if_unused(channel_name)
+                if reef is not None:
+                    reef.remove_channel_if_unused(channel_name)
             self._owned_channels.clear()
         except Exception as e:
             logger.warning(f"Error during reef cleanup for {self.name}: {e}")

@@ -32,6 +32,8 @@ def call_dict(call: ModelCall, *, compact: bool = False) -> Dict[str, Any]:
         "usage": call.usage.model_dump() if call.usage is not None else None,
         "started_at": call.started_at.isoformat(),
     }
+    if call.reported_cost_usd is None:
+        data.pop("reported_cost_usd", None)
     return (
         {key: value for key, value in data.items() if value is not None}
         if compact
@@ -170,6 +172,13 @@ class RunCapture:
         response.metadata["usage_complete"] = (
             totals.complete and not self._historical_usage_unknown
         )
+        if totals.cost_reported_calls:
+            response.metadata["reported_cost"] = {
+                "amount": totals.reported_cost_usd,
+                "currency": "USD",
+                "complete": totals.cost_reported_calls == totals.calls
+                and not self._historical_usage_unknown,
+            }
         # Preserve None when no request reported usage, rather than inventing
         # a zero-token provider report.
         if self.has_reported_usage:
@@ -300,6 +309,11 @@ class ProviderCallScope:
                     parent_run_id=capture.parent_run_id if capture else None,
                     correlation_id=_correlation.get(),
                     response_id=self.response_id,
+                    reported_cost_usd=(
+                        result.metadata.get("reported_cost_usd")
+                        if isinstance(result, ModelResponse)
+                        else None
+                    ),
                 )
                 self._emitted = True
         # Subscribers may execute application code. Do not hold the shared

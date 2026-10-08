@@ -55,7 +55,7 @@ def test_repository_manifest_registers_every_python_example():
     }
     discovered -= run_demos.NON_DEMO_EXAMPLE_FILES
     assert {demo.path.as_posix() for demo in manifest.demos} == discovered
-    assert len(manifest.demos) == 51
+    assert len(manifest.demos) == 53
 
 
 def test_every_stable_feature_has_executable_certification():
@@ -121,6 +121,8 @@ def test_provider_matrix_contains_manifest_providers_without_secrets():
         "cohere",
         "gemini",
         "openai-compatible",
+        "ollama",
+        "openrouter",
     }
     assert matrix["openai"]["model"] == "gpt-test"
     assert "do-not-report" not in repr(matrix)

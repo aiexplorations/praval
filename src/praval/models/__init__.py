@@ -312,6 +312,9 @@ class ProviderProfile(BaseModel):
     local_preset: Optional[str] = None
     context_window: Optional[int] = None
     max_output_tokens: Optional[int] = None
+    supported_parameters: List[str] = Field(default_factory=list)
+    pricing: Dict[str, str] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     default_parameters: Dict[str, Any] = Field(default_factory=dict)
     unsupported_combinations: List[Dict[str, Any]] = Field(default_factory=list)
     reasoning_levels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)

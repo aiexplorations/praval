@@ -26,7 +26,10 @@ MODEL_VARIABLES = {
     "cohere": "PRAVAL_COHERE_MODEL",
     "gemini": "PRAVAL_GEMINI_MODEL",
     "openai-compatible": "PRAVAL_OPENAI_COMPATIBLE_MODEL",
+    "ollama": "PRAVAL_OLLAMA_MODEL",
+    "openrouter": "PRAVAL_OPENROUTER_MODEL",
 }
+MATRIX_PROVIDERS = ("openai", "anthropic", "cohere", "gemini", "openai-compatible")
 
 ASSETS = Path(__file__).with_name("assets")
 
@@ -41,17 +44,25 @@ def committed_fixture(
     return value
 
 
-def agent_for(provider: str, name: str) -> Agent:
+def agent_for(
+    provider: str,
+    name: str,
+    *,
+    model: str | None = None,
+    max_output_tokens: int = 128,
+    temperature: float = 0,
+) -> Agent:
     """Create a bounded live agent from protected environment configuration."""
-    model_name = require_environment(MODEL_VARIABLES[provider])[
-        MODEL_VARIABLES[provider]
-    ]
+    model_name = (
+        model
+        or require_environment(MODEL_VARIABLES[provider])[MODEL_VARIABLES[provider]]
+    )
     kwargs: Dict[str, Any] = {
         "provider": provider,
         "model": model_name,
         "config": {
-            "temperature": 0,
-            "max_output_tokens": 128,
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
             "timeout": 60,
             "retries": 0,
         },
@@ -62,6 +73,8 @@ def agent_for(provider: str, name: str) -> Agent:
         )
         kwargs["config"]["base_url"] = values["OPENAI_COMPATIBLE_BASE_URL"]
         kwargs["config"]["api_key_env"] = "OPENAI_COMPATIBLE_API_KEY"
+    if provider == "ollama":
+        kwargs["config"]["provider_options"] = {"discover_model": True}
     return Agent(f"live-{provider}-{name}", **kwargs)
 
 
@@ -146,7 +159,12 @@ def certify_tool(provider: str) -> Dict[str, Any]:
 
 
 def certify_tool_rounds(
-    provider: str, *, endpoint: str | None = None
+    provider: str,
+    *,
+    endpoint: str | None = None,
+    model: str | None = None,
+    reasoning: str | None = None,
+    max_output_tokens: int = 128,
 ) -> Dict[str, Any]:
     """Require three dependent rounds over two tools and reconcile every request."""
     first, second = secrets.randbelow(10**8) + 1, secrets.randbelow(10**8) + 10**8
@@ -175,7 +193,13 @@ def certify_tool_rounds(
         "required": ["value"],
         "additionalProperties": False,
     }
-    with agent_for(provider, "dependent-tools") as agent:
+    with agent_for(
+        provider,
+        "dependent-tools",
+        model=model,
+        max_output_tokens=max_output_tokens,
+        temperature=0.2,
+    ) as agent:
         for name, handler in (
             ("next_value", next_value),
             ("confirm_value", confirm_value),
@@ -195,6 +219,7 @@ def certify_tool_rounds(
             "result. Use one tool at a time. Finish by saying certified.",
             max_tool_rounds=4,
             provider_options={"endpoint": endpoint} if endpoint else None,
+            reasoning=reasoning,
         )
         totals = agent.usage.totals
     assert executions == [
@@ -216,10 +241,16 @@ def certify_tool_rounds(
         assert getattr(response.usage, field) == sum(
             call["usage"][field] for call in calls
         )
-    evidence = assert_response(response, provider, "dependent_tools_usage")
+    evidence = assert_response(
+        response,
+        "openai-compatible" if provider == "ollama" else provider,
+        "dependent_tools_usage",
+    )
     evidence.update(
         {
             "endpoint": endpoint,
+            "reasoning": reasoning,
+            "resolved_endpoint": response.metadata.get("openai_endpoint"),
             "model_requests": totals.calls,
             "tool_executions": len(executions),
             "usage_complete": True,
@@ -399,10 +430,10 @@ async def main() -> None:
         "GEMINI_API_KEY",
         "OPENAI_COMPATIBLE_BASE_URL",
         "OPENAI_COMPATIBLE_API_KEY",
-        *MODEL_VARIABLES.values(),
+        *(MODEL_VARIABLES[provider] for provider in MATRIX_PROVIDERS),
     )
     evidence: Dict[str, Any] = {
-        "text": {provider: certify_text(provider) for provider in MODEL_VARIABLES},
+        "text": {provider: certify_text(provider) for provider in MATRIX_PROVIDERS},
         "streaming": {
             provider: certify_stream(provider)
             for provider in ("openai", "anthropic", "gemini", "openai-compatible")

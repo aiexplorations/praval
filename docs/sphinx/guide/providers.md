@@ -21,13 +21,70 @@ agent = Agent("assistant", model="openai:gpt-5.4-mini")
 ```
 
 Praval's registry includes release-time profiles for OpenAI `gpt-5.4`,
-`gpt-5.4-mini`, `gpt-5.4-nano`, and `gpt-5.5`; Anthropic
+`gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.5`, `gpt-6-luna`, `gpt-6-sol`,
+`gpt-6-astra`, and `gpt-6.1-sol`; Anthropic
 `claude-sonnet-5`, `claude-fable-5`, `claude-opus-4-8`, and
-`claude-haiku-4-5`; Cohere `command-a-03-2025`; and Gemini
+`claude-haiku-4-5`, plus `claude-sonnet-5-5` and `claude-haiku-5-5`;
+Cohere `command-a-03-2025`; and Gemini
 `gemini-3.5-flash`, `gemini-3.1-flash-lite`, and
-`gemini-3.1-pro-preview`. The names were checked against the official model
+`gemini-3.1-pro-preview`, plus `gemini-3.6-flash`, `gemini-3.7-flash` and
+`gemini-3.8-flash`. The names were checked against the official model
 catalogs for the 0.8 release line. They are package metadata, not a live catalog.
 Use each provider's model-list API when availability must be checked at runtime.
+
+## Live Model Discovery
+
+Discovery is explicit and does not run during imports:
+
+```python
+from praval.core.agent import AgentConfig
+from praval.providers.registry import get_provider_registry
+
+registry = get_provider_registry()
+profiles = registry.discover_models("ollama", AgentConfig(provider="ollama"))
+for profile in profiles:
+    print(profile.model, profile.capabilities.tools, profile.context_window)
+```
+
+OpenAI, Anthropic, Gemini, Ollama and OpenRouter expose catalogue discovery.
+The method registers returned profiles and preserves known reasoning mappings.
+Profiles expose `context_window`, `max_output_tokens`, `supported_parameters`,
+`pricing` and `metadata`. Refresh them when availability changes. Gemini limits
+come from its model API; OpenRouter parameters, limits and price strings come
+from its public catalogue. Budgets above discovered limits fail before inference.
+
+Use `config={"provider_options": {"discover_model": True}}` to discover at
+construction. Ollama reads `/api/show` capabilities instead of requiring manual
+tool overrides. Its `metadata["loaded_context_window"]` differs from the model's
+theoretical context. Set `required_context_tokens` in provider options to warn
+when a loaded model falls below the application's requirement. The OpenAI endpoint
+requires a Modelfile with `PARAMETER num_ctx` to increase that size. See
+[Ollama context configuration](https://docs.ollama.com/api/openai-compatibility).
+Separate local reasoning fields are preserved in assistant tool transcripts.
+
+## OpenRouter
+
+Set `OPENROUTER_API_KEY` and use `Agent("router", provider="openrouter",
+model="vendor/model:variant")`. The default base URL is
+`https://openrouter.ai/api/v1`. Full vendor/model IDs and variant suffixes remain
+intact. Provider options accept `http_referer`, `app_title`, and a `routing` dict
+such as `{"only": ["your-upstream"], "allow_fallbacks": False}`.
+
+The adapter sends unified `reasoning` and always sets
+`provider.require_parameters=true`, so upstreams must support requested controls.
+HTTP 402 maps to `ProviderQuotaError`. Discover model-specific capabilities and
+current prices. Attribution headers are client configuration. Pin upstream routing
+when comparing evaluations. See
+[OpenRouter routing](https://openrouter.ai/docs/guides/routing/provider-selection).
+
+## Anthropic Prompt Caching
+
+Set `provider_options={"prompt_caching": True}` for automatic ephemeral caching,
+or pass `{"type": "ephemeral", "ttl": "1h"}` as the option value. The default TTL
+is five minutes; caching remains opt-in. Parameters survive tool continuations and
+streaming. Provider-reported cache reads and writes are included in usage. Cache
+minimums and prices depend on the model; see
+[Anthropic caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 
 ## Capability Matrix
 
@@ -46,6 +103,7 @@ Legend:
 | Anthropic | Native | Native | Native | Native | Native | Unsupported by default | Unsupported | Unsupported | Unsupported | Native | No |
 | Cohere | Native | Unsupported | Native | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | Unsupported | No |
 | Gemini | Native | Native | Native | Native | Native | Native | Native | Unsupported | Unsupported | Native | No |
+| OpenRouter | Native | Native | Depends | Depends | Depends | Unsupported by default | Unsupported by default | Unsupported | Unsupported | Depends | No |
 | Ollama | Native | Native | Unsupported by default | Depends | Depends | Unsupported by default | Depends | Unsupported | Unsupported | Depends | Yes |
 | vLLM | Native | Native | Unsupported by default | Depends | Depends | Unsupported by default | Depends | Unsupported | Unsupported | Depends | Yes |
 | LM Studio | Native | Native | Unsupported by default | Depends | Depends | Unsupported by default | Depends | Unsupported | Unsupported | Depends | Yes |
@@ -56,7 +114,8 @@ Legend:
 provider's tool calls, executes registered Praval tools, emits normalized
 `tool_call` and `tool_result` events, submits results, and continues until the
 model returns final text. This stable loop is implemented for OpenAI,
-Anthropic, Cohere, and Gemini. Every continuation resends all earlier tool
+Anthropic, Cohere, Gemini, OpenRouter and compatible local servers with tools
+enabled by discovery or explicit capabilities. Every continuation resends all earlier tool
 calls and results in the provider's native form, including Gemini thought
 signatures and Anthropic thinking blocks, so a tool that depends on an earlier
 round's result keeps that context. HITL-gated tools suspend with
@@ -235,18 +294,48 @@ The model profile's `reasoning_levels` stores native mappings and
 a provider request with the provider, model, and accepted levels in the error.
 Unknown models require a registered profile to use portable levels.
 
+GPT-6 tool requests select the Responses API by default, including when no
+reasoning level is configured. Explicit endpoint selection is preserved.
+Luna and Sol support Chat Completions tools only with reasoning `none`;
+Praval supplies `reasoning_effort="none"` for those tool requests when omitted.
+Other GPT-6 Chat Completions tool combinations fail before dispatch and require
+`provider_options={"endpoint": "responses"}`.
+See the [OpenAI GPT-6 guide](https://developers.openai.com/api/docs/guides/latest-model).
+
+GPT-5 and later numbered GPT families use `max_completion_tokens` on Chat
+Completions and omit sampling parameters. Responses retains `max_output_tokens`
+and also omits sampling parameters for these models, even without an explicit
+reasoning setting. GPT-4 and custom names retain their existing parameter behavior.
+Future model names do not automatically gain portable reasoning profiles.
+
+OpenAI-compatible requests can recover once from an explicit HTTP 400 unsupported
+sampling parameter or the `max_tokens` to `max_completion_tokens` rename. Successful
+repairs are remembered per full model ID and endpoint in a bounded adapter-local
+cache. Tools, reasoning, schemas and budgets remain intact. Recovery counts each
+request and applies to streaming only before it opens. Set
+`provider_options={"parameter_recovery": False}` to disable it. OpenRouter keeps
+strict routing and does not negotiate away parameters. Applications may use
+`config={"temperature": None}` to leave sampling unspecified.
+Gemini HTTP 404 errors guide callers to select an available model from discovery.
+
 | Model family | Mapping | Supported portable levels |
 | --- | --- | --- |
 | OpenAI GPT-5.1/5.2/5.4/5.5 | Responses `reasoning.effort`; Chat Completions `reasoning_effort` | none, low, medium, high |
+| OpenAI GPT-6 Luna/Sol | Same effort parameters; reasoning with tools requires Responses | none, low, medium, high |
+| OpenAI GPT-6 Astra/6.1 Sol | Same effort parameters; tools require Responses | low, medium, high |
 | OpenAI GPT-5 and o1/o3/o4-mini | Same effort parameters | low, medium, high |
 | Claude Sonnet 5, Opus 4.6/4.7/4.8, Sonnet 4.6 | `thinking.type=adaptive`, `output_config.effort`; none disables thinking | none, low, medium, high |
 | Claude Fable 5 | Adaptive thinking and output effort | low, medium, high |
+| Claude Sonnet 5.5 | Adaptive thinking and effort; none selects `between_tools` | none, low, medium, high |
+| Claude Haiku 5.5 | Adaptive thinking and effort; none disables thinking | none, low, medium, high |
 | Claude Haiku 4.5 and Sonnet 4.5 | Enabled thinking with budgets 1024/4096/8192; none disables thinking | none, low, medium, high |
 | Gemini 3.5 Flash, 3.1 Flash-Lite and 3.1 Pro | `thinkingConfig.thinkingLevel` | low, medium, high |
+| Gemini 3.6/3.7/3.8 Flash | `thinkingConfig.thinkingLevel` | low, medium, high |
 | Gemini 2.5 Flash and Flash-Lite | `thinkingBudget`: 0/1024/4096/8192 | none, low, medium, high |
 | Gemini 2.5 Pro | `thinkingBudget`: 1024/4096/8192 | low, medium, high |
 | Cohere Command A Reasoning | v2 `thinking` with disabled or enabled and budgets 512/2048/8192 | none, low, medium, high |
 | vLLM preset | Chat Completions `reasoning_effort` | low, medium, high; none for documented Gemma 4 profile |
+| OpenRouter | Unified `reasoning.effort`; none sets `enabled=false` | none, low, medium, high when the model supports reasoning |
 
 Budgets in this table are Praval's choices within the providers' documented
 ranges. Give reasoning sufficient output space, for example

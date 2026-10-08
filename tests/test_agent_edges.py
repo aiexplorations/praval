@@ -416,7 +416,7 @@ def test_agent_close_tolerates_cleanup_errors_and_is_idempotent():
     reef = Mock()
     reef.get_channel.side_effect = [channel, None]
 
-    with patch("praval.core.reef.get_reef", return_value=reef):
+    with patch("praval.core.reef._get_existing_reef", return_value=reef):
         agent.close()
         agent.close()
 

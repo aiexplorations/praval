@@ -140,9 +140,7 @@ class TestAgentClose:
             agent = Agent("test_reef_error", memory_enabled=False)
             agent._subscribed_channels = ["broken_channel"]
 
-            # Mock get_reef at the reef module level (since it's imported inside
-            # close())
-            with patch("praval.core.reef.get_reef") as mock_get_reef:
+            with patch("praval.core.reef._get_existing_reef") as mock_get_reef:
                 mock_get_reef.side_effect = RuntimeError("Reef error")
 
                 with caplog.at_level(logging.WARNING, logger="praval.core.agent"):
@@ -352,3 +350,31 @@ class TestAgentLifecycleInitialization:
 
             agent.close()
             assert agent.is_closed is True
+
+
+def test_finalizer_during_reef_startup_never_waits_for_initialization():
+    """Reproduce cleanup on the thread whose startup get_reef is waiting for."""
+    import threading
+
+    from praval import Agent
+    from praval.core import reef as reef_module
+
+    with patch("praval.core.agent.ProviderFactory"):
+        agent = Agent("finalizer-startup", memory_enabled=False)
+    agent._subscribed_channels = ["stale"]
+    agent._owned_channels = ["stale"]
+    with (
+        patch.object(reef_module, "_global_reef", None),
+        patch.object(
+            reef_module, "get_reef", side_effect=AssertionError("must not initialize")
+        ),
+    ):
+        with reef_module._global_reef_lock:
+            worker = threading.Thread(target=agent.__del__, daemon=True)
+            worker.start()
+            worker.join(timeout=1)
+            completed_without_lock = not worker.is_alive()
+        worker.join(timeout=1)
+    assert completed_without_lock
+    assert agent.is_closed
+    assert agent._subscribed_channels == [] and agent._owned_channels == []

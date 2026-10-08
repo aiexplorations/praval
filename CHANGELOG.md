@@ -7,10 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Included in the pending 0.8.4 release: Agent cleanup no longer creates or
+  waits for the global Reef, avoiding a finalizer/thread-start deadlock.
+- Included in the pending 0.8.4 release: bounded parameter recovery, model
+  discovery, Anthropic caching/current profiles, Ollama capability/context
+  checks and Gemini availability guidance. Added OpenRouter with unified
+  reasoning, strict routing, catalogue metadata and charged-cost metering.
+- Included in the pending 0.8.4 release: OpenAI GPT-6 token limits, sampling
+  parameters, portable reasoning profiles and automatic Responses routing for
+  tool requests. Explicit Luna/Sol Chat Completions tools use reasoning `none`.
+
 ## [0.8.4] - 2026-10-08
 
 ### Added
 
+- Added explicit provider model discovery, Anthropic prompt caching and an
+  OpenRouter adapter with catalogue metadata and exact charged-cost totals.
+- Added Claude Sonnet/Haiku 5.5 and Gemini 3.6/3.7/3.8 Flash reasoning profiles.
 - Added `praval.metering`, agent lifetime and application-scoped usage meters,
   bounded request records, cache/reasoning token accounting and caller-supplied
   cost estimates. Streaming exposes `model_call` events; observations count
@@ -39,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed OpenAI GPT-6 compatibility on Chat Completions and Responses, including
+  dependent tools, default endpoint selection and model-specific reasoning levels.
+- Fixed a Python 3.10 CI deadlock where Agent finalization waited for the Reef
+  being constructed by another thread. Cleanup never creates a new Reef.
+- Added one-time sampling/token-parameter recovery with bounded learned policies
+  and request accounting, including failures before a stream opens.
+- Added Ollama declared capabilities and loaded-context diagnostics through
+  discovery; excessive discovered output budgets fail before dispatch.
+- Improved Gemini 404 availability guidance, allowed unspecified temperature,
+  and preserved compatible-provider reasoning fields through tool continuations.
 - Preserved complete provider tool/reasoning transcripts and Gemini signatures
   across repeated tool continuations, including OpenAI Responses chains.
 - Preserved committed tool results and usage histories across failed approval

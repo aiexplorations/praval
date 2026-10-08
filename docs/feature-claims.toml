@@ -1,6 +1,16 @@
 schema_version = 1
 
 [[claims]]
+id = "provider-discovery-and-robustness"
+statement = "Provider catalogues supply model metadata; request recovery preserves required controls, Anthropic supports opt-in caching, and OpenRouter preserves strict routing and reported charges."
+evidence = ["tests/test_provider_robustness.py", "examples/certification/live_provider_tools.py"]
+
+[[claims]]
+id = "openai-gpt6-compatibility"
+statement = "OpenAI GPT-6 models use compatible token and sampling parameters, documented portable reasoning levels and Responses by default for tools."
+evidence = ["tests/test_openai_model_compatibility.py", "examples/certification/live_openai_gpt6.py"]
+
+[[claims]]
 id = "provider-neutral-runtime"
 statement = "Agent model execution uses provider-neutral request, response, event, tool, and usage contracts."
 evidence = ["tests/test_model_runtime_contracts.py", "tests/test_provider_streaming.py"]

@@ -272,6 +272,8 @@ class GeminiProvider:
         }
         if request is not None and request.max_output_tokens is not None:
             payload["generationConfig"]["maxOutputTokens"] = request.max_output_tokens
+        if payload["generationConfig"].get("temperature") is None:
+            payload["generationConfig"].pop("temperature", None)
         if request is not None and request.response_schema is not None:
             payload["generationConfig"]["responseMimeType"] = "application/json"
             payload["generationConfig"]["responseSchema"] = (

@@ -63,7 +63,26 @@ class ProviderRegistry:
     def create_provider(self, provider_name: str, config: Any) -> Any:
         """Create a provider instance from the registry."""
         registration = self.get_registration(provider_name)
-        return registration.builder(config)
+        instance = registration.builder(config)
+        options = getattr(config, "provider_options", {}) or {}
+        if options.get("discover_model") is True:
+            try:
+                self.discover_models(provider_name, config)
+            except Exception:
+                close = getattr(instance, "close", None)
+                if callable(close):
+                    close()
+                raise
+        return instance
+
+    def discover_models(self, provider: str, config: Any) -> List[ProviderProfile]:
+        """Fetch and register live profiles explicitly; never fetch at import time."""
+        from .catalog import discover_models
+
+        profiles = discover_models(provider, config, self)
+        for profile in profiles:
+            self.register_profile(profile)
+        return profiles
 
     def get_registration(self, provider_name: str) -> ProviderRegistration:
         """Return a provider registration by name or alias."""
@@ -200,6 +219,12 @@ def _gemini_builder(config: Any) -> Any:
     return GeminiProvider(config)
 
 
+def _openrouter_builder(config: Any) -> Any:
+    from .openrouter import OpenRouterProvider
+
+    return OpenRouterProvider(config)
+
+
 def get_provider_registry() -> ProviderRegistry:
     """Return the process-wide provider registry."""
     global _global_registry
@@ -302,6 +327,23 @@ def register_default_providers(registry: ProviderRegistry) -> None:
         aliases=("ollama", "vllm", "lmstudio", "llama-cpp", "local"),
         default_model=None,
         capabilities=local_capabilities,
+    )
+    registry.register_provider(
+        "openrouter",
+        _openrouter_builder,
+        capabilities=ProviderCapabilities(
+            chat_completions=True,
+            tools=True,
+            streaming=True,
+            native_streaming=True,
+            tool_streaming=True,
+            structured_outputs=True,
+            image_input=True,
+            multimodal=True,
+            reasoning=True,
+            reasoning_effort=True,
+            reasoning_budget=True,
+        ),
     )
 
     profiles = [
@@ -446,6 +488,25 @@ def register_default_providers(registry: ProviderRegistry) -> None:
     ]
     for profile in profiles:
         registry.register_profile(profile)
+    registry.register_profile(
+        ProviderProfile(
+            provider="openrouter",
+            model="*",
+            endpoint="chat.completions",
+            capabilities=registry.get_registration("openrouter").capabilities,
+            reasoning_levels={
+                "none": {"enabled": False},
+                **{level: {"effort": level} for level in ("low", "medium", "high")},
+            },
+            reasoning_source=(
+                "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens"
+            ),
+            notes=(
+                "Routing requires all requested parameters; "
+                "discover the catalogue for model-specific limits."
+            ),
+        )
+    )
     _register_reasoning_profiles(registry)
 
 
@@ -493,6 +554,18 @@ def _register_reasoning_profiles(registry: ProviderRegistry) -> None:
         {"none": {"effort": "none"}, **efforts},
         "https://developers.openai.com/api/docs/guides/latest-model",
     )
+    add(
+        "openai",
+        ("gpt-6-luna", "gpt-6-sol"),
+        {"none": {"effort": "none"}, **efforts},
+        "https://developers.openai.com/api/docs/guides/latest-model",
+    )
+    add(
+        "openai",
+        ("gpt-6-astra", "gpt-6.1-sol"),
+        efforts,
+        "https://developers.openai.com/api/docs/guides/latest-model",
+    )
     adaptive = {
         level: {"thinking": {"type": "adaptive"}, "output_config": {"effort": level}}
         for level in ("low", "medium", "high")
@@ -518,6 +591,18 @@ def _register_reasoning_profiles(registry: ProviderRegistry) -> None:
         adaptive,
         "https://platform.claude.com/docs/en/build-with-claude/effort",
     )
+    add(
+        "anthropic",
+        ("claude-sonnet-5-5",),
+        {"none": {"thinking": {"type": "between_tools"}}, **adaptive},
+        "https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide",
+    )
+    add(
+        "anthropic",
+        ("claude-haiku-5-5",),
+        {"none": {"thinking": {"type": "disabled"}}, **adaptive},
+        "https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide",
+    )
     manual = {
         level: {"thinking": {"type": "enabled", "budget_tokens": budget}}
         for level, budget in (("low", 1024), ("medium", 4096), ("high", 8192))
@@ -532,6 +617,9 @@ def _register_reasoning_profiles(registry: ProviderRegistry) -> None:
         "gemini",
         (
             "gemini-3.5-flash",
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
             "gemini-3.1-flash-lite",
             "gemini-3.1-pro-preview",
             "gemini-3-flash-preview",
