@@ -15,6 +15,17 @@ from .policy import approval_reason, requires_approval, risk_level
 from .store import HITLStore, get_hitl_store
 
 
+class _InvalidArguments(dict[str, Any]):
+    """Keep parse failure provenance until execution or approval persistence."""
+
+
+def _invalid_arguments_result(name: str) -> ToolResult:
+    return error_result(
+        f"Error: Invalid arguments for tool '{name}': expected a JSON object",
+        name=name,
+    )
+
+
 class HITLRuntime:
     """Provider-facing runtime for tool execution with optional HITL pauses."""
 
@@ -60,10 +71,9 @@ class HITLRuntime:
     def _parse_args(raw_args: Any) -> Dict[str, Any]:
         """Parse model-supplied tool arguments into a keyword mapping.
 
-        A string that is not a JSON object becomes ``{"raw": raw_args}``, the
-        same shape the runtime tool loop uses, so argument validation rejects
-        it instead of the tool running with its defaults. An empty string
-        means no arguments.
+        Preserve malformed input for review while retaining its parse failure
+        independently of the handler's signature. An empty string means no
+        arguments.
         """
         if raw_args is None:
             return {}
@@ -75,11 +85,11 @@ class HITLRuntime:
             try:
                 parsed = json.loads(raw_args)
             except (json.JSONDecodeError, RecursionError):
-                return {"raw": raw_args}
+                return _InvalidArguments(raw=raw_args)
             if isinstance(parsed, dict):
                 return parsed
-            return {"raw": raw_args}
-        return {}
+            return _InvalidArguments(raw=raw_args)
+        return _InvalidArguments()
 
     def execute_or_interrupt(
         self,
@@ -185,6 +195,7 @@ class HITLRuntime:
                 metadata={
                     "provider": self.provider_name,
                     "tool_call_id": tool_call_id,
+                    "invalid_arguments": isinstance(args, _InvalidArguments),
                 },
             )
 
@@ -310,6 +321,7 @@ class HITLRuntime:
                     if intervention.get("edited_args") is not None
                     else None
                 ),
+                metadata=dict(intervention.get("metadata") or {}),
             )
         if intervention.decision is None:
             raise ValueError("Intervention has no decision")
@@ -365,6 +377,12 @@ class HITLRuntime:
         )
         self._record_decision_fact(intervention)
 
+        if (
+            intervention.decision == InterventionDecision.APPROVE
+            and intervention.metadata.get("invalid_arguments")
+        ):
+            return None, {}, _invalid_arguments_result(intervention.tool_name)
+
         return tool_def, args, None
 
     @staticmethod
@@ -398,6 +416,8 @@ class HITLRuntime:
         self, tool_def: Dict[str, Any], args: Dict[str, Any]
     ) -> ToolResult:
         """Validate arguments and run an approved or ungated tool."""
+        if isinstance(args, _InvalidArguments):
+            return _invalid_arguments_result(str(tool_def["function"].__name__))
         if tool_def.get("async_only"):
             return error_result(
                 "Error: This tool is async-only; use Agent.agenerate() "
@@ -409,4 +429,6 @@ class HITLRuntime:
         self, tool_def: Dict[str, Any], args: Dict[str, Any]
     ) -> ToolResult:
         """Validate arguments and run a tool on the caller's event loop."""
+        if isinstance(args, _InvalidArguments):
+            return _invalid_arguments_result(str(tool_def["function"].__name__))
         return await arun_tool(tool_def, args)

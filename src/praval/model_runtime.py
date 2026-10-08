@@ -640,14 +640,25 @@ def _save_resume_results(
     run_id = context.get("run_id")
     if not run_id or not intervention_id:
         return
-    state = dict(suspended_state)
+    store = get_hitl_store(context.get("db_path"))
+    claimed = store.get_suspended_run(str(run_id))
+    if claimed is None or claimed.status != "resuming":
+        logger.debug(
+            "Suspended run %s is not claimed; resume results were not stored", run_id
+        )
+        return
+    if claimed.state.get("intervention_id") != intervention_id:
+        raise ProviderError("Runtime resume results require the claimed decision")
+    # A tool can run another agent or update the ledger while it executes.
+    # Preserve those changes, rather than overwriting them with the old snapshot.
+    state = dict(claimed.state)
     state[RESUME_RESULTS_KEY] = {
         "intervention_id": intervention_id,
         "round_results": [
             _json_safe(result.model_dump(exclude_none=True)) for result in round_results
         ],
     }
-    stored = get_hitl_store(context.get("db_path")).update_suspended_run_state(
+    stored = store.update_suspended_run_state(
         str(run_id), state, expected_status="resuming"
     )
     if not stored:
@@ -1916,6 +1927,10 @@ class ModelRuntime:
         if not isinstance(resume_intervention, dict):
             raise ProviderError("Runtime tool resume requires an intervention decision")
 
+        intervention_id = str(resume_intervention.get("id") or "")
+        suspended_state, checkpoint_loaded = self._restore_resume_checkpoint(
+            suspended_state, intervention_id
+        )
         available_tools = list(tools or [])
         request = self._restore_runtime_request(
             suspended_state.get("request"),
@@ -1928,7 +1943,8 @@ class ModelRuntime:
             for call in suspended_state.get("round_calls", [])
         ]
         current_index = int(suspended_state.get("current_index", 0))
-        if current_index < 0 or current_index >= len(round_calls):
+        maximum_index = len(round_calls) if checkpoint_loaded else len(round_calls) - 1
+        if current_index < 0 or current_index > maximum_index:
             raise ProviderError("Runtime tool continuation index is invalid")
 
         round_index = int(suspended_state.get("round", 0))
@@ -1945,10 +1961,11 @@ class ModelRuntime:
             for result in suspended_state.get("all_results", [])
         ]
 
-        blocked_call = round_calls[current_index]
-        intervention_id = str(resume_intervention.get("id") or "")
         saved = _saved_resume_results(suspended_state, intervention_id)
-        if saved is None:
+        if checkpoint_loaded:
+            next_start = current_index
+        elif saved is None:
+            blocked_call = round_calls[current_index]
             blocked_result = _execute_legacy_tool_call_result(
                 hitl_context=hitl_context,
                 tool_call_id=blocked_call.id,
@@ -1961,6 +1978,17 @@ class ModelRuntime:
             _save_resume_results(
                 suspended_state, hitl_context, intervention_id, round_results
             )
+            checkpoint_state = self._runtime_continuation_state(
+                request,
+                current,
+                round_index=round_index,
+                round_calls=round_calls,
+                current_index=current_index,
+                round_results=round_results[:-1],
+                all_calls=all_calls,
+                all_results=all_results,
+            )
+            self._checkpoint_resume_result(request, checkpoint_state, round_results[-1])
             next_start = current_index + 1
         else:
             next_start = current_index + len(saved) - len(round_results)
@@ -1987,9 +2015,6 @@ class ModelRuntime:
                     previous_results=all_results + round_results,
                     continuation_state=continuation_state,
                 )
-            )
-            _save_resume_results(
-                suspended_state, hitl_context, intervention_id, round_results
             )
 
         continuation = self._get_concrete_provider_method("continue_with_tool_results")
@@ -2038,6 +2063,10 @@ class ModelRuntime:
         if not isinstance(resume_intervention, dict):
             raise ProviderError("Runtime tool resume requires an intervention decision")
 
+        intervention_id = str(resume_intervention.get("id") or "")
+        suspended_state, checkpoint_loaded = self._restore_resume_checkpoint(
+            suspended_state, intervention_id
+        )
         available_tools = list(tools or [])
         request = self._restore_runtime_request(
             suspended_state.get("request"),
@@ -2050,7 +2079,8 @@ class ModelRuntime:
             for call in suspended_state.get("round_calls", [])
         ]
         current_index = int(suspended_state.get("current_index", 0))
-        if current_index < 0 or current_index >= len(round_calls):
+        maximum_index = len(round_calls) if checkpoint_loaded else len(round_calls) - 1
+        if current_index < 0 or current_index > maximum_index:
             raise ProviderError("Runtime tool continuation index is invalid")
 
         round_index = int(suspended_state.get("round", 0))
@@ -2067,10 +2097,11 @@ class ModelRuntime:
             for result in suspended_state.get("all_results", [])
         ]
 
-        blocked_call = round_calls[current_index]
-        intervention_id = str(resume_intervention.get("id") or "")
         saved = _saved_resume_results(suspended_state, intervention_id)
-        if saved is None:
+        if checkpoint_loaded:
+            next_start = current_index
+        elif saved is None:
+            blocked_call = round_calls[current_index]
             blocked_result = await execute_legacy_tool_call_async(
                 hitl_context=hitl_context,
                 tool_call_id=blocked_call.id,
@@ -2083,6 +2114,17 @@ class ModelRuntime:
             _save_resume_results(
                 suspended_state, hitl_context, intervention_id, round_results
             )
+            checkpoint_state = self._runtime_continuation_state(
+                request,
+                current,
+                round_index=round_index,
+                round_calls=round_calls,
+                current_index=current_index,
+                round_results=round_results[:-1],
+                all_calls=all_calls,
+                all_results=all_results,
+            )
+            self._checkpoint_resume_result(request, checkpoint_state, round_results[-1])
             next_start = current_index + 1
         else:
             next_start = current_index + len(saved) - len(round_results)
@@ -2109,9 +2151,6 @@ class ModelRuntime:
                     previous_results=all_results + round_results,
                     continuation_state=continuation_state,
                 )
-            )
-            _save_resume_results(
-                suspended_state, hitl_context, intervention_id, round_results
             )
 
         continuation = self._get_concrete_provider_method("continue_with_tool_results")
@@ -2176,7 +2215,9 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        return self._tool_result(tool_call, result)
+        bound_result = self._tool_result(tool_call, result)
+        self._checkpoint_resume_result(request, state, bound_result)
+        return bound_result
 
     async def _execute_runtime_tool_call_async(
         self,
@@ -2206,7 +2247,98 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        return self._tool_result(tool_call, result)
+        bound_result = self._tool_result(tool_call, result)
+        self._checkpoint_resume_result(request, state, bound_result)
+        return bound_result
+
+    @staticmethod
+    def _restore_resume_checkpoint(
+        state: Dict[str, Any], intervention_id: str
+    ) -> Tuple[Dict[str, Any], bool]:
+        """Restore a newer round, preserving old states and additive fields."""
+        saved = state.get(RESUME_RESULTS_KEY)
+        if not isinstance(saved, dict) or "checkpoint" not in saved:
+            return state, False
+        if not intervention_id or saved.get("intervention_id") != intervention_id:
+            # Results belonging to a different decision cannot suppress this
+            # decision's execution, matching old per-round cache behavior.
+            return state, False
+        checkpoint = saved["checkpoint"]
+        if (
+            not isinstance(checkpoint, dict)
+            or checkpoint.get("schema") != "model_runtime_tool_v1"
+        ):
+            raise ProviderError("Runtime resume checkpoint state is invalid")
+        calls = checkpoint.get("round_calls")
+        results = checkpoint.get("round_results")
+        index = checkpoint.get("current_index")
+        if (
+            not isinstance(calls, list)
+            or not isinstance(results, list)
+            or type(index) is not int
+            or index < 0
+            or index > len(calls)
+            or len(results) != index
+        ):
+            raise ProviderError("Runtime resume checkpoint results are inconsistent")
+        for call, result in zip(calls[:index], results):
+            if (
+                not isinstance(call, dict)
+                or not isinstance(result, dict)
+                or result.get("tool_call_id") != call.get("id")
+                or result.get("name") != call.get("name")
+            ):
+                raise ProviderError(
+                    "Runtime resume checkpoint tool identity is invalid"
+                )
+        restored = dict(state)
+        restored.update(checkpoint)
+        return restored, True
+
+    def _checkpoint_resume_result(
+        self, request: ModelRequest, state: Dict[str, Any], result: ToolResult
+    ) -> None:
+        """Persist each completed resume tool before its provider continuation.
+
+        Saving a tool result cannot make an external effect and SQLite commit
+        atomic. It prevents replay after subsequent provider failures once this
+        commit succeeds, including failures in later tool rounds.
+        """
+        context = request.hitl_context or {}
+        decision = context.get("resume_intervention")
+        if not isinstance(decision, dict) or "round_calls" not in state:
+            return
+        run_id = str(context.get("run_id") or "")
+        intervention_id = str(decision.get("id") or "")
+        if not run_id or not intervention_id:
+            return
+        store = get_hitl_store(context.get("db_path"))
+        stored = store.get_suspended_run(run_id)
+        if stored is None or stored.status != "resuming":
+            # Standalone runtime callers historically need not claim a run.
+            # Durable replay protection belongs to the claimed Agent path.
+            return
+        if stored.state.get("intervention_id") != intervention_id:
+            raise ProviderError(
+                "Runtime resume checkpoint requires the claimed decision"
+            )
+        checkpoint = dict(state)
+        checkpoint["current_index"] = int(state["current_index"]) + 1
+        checkpoint["round_results"] = list(state.get("round_results") or []) + [
+            _json_safe(result.model_dump(exclude_none=True))
+        ]
+        # Re-read and copy the current state: preserve fields added by other
+        # runtime concerns, including metering, instead of a stale resume copy.
+        updated = dict(stored.state)
+        updated[RESUME_RESULTS_KEY] = {
+            "intervention_id": intervention_id,
+            "round_results": checkpoint["round_results"],
+            "checkpoint": checkpoint,
+        }
+        if not store.update_suspended_run_state(
+            run_id, updated, expected_status="resuming"
+        ):
+            raise ProviderError("Runtime resume checkpoint claim was lost")
 
     def _tool_result(
         self, tool_call: ToolCall, outcome: Union[ToolResult, str]
