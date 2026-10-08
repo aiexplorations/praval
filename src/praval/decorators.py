@@ -23,6 +23,7 @@ Example::
 """
 
 import atexit
+import inspect
 import logging
 import os
 import queue
@@ -165,8 +166,6 @@ def _auto_register_tools(agent: Agent, agent_name: str) -> None:
             tool_func = tool.func
 
             # Get function signature for parameter extraction
-            import inspect
-
             sig = inspect.signature(tool_func)
 
             # Extract parameters from type hints
@@ -240,9 +239,14 @@ def _attach_registry_tool(agent: Agent, tool: Tool) -> None:
     ] = tool.metadata.approval_reason
 
 
-def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[Tool]:
+def _register_callable_tool(
+    agent_name: str, tool_func: Callable, owner: Optional[Agent] = None
+) -> Optional[Tool]:
     """
     Ensure a callable is registered in the tool registry and return the Tool object.
+
+    When this call adds a raw callable to the registry and ``owner`` is given,
+    the entry is recorded on the agent so ``close()`` removes it again.
     """
     registry = get_tool_registry()
 
@@ -268,6 +272,8 @@ def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[To
     try:
         tool_obj = Tool(tool_func, metadata)
         registry.register_tool(tool_obj)
+        if owner is not None:
+            owner._registry_tools[metadata.tool_name] = tool_func
         return tool_obj
     except ToolError:
         existing = registry.get_tool(metadata.tool_name)
@@ -397,15 +403,14 @@ def agent(
 
         underlying_agent = Agent(**agent_kwargs)
 
-        def agent_handler(spore: Any) -> Any:
-            """Handler that sets up context and calls the decorated function."""
-            # Check message type filtering
-            if responds_to is not None:
-                spore_type = spore.knowledge.get("type")
-                if spore_type not in responds_to:
-                    # This agent doesn't respond to this message type
-                    return
+        def accepts(spore: Any) -> bool:
+            """Return whether ``responds_to`` lets this agent handle the spore."""
+            if responds_to is None:
+                return True
+            return spore.knowledge.get("type") in responds_to
 
+        def enter_handler(spore: Any) -> ObservationScope:
+            """Open the handler observation and set the agent context."""
             observation_scope = ObservationScope(
                 kind=ObservationKind.AGENT,
                 run_id=str(uuid.uuid4()),
@@ -423,7 +428,6 @@ def agent(
                 ContentKind.CONTEXT,
                 getattr(spore, "knowledge", None),
             )
-            observation_error: tuple[Any, Any, Any] = (None, None, None)
 
             # Set agent context for chat() and broadcast() functions
             _agent_context.agent = underlying_agent
@@ -433,61 +437,79 @@ def agent(
             _agent_context.startup_channel = getattr(
                 underlying_agent, "_startup_channel", None
             )
+            return observation_scope
 
-            result = None
-            try:
-                # Resolve knowledge references in spore if memory is enabled
-                if memory_enabled and hasattr(spore, "has_knowledge_references"):
-                    if spore.has_knowledge_references():
-                        try:
-                            resolved_knowledge = (
-                                underlying_agent.resolve_spore_knowledge(spore)
-                            )
-                            spore.resolved_knowledge = resolved_knowledge
-                        except Exception as e:
-                            # Knowledge resolution errors are non-fatal, log and
-                            # continue
-                            _handle_agent_error(
-                                e,
-                                spore,
-                                agent_name,
-                                on_error,
-                                context="knowledge_resolution",
-                            )
+        def exit_handler(
+            observation_scope: ObservationScope,
+            observation_error: Tuple[Any, Any, Any],
+        ) -> None:
+            """Clear the agent context and close the handler observation."""
+            _agent_context.agent = None
+            _agent_context.channel = None
+            _agent_context.startup_channel = None
+            observation_scope.__exit__(*observation_error)
 
-                # Call the decorated function
-                result = func(spore)
-
-                # Store conversation turn in memory if enabled
-                if memory_enabled and underlying_agent.memory:
+        def before_call(spore: Any) -> None:
+            """Resolve knowledge references in the spore if memory is enabled."""
+            if memory_enabled and hasattr(spore, "has_knowledge_references"):
+                if spore.has_knowledge_references():
                     try:
-                        query = (
-                            str(spore.knowledge) if spore.knowledge else "interaction"
+                        resolved_knowledge = underlying_agent.resolve_spore_knowledge(
+                            spore
                         )
-                        response = str(result) if result else "no_response"
-
-                        underlying_agent.memory.store_conversation_turn(
-                            agent_id=agent_name,
-                            user_message=query,
-                            agent_response=response,
-                            context={
-                                "spore_id": spore.id,
-                                "spore_type": spore.spore_type.value,
-                            },
-                        )
+                        spore.resolved_knowledge = resolved_knowledge
                     except Exception as e:
-                        # Memory storage errors are non-fatal, log and continue
+                        # Knowledge resolution errors are non-fatal, log and
+                        # continue
                         _handle_agent_error(
-                            e, spore, agent_name, on_error, context="memory_storage"
+                            e,
+                            spore,
+                            agent_name,
+                            on_error,
+                            context="knowledge_resolution",
                         )
 
-                # Auto-broadcast return values if enabled and result exists
-                if auto_broadcast and result and isinstance(result, dict):
-                    underlying_agent.broadcast_knowledge(
-                        {**result, "_from": agent_name, "_timestamp": time.time()},
-                        channel=agent_channel,
+        def after_call(spore: Any, result: Any) -> None:
+            """Store the turn in memory and auto-broadcast a returned dict."""
+            if memory_enabled and underlying_agent.memory:
+                try:
+                    query = str(spore.knowledge) if spore.knowledge else "interaction"
+                    response = str(result) if result else "no_response"
+
+                    underlying_agent.memory.store_conversation_turn(
+                        agent_id=agent_name,
+                        user_message=query,
+                        agent_response=response,
+                        context={
+                            "spore_id": spore.id,
+                            "spore_type": spore.spore_type.value,
+                        },
+                    )
+                except Exception as e:
+                    # Memory storage errors are non-fatal, log and continue
+                    _handle_agent_error(
+                        e, spore, agent_name, on_error, context="memory_storage"
                     )
 
+            # Auto-broadcast return values if enabled and result exists
+            if auto_broadcast and result and isinstance(result, dict):
+                underlying_agent.broadcast_knowledge(
+                    {**result, "_from": agent_name, "_timestamp": time.time()},
+                    channel=agent_channel,
+                )
+
+        def agent_handler(spore: Any) -> Any:
+            """Handler that sets up context and calls the decorated function."""
+            if not accepts(spore):
+                return None
+
+            observation_scope = enter_handler(spore)
+            observation_error: Tuple[Any, Any, Any] = (None, None, None)
+            result = None
+            try:
+                before_call(spore)
+                result = func(spore)
+                after_call(spore, result)
             except InterventionRequired:
                 observation_error = sys.exc_info()
                 raise
@@ -496,18 +518,44 @@ def agent(
                 mark_observation_error(e)
                 observation_error = sys.exc_info()
                 _handle_agent_error(e, spore, agent_name, on_error, context="handler")
-
             finally:
-                # Clean up context
-                _agent_context.agent = None
-                _agent_context.channel = None
-                _agent_context.startup_channel = None
-                observation_scope.__exit__(*observation_error)
+                exit_handler(observation_scope, observation_error)
+
+            return result
+
+        async def async_agent_handler(spore: Any) -> Any:
+            """Async counterpart of ``agent_handler`` for ``async def`` agents.
+
+            The context is set inside the coroutine, so ``achat()``, ``chat()``
+            and ``broadcast()`` work in the handler body, and the awaited
+            result is what memory and auto-broadcast see.
+            """
+            if not accepts(spore):
+                return None
+
+            observation_scope = enter_handler(spore)
+            observation_error: Tuple[Any, Any, Any] = (None, None, None)
+            result = None
+            try:
+                before_call(spore)
+                result = await func(spore)
+                after_call(spore, result)
+            except InterventionRequired:
+                observation_error = sys.exc_info()
+                raise
+            except Exception as e:
+                mark_observation_error(e)
+                observation_error = sys.exc_info()
+                _handle_agent_error(e, spore, agent_name, on_error, context="handler")
+            finally:
+                exit_handler(observation_scope, observation_error)
 
             return result
 
         # Set up the agent
-        underlying_agent.set_spore_handler(agent_handler)
+        underlying_agent.set_spore_handler(
+            async_agent_handler if inspect.iscoroutinefunction(func) else agent_handler
+        )
         underlying_agent.subscribe_to_channel(agent_channel)
         if agent_channel == f"{agent_name}_channel":
             # The agent's own channel; close() removes it once it is unused.
@@ -541,7 +589,9 @@ def agent(
                     else:
                         logger.debug("Tool '%s' not found in registry", tool_entry)
                 elif callable(tool_entry):
-                    tool_obj = _register_callable_tool(agent_name, tool_entry)
+                    tool_obj = _register_callable_tool(
+                        agent_name, tool_entry, owner=underlying_agent
+                    )
                     if tool_obj:
                         _attach_registry_tool(underlying_agent, tool_obj)
                     else:
