@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-08
+
+### Added
+
+- Added `praval.metering`, agent lifetime and application-scoped usage meters,
+  bounded request records, cache/reasoning token accounting and caller-supplied
+  cost estimates. Streaming exposes `model_call` events; observations count
+  actual requests across retries and tool rounds.
+- Added portable `none`, `low`, `medium` and `high` reasoning levels with
+  documented provider profiles, agent defaults and per-call overrides.
+  Unsupported levels fail before dispatch. Cohere reasoning uses its v2 API.
+- Added integration matrices covering provider entry points, tool shapes,
+  failures, approval recovery, concurrent Reef delivery, decorated agents,
+  observation privacy and evaluation against real Agents with fake clients.
+
+### Changed
+
+- `ModelResponse.usage` now aggregates reported requests across the logical run.
+  Missing usage, failures and unpriced requests remain explicitly incomplete.
+- Provider retries apply to one request, preserve continuation state and use
+  typed retry eligibility. SDK retries are disabled by default.
+- Conversation trimming preserves system messages and whole exchanges.
+  Streamed answers enter history at the final event. Concurrent calls retain
+  their own user/answer pairing.
+- Decorated `chat` and `achat` honor request options and configured timeouts;
+  unknown keywords warn. Tool-round exhaustion raises `ToolRoundLimitError`.
+- External tool schema patterns have bounded matching. External
+  `patternProperties` and nested schema dialect switches are rejected; trusted
+  application response schemas retain their existing validation semantics.
+
+### Fixed
+
+- Preserved complete provider tool/reasoning transcripts and Gemini signatures
+  across repeated tool continuations, including OpenAI Responses chains.
+- Preserved committed tool results and usage histories across failed approval
+  resumes, later rounds, second approval gates and process restart.
+- Unified typed tool outcomes, argument validation, restrictions and local
+  structured-output validation across sync, async and streaming paths.
+- Fixed canceled-worker request double counting, async decorated-handler
+  context, raw tool lifecycle ownership and non-HITL store initialization.
+- Hardened untrusted request options, schemas, JSON arguments, caches and
+  concurrent history/state operations.
+
 ## [0.8.3] - 2026-08-25
 
 ### Added

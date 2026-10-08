@@ -69,7 +69,7 @@ Install the core package:
 python -m pip install praval
 ```
 
-Praval 0.8.3 supports Python 3.10 through 3.14. Install only the optional capabilities
+Praval 0.8.4 supports Python 3.10 through 3.14. Install only the optional capabilities
 your application needs:
 
 | Extra | Install command | Adds |
@@ -351,9 +351,10 @@ extras, services, timeouts, and expected artifacts for release certification.
 | Correlated Reef requests | [Reef and Spores](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/reef-protocol.md) |
 | Observability operations | [Observability](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/observability/index.md) |
 | Evaluation patterns and CI | [Evaluation](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/evaluation/index.md) |
+| v0.8.4 migration | [Migration guide](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/v084-migration.md) |
 | v0.8.3 migration | [Migration guide](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/v083-migration.md) |
 | Release changes | [Changelog](https://github.com/aiexplorations/praval/blob/main/CHANGELOG.md) |
-| Release scope | [0.8.3 release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md) |
+| Release scope | [0.8.4 release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.4.md) |
 
 Build the reference documentation locally with warnings treated as errors:
 
@@ -381,7 +382,7 @@ make docs-html
   universal circuit breaker, storage fallback, or automatic reconnect layer.
 - `PravalApp` owns cleanup. It is not an isolated service container.
 
-See the [0.8.3 release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.3.md)
+See the [0.8.4 release notes](https://github.com/aiexplorations/praval/blob/main/docs/releases/RELEASE_NOTES_0.8.4.md)
 for scope, compatibility details, limitations, and completed certification.
 
 ## Development and release validation
