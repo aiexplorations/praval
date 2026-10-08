@@ -69,8 +69,11 @@ def test_hitl_runtime_parses_args_and_reports_unknown_tools():
     runtime = _runtime()
     assert runtime._parse_args(None) == {}
     assert runtime._parse_args({"value": 1}) == {"value": 1}
-    assert runtime._parse_args('["not", "a", "mapping"]') == {}
-    assert runtime._parse_args("not-json") == {}
+    assert runtime._parse_args('["not", "a", "mapping"]') == {
+        "raw": '["not", "a", "mapping"]'
+    }
+    assert runtime._parse_args("not-json") == {"raw": "not-json"}
+    assert runtime._parse_args("") == {}
     assert runtime._parse_args(42) == {}
     assert runtime._tool_map([{}, {"function": "not-callable"}]) == {}
     assert (

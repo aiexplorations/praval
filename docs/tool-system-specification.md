@@ -47,6 +47,11 @@ checked too):
   limits, but does not remove, the cost of a pathological pattern on shorter
   strings.
 
+An argument string from the model that is not a JSON object (malformed JSON,
+or a JSON array or scalar) is passed to validation as `{"raw": "<string>"}`,
+so it fails as an unexpected `raw` argument instead of the tool running with
+its defaults. An empty string means no arguments.
+
 When validation fails the handler is not called. The model receives an error
 result naming each failing field and the expected type, for example:
 

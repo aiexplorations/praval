@@ -529,9 +529,10 @@ def _deep_json(depth: int) -> str:
 
 
 def test_s7_parse_args_survives_deeply_nested_json():
-    result = HITLRuntime._parse_args("[" * 200_000)
-    assert result == {}
-    assert HITLRuntime._parse_args(_deep_json(200_000)) == {}
+    brackets = "[" * 200_000
+    assert HITLRuntime._parse_args(brackets) == {"raw": brackets}
+    deep = _deep_json(200_000)
+    assert HITLRuntime._parse_args(deep) == {"raw": deep}
 
 
 def test_s7_openai_tool_call_parse_survives_deeply_nested_json(monkeypatch):
@@ -616,17 +617,6 @@ def test_s7_duplicate_keys_resolve_the_same_for_review_and_execution(tmp_path):
     assert intervention.original_args == {"path": "/etc/passwd"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Design: HITLRuntime._parse_args turns invalid or non-object JSON "
-        "argument strings into {}, so on the legacy generate() path a tool "
-        "whose parameters all have defaults runs with those defaults instead "
-        "of returning an error. tests/test_hitl_runtime_edges.py pins the {} "
-        "result. The runtime tool loop instead keeps {'raw': ...}, which "
-        "fails validation."
-    ),
-)
 @pytest.mark.parametrize("raw_args", ["not-json", '["/etc/passwd"]', '{"path": '])
 def test_s7_malformed_argument_string_does_not_run_tool_with_defaults(raw_args):
     executed = []
@@ -644,6 +634,26 @@ def test_s7_malformed_argument_string_does_not_run_tool_with_defaults(raw_args):
     )
     assert executed == []
     assert content.startswith("Error:")
+    assert "raw: unexpected argument" in content
+
+
+@pytest.mark.parametrize("raw_args", ["", "  ", None, "{}"])
+def test_s7_empty_argument_string_still_runs_tool_with_defaults(raw_args):
+    executed = []
+
+    def cleanup(path: str = "/tmp/default") -> str:
+        executed.append(path)
+        return "cleaned"
+
+    content = execute_legacy_tool_call(
+        hitl_context=None,
+        tool_call_id="c",
+        function_name="cleanup",
+        raw_args=raw_args,
+        available_tools=[{"function": cleanup}],
+    )
+    assert content == "cleaned"
+    assert executed == ["/tmp/default"]
 
 
 # --- S8 Untrusted JSON Schemas (MCP) ----------------------------------------

@@ -58,18 +58,27 @@ class HITLRuntime:
 
     @staticmethod
     def _parse_args(raw_args: Any) -> Dict[str, Any]:
+        """Parse model-supplied tool arguments into a keyword mapping.
+
+        A string that is not a JSON object becomes ``{"raw": raw_args}``, the
+        same shape the runtime tool loop uses, so argument validation rejects
+        it instead of the tool running with its defaults. An empty string
+        means no arguments.
+        """
         if raw_args is None:
             return {}
         if isinstance(raw_args, dict):
             return raw_args
         if isinstance(raw_args, str):
+            if not raw_args.strip():
+                return {}
             try:
                 parsed = json.loads(raw_args)
-                if isinstance(parsed, dict):
-                    return parsed
-                return {}
             except (json.JSONDecodeError, RecursionError):
-                return {}
+                return {"raw": raw_args}
+            if isinstance(parsed, dict):
+                return parsed
+            return {"raw": raw_args}
         return {}
 
     def execute_or_interrupt(
