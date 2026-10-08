@@ -1,0 +1,34 @@
+{
+  "review_date_local": "2026-10-09",
+  "publication_on_hold": true,
+  "source_audit": {
+    "python_blocks_checked": 91,
+    "public_imports_checked": 144,
+    "intentional_decorator_fragments": [
+      "docs/sphinx/tutorials/first-agent.md"
+    ],
+    "issues": []
+  },
+  "corrected_local_docs": {
+    "html_pages_checked": 173,
+    "local_references_checked": 159867,
+    "missing": []
+  },
+  "sphinx_warnings_as_errors": "passed against installed CI wheel, isolated copied documentation sources",
+  "full_suite": {
+    "passed": 4064,
+    "skipped": 144,
+    "coverage_percent": 93.62,
+    "timeout_seconds": 60,
+    "timeout_method": "thread",
+    "coverage_floors": "passed"
+  },
+  "focused_documentation_tests": 31,
+  "public_exports": {
+    "documented": 102,
+    "exported": 102,
+    "coverage_percent": 100
+  },
+  "quality": "full CI Black/isort/flake8; strict Python 3.13 and Python 3.10 typing; metadata and API checks passed",
+  "new_paid_calls": 0
+}

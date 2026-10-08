@@ -16,7 +16,7 @@ Prerequisites
 : Python 3.10 or newer and the exact `praval` wheel.
 
 Install
-: `python -m pip install ./praval-0.8.3-py3-none-any.whl`
+: `python -m pip install ./praval-0.8.4-py3-none-any.whl`
 
 Complete `praval.toml`
 : No configuration is required. The example constructs a local SQLite store,
@@ -49,7 +49,7 @@ Prerequisites
   read-only tool, so it needs no model credential.
 
 Install
-: `python -m pip install ./praval-0.8.3-py3-none-any.whl`
+: `python -m pip install ./praval-0.8.4-py3-none-any.whl`
 
 Complete `praval.toml`
 : The example registers its deterministic provider and agents in code. For a
@@ -85,7 +85,7 @@ Prerequisites
   one terminal workflow observation.
 
 Install
-: `python -m pip install ./praval-0.8.3-py3-none-any.whl`
+: `python -m pip install ./praval-0.8.4-py3-none-any.whl`
 
 Complete `praval.toml`
 : No configuration is required for the deterministic example. Add normal
@@ -119,7 +119,7 @@ Prerequisites
   store, and immutable candidate wheel.
 
 Install
-: `python -m pip install ./praval-0.8.3-py3-none-any.whl`
+: `python -m pip install ./praval-0.8.4-py3-none-any.whl`
 
 Complete `praval.toml`
 
@@ -407,7 +407,7 @@ Complete `praval.toml`
 ```toml
 [app]
 service_name = "answer-service"
-service_version = "0.8.3"
+service_version = "0.8.4"
 deployment_environment = "staging"
 
 [observability]

@@ -75,8 +75,11 @@ The same option is accepted in dict form:
 `response_schema={"schema": {...}, "validate_locally": True}`. A dict without a
 `schema` key is still treated as the schema itself.
 
-Local validation runs on the final response of `chat`, `generate` and
-`agenerate` (the model runtime's `invoke` and `ainvoke`), including the answer
-after a tool loop and after a HITL resume. It does not run on streamed responses (`stream` and
-`astream`); validate the `final` event's content in application code there. The
-option is off by default, and it is never sent to the provider.
+Local validation runs on the final response of `chat`, `generate`, `agenerate`,
+`stream` and `astream`, including the answer after a tool loop or HITL resume.
+For a stream, validation happens before `final` is emitted and before the answer
+enters agent history. Earlier text deltas may already have reached the caller;
+treat them as provisional until a valid `final` arrives. A validation failure
+raises `ProviderInvalidResponseError` and leaves the user turn without an
+assistant answer in history. The option is off by default and is never sent
+to the provider.

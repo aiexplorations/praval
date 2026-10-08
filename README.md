@@ -232,7 +232,7 @@ for cleanup rules and async use.
 | Area | What Praval provides | Start here |
 |---|---|---|
 | Model execution | Provider-neutral requests, responses, events, capabilities, usage, and errors | [ModelRuntime](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/model-runtime.md) |
-| Provider adapters | OpenAI, Anthropic, Cohere, Gemini, and OpenAI-compatible servers | [Providers](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/providers.md) |
+| Provider adapters | OpenAI, Anthropic, Cohere, Gemini, OpenRouter, and OpenAI-compatible servers | [Providers](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/guide/providers.md) |
 | Agent collaboration | Direct delivery, broadcast, channels, request and reply, completion tracking, and RabbitMQ delivery | [Agent communication](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/tutorials/agent-communication.md) |
 | Tools | JSON Schema definitions, sync and async handlers, shared tools, validation, and tool errors | [Tool integration](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/tutorials/tool-integration.md) |
 | Human approval | Approve, edit, reject, persist, and resume approval-protected tool calls | [HITL interventions](https://github.com/aiexplorations/praval/blob/main/docs/sphinx/tutorials/hitl-interventions.md) |

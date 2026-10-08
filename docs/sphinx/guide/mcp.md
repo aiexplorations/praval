@@ -11,7 +11,7 @@ Install the optional SDK support:
 pip install 'praval[mcp]'
 ```
 
-Praval 0.8.3 and the official MCP Python SDK require Python 3.10 or newer.
+Praval 0.8.4 and the official MCP Python SDK require Python 3.10 or newer.
 
 ## Local stdio server
 
@@ -41,14 +41,23 @@ async def main() -> None:
         cwd="/opt/praval-mcp",
     )
 
-    async with MCPClient(config) as client:
-        await client.register_tools(agent)
-        response = await agent.agenerate("Summarize the available notes.")
-        print(response.content)
+    try:
+        async with MCPClient(config) as client:
+            await client.register_tools(agent)
+            response = await agent.agenerate("Summarize the available notes.")
+            print(response.content)
+    finally:
+        agent.close()
 
 
 asyncio.run(main())
 ```
+
+This example requires your filesystem server at the configured path. If the
+model selects a tool, its default approval policy raises
+`InterventionRequired`. Add your review/resume flow inside the open client
+context as described below; closing the client before resume makes its tools
+unavailable.
 
 The default tool prefix is the server name followed by two underscores. A
 server tool named `read_file` is exposed to the model as

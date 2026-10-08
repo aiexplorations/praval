@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Included in the pending 0.8.4 release: documentation examples own and close
+  their clients, distinguish constructor configuration from call options, and
+  describe streaming validation and buffered tool execution accurately. Added
+  coding-agent guidance, corrected Cohere capability/schema notes and HITL CLI
+  examples, documented OpenRouter in the API, and repaired generated links.
 - Included in the pending 0.8.4 release: Cohere v1 requests send timeouts through
   SDK `request_options`, avoiding a pre-request failure on initial and continued
   tool calls. Offline contracts use the real SDK with a fake HTTP transport.
@@ -32,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parameters, portable reasoning profiles and automatic Responses routing for
   tool requests. Explicit Luna/Sol Chat Completions tools use reasoning `none`.
 
-## [0.8.4] - 2026-10-08
+## [0.8.4] - Unreleased
 
 ### Added
 

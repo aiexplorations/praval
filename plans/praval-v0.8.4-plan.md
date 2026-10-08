@@ -1,6 +1,6 @@
 # Praval v0.8.4 plan: reliable execution and accurate usage
 
-Status: in implementation, 2026-10-07; detail added after the outline was approved. Branch `release/v0.8.4`, from `main` at `2cfdd5e` (v0.8.3).
+Status: implemented candidate under documentation review, 2026-10-09. Candidate CI at `294971e` passed all 16 checks; publication remains on hold for owner review. The original implementation detail was added after the outline was approved. Branch `release/v0.8.4`, from `main` at `2cfdd5e` (v0.8.3).
 
 Roadmap: `plans/praval-roadmap.md`. Metering spec: `plans/praval-v0.8.4-usage-metering.md`. Conventions: `CLAUDE.md` / `AGENTS.md`.
 
@@ -211,6 +211,10 @@ PRAVAL_DOCS_OFFLINE=1 sphinx-build -b html -W --keep-going docs/sphinx docs/_bui
 ```
 
 **Cross-package behavioural tests** (written by the lead after wave 2, `tests/test_v084_release_gate.py`): one scenario per adapter with a fake client that runs three dependent tool rounds, fails the round-2 continuation once with a retryable error, includes an invalid tool argument in round 1 and a HITL pause in round 2 with restart; asserts complete transcripts, side effect executed once, handler not called for the invalid call, equal history across entry points, and metered totals equal the sum of recorded requests.
+
+## Documentation review
+
+The October 9 review corrects guide/runtime mismatches, executes the getting-started model examples with a fake SDK, checks public imports and generated links, and prepares the website through `scripts/deploy-docs.sh`. Findings and remaining publication gates are recorded in `evidence/v084-documentation-review.md`. Direct Anthropic inference remains deferred by the owner; the OpenRouter Anthropic tool check passed. Praval Code safety defects are owned by that application and are not framework release defects.
 
 ## Release
 

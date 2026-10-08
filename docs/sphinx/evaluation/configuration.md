@@ -32,7 +32,7 @@ Each `[eval.judges.<name>]` sets exactly one of `agent` or `model`.
 | `allow_self_evaluation` | `false` | explicit opt-in |
 | `allowed_tools` | `[]` | subset of configured evaluator tools |
 | `tool_policy` | `evaluation_safe` | or `read_only` |
-| `allow_side_effects` | `false` | `true` rejected in v0.8.3 |
+| `allow_side_effects` | `false` | `true` rejected in v0.8.4 |
 | `hitl_mode` | `suspend` | or `fail` |
 | `max_input_tokens` | `16000` | positive |
 | `max_cost_usd` | `0.25` | positive finite |

@@ -97,7 +97,7 @@ The `api/` directory contains auto-generated documentation from Python docstring
 
 Thanks to MyST parser, you can write documentation in Markdown (.md) or reStructuredText (.rst):
 
-```markdown
+````markdown
 # My Section
 
 This is **Markdown** with `code`.
@@ -109,7 +109,7 @@ from praval import agent
 def my_agent(spore):
     return {"status": "done"}
 ```
-```
+````
 
 ### Code Highlighting
 
@@ -271,15 +271,10 @@ pip install -e ".[docs]"
 
 ### Warnings About Missing Cross-References
 
-This is expected for:
-- Stub tutorial files
-- External links
-- Symlinked documentation
-
-You can safely ignore these warnings or fix them by:
-1. Completing the stub files
-2. Updating cross-reference paths
-3. Adding `:no-index:` to suppress duplicates
+CI builds with `-W`; every Sphinx warning fails that gate. Fix missing targets,
+incorrect paths and duplicate API entries before preparing publication docs.
+Use `:no-index:` only when a deliberate repeated presentation should not register
+a second API target. Do not suppress warnings to hide a broken reference.
 
 ### API Documentation Not Updating
 
