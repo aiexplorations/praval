@@ -18,7 +18,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..metering import UsageMeter
 from ..model_runtime import ModelRuntime
-from ..models import AudioResponse, SpeechRequest, ToolSpec, TranscriptionRequest
+from ..models import (
+    AudioResponse,
+    ReasoningConfig,
+    SpeechRequest,
+    ToolSpec,
+    TranscriptionRequest,
+)
 from ..models.observation import ContentKind, ObservationKind
 from ..providers.factory import ProviderFactory
 from ..providers.registry import get_provider_registry
@@ -142,7 +148,7 @@ class AgentConfig:
     max_tool_rounds: int = 8
     stream: bool = False
     response_schema: Optional[Dict[str, Any]] = None
-    reasoning: Optional[Dict[str, Any]] = None
+    reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None
     store: bool = False
     cache: Optional[Dict[str, Any]] = None
     strict_tools: bool = False
@@ -213,6 +219,7 @@ class Agent:
         max_history: Optional[int] = 100,
         hitl_enabled: bool = False,
         hitl_db_path: Optional[str] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
     ):
         """
         Initialize a new Agent.
@@ -223,6 +230,7 @@ class Agent:
             persist_state: Whether to persist conversation state
             system_message: System message to set agent behavior
             config: Additional configuration parameters
+            reasoning: Portable level or provider-specific reasoning controls
             memory_enabled: Whether to enable vector memory capabilities
             memory_config: Configuration for memory system
             knowledge_base: Path to knowledge base files to auto-index
@@ -270,6 +278,8 @@ class Agent:
             config_dict["provider"] = provider
         if model:
             config_dict["model"] = model
+        if reasoning is not None:
+            config_dict["reasoning"] = reasoning
 
         self.config = AgentConfig(**config_dict)
 

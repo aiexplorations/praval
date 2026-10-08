@@ -39,6 +39,7 @@ from ..models import (
     Usage,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .registry import reasoning_parameters
 from .usage import openai_usage
 
 
@@ -643,6 +644,8 @@ class OpenAIProvider:
             or request.provider_options.get("api")
             or ""
         ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
         return (
             endpoint == "responses"
             or bool(request.provider_options.get("use_responses", False))
@@ -856,6 +859,12 @@ class OpenAIProvider:
             call_params["response_format"] = self._openai_response_format(
                 request.response_schema
             )
+        native_reasoning = reasoning_parameters(request)
+        effort = native_reasoning.get("effort")
+        if request.reasoning is not None and request.reasoning.effort is not None:
+            effort = request.reasoning.effort
+        if effort is not None:
+            call_params["reasoning_effort"] = effort
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         if stream:
@@ -887,7 +896,7 @@ class OpenAIProvider:
                 "format": self._openai_text_format(request.response_schema)
             }
         if request.reasoning is not None:
-            reasoning: Dict[str, Any] = {}
+            reasoning: Dict[str, Any] = dict(reasoning_parameters(request))
             if request.reasoning.effort:
                 reasoning["effort"] = request.reasoning.effort
             if request.reasoning.summary:
@@ -903,6 +912,9 @@ class OpenAIProvider:
             if request.stream_options:
                 call_params["stream_options"] = request.stream_options
         self._apply_provider_options(call_params, request)
+        if request.reasoning is not None and request.reasoning.level is not None:
+            for key in ("temperature", "top_p", "top_logprobs"):
+                call_params.pop(key, None)
         return call_params
 
     def _apply_provider_options(

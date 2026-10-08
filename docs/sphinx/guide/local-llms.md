@@ -59,3 +59,16 @@ The OpenAI-compatible provider validates base URLs before creating the SDK
 client. It rejects non-HTTP schemes, embedded credentials, and metadata
 service/link-local targets. Put secrets in environment variables instead of
 `base_url` or `provider_options`.
+
+## Reasoning on vLLM
+
+The vLLM preset supports portable `reasoning="low"`, `"medium"`, and `"high"`
+through Chat Completions `reasoning_effort`. The documented
+`google/gemma-4-26B-A4B-it` profile also supports `"none"`; the wildcard rejects
+`"none"` because some models cannot disable thinking. This requires a server
+version and model that support the parameter; consult [vLLM's reasoning
+support](https://docs.vllm.ai/en/latest/features/reasoning_outputs/) when
+configuring the server. Praval keeps Chat Completions selected for local
+reasoning requests. Ollama, LM Studio, llama.cpp, and generic compatible
+profiles remain conservative: register a model profile with `reasoning_levels`
+and matching capabilities after verifying that server's native controls.

@@ -6,6 +6,7 @@ Chat API with support for conversation history.
 """
 
 import inspect
+import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +33,7 @@ from ..models import (
     ToolSpec,
 )
 from .errors import map_provider_exception, sdk_max_retries
+from .registry import reasoning_parameters
 from .usage import cohere_usage
 
 
@@ -70,6 +72,7 @@ class CohereProvider:
 
     def __init__(self, config):
         self.config = config
+        self._reasoning_client: Any = None
 
         try:
             api_key_env = getattr(config, "api_key_env", None) or "COHERE_API_KEY"
@@ -173,6 +176,8 @@ class CohereProvider:
         tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ModelResponse:
         """Invoke Cohere through the provider-neutral adapter surface."""
+        if self._uses_v2(request):
+            return self._invoke_v2(request)
         call_params = self._request_chat_params(request, tools=tools)
         response = self.client.chat(**call_params)
         return self._chat_model_response(response, call_params)
@@ -235,6 +240,20 @@ class CohereProvider:
         ``chat_history``, only the latest round's results go in
         ``tool_results``, and ``message`` is empty.
         """
+        if response.metadata.get("cohere_endpoint") == "chat.v2":
+            transcript = response.metadata.get("cohere_v2_messages")
+            if not isinstance(transcript, list):
+                raise ProviderError("Cohere v2 tool continuation state is missing")
+            messages = list(transcript)
+            messages.extend(
+                {
+                    "role": "tool",
+                    "tool_call_id": result.tool_call_id,
+                    "content": result.content,
+                }
+                for result in tool_results
+            )
+            return self._invoke_v2(request, messages=messages)
         serialized = response.metadata.get("cohere_tool_calls")
         if not isinstance(serialized, list):
             raise ProviderError("Cohere tool continuation state is missing")
@@ -344,7 +363,7 @@ class CohereProvider:
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         for key, value in request.provider_options.items():
-            if key not in {"capabilities", "max_retries"}:
+            if key not in {"capabilities", "max_retries", "endpoint", "api"}:
                 call_params.setdefault(key, value)
         return call_params
 
@@ -357,9 +376,106 @@ class CohereProvider:
 
     def close(self) -> None:
         """Close the underlying SDK client when supported."""
-        close = getattr(self.client, "close", None)
-        if callable(close):
-            close()
+        for client in (self.client, self._reasoning_client):
+            close = getattr(client, "close", None)
+            if callable(close):
+                close()
+
+    def _uses_v2(self, request: ModelRequest) -> bool:
+        """Reasoning is opt-in on the v2 endpoint; legacy v1 stays unchanged."""
+        return request.provider_options.get("endpoint") == "chat.v2" or (
+            request.reasoning is not None
+            and (request.model or self._model_name()).startswith("command-a-reasoning-")
+        )
+
+    def _v2_client(self) -> Any:
+        if self._reasoning_client is None:
+            api_key_env = getattr(self.config, "api_key_env", None) or "COHERE_API_KEY"
+            kwargs: Dict[str, Any] = {"api_key": os.getenv(api_key_env)}
+            if _accepts_keyword(cohere.ClientV2, "max_retries"):
+                kwargs["max_retries"] = sdk_max_retries(self.config)
+            self._reasoning_client = cohere.ClientV2(**kwargs)
+        return self._reasoning_client
+
+    def _v2_params(
+        self, request: ModelRequest, messages: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {
+            "model": request.model or self._model_name(),
+            "messages": (
+                messages
+                if messages is not None
+                else [
+                    {"role": message.role, "content": message.content}
+                    for message in request.messages
+                ]
+            ),
+            "temperature": request.temperature,
+            "max_tokens": request.max_output_tokens or self._max_output_tokens(),
+        }
+        if request.tools:
+            params["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters,
+                    },
+                }
+                for tool in request.tools
+            ]
+        thinking = dict(reasoning_parameters(request).get("thinking") or {})
+        if request.reasoning is not None:
+            if request.reasoning.mode is not None:
+                thinking["type"] = request.reasoning.mode
+            if request.reasoning.budget_tokens is not None:
+                thinking.setdefault("type", "enabled")
+                thinking["token_budget"] = request.reasoning.budget_tokens
+        if thinking:
+            params["thinking"] = thinking
+        if request.timeout is not None:
+            params["request_options"] = {"timeout_in_seconds": request.timeout}
+        for key, value in request.provider_options.items():
+            if key not in {"capabilities", "max_retries", "endpoint", "api"}:
+                params.setdefault(key, value)
+        return params
+
+    def _invoke_v2(
+        self, request: ModelRequest, messages: Optional[List[Dict[str, Any]]] = None
+    ) -> ModelResponse:
+        params = self._v2_params(request, messages)
+        response = self._v2_client().chat(**params)
+        message = response.message
+        native = message.model_dump(mode="json", exclude_none=True)
+        # Native content contains both text and thinking blocks; retain both
+        # in continuation state but return only the answer as public content.
+        content = "".join(
+            str(block.get("text") or "")
+            for block in native.get("content") or []
+            if block.get("type") == "text"
+        )
+        calls = [
+            ToolCall(
+                id=str(call["id"]),
+                name=str(call["function"]["name"]),
+                arguments=json.loads(call["function"].get("arguments") or "{}"),
+                raw=call,
+            )
+            for call in native.get("tool_calls") or []
+        ]
+        transcript = list(params["messages"])
+        transcript.append(native)
+        return ModelResponse(
+            content=content,
+            provider=self.provider_name,
+            model=params["model"],
+            usage=cohere_usage(response),
+            raw=response,
+            tool_calls=calls,
+            finish_reason=getattr(response, "finish_reason", None),
+            metadata={"cohere_endpoint": "chat.v2", "cohere_v2_messages": transcript},
+        )
 
     def _model_name(self) -> str:
         return str(getattr(self.config, "model", None) or "command-a-03-2025")
