@@ -86,6 +86,18 @@ streaming. Provider-reported cache reads and writes are included in usage. Cache
 minimums and prices depend on the model; see
 [Anthropic caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 
+## Cohere Request Timeouts
+
+Cohere accepts Praval's configured and per-call `timeout` on both chat endpoints.
+The adapter sends it through SDK `request_options`, including each tool
+continuation. No provider-specific timeout option is needed.
+
+Cohere v1 tools use native `parameter_definitions` with Python types such as
+`int` and `bool`. Praval includes the full JSON Schema in the tool description
+because v1 cannot represent its nested constraints natively, and validates
+arguments against that original schema before running a handler. The v2
+endpoint accepts native JSON Schema via `provider_options={"endpoint": "chat.v2"}`.
+
 ## Capability Matrix
 
 Legend:

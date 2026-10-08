@@ -1,6 +1,7 @@
 """Registered JSON Schema declarations survive real provider request building."""
 
 import copy
+import json
 from typing import Any, Dict
 
 import pytest
@@ -45,6 +46,20 @@ def assert_schema(harness: Any, declaration: Dict[str, Any], schema: Any) -> Non
         actual = declaration["parametersJsonSchema"]
     elif isinstance(harness, AnthropicHarness):
         actual = declaration["input_schema"]
+    elif isinstance(harness, CohereHarness):
+        assert "parameters" not in declaration
+        actual = json.loads(declaration["description"].split("Input JSON Schema: ")[1])
+        definitions = declaration["parameter_definitions"]
+        assert set(definitions) == set(schema.get("properties") or {})
+        native_types = {
+            "string": "str",
+            "integer": "int",
+            "boolean": "bool",
+            "object": "Dict",
+        }
+        for name, details in (schema.get("properties") or {}).items():
+            assert definitions[name]["type"] == native_types[details["type"]]
+            assert definitions[name]["required"] == (name in schema.get("required", []))
     else:
         actual = declaration["parameters"]
     assert actual == schema

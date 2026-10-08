@@ -16,6 +16,10 @@ MCP input schemas, now survive the Anthropic, Gemini and Cohere callable-tool
 paths. Anthropic and Cohere no longer crash before sending these requests;
 Gemini uses `parametersJsonSchema` to preserve actual argument names, nested
 types and constraints. Empty object schemas also survive runtime normalization.
+Cohere v1 translates argument names, types and required flags into its native
+`parameter_definitions`; the complete schema remains in the tool description
+and runtime validation. Cohere v2 sends native JSON Schema. Cohere timeouts use
+SDK `request_options` on initial calls and every continuation.
 The contract matrix inspects each dependent request across public entry points,
 and live tool checks require integer and boolean arguments with usage accounting.
 
@@ -82,7 +86,28 @@ low reasoning and explicit Chat Completions with reasoning none. Each check
 completed three dependent tool executions across four metered requests. Ollama
 `qwen3.5:2b` also passed the dependent-tool check with discovered capabilities.
 Ollama's installed models and OpenRouter's public catalogue were read live.
-These checks used the editable 0.8.4 candidate. Anthropic, Gemini and OpenRouter
-inference remains unverified here because their keys were unavailable. Cohere was
-not rerun. Exact main-CI wheel certification remains a release gate.
+Those earlier checks used the editable 0.8.4 candidate. A subsequent validation
+pass used the downloaded release-branch CI wheel, verified its checksum and
+confirmed its packaged Python sources match the candidate. OpenAI GPT-5.4 Mini
+passed Chat Completions and Responses; GPT-6 Luna passed automatic Responses
+routing and low reasoning. Gemini `gemini-3.1-flash-lite` and Ollama
+`qwen3.5:2b`/`qwen3.5:9b` passed dependent integer/boolean tools with reconciled
+usage. The first 2B Ollama attempt exceeded the tool-round limit before an unchanged
+rerun passed; the initial failure remains recorded in the validation evidence.
+
+Praval Code completed live file-tool tasks with GPT-6 Luna and Gemini Flash-Lite,
+including edit presentation data and independently verified generated tests.
+Praval Code's deterministic harness and PravalClaw's isolated suite also passed
+with the candidate wheel. These checks do not verify deployed connector delivery.
+New credentials enabled further checks. Gemini Flash-Lite passed again; Gemini
+3.5 Flash reached a tool call before its account quota blocked continuation.
+Anthropic reached the API but insufficient account credit blocked inference.
+Cohere exposed timeout and v1 declaration defects in the downloaded CI wheel.
+After fixing both, dependent tools and usage passed on v1 and v2 against a new
+local candidate wheel. Real-SDK offline contracts passed with both checked SDK
+versions. The earlier CI artifact does not contain these Cohere fixes; a fresh
+successful CI artifact is required. OpenRouter inference remains unverified
+without a key. See `evidence/v084-final-candidate-validation.json` for results,
+initial failed attempts, skipped checks and artifact provenance.
+Exact main-CI wheel certification remains a release gate.
 Publication follows RELEASE.md using only the wheel produced by successful main CI.

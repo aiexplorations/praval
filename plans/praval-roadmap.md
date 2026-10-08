@@ -1,6 +1,6 @@
 # Praval roadmap
 
-Status: updated for review on 2026-10-08 against `release/v0.8.4` at `dae03df`. The original v0.8.4 defect inventory below describes `main` at `2cfdd5e` (v0.8.3); its numbered code references are historical. The candidate includes the provider fixes and remains on hold for owner testing. Native Ollama context control is planned for v0.8.5.
+Status: updated for review on 2026-10-09. Initial candidate checks used `release/v0.8.4` at `c48e3fa`; live Cohere checks then exposed timeout and v1 tool declaration defects. The corrections passed live v1/v2 checks against a local candidate wheel and need a new CI artifact. The original v0.8.4 defect inventory below describes `main` at `2cfdd5e` (v0.8.3); its numbered code references are historical. Publication remains on hold. Native Ollama context control is planned for v0.8.5.
 
 Each release gets a plan in `plans/` before work starts:
 
@@ -40,6 +40,8 @@ A run that uses tools must work on every supported adapter, never repeat a side 
 ### Release gate
 
 Behavioural tests against the built wheel: three dependent tool rounds on every supported adapter; a provider failure after a side effect does not repeat it; signatures survive HITL pause, resume and restart; invalid arguments never reach a handler; `chat`, `generate`, `stream` and their async forms leave the same history; metered totals reconcile with every recorded request. Then live two-tool runs on OpenAI, Anthropic, Gemini and Cohere, and representative PravalClaw workflows.
+
+Current evidence: the release-branch CI wheel passed OpenAI GPT-5.4 Mini on both endpoints, GPT-6 Luna automatic Responses routing and low reasoning, Gemini Flash-Lite, and Ollama 2B/9B dependent tools with reconciled usage. Praval Code passed live file-tool tasks on GPT-6 Luna and Gemini, and both downstream deterministic suites passed. Ten PravalClaw socket checks passed separately after the sandbox skipped them; twenty replay checks still lack fixtures. The first Ollama 2B attempt reached the round limit before a rerun passed. Newly supplied keys allowed another Flash-Lite pass, but Gemini 3.5 Flash hit quota after its first tool call and Anthropic inference was blocked by account credit. Cohere's invalid timeout argument and ignored v1 schema field were reproduced and corrected; live dependent tools and usage passed on both endpoints against the corrected local wheel. Real-SDK offline contracts passed with SDK 5.17.0 and 7.2.0. OpenRouter inference remains unverified without credentials, and deployed connector delivery was not tested. Results and artifact provenance are in [candidate validation](../evidence/v084-final-candidate-validation.md). Fresh candidate CI, merge and exact `main` CI wheel certification remain pending under `RELEASE.md`.
 
 ## v0.8.5: operational control
 

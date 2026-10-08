@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Included in the pending 0.8.4 release: Cohere v1 requests send timeouts through
+  SDK `request_options`, avoiding a pre-request failure on initial and continued
+  tool calls. Offline contracts use the real SDK with a fake HTTP transport.
+- Included in the pending 0.8.4 release: Cohere v1 tools use native
+  `parameter_definitions` with Python types, required flags and descriptions.
+  Full JSON Schema constraints remain in the description and runtime validation;
+  v2 retains native JSON Schema. Models now receive their tool argument names.
 - Included in the pending 0.8.4 release: full JSON Schema tools registered
   through `Agent.add_tool_spec` retain their parameters on Anthropic, Gemini
   and Cohere. Gemini uses its native JSON Schema field; empty object schemas

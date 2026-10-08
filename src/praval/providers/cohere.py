@@ -361,7 +361,7 @@ class CohereProvider:
         elif request.tools:
             call_params["tools"] = self._format_tool_specs_for_cohere(request.tools)
         if request.timeout is not None:
-            call_params["timeout"] = request.timeout
+            call_params["request_options"] = {"timeout_in_seconds": request.timeout}
         for key, value in request.provider_options.items():
             if key not in {"capabilities", "max_retries", "endpoint", "api"}:
                 call_params.setdefault(key, value)
@@ -557,19 +557,61 @@ class CohereProvider:
                 if param_info.get("required", False):
                     tool_def["parameters"]["required"].append(param_name)
             formatted_tools.append(tool_def)
-        return formatted_tools
+        return [
+            self._v1_tool_definition(
+                tool["name"], tool["description"], tool["parameters"]
+            )
+            for tool in formatted_tools
+        ]
 
     def _format_tool_specs_for_cohere(
         self, tool_specs: List[ToolSpec]
     ) -> List[Dict[str, Any]]:
         return [
-            {
-                "name": spec.name,
-                "description": spec.description,
-                "parameters": spec.parameters,
-            }
+            self._v1_tool_definition(spec.name, spec.description, spec.parameters)
             for spec in tool_specs
         ]
+
+    def _v1_tool_definition(
+        self, name: str, description: str, schema: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Translate JSON Schema into Cohere v1's Python parameter types.
+
+        V1 cannot express nested JSON Schema constraints natively. Keep the full
+        schema in the description for the model; runtime validation still uses
+        the original schema. V2 uses native JSON Schema instead.
+        """
+        types = {
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "array": "List",
+            "object": "Dict",
+            "null": "None",
+        }
+        required = schema.get("required") or []
+        definitions = {}
+        for parameter, details in (schema.get("properties") or {}).items():
+            native_type = details.get("type") if isinstance(details, dict) else None
+            definitions[parameter] = {
+                "type": (
+                    types.get(native_type, "Any")
+                    if isinstance(native_type, str)
+                    else "Any"
+                ),
+                "required": parameter in required,
+                "description": (
+                    str(details.get("description") or "")
+                    if isinstance(details, dict)
+                    else ""
+                ),
+            }
+        return {
+            "name": name,
+            "description": description + "\nInput JSON Schema: " + json.dumps(schema),
+            "parameter_definitions": definitions,
+        }
 
     def _python_type_to_json_schema(self, python_type: str) -> str:
         type_mapping = {
