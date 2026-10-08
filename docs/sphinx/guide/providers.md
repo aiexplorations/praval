@@ -158,6 +158,14 @@ starting at 0.5 seconds and capped at 30 seconds. A stream is retried only
 before its first event reaches the caller. Each retry is recorded as a retry
 fact on the execution observation with its real backoff.
 
+The same policy covers provider requests made outside the runtime's tool loop:
+OpenAI `transcribe` and `speak` (an audio file is rewound and resent whole; a
+stream that cannot seek is not retried), and the follow-up request that each
+adapter's legacy `generate()` tool flow sends after running tools, which is
+also the request a HITL resume of a v0.8.3 suspended run ends with. Only that
+follow-up is retried, never the tools; if it still fails, the adapter returns
+the tool output as before.
+
 SDK clients (`openai.OpenAI`, `anthropic.Anthropic`, `cohere.Client`, and the
 OpenAI-compatible client) are built with `max_retries=0`, so SDK-internal
 retries no longer multiply Praval's. To restore them, set

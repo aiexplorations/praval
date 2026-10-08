@@ -10,7 +10,11 @@ import urllib.request
 from typing import Any, Dict, Iterator, List, Optional, Set
 
 from ..core.exceptions import ProviderError
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ContentPart,
     ModelEvent,
@@ -656,10 +660,16 @@ class GeminiProvider:
             request=request,
         )
         try:
-            data = self._post_json(
-                "generateContent",
-                followup_payload,
-                timeout=request.timeout if request is not None else None,
+            # The tools have already run: retry only this request.
+            data = call_with_retries(
+                "follow_up",
+                lambda: self._post_json(
+                    "generateContent",
+                    followup_payload,
+                    timeout=request.timeout if request is not None else None,
+                ),
+                retries=max_provider_retries(self.config),
+                map_error=lambda exc: self._provider_error(exc, "Gemini API error"),
             )
             content = self._extract_text(data)
         except Exception:
