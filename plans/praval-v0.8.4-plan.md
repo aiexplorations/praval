@@ -151,6 +151,25 @@ Added after wave 1 merged (release tip `2a3d3b9`, 2484 passed). Wave 1 changed t
 
 Each WP7 agent works like a wave-1 agent (own worktree and venv, tests real, gates green), may edit any file its fixes need but keeps fixes minimal, and reports: each finding with its test, severity (high: wrong result, data loss, secret exposure or unbounded growth reachable in normal use; medium: reachable under load or misuse; low: hardening), whether it was fixed, and any design-level item left as `xfail`. The lead merges security, then concurrency, then memory, with the full gate after each, and brings the `xfail` items to the user before wave 2.
 
+### WP8. Hardening decisions applied
+
+Approved 2026-10-08 after WP7 (release tip `d70a1c7`, 2615 passed, 12 xfailed). Each item turns its WP7 `xfail` into a passing test, or adds one.
+
+- **WP8a, runtime/HITL/tools** (branch `v084/decisions-runtime`): (1) a resume whose continuation fails after the approved tool ran stores the tool result with the run, and the next resume reuses it instead of re-executing; (4) jsonschema validation caps instance string length before `pattern` checks for external schemas; (7) `HITLRuntime._parse_args` treats malformed argument strings as invalid (`{"raw": ...}`), so validation rejects them; (8) `_build_hitl_runtime` returns `None` unless HITL is enabled, so no HITL store is opened for agents without HITL; (13) tool validation accepts numbers for `str` parameters and treats a `None` default as optional.
+- **WP8b, agent lifecycle** (branch `v084/decisions-agent`): (2) each answer is inserted directly after its own user turn, so overlapping calls on one agent keep question and answer together; (3) `achat()` runs on its own bounded executor, not the loop's default executor; (9) the configured `system_message` replaces the persisted one on load; (10) `close()` unregisters the agent's own tools from the global registry; (11) `close()` drops `<name>_channel` when it has no other subscribers.
+- **WP8c, providers/observability** (branch `v084/decisions-providers`): (5) spans record exceptions without the cause chain (type and redacted message only); (6) Gemini sends the API key in the `x-goog-api-key` header, in chat and embeddings; (12) OpenAI `transcribe`/`speak`, the provider-specific v0.8.3 HITL resume, and legacy `generate()` follow-ups go through Praval-owned retries; (14) `ProviderInvalidResponseError` is exported from `praval`.
+
+### WP9. Integration test expansion
+
+After WP8 merges. Grow the suite by 20-30% (about 550-750 tests over the WP8 tip) with tests where components meet, not more cases for single functions. Four branches, each adding new test files only, plus minimal fixes for defects found (or strict `xfail` for design-level ones):
+
+- **WP9a, provider × entry point matrix** (`tests/integration_matrix/test_entry_point_matrix.py`): every adapter harness × `chat`/`generate`/`agenerate`/`stream`/`astream` × tool shapes (none, one round, three dependent rounds, parallel calls in a round, same tool twice) × HITL off/on × `validate_locally`; asserting transcript completeness, history equality, tool side-effect counts and observation facts.
+- **WP9b, failure-mode matrix** (`tests/integration_matrix/test_failure_matrix.py`): every typed error and foreign exceptions × where they occur (initial call, each continuation, HITL resume, stream start, mid-stream, tool handler, argument validation) × entry point × retry settings; asserting retry counts, exactly-once side effects, error type at the caller, history and persisted state, HITL run status, and observation retry facts.
+- **WP9c, agents, Reef and decorators** (`tests/integration_matrix/test_agent_system_matrix.py`): `@agent` handlers using `chat`/`achat` with tools, HITL, memory and `persist_state`; multi-agent broadcast chains and request/reply; concurrent spore delivery to one agent; close/restart lifecycles; MCP tools through agents; `PravalApp` lifecycle.
+- **WP9d, observability and evaluation** (`tests/integration_matrix/test_observability_eval_matrix.py`): `ExecutionObservation` and span facts across the WP9a/WP9b combinations, privacy filters with transcripts and errors, trace propagation through Reef with tools and HITL, and the evaluation runner, judges and gates driving real `Agent`s over fake providers.
+
+Each WP9 agent targets 140-190 tests that each assert something distinct; parametrisation is used for real combinations, not to inflate counts. Shared fakes live in `tests/integration_matrix/conftest.py`, created by WP9a and reused by copy in the others until merge, then consolidated by the lead.
+
 ## Execution: agents, branches and merging
 
 Implementation is split across subagents, each in its own git worktree (`isolation: "worktree"`), branching from the current tip of `release/v0.8.4`. The lead session (this one) owns `release/v0.8.4`, all merges, `CHANGELOG.md`, release notes, the metering spec update, and the integration gate.
