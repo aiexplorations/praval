@@ -184,11 +184,12 @@ class EmbeddingRuntime:
     def _embed_gemini(
         self, request: EmbeddingRequest
     ) -> tuple[List[List[float]], List[Dict[str, Any]]]:
-        api_key = (
+        api_key = str(
             request.provider_options.get("api_key")
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("GOOGLE_API_KEY")
-        )
+            or ""
+        ).strip()
         if not api_key:
             raise ProviderError("GEMINI_API_KEY or GOOGLE_API_KEY is required")
         base_url = request.provider_options.get(

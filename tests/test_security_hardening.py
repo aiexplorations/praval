@@ -187,6 +187,49 @@ def test_s1_gemini_key_absent_from_traceback_on_malformed_url(monkeypatch):
     assert GEMINI_KEY not in _traceback_text(info.value)
 
 
+def test_s1_gemini_key_with_trailing_newline_is_stripped(monkeypatch):
+    # An env-file key ending in a newline is an invalid header value, and
+    # http.client quotes it (escaped, so redaction misses it) in the error.
+    monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY + "\n")
+    provider = GeminiProvider(
+        AgentConfig(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            base_url="http://127.0.0.1:9/v1beta",
+        )
+    )
+    assert provider.api_key == GEMINI_KEY
+    with patch.object(
+        socket.socket, "connect", side_effect=ConnectionRefusedError("refused")
+    ):
+        with pytest.raises(ProviderError) as info:
+            provider.invoke(
+                ModelRequest(messages=[ModelMessage(role="user", content="x")])
+            )
+    assert GEMINI_KEY not in _traceback_text(info.value)
+
+
+def test_s1_gemini_embedding_key_with_trailing_newline_is_stripped(monkeypatch):
+    from praval.embeddings import EmbeddingRuntime
+
+    monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEY + "\n")
+    sent: List[urllib.request.Request] = []
+
+    def fake_urlopen(request: urllib.request.Request) -> Any:
+        sent.append(request)
+        response = Mock()
+        response.read.return_value = b'{"embedding": {"values": [0.1, 0.2]}}'
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        return response
+
+    runtime = EmbeddingRuntime(provider="gemini", model="embed-test", dimensions=2)
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        runtime.embed("hello")
+    assert sent[0].get_header("X-goog-api-key") == GEMINI_KEY
+    assert GEMINI_KEY not in sent[0].full_url
+
+
 # --- S2 / S3 Error body size ------------------------------------------------
 
 

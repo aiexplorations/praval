@@ -55,7 +55,11 @@ class GeminiProvider:
     def __init__(self, config: Any):
         self.config = config
         api_key_env = getattr(config, "api_key_env", None) or "GEMINI_API_KEY"
-        self.api_key = os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY")
+        # Strip whitespace from keys read from env files: http.client rejects
+        # a header value ending in a newline and quotes it in the error.
+        self.api_key = (
+            os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY") or ""
+        ).strip() or None
         if not self.api_key and not getattr(config, "base_url", None):
             raise ProviderError(
                 f"{api_key_env} or GOOGLE_API_KEY environment variable not set"

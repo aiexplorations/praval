@@ -174,14 +174,19 @@ used for client construction only and is not sent with requests.
 
 ## Gemini Authentication
 
-The Gemini adapter and Gemini embeddings send the API key (`GEMINI_API_KEY`,
-`GOOGLE_API_KEY`, or the variable named by `api_key_env`) in the
+The Gemini adapter and Gemini embeddings send the API key in the
 `x-goog-api-key` request header. Earlier releases appended it to the URL as
 `?key=...`, where any exception, log line or proxy that quoted the URL could
-expose it. A custom `base_url` keeps working as long as the proxy or gateway
-forwards the `x-goog-api-key` header to Google; one that only forwarded query
-parameters needs that header added to its configuration. When no key is set
-(a gateway that injects its own credentials), no header is sent.
+expose it. Surrounding whitespace, such as a trailing newline from an env
+file, is stripped from the key. A custom `base_url` keeps working as long as
+the proxy or gateway forwards the `x-goog-api-key` header to Google; one that
+only forwarded query parameters needs that header added to its configuration.
+
+The chat adapter reads the key from the variable named by `api_key_env`
+(default `GEMINI_API_KEY`) or `GOOGLE_API_KEY`. With a custom `base_url` the
+key is optional: when none is set (a gateway that injects its own
+credentials), no header is sent. Embeddings read `provider_options["api_key"]`,
+`GEMINI_API_KEY` or `GOOGLE_API_KEY` and require one of them.
 
 ## Provider Profile Fields
 
