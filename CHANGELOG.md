@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Included in the pending 0.8.4 release: service certification builds its
+  pinned MinIO source because the upstream binary image is unavailable.
 - Included in the pending 0.8.4 release: Agent cleanup no longer creates or
   waits for the global Reef, avoiding a finalizer/thread-start deadlock.
 - Included in the pending 0.8.4 release: bounded parameter recovery, model
@@ -58,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependent tools, default endpoint selection and model-specific reasoning levels.
 - Fixed a Python 3.10 CI deadlock where Agent finalization waited for the Reef
   being constructed by another thread. Cleanup never creates a new Reef.
+- Fixed service CI startup by building the same pinned MinIO release from its
+  verified source commit instead of pulling an unavailable binary image.
 - Added one-time sampling/token-parameter recovery with bounded learned policies
   and request accounting, including failures before a stream opens.
 - Added Ollama declared capabilities and loaded-context diagnostics through
