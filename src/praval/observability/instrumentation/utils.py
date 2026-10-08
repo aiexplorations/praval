@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 
 from opentelemetry.trace import Status, StatusCode
 
+from ...runtime_observation import record_span_exception
 from ..tracing import SpanKind, TraceContext, get_tracer
 
 
@@ -49,7 +50,11 @@ def instrument_function(
                     parent_context = TraceContext.from_spore(arg_value)
 
             context = parent_context.as_context() if parent_context else None
-            return tracer.start_as_current_span(span_name, context=context, kind=kind)
+            # Exceptions are recorded by record_span_exception, which leaves
+            # out the cause chain (a raw provider error under a redacted one).
+            return tracer.start_as_current_span(
+                span_name, context=context, kind=kind, record_exception=False
+            )
 
         def inject_context(span: Any, args: Any, kwargs: Any) -> None:
             if not inject_context_to_arg:
@@ -69,7 +74,11 @@ def instrument_function(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 with prepare_span(args, kwargs) as span:
                     inject_context(span, args, kwargs)
-                    result = await func(*args, **kwargs)
+                    try:
+                        result = await func(*args, **kwargs)
+                    except Exception as exc:
+                        record_span_exception(span, exc)
+                        raise
                     span.set_status(Status(StatusCode.OK))
                     return result
 
@@ -79,7 +88,11 @@ def instrument_function(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             with prepare_span(args, kwargs) as span:
                 inject_context(span, args, kwargs)
-                result = func(*args, **kwargs)
+                try:
+                    result = func(*args, **kwargs)
+                except Exception as exc:
+                    record_span_exception(span, exc)
+                    raise
                 span.set_status(Status(StatusCode.OK))
                 return result
 
