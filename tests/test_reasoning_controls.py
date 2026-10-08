@@ -117,7 +117,12 @@ class V2Harness:
 FAMILIES = [
     (OpenAIHarness, "openai", "gpt-5.4", ("none", "low", "medium", "high")),
     (ResponsesHarness, "openai", "gpt-5.4", ("none", "low", "medium", "high")),
-    (OpenAICompatibleHarness, "vllm", "local-model", ("none", "low", "medium", "high")),
+    (
+        OpenAICompatibleHarness,
+        "vllm",
+        "google/gemma-4-26B-A4B-it",
+        ("none", "low", "medium", "high"),
+    ),
     (
         AnthropicHarness,
         "anthropic",
@@ -638,7 +643,7 @@ def test_unknown_model_level_rejected_before_sdk_call(monkeypatch):
             "high",
             {"thinking": {"type": "enabled", "token_budget": 8192}},
         ),
-        ("vllm", "local-model", "none", {"effort": "none"}),
+        ("vllm", "google/gemma-4-26B-A4B-it", "none", {"effort": "none"}),
     ],
 )
 def test_documented_native_mapping(provider, model, level, expected):
@@ -710,3 +715,15 @@ def test_cohere_v2_client_is_lazy_and_disables_sdk_retries(monkeypatch):
         assert factory.call_args.kwargs["max_retries"] == 0
         provider.close()
         client.close.assert_called_once()
+
+
+def test_unknown_vllm_model_cannot_promise_disabled_thinking():
+    with pytest.raises(ProviderError, match="accepted levels: low, medium, high"):
+        reasoning_parameters(
+            ModelRequest(
+                provider="vllm",
+                model="deepseek-r1",
+                messages=[],
+                reasoning=ReasoningConfig(level="none"),
+            )
+        )

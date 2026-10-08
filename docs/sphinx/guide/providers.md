@@ -246,7 +246,7 @@ Unknown models require a registered profile to use portable levels.
 | Gemini 2.5 Flash and Flash-Lite | `thinkingBudget`: 0/1024/4096/8192 | none, low, medium, high |
 | Gemini 2.5 Pro | `thinkingBudget`: 1024/4096/8192 | low, medium, high |
 | Cohere Command A Reasoning | v2 `thinking` with disabled or enabled and budgets 512/2048/8192 | none, low, medium, high |
-| vLLM preset | Chat Completions `reasoning_effort` | none, low, medium, high |
+| vLLM preset | Chat Completions `reasoning_effort` | low, medium, high; none for documented Gemma 4 profile |
 
 Budgets in this table are Praval's choices within the providers' documented
 ranges. Give reasoning sufficient output space, for example

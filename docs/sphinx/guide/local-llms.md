@@ -62,8 +62,10 @@ service/link-local targets. Put secrets in environment variables instead of
 
 ## Reasoning on vLLM
 
-The vLLM preset supports portable `reasoning="none"`, `"low"`, `"medium"`, and
-`"high"` through Chat Completions `reasoning_effort`. This requires a server
+The vLLM preset supports portable `reasoning="low"`, `"medium"`, and `"high"`
+through Chat Completions `reasoning_effort`. The documented
+`google/gemma-4-26B-A4B-it` profile also supports `"none"`; the wildcard rejects
+`"none"` because some models cannot disable thinking. This requires a server
 version and model that support the parameter; consult [vLLM's reasoning
 support](https://docs.vllm.ai/en/latest/features/reasoning_outputs/) when
 configuring the server. Praval keeps Chat Completions selected for local

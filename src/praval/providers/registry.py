@@ -577,11 +577,18 @@ def _register_reasoning_profiles(registry: ProviderRegistry) -> None:
         profile = profile.model_copy(deep=True)
         profile.capabilities.reasoning = True
         profile.capabilities.reasoning_effort = True
-        profile.reasoning_levels = {"none": {"effort": "none"}, **efforts}
+        profile.reasoning_levels = copy.deepcopy(efforts)
         profile.reasoning_source = (
             "https://docs.vllm.ai/en/latest/features/reasoning_outputs/"
         )
         registry.register_profile(profile)
+        # The wildcard cannot promise that a model can disable thinking.
+        # Gemma 4's documented template declares enable_thinking.
+        disabling_profile = profile.model_copy(
+            update={"model": "google/gemma-4-26B-A4B-it"}, deep=True
+        )
+        disabling_profile.reasoning_levels = {"none": {"effort": "none"}, **efforts}
+        registry.register_profile(disabling_profile)
 
 
 def reasoning_parameters(request: ModelRequest) -> Dict[str, Any]:
