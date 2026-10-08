@@ -102,12 +102,19 @@ with the candidate wheel. These checks do not verify deployed connector delivery
 New credentials enabled further checks. Gemini Flash-Lite passed again; Gemini
 3.5 Flash reached a tool call before its account quota blocked continuation.
 Anthropic reached the API but insufficient account credit blocked inference.
+The owner deferred its optional paid live check.
 Cohere exposed timeout and v1 declaration defects in the downloaded CI wheel.
 After fixing both, dependent tools and usage passed on v1 and v2 against a new
 local candidate wheel. Real-SDK offline contracts passed with both checked SDK
 versions. The earlier CI artifact does not contain these Cohere fixes; a fresh
-successful CI artifact is required. OpenRouter inference remains unverified
-without a key. See `evidence/v084-final-candidate-validation.json` for results,
+successful CI artifact is required. OpenRouter passed dependent tools on
+`openai/gpt-4.1-mini`, `anthropic/claude-haiku-4.5`, and low reasoning on
+`google/gemini-3.1-flash-lite`, with
+per-request usage and reported USD charges reconciled. The corrected candidate
+CI passed its other completed checks but failed an existing throttling test when
+its globally mocked clock was exhausted. The test now isolates the composition
+clock and retains its throttle assertions; a new green CI run remains required
+before candidate approval. See `evidence/v084-final-candidate-validation.json` for results,
 initial failed attempts, skipped checks and artifact provenance.
 Exact main-CI wheel certification remains a release gate.
 Publication follows RELEASE.md using only the wheel produced by successful main CI.

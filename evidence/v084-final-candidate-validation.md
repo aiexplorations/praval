@@ -21,6 +21,17 @@ SHA256 is `0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d`;
 its packaged Python sources match the corrected checkout. It is local validation
 evidence. A new successful CI artifact is required for the corrected candidate.
 
+The subsequent CI run on `b4ec8b7` completed with one failed check: Python 3.13's
+existing throttling test exhausted its globally patched `time.time` sequence.
+Python 3.10, 3.11, 3.12 and 3.14, quality/coverage and MCP passed. Packaging and
+wheel checks were skipped after the failed required test. A local probe reproduced
+the exhaustion when another clock user consumed a value; isolating the clock to
+the composition module preserved the throttle assertions. The six unchanged
+throttle tests passed in isolation. The test now patches the composition module's
+time binding, preserving the real clock for other callers. Its first, blocked and
+delayed handler assertions remain, with an additional independent-clock check.
+All forty composition tests passed; fresh CI is required. Runtime code is unchanged.
+
 ## Results
 
 | Check | Result |
@@ -37,6 +48,12 @@ evidence. A new successful CI artifact is required for the corrected candidate.
 | Gemini 3.5 Flash with newly supplied key | First tool call succeeded; quota blocked continuation |
 | Anthropic Claude Sonnet 5 with newly supplied key | API reached; insufficient account credit blocked inference |
 | Cohere Command A, v1 and v2 | Both passed on corrected local wheel |
+| OpenRouter GPT-4.1 Mini dependent tools | Passed on corrected local wheel; usage and reported charges reconciled |
+| OpenRouter Gemini Flash-Lite, low reasoning and dependent tools | Passed on corrected local wheel; usage, reasoning tokens and reported charges reconciled |
+| OpenRouter Claude Haiku 4.5 dependent tools | Passed on corrected local wheel; usage and reported charges reconciled |
+| Composition and provider-detection test isolation corrections | 71 focused tests passed |
+| Final full coverage suite after both isolation corrections | 4,063 passed, 144 skipped; 93.62% coverage; all floors passed |
+| PostgreSQL checks rerun with Docker access | 10 passed in a disposable container |
 | Focused provider regressions after Cohere fixes | 434 passed |
 | Installed corrected wheel, schema and real-SDK edge contracts with Cohere 7.2.0 | 64 passed |
 | Full suite after Cohere corrections, CI timeout flags | 4,062 passed, 144 skipped; 93.61% coverage; all floors passed |
@@ -53,6 +70,17 @@ four requests, tools registered through `add_tool_spec`, integer and boolean
 arguments, and reconciled per-request usage. The installed-wheel deterministic
 matrix covers the other provider declarations and public entry points too.
 
+OpenRouter used the corrected local wheel whose source matches `b4ec8b7`.
+`openai/gpt-4.1-mini` passed the dependent-tool certificate and
+`google/gemini-3.1-flash-lite` passed it with portable low reasoning, reporting
+reasoning tokens. Every request reported a finite nonnegative USD cost, and
+the sum of those costs matched the agent meter. Claude Haiku 4.5 then passed the
+same tool and accounting check using the OpenRouter route, without using the
+credit-blocked direct Anthropic account. OpenRouter reported $0.005715
+for all twelve requests combined ($0.004645 for Claude). No adapter change was needed. Catalogue
+capabilities were checked before selecting the models; key values were excluded
+from evidence.
+
 Both coding tasks used the real CLI, `read_file`, `write_file`, `edit_file` and
 `run_shell`. Effect records confirmed the file tools executed, the edit carried
 distinct old and new text for diff presentation, and shell calls only ran pytest.
@@ -66,6 +94,19 @@ Tests exercised fake connectors and local webhook servers, with no real outbound
 messages. Live deployment and connector delivery remain unverified.
 
 ## Initial attempts and limits
+
+After adding the OpenRouter key, the untraced broad suite passed 4,069 tests,
+skipped 132 and had two credential-absence assertion failures plus ten PostgreSQL
+setup errors. Those assertions had cleared the older provider keys but left
+OpenRouter's key available, so provider detection correctly found it. The tests
+now clear that key and cover OpenRouter explicitly. All 71 selected Agent and
+composition checks passed. The sandbox had blocked the Docker socket during
+PostgreSQL fixture setup; all ten database checks passed separately with access
+to their disposable container. These failures and corrections are retained in
+the structured evidence.
+The corrected full coverage suite then passed 4,063 tests with 144 skips,
+93.62% coverage and all per-file floors. Formatting, CI-configured lint, both
+typing targets, metadata/API checks and sixteen documentation contracts passed.
 
 Cohere's first live attempt failed before dispatch because v1 received the
 unsupported SDK keyword `timeout`. The timeout-only correction then reached the
@@ -100,7 +141,7 @@ were unchanged. Framework checks used Python 3.13, Praval Code Python 3.12 and
 PravalClaw Python 3.14. Temporary PravalClaw home defaults kept test state isolated.
 
 Anthropic successful inference remains unverified because the account needs
-credit. OpenRouter live inference remains unverified without a key. Gemini
+credit; the owner deferred this optional paid check. Gemini
 evidence applies to Flash-Lite. Gemini 3.5 Flash hit its free-tier request quota
 after one successful tool call, so its dependent-tool certificate is incomplete.
 Praval Code token accounting was complete; prices were not configured, so its
@@ -108,10 +149,10 @@ estimated monetary cost remained unavailable.
 
 ## Remaining release steps
 
-Obtain a new successful CI artifact containing the Cohere corrections. Complete
-Anthropic's live check once account credit is available, and optionally check
-OpenRouter when a key is supplied, or explicitly record their unverified status
-in the release decision. After candidate approval,
+Obtain a new successful CI artifact containing the Cohere corrections and
+isolated throttling test clock. Anthropic's optional direct live check is
+deferred by the owner; Gemini 3.5 Flash's quota-limited check remains recorded.
+After candidate approval,
 merge and obtain a fresh successful `main` CI wheel. Follow `RELEASE.md` to verify
 and publish that exact artifact. The tests here do not authorize publication.
 

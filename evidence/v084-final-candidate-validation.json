@@ -4,6 +4,40 @@
   "branch": "release/v0.8.4",
   "candidate_head": "c48e3fa0a99ff241f5f501b58cc5b3a4a4a74846",
   "checked_at": "2026-10-08T18:18:09.020598+00:00",
+  "ci_at_b4ec8b7": {
+    "conclusion": "failure",
+    "diagnosis": "The unchanged test globally patches time.time with three values. A local probe reproduced exhaustion when another clock caller consumed a value; a module-isolated clock preserved the three throttling assertions. The six focused throttle tests passed unchanged in isolation.",
+    "failed_check": "Python 3.13 tests",
+    "failure": "tests/test_composition.py::TestThrottledAgent::test_throttled_agent_blocks_rapid_execution: StopIteration in globally mocked time.time",
+    "fix": "Patch the composition module time binding, leaving other clock users independent; retain the first/blocked/delayed handler assertions and assert that an independent clock read does not consume the throttle sequence.",
+    "fix_validation": {
+      "focused_agent_and_composition_tests_passed": 71,
+      "focused_composition_tests_passed": 40,
+      "fresh_ci_required": true,
+      "full_suite": {
+        "coverage_floors": "passed",
+        "coverage_percent": 93.62,
+        "passed": 4063,
+        "skipped": 144,
+        "timeout_method": "thread",
+        "timeout_seconds": 60
+      }
+    },
+    "head": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+    "packaging_and_wheel_checks": "Skipped after the required Python 3.13 test check failed.",
+    "passed_checks": [
+      "Python 3.10 tests",
+      "Python 3.11 tests",
+      "Python 3.12 tests",
+      "Python 3.14 tests",
+      "Quality and complete coverage",
+      "MCP stdio and Streamable HTTP"
+    ],
+    "runtime_regression_confirmed": false,
+    "status": "completed",
+    "test_isolation_fix_implemented": true,
+    "url": "https://github.com/aiexplorations/praval/actions/runs/37829292819"
+  },
   "ci_checks_passed": 16,
   "ci_run": 37818460828,
   "ci_url": "https://github.com/aiexplorations/praval/actions/runs/37818460828",
@@ -1015,6 +1049,595 @@
       "version": "0.8.4"
     }
   ],
+  "openrouter_follow_up_2026_10_09": {
+    "anthropic_route": "Claude Haiku 4.5 passed using only the OpenRouter adapter and its key; the direct Anthropic account remains credit-blocked and deferred.",
+    "assertions": [
+      "Three dependent registered JSON Schema tool executions and four requests per scenario.",
+      "Integer and boolean arguments executed correctly.",
+      "Every request reported usage; response and meter totals reconcile.",
+      "Every request reported a finite nonnegative USD cost; summed request costs reconcile with agent metering.",
+      "Low portable reasoning was accepted on the Google model and reasoning tokens were reported."
+    ],
+    "catalogue_url": "https://openrouter.ai/api/v1/models",
+    "framework_defects_identified": [],
+    "initial_broad_suite": {
+      "failed": 2,
+      "failures": "Credential-absence tests did not remove the newly supplied OPENROUTER_API_KEY, so provider detection correctly found it instead of raising. Tests now clear it and cover OpenRouter detection explicitly.",
+      "passed": 4069,
+      "runtime_regression_confirmed": false,
+      "setup_errors": 10,
+      "setup_errors_reason": "Sandbox denied Docker socket access during PostgreSQL fixture construction; the same ten checks are rerun separately with permission in a disposable container.",
+      "skipped": 132
+    },
+    "live_checks": [
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 5.71,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": null,
+          "model": "openai/gpt-4.1-mini",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 607,
+            "output_tokens": 57,
+            "reasoning_tokens": 0,
+            "total_tokens": 664
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 607,
+          "output_tokens": 57,
+          "reasoning_tokens": 0,
+          "reported_cost_usd": 0.000334,
+          "total_tokens": 664,
+          "unreported_calls": 0
+        },
+        "model": "openai/gpt-4.1-mini",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "reported_cost_usd": 7e-05,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_gpinNjwUw17jb7HpEx3TFeeQ",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":0}",
+                    "name": "next_value"
+                  },
+                  "id": "call_gpinNjwUw17jb7HpEx3TFeeQ",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 115,
+              "output_tokens": 15,
+              "reasoning_tokens": 0,
+              "total_tokens": 130
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 8.24e-05,
+            "results": [
+              {
+                "content": "95585789",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_gpinNjwUw17jb7HpEx3TFeeQ"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 95585789
+                },
+                "id": "call_evMRXvnEK3ranwkMhysUxJ5w",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":95585789}",
+                    "name": "next_value"
+                  },
+                  "id": "call_evMRXvnEK3ranwkMhysUxJ5w",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 138,
+              "output_tokens": 17,
+              "reasoning_tokens": 0,
+              "total_tokens": 155
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 9.88e-05,
+            "results": [
+              {
+                "content": "166051573",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_evMRXvnEK3ranwkMhysUxJ5w"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 166051573
+                },
+                "id": "call_ejTDUswRthmdbfJHgq3heTCg",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":166051573,\"approved\":true}",
+                    "name": "confirm_value"
+                  },
+                  "id": "call_ejTDUswRthmdbfJHgq3heTCg",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 163,
+              "output_tokens": 21,
+              "reasoning_tokens": 0,
+              "total_tokens": 184
+            }
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 8.28e-05,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "call_ejTDUswRthmdbfJHgq3heTCg"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 191,
+              "output_tokens": 4,
+              "reasoning_tokens": 0,
+              "total_tokens": 195
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 20.26,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": null,
+          "model": "google/gemini-3.1-flash-lite",
+          "model_requests": 4,
+          "reasoning": "low",
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 1120,
+            "output_tokens": 304,
+            "reasoning_tokens": 242,
+            "total_tokens": 1424
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 1120,
+          "output_tokens": 304,
+          "reasoning_tokens": 242,
+          "reported_cost_usd": 0.0007360000000000001,
+          "total_tokens": 1424,
+          "unreported_calls": 0
+        },
+        "model": "google/gemini-3.1-flash-lite",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "reported_cost_usd": 0.00025075,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_532272",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":0}",
+                    "name": "next_value"
+                  },
+                  "id": "call_532272",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 109,
+              "output_tokens": 149,
+              "reasoning_tokens": 135,
+              "total_tokens": 258
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00015125,
+            "results": [
+              {
+                "content": "97064613",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_532272"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 97064613
+                },
+                "id": "call_850977",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":97064613}",
+                    "name": "next_value"
+                  },
+                  "id": "call_850977",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 269,
+              "output_tokens": 56,
+              "reasoning_tokens": 35,
+              "total_tokens": 325
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00018325,
+            "results": [
+              {
+                "content": "111410333",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_850977"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 111410333
+                },
+                "id": "call_784053",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"approved\":true,\"value\":111410333}",
+                    "name": "confirm_value"
+                  },
+                  "id": "call_784053",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 337,
+              "output_tokens": 66,
+              "reasoning_tokens": 40,
+              "total_tokens": 403
+            }
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00015075,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "call_784053"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 405,
+              "output_tokens": 33,
+              "reasoning_tokens": 32,
+              "total_tokens": 438
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 6.92,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 10,
+          "endpoint": null,
+          "model": "anthropic/claude-haiku-4.5",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 3350,
+            "output_tokens": 259,
+            "reasoning_tokens": 0,
+            "total_tokens": 3609
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 3350,
+          "output_tokens": 259,
+          "reasoning_tokens": 0,
+          "reported_cost_usd": 0.004645000000000001,
+          "total_tokens": 3609,
+          "unreported_calls": 0
+        },
+        "model": "anthropic/claude-haiku-4.5",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "I'll help you with this step-by-step process. Let me start with the first call.",
+            "operation": "invoke",
+            "reported_cost_usd": 0.00107,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 0}",
+                    "name": "next_value"
+                  },
+                  "id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 695,
+              "output_tokens": 75,
+              "reasoning_tokens": 0,
+              "total_tokens": 770
+            }
+          },
+          {
+            "content": "Great! The first call returned 24687414. Now let me call next_value again with that result.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00118,
+            "results": [
+              {
+                "content": "24687414",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 24687414
+                },
+                "id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 24687414}",
+                    "name": "next_value"
+                  },
+                  "id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 785,
+              "output_tokens": 79,
+              "reasoning_tokens": 0,
+              "total_tokens": 864
+            }
+          },
+          {
+            "content": "Perfect! The second call returned 150687614. Now let me call confirm_value with this result and approved=true.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.001374,
+            "results": [
+              {
+                "content": "150687614",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 150687614
+                },
+                "id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 150687614, \"approved\": true}",
+                    "name": "confirm_value"
+                  },
+                  "id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 879,
+              "output_tokens": 99,
+              "reasoning_tokens": 0,
+              "total_tokens": 978
+            }
+          },
+          {
+            "content": "Certified.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.001021,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 991,
+              "output_tokens": 6,
+              "reasoning_tokens": 0,
+              "total_tokens": 997
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      }
+    ],
+    "model_selection": "OpenRouter public model catalogue confirmed tools and requested controls before inference.",
+    "published": false,
+    "reported_cost_usd": 0.005715,
+    "request_count": 12,
+    "runtime_code_changed": false,
+    "test_changes": {
+      "clock_isolation": "Composition tests patch the module time binding so unrelated clock users cannot consume their finite mock sequence.",
+      "credential_isolation": "Provider detection tests clear OPENROUTER_API_KEY and exercise the new provider with a dummy key.",
+      "focused_agent_and_composition_tests_passed": 71,
+      "full_cov_suite": {
+        "coverage_floors": "passed",
+        "coverage_percent": 93.62,
+        "passed": 4063,
+        "skipped": 144,
+        "timeout_method": "thread",
+        "timeout_seconds": 60
+      },
+      "postgres_rerun": {
+        "execution": "Separate rerun with Docker access and a disposable PostgreSQL container.",
+        "passed": 10
+      },
+      "quality_checks": "Black, isort, flake8 with CI flags, Python 3.13/3.10 typing, metadata/API and sixteen documentation contracts passed."
+    }
+  },
   "packaged_python_sources_match_candidate": true,
   "praval_code_live_checks": [
     {
@@ -1317,6 +1940,12 @@
     }
   ],
   "published": false,
+  "release_gate_status": {
+    "direct_anthropic_live_check": "deferred by owner; optional",
+    "fresh_candidate_ci": "pending after the corrections and evidence update",
+    "publication": "on hold",
+    "test_isolation_corrections": "validated locally"
+  },
   "release_on_hold": true,
   "suites": {
     "claw-socket-tests": {
@@ -1383,13 +2012,12 @@
   },
   "unverified_live_providers": {
     "anthropic": {
-      "reason": "The new key reached the Anthropic API, which returned HTTP 400 invalid_request_error because the account credit balance was too low. Tool formatting completed; successful inference remains unverified."
-    },
-    "openrouter": {
-      "reason": "No usable OPENROUTER_API_KEY was supplied."
+      "deferred_by_owner": true,
+      "reason": "The new key reached the Anthropic API, which returned HTTP 400 invalid_request_error because the account credit balance was too low. Tool formatting completed; successful inference remains unverified.",
+      "release_blocker": false
     }
   },
-  "updated_at": "2026-10-08T19:02:43.290540+00:00",
+  "updated_at": "2026-10-08T19:35:38.682012+00:00",
   "wheel_hash_verified": true,
   "wheel_manifest": {
     "artifacts": [

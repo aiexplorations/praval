@@ -245,6 +245,7 @@ def test_agent_tool_requires_complete_type_hints():
     [
         ("OPENAI_API_KEY", "openai"),
         ("COHERE_API_KEY", "cohere"),
+        ("OPENROUTER_API_KEY", "openrouter"),
     ],
 )
 def test_agent_provider_detection_remaining_credentials(monkeypatch, key, provider):
@@ -257,6 +258,7 @@ def test_agent_provider_detection_remaining_credentials(monkeypatch, key, provid
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "COHERE_API_KEY",
+        "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(env_name, raising=False)
     monkeypatch.setenv(key, "test-key")
