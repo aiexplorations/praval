@@ -1,11 +1,12 @@
 # Praval roadmap
 
-Status: draft for review, 2026-10-07. Written against `main` at `2cfdd5e` (v0.8.3). Code references are to that commit.
+Status: updated for review on 2026-10-08 against `release/v0.8.4` at `dae03df`. The original v0.8.4 defect inventory below describes `main` at `2cfdd5e` (v0.8.3); its numbered code references are historical. The candidate includes the provider fixes and remains on hold for owner testing. Native Ollama context control is planned for v0.8.5.
 
 Each release gets a plan in `plans/` before work starts:
 
 - v0.8.4: `plans/praval-v0.8.4-plan.md`
 - v0.8.4 usage metering spec: `plans/praval-v0.8.4-usage-metering.md`
+- v0.8.5 Ollama context work: [native context plan](praval-v0.8.5-ollama-context.md).
 
 Inputs: the v0.8.4 metering spec; Praval Code's harness notes on Gemini, retries, errors, streaming and local models; and a review of Praval, PravalClaw and Praval Code at `2cfdd5e` that ran deterministic probes against the runtime. Every defect listed for v0.8.4 below was confirmed by reading the cited code.
 
@@ -44,6 +45,8 @@ Behavioural tests against the built wheel: three dependent tool rounds on every 
 
 v0.8.4 makes a run correct. v0.8.5 makes it observable while it happens, stoppable, and resumable, and then adds decisions and budgets on top.
 
+- **Ollama context control on every request.** Praval will accept the context size selected by the application, proposed as `provider_options={"context_tokens": 32768}`, and send `options.num_ctx` through native `/api/chat`. The adapter must retain it on tool continuations, retries, streams and HITL resume. It must preserve tools, images, thinking and usage contracts. `required_context_tokens` remains a diagnostic setting. The option is planned and is not supported by v0.8.4. Details and acceptance checks are in the [native context plan](praval-v0.8.5-ollama-context.md).
+- **Praval Code context policy.** Praval Code will start with a proposed coding default of 32,768 tokens and bound it by the model's supported context and a measured or configured memory budget. It will reserve space for output and thinking and allow per-model overrides. Its `/provider`, `/model` and `doctor` views should distinguish model maximum, requested context and observed loaded context. This application work is tracked here as a dependency; implementation belongs in the Praval Code repository.
 - **Native async providers and cancellation.** Async provider methods instead of worker threads, so a caller can stop waiting promptly, close streams and prevent further tools from starting. Cancellation is recorded consistently. A provider may still bill a request after it is cancelled.
 - **Live execution events.** Model-round starts, tool starts and results, retries, usage and terminal status emitted as they happen. Today tool streams replay their events after the loop finishes (`src/praval/model_runtime.py:528`), so they cannot serve as progress.
 - **Per-round token streaming.** `stream`/`astream` with tools deliver each round's text as it is generated, not only the last round's text at the end.
@@ -55,6 +58,12 @@ v0.8.4 makes a run correct. v0.8.5 makes it observable while it happens, stoppab
 - **Calibration in `praval.eval`.** Brier score and expected calibration error for decision outputs against labelled data.
 - **Budgets.** Token and cost limits per agent, per tracked scope and per run, built on the meter: warn, stop the tool loop cleanly, or lower the reasoning level.
 - **Metering beyond chat.** Embeddings, transcription, speech and image generation.
+
+### Ollama work order and interim setup
+
+Prioritize native context control before certifying local coding profiles. Claude's supplied probe loaded `qwen3.5:9b` at 32,768 tokens, then observed an OpenAI-compatible request reload it at 4,096 tokens. Native `/api/chat` with `options.num_ctx=32768` used 32,768 again. This is reported evidence from that setup; Praval has not reproduced the larger-context probe. The observed memory increase from 5.5 GB to 6.7 GB is not a general sizing rule.
+
+A preload alone does not ensure later ordinary requests use the same context. Until native control is implemented, applications can select a model variant built with `PARAMETER num_ctx 32768` and verify its context after an ordinary Praval call. A server-wide `OLLAMA_CONTEXT_LENGTH` can change the default for models without an overriding setting and needs a server restart. Praval Code may offer to create a variant with the user's approval. Praval does not create models or restart the server as part of a request. These approaches follow [Ollama's compatibility documentation](https://docs.ollama.com/api/openai-compatibility#setting-the-local-context-size) and [server configuration guidance](https://docs.ollama.com/faq#how-can-i-specify-the-context-window-size).
 
 ## v0.9 and beyond
 
