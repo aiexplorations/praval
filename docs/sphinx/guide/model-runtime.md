@@ -66,6 +66,13 @@ trimmed and, with `persist_state=True`, saved. A call that fails keeps only the
 user turn. `stream()` and `astream()` add the answer when the `final` event is
 produced, before it reaches your loop, so breaking out after `final` keeps it.
 
+Calls on one agent may overlap, for example when the Reef delivers spores on
+several threads. Each answer is inserted directly after its own user turn, so
+the history reads user A, answer A, user B, answer B regardless of which call
+finishes first. If later calls have trimmed a user turn away before its answer
+arrives, that answer is returned to its caller but not stored, since there is
+no question left to pair it with.
+
 `max_history` limits the number of non-system messages kept. Trimming removes
 the oldest whole units, where a unit is a user message and everything up to the
 next user message, so an assistant tool turn is never separated from its tool

@@ -438,19 +438,8 @@ def test_parallel_calls_keep_every_turn_and_persisted_state(tmp_path: Any) -> No
     assert saved == history
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "Design decision: concurrent calls on one Agent append the user turn "
-        "and the answer under separate lock holds, so overlapping calls "
-        "interleave (user A, user B, answer B, answer A) and trimming then "
-        "pairs answers with the wrong user turn. Options: serialise calls per "
-        "agent, insert each answer after its own user turn, or document an "
-        "Agent as single-caller."
-    ),
-)
 def test_overlapping_calls_keep_answers_next_to_their_questions() -> None:
+    """Each answer is inserted directly after its own user turn."""
     entered = {"A": threading.Event(), "B": threading.Event()}
     release = {"A": threading.Event(), "B": threading.Event()}
 
@@ -479,6 +468,35 @@ def test_overlapping_calls_keep_answers_next_to_their_questions() -> None:
             question = history[index - 1]
             assert question["role"] == "user"
             assert message["content"] == f"answer-{question['content']}"
+
+
+def test_answer_whose_user_turn_was_trimmed_away_is_dropped() -> None:
+    """A late answer is not attached to another call's question."""
+    entered = threading.Event()
+    release = threading.Event()
+
+    class Provider:
+        def invoke(self, request: Any) -> ModelResponse:
+            text = _last_user_text(request)
+            if text == "A":
+                entered.set()
+                assert release.wait(WAIT)
+            return ModelResponse(content=f"answer-{text}")
+
+    agent = _make_agent(Provider(), max_history=2)
+    first = threading.Thread(target=agent.chat, args=("A",), daemon=True)
+    first.start()
+    assert entered.wait(WAIT)
+    agent.chat("B")
+    agent.chat("C")
+    release.set()
+    first.join(WAIT)
+    assert not first.is_alive()
+
+    assert agent.conversation_history == [
+        {"role": "user", "content": "C"},
+        {"role": "assistant", "content": "answer-C"},
+    ]
 
 
 def test_unknown_keyword_warns_once_per_call_under_concurrency(

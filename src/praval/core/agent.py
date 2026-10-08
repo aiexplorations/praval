@@ -378,25 +378,64 @@ class Agent:
             runtime_kwargs=runtime_kwargs,
         )
 
-    def _append_user_turn(self, message: Any) -> List[Dict[str, Any]]:
-        """Append a user turn, trim, and return a snapshot of the history."""
-        with self._history_lock:
-            self.conversation_history.append({"role": "user", "content": message})
-            self._trim_history()
-            return list(self.conversation_history)
+    def _append_user_turn(
+        self, message: Any
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Append a user turn, trim, and return the turn and a history snapshot.
 
-    def _commit_answer(self, content: Any, token: Optional[_CallToken] = None) -> bool:
-        """Append an accepted assistant answer, trim, and persist state.
+        The returned turn is the dict stored in history; pass it to
+        ``_commit_answer`` so the answer is placed directly after it.
+        """
+        turn: Dict[str, Any] = {"role": "user", "content": message}
+        with self._history_lock:
+            self.conversation_history.append(turn)
+            self._trim_history()
+            return turn, list(self.conversation_history)
+
+    def _commit_answer(
+        self,
+        content: Any,
+        token: Optional[_CallToken] = None,
+        *,
+        user_turn: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Insert an accepted assistant answer, trim, and persist state.
+
+        With ``user_turn``, the answer goes directly after that turn (matched
+        by identity), so overlapping calls on one agent keep each question
+        next to its answer. If the turn has left the history before the
+        answer arrives (trimmed away by later calls, or the history was
+        cleared), the answer is dropped: placing it anywhere else would pair
+        it with another question. Without ``user_turn`` the answer is
+        appended at the end.
 
         Returns:
             False when ``token`` was cancelled and the answer was discarded.
         """
 
         def commit() -> None:
+            answer = {"role": "assistant", "content": content}
             with self._history_lock:
-                self.conversation_history.append(
-                    {"role": "assistant", "content": content}
-                )
+                history = self.conversation_history
+                if user_turn is None:
+                    history.append(answer)
+                else:
+                    position = next(
+                        (
+                            index
+                            for index in range(len(history) - 1, -1, -1)
+                            if history[index] is user_turn
+                        ),
+                        None,
+                    )
+                    if position is None:
+                        logger.debug(
+                            "Agent %s dropped an answer whose user turn is no "
+                            "longer in history",
+                            self.name,
+                        )
+                        return
+                    history.insert(position + 1, answer)
                 self._trim_history()
                 if self.persist_state:
                     self._save_state()
@@ -518,7 +557,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="chat")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "chat"):
@@ -531,7 +570,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 )
-                self._commit_answer(response, token)
+                self._commit_answer(response, token, user_turn=user_turn)
                 record_content_reference(ContentKind.RESPONSE, response)
                 return response
 
@@ -566,7 +605,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="generate")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate"):
@@ -578,7 +617,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 )
-                self._commit_answer(response.content, token)
+                self._commit_answer(response.content, token, user_turn=user_turn)
                 record_content_reference(ContentKind.RESPONSE, response.content)
                 return response
             except PravalError:
@@ -725,7 +764,7 @@ class Agent:
             raise ValueError("Message cannot be empty")
 
         options = self._runtime_call_options(kwargs, entry_point="agenerate")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         with self._observation_scope(run_id, "generate_async"):
@@ -736,7 +775,7 @@ class Agent:
                 hitl_context=self._build_hitl_context(run_id),
                 **options.runtime_kwargs,
             )
-            self._commit_answer(response.content)
+            self._commit_answer(response.content, user_turn=user_turn)
             record_content_reference(ContentKind.RESPONSE, response.content)
             return response
 
@@ -750,7 +789,7 @@ class Agent:
         if not message:
             raise ValueError("Message cannot be empty")
         options = self._runtime_call_options(kwargs, entry_point="stream")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
 
         def observed_stream() -> Any:
@@ -763,7 +802,7 @@ class Agent:
                     hitl_context=self._build_hitl_context(run_id),
                     **options.runtime_kwargs,
                 ):
-                    self._observe_stream_event(event, deltas)
+                    self._observe_stream_event(event, deltas, user_turn)
                     yield event
 
         return observed_stream()
@@ -776,7 +815,7 @@ class Agent:
         if not message:
             raise ValueError("Message cannot be empty")
         options = self._runtime_call_options(kwargs, entry_point="astream")
-        history = self._append_user_turn(message)
+        user_turn, history = self._append_user_turn(message)
         run_id = str(uuid.uuid4())
         deltas: List[str] = []
         with self._observation_scope(run_id, "stream_async"):
@@ -787,10 +826,12 @@ class Agent:
                 hitl_context=self._build_hitl_context(run_id),
                 **options.runtime_kwargs,
             ):
-                self._observe_stream_event(event, deltas)
+                self._observe_stream_event(event, deltas, user_turn)
                 yield event
 
-    def _observe_stream_event(self, event: Any, deltas: List[str]) -> None:
+    def _observe_stream_event(
+        self, event: Any, deltas: List[str], user_turn: Dict[str, Any]
+    ) -> None:
         """Collect text deltas and commit the answer on the ``final`` event."""
         event_type = getattr(event, "type", None)
         if event_type == "delta":
@@ -798,7 +839,7 @@ class Agent:
         elif event_type == "final":
             response = getattr(event, "response", None)
             content = response.content if response is not None else "".join(deltas)
-            self._commit_answer(content)
+            self._commit_answer(content, user_turn=user_turn)
 
     def configure_hitl(
         self,
