@@ -19,6 +19,7 @@ coding prompts and semantic tool decisions remain with applications and agents.
 | OpenRouter metadata | Public catalogue supplies supported parameters, limits and price strings. No runtime prices are hard-coded. |
 | OpenRouter charged cost | Per-request reported_cost_usd and exact meter/response aggregates, separate from caller estimates. Missing reports remain explicit. |
 | Release checks | Independent provider selection in live_provider_tools.py and GPT-6 Luna endpoint/reasoning checks, both registered for exact-wheel certification. |
+| Registered JSON Schema tools | Preserve full object schemas through add_tool_spec on Anthropic, Gemini and Cohere. Gemini uses documented parametersJsonSchema, including neutral invoke/stream requests. Check every dependent declaration, nested types, empty objects and invalid argument rejection across the public entry matrix. |
 | Existing Python 3.10 CI failure | Agent cleanup snapshots the existing Reef without taking its initialization lock. A deterministic finalizer/thread-start regression covers the observed deadlock. |
 
 Discovery is explicit through ProviderRegistry.discover_models(provider, config)
@@ -44,6 +45,7 @@ Official references checked 2026-10-08:
 - https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide
 - https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
 - https://ai.google.dev/api/models
+- https://ai.google.dev/api/generate-content#FunctionDeclaration
 - https://ai.google.dev/gemini-api/docs/latest-model
 - https://docs.ollama.com/api/openai-compatibility
 - https://openrouter.ai/docs/api-reference/models/get-models

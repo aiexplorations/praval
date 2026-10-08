@@ -234,7 +234,7 @@ async def acall_with_retries(
 
 def _tool_parameter_schema(parameters: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize legacy tool parameters to JSON Schema shape."""
-    if parameters.get("type") == "object" and "properties" in parameters:
+    if parameters.get("type") == "object":
         return parameters
 
     properties: Dict[str, Any] = {}

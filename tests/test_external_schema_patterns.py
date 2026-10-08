@@ -19,17 +19,21 @@ from praval.tool_execution import (
 def test_short_catastrophic_external_pattern_finishes_in_child_process():
     code = textwrap.dedent(
         """
+        import time
         from praval.tool_execution import run_tool
         invoked = []
         def external(**kwargs):
             invoked.append(kwargs)
             return "unsafe"
+        started = time.monotonic()
         result = run_tool({"function": external, "parameters": {
             "type": "object", "properties": {
                 "s": {"type": "string", "pattern": "^(a|aa)+$"}
             }
         }}, {"s": "a" * 40 + "!"})
+        assert time.monotonic() - started < 8
         assert result.is_error and not invoked, result
+        assert "pattern evaluation exceeded 0.05 seconds" in result.content, result
     """
     )
     environment = dict(os.environ)
@@ -39,7 +43,9 @@ def test_short_catastrophic_external_pattern_finishes_in_child_process():
         env=environment,
         capture_output=True,
         text=True,
-        timeout=8,
+        # Importing optional ML dependencies can take most of eight seconds.
+        # Bound the whole child separately; validation keeps its own deadline.
+        timeout=30,
     )
     assert result.returncode == 0, result.stderr
 

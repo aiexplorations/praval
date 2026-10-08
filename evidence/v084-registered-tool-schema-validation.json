@@ -1,0 +1,129 @@
+{
+  "api_references": [
+    "https://ai.google.dev/api/generate-content#FunctionDeclaration",
+    "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools"
+  ],
+  "artifact_kind": "editable-checkout-validation",
+  "base_commit": "8a5037ceee808dc432c1b8fe0bbfe9d5625994c2",
+  "checked_at": "2026-10-08T16:40:03.753147+00:00",
+  "checks": {
+    "api_surface": "passed",
+    "black": "passed",
+    "coverage_floors": "passed",
+    "demo_manifest": "passed",
+    "flake8": "passed",
+    "isort": "passed",
+    "notebook_manifest": "passed",
+    "release_metadata": "passed",
+    "sphinx_warnings_as_errors": "passed",
+    "typing_python_3_10": "passed",
+    "typing_python_3_13": "passed"
+  },
+  "coverage_percent": 93.60313315926894,
+  "exact_main_ci_wheel_certified": false,
+  "focused_tests": {
+    "failed": 0,
+    "passed": 90
+  },
+  "focused_tests_including_regex_guard": {
+    "failed": 0,
+    "passed": 111
+  },
+  "initial_full_run": {
+    "failed": 1,
+    "failure": "tests/test_external_schema_patterns.py::test_short_catastrophic_external_pattern_finishes_in_child_process",
+    "isolated_group_rerun": {
+      "failed": 0,
+      "passed": 21
+    },
+    "observed_error": "Child process exceeded existing 8-second wall deadline while typing/docs also ran",
+    "passed": 4059,
+    "serial_rerun_before_test_hardening": {
+      "error": "Same child-process wall deadline exceeded",
+      "failed": 1,
+      "passed": 4059,
+      "skipped": 144
+    },
+    "skipped": 144,
+    "test_hardening": "Validation now measures its eight-second bound after import and requires the 50 ms timeout error. Whole child startup/execution has a separate 30-second bound; runtime regex policy is unchanged.",
+    "trace": {
+      "import_seconds": 4.788,
+      "result": "pattern evaluation exceeded 0.05 seconds",
+      "validation_seconds": 0.0515
+    }
+  },
+  "live_validation": {
+    "anthropic": "pending; no Anthropic API key in environment or checked configuration",
+    "certificate": "examples/certification/live_provider_tools.py requires dependent integer and boolean arguments, actual execution, and complete per-request usage",
+    "cohere": "not rerun",
+    "gemini": "pending; no Gemini/Google API key in environment or checked configuration",
+    "ollama": {
+      "artifact_kind": "editable-checkout-live-certificate",
+      "capability": "dependent_tools_usage",
+      "content_chars": 9,
+      "endpoint": null,
+      "model": "qwen3.5:2b",
+      "model_requests": 4,
+      "reasoning": null,
+      "resolved_endpoint": "chat.completions",
+      "tool_executions": 3,
+      "usage": {
+        "cache_read_tokens": 1646,
+        "cache_write_tokens": 0,
+        "input_tokens": 2265,
+        "output_tokens": 294,
+        "reasoning_tokens": 0,
+        "total_tokens": 2559
+      },
+      "usage_complete": true
+    },
+    "owner_praval_code_application_checks": "pending"
+  },
+  "original_reproduction": {
+    "causes": {
+      "anthropic": "JSON Schema root type string accessed as legacy parameter info",
+      "cohere": "same root type string crash as Anthropic",
+      "gemini": "JSON Schema root keys advertised as function arguments"
+    },
+    "failed": 18,
+    "failures": {
+      "anthropic": 5,
+      "cohere": 3,
+      "gemini": 10
+    },
+    "passed": 15,
+    "registration": "Agent.add_tool_spec"
+  },
+  "prior_release_ci": {
+    "commit": "8a5037c",
+    "passed_checks": 16,
+    "run_id": 37804241992
+  },
+  "published": false,
+  "python": "3.13.15",
+  "release_on_hold": true,
+  "source_sha256": {
+    "CHANGELOG.md": "5a78345e9ee3c5c138e28d197db979e8af177211f7388590f348b45cf2a9c8be",
+    "docs/feature-claims.toml": "aea4273a2056e0c2389c20fdc3548a6399b325eae568f4061e9369d49d70d120",
+    "docs/plans/2026-10-08-provider-robustness-design.md": "743637261e8b1f804cffaf8a324245b81bad9b9515a357fdb035bda485be3cb6",
+    "docs/releases/RELEASE_NOTES_0.8.4.md": "b8a0c54aa4667d4ade56a081ec8a2957f461f4e2109732e5643832a6c6e310a9",
+    "docs/tool-system-specification.md": "a78851930a4f2c55c961d3ab7f89bae4f13778968a144ea7280989a18c7959ac",
+    "examples/certification/live_provider_matrix.py": "cb0e604512cb00f69f22dc113eb1cf785eb53ce663f87ac544410a1d5ce21253",
+    "src/praval/model_runtime.py": "f7942bd6b76f17288c6efc4192711cf05491397ed99a5191d45d0a284e0eef30",
+    "src/praval/providers/anthropic.py": "a3773cbc026d7c7c363e386294c3045dd35d803a0b136027c1273d234861cfd3",
+    "src/praval/providers/cohere.py": "3d63c74c44030f8e34dad84cafc0ed2fae2d5834f5fbc3ec2e558dd1d811dbc3",
+    "src/praval/providers/gemini.py": "325ce190d03f6007de0d9c58c5fe96fbe667ecc9007f2c2b84265976e80b9947",
+    "tests/integration_matrix/test_registered_tool_schema_matrix.py": "de359058b479b3aedae3c7f495c0c62e5a094ee58135f39682f98f2994c75a91",
+    "tests/test_external_schema_patterns.py": "d8431944134e783cc4e8be52d5eef1250e292482f796c4d246fba1c76a90e7f9",
+    "tests/test_gemini_provider_edges.py": "cf0df3b6cbfcbd2f8fc7478f5357952c465f905f5de064aa8bc5b14a2f6eb301"
+  },
+  "tests": {
+    "command": "pytest tests/ --ignore=tests/test_arxiv_downloader.py --ignore=tests/test_message_filtering.py --ignore=tests/test_venturelens_demo.py --timeout=60 --timeout-method=thread --cov=src/praval --cov-fail-under=90 -q",
+    "failed": 0,
+    "passed": 4060,
+    "seconds": 220.59,
+    "skipped": 144,
+    "warnings": 18
+  },
+  "version": "0.8.4"
+}

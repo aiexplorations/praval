@@ -545,7 +545,12 @@ class CohereProvider:
                     "required": [],
                 },
             }
-            for param_name, param_info in (tool.get("parameters") or {}).items():
+            parameters = tool.get("parameters") or {}
+            if parameters.get("type") == "object":
+                tool_def["parameters"] = parameters
+                formatted_tools.append(tool_def)
+                continue
+            for param_name, param_info in parameters.items():
                 param_type = param_info.get("type", "str")
                 json_type = self._python_type_to_json_schema(param_type)
                 tool_def["parameters"]["properties"][param_name] = {"type": json_type}
