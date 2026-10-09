@@ -24,17 +24,13 @@ profile does not support them. It also enforces a schema size limit to avoid
 oversized provider payloads.
 
 The schema is sent to the provider as a generation constraint. The returned
-value remains JSON text in `ModelResponse.content`; Praval does not perform a
-second local JSON Schema validation pass.
+value remains JSON text in `ModelResponse.content`:
 
 ```python
 import json
 
 payload = json.loads(response.content)
 ```
-
-Use a JSON Schema validator or a typed model in application code when local
-validation is required.
 
 Provider adapters map the neutral schema into provider-specific fields:
 
@@ -48,3 +44,42 @@ Provider adapters map the neutral schema into provider-specific fields:
 
 `Agent.chat()` still returns text. Prefer `Agent.generate()` when you need a
 provider-constrained schema, response metadata, or usage.
+
+## Local validation
+
+Set `validate_locally=True` to have Praval check the final answer itself. The
+runtime parses the content as JSON and validates it against the schema with
+`jsonschema` (Draft 2020-12 unless the schema declares another `$schema`
+dialect). Content that is not JSON, or does not match, raises
+`ProviderInvalidResponseError`, a subclass of `ProviderError`, naming each
+failing path:
+
+```python
+from praval import ProviderInvalidResponseError, StructuredOutputConfig
+
+config = StructuredOutputConfig(
+    schema={
+        "type": "object",
+        "properties": {"company": {"type": "string"}},
+        "required": ["company"],
+    },
+    validate_locally=True,
+)
+try:
+    response = agent.generate("Extract the company.", response_schema=config)
+except ProviderInvalidResponseError as exc:
+    print(exc)  # ...: $: 'company' is a required property
+```
+
+The same option is accepted in dict form:
+`response_schema={"schema": {...}, "validate_locally": True}`. A dict without a
+`schema` key is still treated as the schema itself.
+
+Local validation runs on the final response of `chat`, `generate`, `agenerate`,
+`stream` and `astream`, including the answer after a tool loop or HITL resume.
+For a stream, validation happens before `final` is emitted and before the answer
+enters agent history. Earlier text deltas may already have reached the caller;
+treat them as provisional until a valid `final` arrives. A validation failure
+raises `ProviderInvalidResponseError` and leaves the user turn without an
+assistant answer in history. The option is off by default and is never sent
+to the provider.

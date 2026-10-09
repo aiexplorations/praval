@@ -1,8 +1,10 @@
+from importlib.metadata import version
+
 import praval
 
 
 def test_version_exported():
-    assert praval.__version__ == "0.8.3"
+    assert praval.__version__ == version("praval")
 
 
 def test_all_exports_present():

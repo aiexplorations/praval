@@ -6,7 +6,7 @@ without binding the rest of Praval to one provider's wire format.
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Protocol
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -161,6 +161,8 @@ class Usage(BaseModel):
     output_tokens: int = 0
     total_tokens: int = 0
     reasoning_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 class EmbeddingRequest(BaseModel):
@@ -243,6 +245,7 @@ class AudioResponse(BaseModel):
 class ReasoningConfig(BaseModel):
     """Reasoning controls for providers that support them."""
 
+    level: Optional[Literal["none", "low", "medium", "high"]] = None
     effort: Optional[str] = None
     summary: Optional[str] = None
     encrypted: bool = False
@@ -259,6 +262,9 @@ class StructuredOutputConfig(BaseModel):
     json_schema: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
     name: Optional[str] = None
     strict: bool = True
+    # When true, the runtime parses the final content as JSON and checks it
+    # against ``json_schema`` locally, raising ProviderInvalidResponseError.
+    validate_locally: bool = False
 
 
 class ProviderCapabilities(BaseModel):
@@ -306,8 +312,13 @@ class ProviderProfile(BaseModel):
     local_preset: Optional[str] = None
     context_window: Optional[int] = None
     max_output_tokens: Optional[int] = None
+    supported_parameters: List[str] = Field(default_factory=list)
+    pricing: Dict[str, str] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     default_parameters: Dict[str, Any] = Field(default_factory=dict)
     unsupported_combinations: List[Dict[str, Any]] = Field(default_factory=list)
+    reasoning_levels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    reasoning_source: str = ""
     downgrade_policy: str = "error"
     notes: str = ""
 

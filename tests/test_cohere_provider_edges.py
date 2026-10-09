@@ -1,13 +1,23 @@
 """Edge-case contracts for the Cohere 0.8 provider adapter."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import cohere
+import httpx
 import pytest
+from cohere.types.tool_call import ToolCall as CohereToolCall
 
 from praval.core.agent import AgentConfig
 from praval.core.exceptions import ProviderError
-from praval.models import ModelMessage, ModelRequest, ModelResponse
+from praval.models import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ToolResult,
+    ToolSpec,
+)
 from praval.providers.cohere import CohereProvider, _redact_secrets
 
 
@@ -87,10 +97,115 @@ def test_cohere_request_params_include_history_system_tools_and_options(
     assert params["message"] == "now"
     assert params["preamble"] == "system"
     assert params["chat_history"][1]["role"] == "CHATBOT"
-    assert params["tools"][0]["parameters"]["required"] == ["query"]
-    assert params["timeout"] == 4
+    assert params["tools"][0]["parameter_definitions"]["query"]["required"]
+    assert params["tools"][0]["parameter_definitions"]["query"]["type"] == "str"
+    assert params["request_options"]["timeout_in_seconds"] == 4
     assert params["seed"] == 7
     assert "capabilities" not in params
+
+
+@pytest.mark.parametrize("endpoint", ["chat.v1", "chat.v2"])
+def test_cohere_real_sdk_applies_timeout_on_invoke_and_continuation(
+    monkeypatch, endpoint
+):
+    """Use real SDK signatures and HTTP serialization without provider calls."""
+    monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if endpoint == "chat.v1":
+            payload = {
+                "text": "" if len(requests) == 1 else "done",
+                "generation_id": "test-generation",
+                "finish_reason": "COMPLETE",
+                "tool_calls": (
+                    [{"name": "lookup", "parameters": {"value": 1}}]
+                    if len(requests) == 1
+                    else []
+                ),
+            }
+        else:
+            payload = {
+                "id": "test-generation",
+                "finish_reason": "COMPLETE",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "done"}],
+                    "tool_calls": (
+                        [
+                            {
+                                "id": "call-1",
+                                "type": "function",
+                                "function": {
+                                    "name": "lookup",
+                                    "arguments": '{"value":1}',
+                                },
+                            }
+                        ]
+                        if len(requests) == 1
+                        else []
+                    ),
+                },
+            }
+        return httpx.Response(200, json=payload)
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as http_client:
+        client = cohere.Client("test-cohere-key", httpx_client=http_client)
+        with patch("praval.providers.cohere.cohere.Client", return_value=client):
+            provider = CohereProvider(AgentConfig(provider="cohere"))
+        if endpoint == "chat.v2":
+            provider._reasoning_client = cohere.ClientV2(
+                api_key="test-cohere-key", httpx_client=http_client
+            )
+        request = ModelRequest(
+            provider="cohere",
+            model="command-a-03-2025",
+            messages=[ModelMessage(role="user", content="Use lookup")],
+            timeout=4.5,
+            provider_options={"endpoint": endpoint},
+            tools=[
+                ToolSpec(
+                    name="lookup",
+                    description="Lookup an integer",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "value": {"type": "integer"},
+                            "approved": {"type": "boolean"},
+                        },
+                        "required": ["value", "approved"],
+                    },
+                )
+            ],
+        )
+        first = provider.invoke(request)
+        call = first.tool_calls[0]
+        continued = provider.continue_with_tool_results(
+            request,
+            first,
+            [ToolResult(tool_call_id=call.id, name=call.name, content="2")],
+        )
+
+    assert continued.content == "done"
+    assert len(requests) == 2
+    for sent in requests:
+        assert set(sent.extensions["timeout"].values()) == {4.5}
+        body = json.loads(sent.content)
+        assert "timeout" not in body
+        assert "request_options" not in body
+        tool = body["tools"][0]
+        if endpoint == "chat.v1":
+            assert "parameters" not in tool
+            assert tool["parameter_definitions"] == {
+                "value": {"type": "int", "required": True, "description": ""},
+                "approved": {"type": "bool", "required": True, "description": ""},
+            }
+            assert json.loads(tool["description"].split("Input JSON Schema: ")[1]) == (
+                request.tools[0].parameters
+            )
+        else:
+            assert tool["function"]["parameters"] == request.tools[0].parameters
 
 
 def test_cohere_serializes_object_calls_and_streams_fallback(cohere_provider):
@@ -143,3 +258,54 @@ def test_cohere_legacy_resume_validation(cohere_provider):
         provider.resume_tool_flow({}, tools=[])
     with pytest.raises(ProviderError, match="Missing resume intervention"):
         provider.resume_tool_flow({"schema": "cohere_tool_v1"}, tools=[])
+
+
+def test_cohere_reads_sdk_parameters_and_numbers_calls_across_rounds(
+    cohere_provider,
+):
+    provider, _ = cohere_provider
+    calls = provider._serialize_tool_calls(
+        [
+            CohereToolCall(name="lookup", parameters={"q": "x"}),
+            {"name": "lookup", "parameters": {"q": "y"}},
+        ]
+    )
+    assert calls == [
+        {"id": None, "name": "lookup", "args": {"q": "x"}},
+        {"id": None, "name": "lookup", "args": {"q": "y"}},
+    ]
+
+    history = [
+        {"role": "USER", "message": "q"},
+        {"role": "CHATBOT", "message": "", "tool_calls": [{"name": "a"}] * 2},
+        "ignored",
+    ]
+    assert provider._history_tool_call_count(history) == 2
+    assert provider._history_tool_call_count(None) == 0
+    response = provider._chat_model_response(
+        SimpleNamespace(
+            text="",
+            tool_calls=[CohereToolCall(name="lookup", parameters={"q": "z"})],
+        ),
+        {"message": "", "chat_history": history, "tool_results": [{"r": 1}]},
+    )
+    assert response.tool_calls[0].id == "cohere-call-2"
+    assert response.metadata["cohere_chat_history"][-2:] == [
+        {"role": "TOOL", "tool_results": [{"r": 1}]},
+        {
+            "role": "CHATBOT",
+            "message": "",
+            "tool_calls": [{"name": "lookup", "parameters": {"q": "z"}}],
+        },
+    ]
+
+
+def test_cohere_tool_result_shape_for_errors_and_unknown_calls(cohere_provider):
+    provider, _ = cohere_provider
+    result = ToolResult(
+        tool_call_id="missing", name="lookup", content="Error: boom", is_error=True
+    )
+    assert provider._cohere_tool_result(result, None) == {
+        "call": {"name": "lookup", "parameters": {}},
+        "outputs": [{"result": "Error: boom", "is_error": True}],
+    }

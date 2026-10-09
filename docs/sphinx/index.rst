@@ -91,6 +91,7 @@ What To Read
    guide/application-lifecycle
    guide/configuration
    guide/model-runtime
+   guide/usage-metering
    guide/providers
    guide/local-llms
    guide/streaming
@@ -106,6 +107,7 @@ What To Read
    guide/storage
    guide/runtime-migration
    guide/v083-migration
+   guide/v084-migration
    guide/troubleshooting
    guide/documentation-quality
 

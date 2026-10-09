@@ -296,7 +296,7 @@ def test_agent_stream_forwards_runtime_options(mock_factory):
         )
     )
 
-    assert [event.type for event in events] == ["start", "delta", "final"]
+    assert [event.type for event in events] == ["start", "delta", "model_call", "final"]
     assert provider.request.provider_options["seed"] == 3
     assert provider.request.timeout == 7
     assert provider.request.metadata["trace"] == "ghi"

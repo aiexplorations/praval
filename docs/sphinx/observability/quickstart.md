@@ -85,7 +85,7 @@ from praval.observability import configure_observability, shutdown_observability
 
 handle = configure_observability(
     service_name="orders-agent",
-    service_version="0.8.3",
+    service_version="0.8.4",
     deployment_environment="development",
     otlp_endpoint="http://127.0.0.1:4318",
     otlp_protocol="http/protobuf",

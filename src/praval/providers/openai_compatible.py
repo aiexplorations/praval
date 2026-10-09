@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import threading
+from collections import OrderedDict
 from typing import Any, Dict
 from urllib.parse import urlparse
 
 import openai
 
 from ..core.exceptions import ProviderError
-from ..models import ProviderCapabilities
+from ..models import ModelRequest, ModelResponse, ProviderCapabilities
+from .errors import sdk_max_retries
 from .openai import OpenAIProvider, _redact_secrets
 
 LOCAL_BASE_URLS = {
@@ -35,6 +38,8 @@ class OpenAICompatibleProvider(OpenAIProvider):
 
     def __init__(self, config: Any):
         self.config = config
+        self._parameter_lock = threading.RLock()
+        self._parameter_policies = OrderedDict()
         provider_name = str(getattr(config, "provider", "") or "").lower()
         base_url = getattr(config, "base_url", None) or LOCAL_BASE_URLS.get(
             provider_name
@@ -50,8 +55,12 @@ class OpenAICompatibleProvider(OpenAIProvider):
         api_key = os.getenv(api_key_env) if api_key_env else "local"
         try:
             client_kwargs: Dict[str, Any] = {"api_key": api_key, "base_url": base_url}
+            headers = self._client_default_headers()
+            if headers:
+                client_kwargs["default_headers"] = headers
             if getattr(config, "timeout", None):
                 client_kwargs["timeout"] = config.timeout
+            client_kwargs["max_retries"] = sdk_max_retries(config)
             self.client = openai.OpenAI(**client_kwargs)
             self.base_url = base_url
         except Exception as e:
@@ -62,10 +71,40 @@ class OpenAICompatibleProvider(OpenAIProvider):
                 "Failed to initialize OpenAI-compatible client: " f"{redacted_message}"
             ) from e
 
+    def _use_responses_api(self, request: ModelRequest) -> bool:
+        # Local reasoning uses Chat Completions unless Responses is explicit.
+        endpoint = str(
+            request.provider_options.get("endpoint")
+            or request.provider_options.get("api")
+            or ""
+        ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
+        return endpoint == "responses" or bool(
+            request.provider_options.get("use_responses")
+        )
+
     def _model_name(self) -> str:
         return str(getattr(self.config, "model", None) or "local-model")
 
-    def _validate_base_url(self, base_url: str) -> None:
+    def _client_default_headers(self) -> Dict[str, str]:
+        return {}
+
+    def _chat_model_response(
+        self, response: Any, call_params: Dict[str, Any]
+    ) -> ModelResponse:
+        result = super()._chat_model_response(response, call_params)
+        transcript = result.metadata.get("openai_chat_messages")
+        message = self._chat_choice_message(self._first_chat_choice(response))
+        if transcript:
+            for field in ("reasoning_content", "reasoning", "reasoning_details"):
+                value = self._event_value(message, field, None)
+                if isinstance(value, (str, list)):
+                    transcript[-1][field] = value
+        return result
+
+    @staticmethod
+    def _validate_base_url(base_url: str) -> None:
         parsed = urlparse(base_url)
         if parsed.scheme not in {"http", "https"}:
             raise ProviderError("OpenAI-compatible base_url must use http or https")

@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-09
+
+### Added
+
+- Added explicit provider model discovery, Anthropic prompt caching and an
+  OpenRouter adapter with catalogue metadata and exact charged-cost totals.
+- Added Claude Sonnet/Haiku 5.5 and Gemini 3.6/3.7/3.8 Flash reasoning profiles.
+- Added `praval.metering`, agent lifetime and application-scoped usage meters,
+  bounded request records, cache/reasoning token accounting and caller-supplied
+  cost estimates. Streaming exposes `model_call` events; observations count
+  actual requests across retries and tool rounds.
+- Added portable `none`, `low`, `medium` and `high` reasoning levels with
+  documented provider profiles, agent defaults and per-call overrides.
+  Unsupported levels fail before dispatch. Cohere reasoning uses its v2 API.
+- Added integration matrices covering provider entry points, tool shapes,
+  failures, approval recovery, concurrent Reef delivery, decorated agents,
+  observation privacy and evaluation against real Agents with fake clients.
+
+### Changed
+
+- `ModelResponse.usage` now aggregates reported requests across the logical run.
+  Missing usage, failures and unpriced requests remain explicitly incomplete.
+- Provider retries apply to one request, preserve continuation state and use
+  typed retry eligibility. SDK retries are disabled by default.
+- Conversation trimming preserves system messages and whole exchanges.
+  Streamed answers enter history at the final event. Concurrent calls retain
+  their own user/answer pairing.
+- Decorated `chat` and `achat` honor request options and configured timeouts;
+  unknown keywords warn. Tool-round exhaustion raises `ToolRoundLimitError`.
+- External tool schema patterns have bounded matching. External
+  `patternProperties` and nested schema dialect switches are rejected; trusted
+  application response schemas retain their existing validation semantics.
+
+### Fixed
+
+- Corrected client ownership in documentation examples, constructor and call
+  configuration, streaming validation, buffered tool execution, provider
+  capability notes, HITL commands and generated links. Added coding-agent guidance.
+- Fixed Anthropic and Cohere pre-request crashes and Gemini malformed tool
+  declarations for tools registered with full JSON Schema, including MCP tools.
+- Fixed OpenAI GPT-6 compatibility on Chat Completions and Responses, including
+  dependent tools, default endpoint selection and model-specific reasoning levels.
+- Fixed a Python 3.10 CI deadlock where Agent finalization waited for the Reef
+  being constructed by another thread. Cleanup never creates a new Reef.
+- Fixed service CI startup by building the same pinned MinIO release from its
+  verified source commit instead of pulling an unavailable binary image.
+- Added one-time sampling/token-parameter recovery with bounded learned policies
+  and request accounting, including failures before a stream opens.
+- Added Ollama declared capabilities and loaded-context diagnostics through
+  discovery; excessive discovered output budgets fail before dispatch.
+- Improved Gemini 404 availability guidance, allowed unspecified temperature,
+  and preserved compatible-provider reasoning fields through tool continuations.
+- Preserved complete provider tool/reasoning transcripts and Gemini signatures
+  across repeated tool continuations, including OpenAI Responses chains.
+- Preserved committed tool results and usage histories across failed approval
+  resumes, later rounds, second approval gates and process restart.
+- Fixed JSON Schema tool declarations and strict schemas on OpenAI Chat
+  Completions, including subsequent tool continuations.
+- Unified typed tool outcomes, argument validation, restrictions and local
+  structured-output validation across sync, async and streaming paths.
+- Fixed canceled-worker request double counting, async decorated-handler
+  context, raw tool lifecycle ownership and non-HITL store initialization.
+- Hardened untrusted request options, schemas, JSON arguments, caches and
+  concurrent history/state operations.
+
 ## [0.8.3] - 2026-08-25
 
 ### Added

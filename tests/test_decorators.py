@@ -6,11 +6,10 @@ all edge cases correctly. Tests are strict and verify both functionality
 and error conditions.
 """
 
-import asyncio
 import threading
 import time
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -242,7 +241,11 @@ class TestAgentDecorator:
 
         # Verify reef setup calls
         mock_agent.set_spore_handler.assert_called_once()
-        mock_agent.subscribe_to_channel.assert_called_once_with("test_channel")
+        # The main-channel subscription is tracked too, so close() removes it.
+        assert mock_agent.subscribe_to_channel.call_args_list == [
+            call("test_channel"),
+            call("main"),
+        ]
 
 
 class TestAgentHandler:
@@ -658,37 +661,45 @@ class TestAChatFunction:
             await achat("test message", timeout=0.1)
 
     @pytest.mark.asyncio
-    @patch("asyncio.get_event_loop")
-    @patch("asyncio.wait_for")
-    async def test_achat_uses_event_loop_executor(self, mock_wait_for, mock_get_loop):
-        """Test that achat() uses asyncio event loop executor."""
-        mock_loop = Mock()
-        mock_get_loop.return_value = mock_loop
-        mock_wait_for.return_value = "Executor result"
+    async def test_achat_uses_event_loop_executor(self):
+        """Test that achat() runs the agent call off the event loop thread."""
+        import threading
+
+        loop_thread = threading.get_ident()
+        call_threads = []
+
+        def record_thread(message, **options):
+            call_threads.append(threading.get_ident())
+            return f"Executor result: {message} {options}"
 
         mock_agent = Mock()
+        mock_agent.chat.side_effect = record_thread
         _agent_context.agent = mock_agent
 
-        result = await achat("test message", timeout=3.0)
+        result = await achat("test message", timeout=3.0, reasoning={"effort": "low"})
 
-        assert result == "Executor result"
-        executor_args = mock_loop.run_in_executor.call_args.args
-        assert executor_args[0] is None
-        assert callable(executor_args[1])
-        assert executor_args[2:] == (mock_agent.chat, "test message")
-        mock_wait_for.assert_called_once()
+        assert (
+            result == "Executor result: test message {'reasoning': {'effort': 'low'}}"
+        )
+        assert call_threads and call_threads[0] != loop_thread
 
     @pytest.mark.asyncio
-    @patch("asyncio.wait_for")
-    async def test_achat_converts_asyncio_timeout_error(self, mock_wait_for):
-        """Test that achat() converts asyncio.TimeoutError to TimeoutError."""
-        mock_wait_for.side_effect = asyncio.TimeoutError()
+    async def test_achat_converts_asyncio_timeout_error(self):
+        """Test that achat() raises the built-in TimeoutError with the limit."""
+        import threading
 
+        release = threading.Event()
         mock_agent = Mock()
+        mock_agent.chat.side_effect = lambda message: release.wait(5)
         _agent_context.agent = mock_agent
 
-        with pytest.raises(TimeoutError, match="LLM call timed out after 2.5 seconds"):
-            await achat("test message", timeout=2.5)
+        try:
+            with pytest.raises(
+                TimeoutError, match="LLM call timed out after 0.05 seconds"
+            ):
+                await achat("test message", timeout=0.05)
+        finally:
+            release.set()
 
 
 class TestBroadcastFunction:

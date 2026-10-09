@@ -23,7 +23,7 @@ store is enabled, apply separate encryption, access control, regional, and
 retention policy. Deleting referenced content can preserve aggregate evaluation
 records while intentionally making evidence unavailable.
 
-Praval v0.8.3 does not run automatic evaluation-record retention. Applications
+Praval v0.8.4 does not run automatic evaluation-record retention. Applications
 should partition or delete runs, subjects, results, attempts, and content under
 one reviewed policy while retaining baseline referential integrity. Always
 close the store on shutdown.

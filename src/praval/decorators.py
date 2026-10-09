@@ -22,17 +22,36 @@ Example::
     get_reef().shutdown()
 """
 
+import atexit
+import inspect
 import logging
+import os
+import queue
 import sys
+import threading
 import time
 import uuid
+from concurrent.futures import Executor, Future
 from contextvars import ContextVar, copy_context
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
-from .core.agent import Agent
+from .core.agent import _CALL_TOKEN, Agent, _CallToken
 from .core.exceptions import InterventionRequired, ToolError
 from .core.reef import get_reef
 from .core.tool_registry import Tool, ToolMetadata, get_tool_registry
+from .models import ReasoningConfig
 from .models.observation import ContentKind, ObservationKind
 from .runtime_observation import (
     ObservationScope,
@@ -147,8 +166,6 @@ def _auto_register_tools(agent: Agent, agent_name: str) -> None:
             tool_func = tool.func
 
             # Get function signature for parameter extraction
-            import inspect
-
             sig = inspect.signature(tool_func)
 
             # Extract parameters from type hints
@@ -222,9 +239,14 @@ def _attach_registry_tool(agent: Agent, tool: Tool) -> None:
     ] = tool.metadata.approval_reason
 
 
-def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[Tool]:
+def _register_callable_tool(
+    agent_name: str, tool_func: Callable, owner: Optional[Agent] = None
+) -> Optional[Tool]:
     """
     Ensure a callable is registered in the tool registry and return the Tool object.
+
+    When this call adds a raw callable to the registry and ``owner`` is given,
+    the entry is recorded on the agent so ``close()`` removes it again.
     """
     registry = get_tool_registry()
 
@@ -250,6 +272,8 @@ def _register_callable_tool(agent_name: str, tool_func: Callable) -> Optional[To
     try:
         tool_obj = Tool(tool_func, metadata)
         registry.register_tool(tool_obj)
+        if owner is not None:
+            owner._registry_tools[metadata.tool_name] = tool_func
         return tool_obj
     except ToolError:
         existing = registry.get_tool(metadata.tool_name)
@@ -274,6 +298,7 @@ def agent(
     auto_discover_tools: bool = True,
     on_error: Union[str, Callable[[Exception, Any], None]] = "log",
     hitl: bool = False,
+    reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
 ) -> Callable[[Callable], Callable]:
     """
     Decorator that turns a function into an autonomous agent.
@@ -284,6 +309,7 @@ def agent(
         provider: LLM provider to use
         model: Provider model name or compact provider:model value
         config: Additional Agent configuration
+        reasoning: Portable level or provider-specific reasoning controls
         system_message: System message (defaults to function docstring)
         auto_broadcast: Whether to auto-broadcast return values
         responds_to: List of message types this agent responds to (None = all messages)
@@ -372,18 +398,19 @@ def agent(
             agent_kwargs["model"] = model
         if config is not None:
             agent_kwargs["config"] = config
+        if reasoning is not None:
+            agent_kwargs["reasoning"] = reasoning
 
         underlying_agent = Agent(**agent_kwargs)
 
-        def agent_handler(spore: Any) -> Any:
-            """Handler that sets up context and calls the decorated function."""
-            # Check message type filtering
-            if responds_to is not None:
-                spore_type = spore.knowledge.get("type")
-                if spore_type not in responds_to:
-                    # This agent doesn't respond to this message type
-                    return
+        def accepts(spore: Any) -> bool:
+            """Return whether ``responds_to`` lets this agent handle the spore."""
+            if responds_to is None:
+                return True
+            return spore.knowledge.get("type") in responds_to
 
+        def enter_handler(spore: Any) -> ObservationScope:
+            """Open the handler observation and set the agent context."""
             observation_scope = ObservationScope(
                 kind=ObservationKind.AGENT,
                 run_id=str(uuid.uuid4()),
@@ -401,7 +428,6 @@ def agent(
                 ContentKind.CONTEXT,
                 getattr(spore, "knowledge", None),
             )
-            observation_error: tuple[Any, Any, Any] = (None, None, None)
 
             # Set agent context for chat() and broadcast() functions
             _agent_context.agent = underlying_agent
@@ -411,61 +437,79 @@ def agent(
             _agent_context.startup_channel = getattr(
                 underlying_agent, "_startup_channel", None
             )
+            return observation_scope
 
-            result = None
-            try:
-                # Resolve knowledge references in spore if memory is enabled
-                if memory_enabled and hasattr(spore, "has_knowledge_references"):
-                    if spore.has_knowledge_references():
-                        try:
-                            resolved_knowledge = (
-                                underlying_agent.resolve_spore_knowledge(spore)
-                            )
-                            spore.resolved_knowledge = resolved_knowledge
-                        except Exception as e:
-                            # Knowledge resolution errors are non-fatal, log and
-                            # continue
-                            _handle_agent_error(
-                                e,
-                                spore,
-                                agent_name,
-                                on_error,
-                                context="knowledge_resolution",
-                            )
+        def exit_handler(
+            observation_scope: ObservationScope,
+            observation_error: Tuple[Any, Any, Any],
+        ) -> None:
+            """Clear the agent context and close the handler observation."""
+            _agent_context.agent = None
+            _agent_context.channel = None
+            _agent_context.startup_channel = None
+            observation_scope.__exit__(*observation_error)
 
-                # Call the decorated function
-                result = func(spore)
-
-                # Store conversation turn in memory if enabled
-                if memory_enabled and underlying_agent.memory:
+        def before_call(spore: Any) -> None:
+            """Resolve knowledge references in the spore if memory is enabled."""
+            if memory_enabled and hasattr(spore, "has_knowledge_references"):
+                if spore.has_knowledge_references():
                     try:
-                        query = (
-                            str(spore.knowledge) if spore.knowledge else "interaction"
+                        resolved_knowledge = underlying_agent.resolve_spore_knowledge(
+                            spore
                         )
-                        response = str(result) if result else "no_response"
-
-                        underlying_agent.memory.store_conversation_turn(
-                            agent_id=agent_name,
-                            user_message=query,
-                            agent_response=response,
-                            context={
-                                "spore_id": spore.id,
-                                "spore_type": spore.spore_type.value,
-                            },
-                        )
+                        spore.resolved_knowledge = resolved_knowledge
                     except Exception as e:
-                        # Memory storage errors are non-fatal, log and continue
+                        # Knowledge resolution errors are non-fatal, log and
+                        # continue
                         _handle_agent_error(
-                            e, spore, agent_name, on_error, context="memory_storage"
+                            e,
+                            spore,
+                            agent_name,
+                            on_error,
+                            context="knowledge_resolution",
                         )
 
-                # Auto-broadcast return values if enabled and result exists
-                if auto_broadcast and result and isinstance(result, dict):
-                    underlying_agent.broadcast_knowledge(
-                        {**result, "_from": agent_name, "_timestamp": time.time()},
-                        channel=agent_channel,
+        def after_call(spore: Any, result: Any) -> None:
+            """Store the turn in memory and auto-broadcast a returned dict."""
+            if memory_enabled and underlying_agent.memory:
+                try:
+                    query = str(spore.knowledge) if spore.knowledge else "interaction"
+                    response = str(result) if result else "no_response"
+
+                    underlying_agent.memory.store_conversation_turn(
+                        agent_id=agent_name,
+                        user_message=query,
+                        agent_response=response,
+                        context={
+                            "spore_id": spore.id,
+                            "spore_type": spore.spore_type.value,
+                        },
+                    )
+                except Exception as e:
+                    # Memory storage errors are non-fatal, log and continue
+                    _handle_agent_error(
+                        e, spore, agent_name, on_error, context="memory_storage"
                     )
 
+            # Auto-broadcast return values if enabled and result exists
+            if auto_broadcast and result and isinstance(result, dict):
+                underlying_agent.broadcast_knowledge(
+                    {**result, "_from": agent_name, "_timestamp": time.time()},
+                    channel=agent_channel,
+                )
+
+        def agent_handler(spore: Any) -> Any:
+            """Handler that sets up context and calls the decorated function."""
+            if not accepts(spore):
+                return None
+
+            observation_scope = enter_handler(spore)
+            observation_error: Tuple[Any, Any, Any] = (None, None, None)
+            result = None
+            try:
+                before_call(spore)
+                result = func(spore)
+                after_call(spore, result)
             except InterventionRequired:
                 observation_error = sys.exc_info()
                 raise
@@ -474,19 +518,48 @@ def agent(
                 mark_observation_error(e)
                 observation_error = sys.exc_info()
                 _handle_agent_error(e, spore, agent_name, on_error, context="handler")
-
             finally:
-                # Clean up context
-                _agent_context.agent = None
-                _agent_context.channel = None
-                _agent_context.startup_channel = None
-                observation_scope.__exit__(*observation_error)
+                exit_handler(observation_scope, observation_error)
+
+            return result
+
+        async def async_agent_handler(spore: Any) -> Any:
+            """Async counterpart of ``agent_handler`` for ``async def`` agents.
+
+            The context is set inside the coroutine, so ``achat()``, ``chat()``
+            and ``broadcast()`` work in the handler body, and the awaited
+            result is what memory and auto-broadcast see.
+            """
+            if not accepts(spore):
+                return None
+
+            observation_scope = enter_handler(spore)
+            observation_error: Tuple[Any, Any, Any] = (None, None, None)
+            result = None
+            try:
+                before_call(spore)
+                result = await func(spore)
+                after_call(spore, result)
+            except InterventionRequired:
+                observation_error = sys.exc_info()
+                raise
+            except Exception as e:
+                mark_observation_error(e)
+                observation_error = sys.exc_info()
+                _handle_agent_error(e, spore, agent_name, on_error, context="handler")
+            finally:
+                exit_handler(observation_scope, observation_error)
 
             return result
 
         # Set up the agent
-        underlying_agent.set_spore_handler(agent_handler)
+        underlying_agent.set_spore_handler(
+            async_agent_handler if inspect.iscoroutinefunction(func) else agent_handler
+        )
         underlying_agent.subscribe_to_channel(agent_channel)
+        if agent_channel == f"{agent_name}_channel":
+            # The agent's own channel; close() removes it once it is unused.
+            underlying_agent._owned_channels.append(agent_channel)
 
         # CRITICAL FIX for reef broadcast invocation:
         # Subscribe agent to the default broadcast channel so it receives
@@ -494,14 +567,11 @@ def agent(
         # own channel ALSO receive system-wide broadcasts.
         #
         # The handler is delegated through on_spore_received to the custom
-        # agent_handler set above, preventing duplicate invocations.
+        # agent_handler set above, preventing duplicate invocations. Going
+        # through subscribe_to_channel records the channel, so close()
+        # removes this subscription and the reef stops holding the agent.
         reef = get_reef()
-        reef.subscribe(
-            agent_name,
-            underlying_agent.on_spore_received,
-            channel=reef.default_channel,
-            replace=True,
-        )
+        underlying_agent.subscribe_to_channel(reef.default_channel)
 
         # Tool attachment based on decorator params
         registry = get_tool_registry()
@@ -519,7 +589,9 @@ def agent(
                     else:
                         logger.debug("Tool '%s' not found in registry", tool_entry)
                 elif callable(tool_entry):
-                    tool_obj = _register_callable_tool(agent_name, tool_entry)
+                    tool_obj = _register_callable_tool(
+                        agent_name, tool_entry, owner=underlying_agent
+                    )
                     if tool_obj:
                         _attach_registry_tool(underlying_agent, tool_obj)
                     else:
@@ -591,75 +663,267 @@ def agent(
     return decorator
 
 
-def chat(message: str, timeout: float = 10.0) -> str:
+def _chat_timeout(agent_instance: Any, timeout: Optional[float]) -> Optional[float]:
+    """Return the client-side limit for chat(): the argument or agent config."""
+    if timeout is not None:
+        return timeout
+    configured = getattr(getattr(agent_instance, "config", None), "timeout", None)
+    if isinstance(configured, (int, float)) and not isinstance(configured, bool):
+        return float(configured)
+    return None
+
+
+#: Environment variable that sets the number of ``achat()`` worker threads.
+ACHAT_MAX_WORKERS_ENV = "PRAVAL_ACHAT_MAX_WORKERS"
+#: Default number of ``achat()`` worker threads, shared by all event loops.
+DEFAULT_ACHAT_MAX_WORKERS = 32
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+_WorkItem = Tuple["Future[Any]", Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]
+
+
+class _DaemonThreadExecutor(Executor):
+    """Bounded executor whose daemon workers never hold up interpreter exit.
+
+    ``ThreadPoolExecutor`` joins its workers at interpreter exit, so one hung
+    provider call would keep the process alive. These workers are daemon
+    threads, started on demand up to ``max_workers`` and reused when idle.
+    """
+
+    def __init__(self, max_workers: int, thread_name_prefix: str) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least 1")
+        self._max_workers = max_workers
+        self._thread_name_prefix = thread_name_prefix
+        self._work: "queue.SimpleQueue[Optional[_WorkItem]]" = queue.SimpleQueue()
+        self._idle = threading.Semaphore(0)
+        self._lock = threading.Lock()
+        self._threads: Set[threading.Thread] = set()
+        self._shutdown = False
+
+    def submit(
+        self, fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs
+    ) -> "Future[_T]":
+        """Schedule ``fn(*args, **kwargs)`` and return its future."""
+        with self._lock:
+            if self._shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
+            future: "Future[_T]" = Future()
+            self._work.put((future, fn, args, kwargs))
+            if (
+                not self._idle.acquire(blocking=False)
+                and len(self._threads) < self._max_workers
+            ):
+                worker = threading.Thread(
+                    target=self._run_worker,
+                    name=f"{self._thread_name_prefix}_{len(self._threads)}",
+                    daemon=True,
+                )
+                self._threads.add(worker)
+                worker.start()
+            return future
+
+    def _run_worker(self) -> None:
+        try:
+            while True:
+                item = self._work.get()
+                if item is None:
+                    return
+                future, fn, args, kwargs = item
+                del item
+                if future.set_running_or_notify_cancel():
+                    try:
+                        result = fn(*args, **kwargs)
+                    except BaseException as error:
+                        future.set_exception(error)
+                    else:
+                        future.set_result(result)
+                del future, fn, args, kwargs
+                self._idle.release()
+        finally:
+            with self._lock:
+                self._threads.discard(threading.current_thread())
+
+    def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
+        """Stop accepting work and let idle workers exit."""
+        with self._lock:
+            self._shutdown = True
+            if cancel_futures:
+                while True:
+                    try:
+                        item = self._work.get_nowait()
+                    except queue.Empty:
+                        break
+                    if item is not None:
+                        item[0].cancel()
+            threads = list(self._threads)
+            for _ in threads:
+                self._work.put(None)
+        if wait:
+            for worker in threads:
+                worker.join()
+
+
+_achat_executor: Optional[_DaemonThreadExecutor] = None
+_achat_executor_lock = threading.Lock()
+
+
+def _achat_max_workers() -> int:
+    """Return the configured ``achat()`` worker count."""
+    raw = os.environ.get(ACHAT_MAX_WORKERS_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_ACHAT_MAX_WORKERS
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        logger.warning(
+            "Ignoring %s=%r; expected a positive integer, using %d",
+            ACHAT_MAX_WORKERS_ENV,
+            raw,
+            DEFAULT_ACHAT_MAX_WORKERS,
+        )
+        return DEFAULT_ACHAT_MAX_WORKERS
+    return value
+
+
+def _get_achat_executor() -> _DaemonThreadExecutor:
+    """Return the executor that runs ``achat()`` calls, creating it once."""
+    global _achat_executor
+    with _achat_executor_lock:
+        if _achat_executor is None:
+            _achat_executor = _DaemonThreadExecutor(
+                _achat_max_workers(), thread_name_prefix="praval-achat"
+            )
+            atexit.register(_achat_executor.shutdown, wait=False)
+        return _achat_executor
+
+
+def chat(message: str, timeout: Optional[float] = None, **options: Any) -> str:
     """
     Quick chat function that uses the current agent's LLM with timeout support.
     Can only be used within @agent decorated functions.
 
     Args:
         message: Message to send to the LLM
-        timeout: Maximum time to wait for response in seconds
+        timeout: Maximum time to wait for the response in seconds. Defaults to
+            the agent's configured ``timeout``; when neither is set, there is
+            no client-side limit beyond the provider's own.
+        **options: Per-call options forwarded to ``Agent.chat()``, such as
+            ``reasoning``, ``allowed_tool_names`` or ``provider_options``.
 
     Returns:
         LLM response as string
 
     Raises:
         RuntimeError: If called outside of an @agent function
-        TimeoutError: If LLM call exceeds timeout
+        TimeoutError: If LLM call exceeds timeout. The abandoned call keeps
+            running until its provider returns, but its answer never enters
+            the agent's conversation history.
     """
     if not hasattr(_agent_context, "agent") or _agent_context.agent is None:
         raise RuntimeError("chat() can only be used within @agent decorated functions")
 
     import concurrent.futures
 
-    def timeout_handler(signum: Any, frame: Any) -> None:
-        raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+    agent_instance = _agent_context.agent
+    limit = _chat_timeout(agent_instance, timeout)
+    if limit is None:
+        return cast(str, agent_instance.chat(message, **options))
 
-    # Use thread-based timeout for better cross-platform support
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        context = copy_context()
-        future = executor.submit(context.run, _agent_context.agent.chat, message)
+    # Run in a worker so the caller can stop waiting; the token keeps a late
+    # answer out of history once the caller has given up.
+    token = _CallToken()
+    context = copy_context()
+    context.run(_CALL_TOKEN.set, token)
+    run_in_context: Callable[..., Any] = context.run
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(
+            run_in_context, agent_instance.chat, message, **options
+        )
         try:
-            return cast(str, future.result(timeout=timeout))
+            return cast(str, future.result(timeout=limit))
         except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+            if token.cancel():
+                raise TimeoutError(
+                    f"LLM call timed out after {limit} seconds"
+                ) from None
+            # The answer was committed as the limit expired; return it.
+            return cast(str, future.result())
+    finally:
+        executor.shutdown(wait=False)
 
 
-async def achat(message: str, timeout: float = 10.0) -> str:
+async def achat(message: str, timeout: Optional[float] = None, **options: Any) -> str:
     """
     Async version of chat function for use within async agent handlers.
 
     Args:
         message: Message to send to the LLM
-        timeout: Maximum time to wait for response in seconds
+        timeout: Maximum time to wait for the response in seconds. Defaults to
+            the agent's configured ``timeout``; when neither is set, there is
+            no client-side limit beyond the provider's own.
+        **options: Per-call options forwarded to ``Agent.chat()``.
 
     Returns:
         LLM response as string
 
     Raises:
         RuntimeError: If called outside of an @agent function
-        TimeoutError: If LLM call exceeds timeout
+        TimeoutError: If LLM call exceeds timeout; the late answer never
+            enters the agent's conversation history.
+
+    Note:
+        Calls run on a Praval-owned pool of daemon threads, not on the event
+        loop's default executor, so hung calls cannot starve other
+        ``run_in_executor`` users. The pool is shared by every event loop in
+        the process and holds ``DEFAULT_ACHAT_MAX_WORKERS`` (32) threads, or
+        the number set in ``PRAVAL_ACHAT_MAX_WORKERS``. A call that times out
+        keeps its thread until the provider returns; once every thread is
+        held by such calls, later calls wait for a free thread and may time
+        out themselves.
     """
     if not hasattr(_agent_context, "agent") or _agent_context.agent is None:
         raise RuntimeError("achat() can only be used within @agent decorated functions")
 
     # Run the sync chat in a thread to avoid blocking the event loop
     import asyncio
+    import functools
 
+    agent_instance = _agent_context.agent
+    limit = _chat_timeout(agent_instance, timeout)
     loop = asyncio.get_event_loop()
     context = copy_context()
+    # The token also covers callers that cancel this coroutine themselves,
+    # for example through their own asyncio.wait_for().
+    token = _CallToken()
+    context.run(_CALL_TOKEN.set, token)
+    future = loop.run_in_executor(
+        _get_achat_executor(),
+        context.run,
+        functools.partial(agent_instance.chat, **options),
+        message,
+    )
     try:
-        return await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                context.run,
-                _agent_context.agent.chat,
-                message,
-            ),
-            timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        raise TimeoutError(f"LLM call timed out after {timeout} seconds")
+        done, _ = await asyncio.wait({future}, timeout=limit)
+    except asyncio.CancelledError:
+        token.cancel()
+        future.add_done_callback(_discard_future_outcome)
+        raise
+    if not done and token.cancel():
+        # Retrieve the abandoned call's outcome so asyncio does not log it.
+        future.add_done_callback(_discard_future_outcome)
+        raise TimeoutError(f"LLM call timed out after {limit} seconds")
+    return cast(str, await future)
+
+
+def _discard_future_outcome(future: Any) -> None:
+    """Read an abandoned future's exception so it is not reported as lost."""
+    if not future.cancelled():
+        future.exception()
 
 
 def broadcast(

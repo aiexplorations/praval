@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import copy
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from ..core.exceptions import ProviderError
-from ..models import ProviderCapabilities, ProviderProfile
+from ..models import ModelRequest, ProviderCapabilities, ProviderProfile
 
 ProviderBuilder = Callable[[Any], Any]
 
@@ -61,7 +63,26 @@ class ProviderRegistry:
     def create_provider(self, provider_name: str, config: Any) -> Any:
         """Create a provider instance from the registry."""
         registration = self.get_registration(provider_name)
-        return registration.builder(config)
+        instance = registration.builder(config)
+        options = getattr(config, "provider_options", {}) or {}
+        if options.get("discover_model") is True:
+            try:
+                self.discover_models(provider_name, config)
+            except Exception:
+                close = getattr(instance, "close", None)
+                if callable(close):
+                    close()
+                raise
+        return instance
+
+    def discover_models(self, provider: str, config: Any) -> List[ProviderProfile]:
+        """Fetch and register live profiles explicitly; never fetch at import time."""
+        from .catalog import discover_models
+
+        profiles = discover_models(provider, config, self)
+        for profile in profiles:
+            self.register_profile(profile)
+        return profiles
 
     def get_registration(self, provider_name: str) -> ProviderRegistration:
         """Return a provider registration by name or alias."""
@@ -91,6 +112,13 @@ class ProviderRegistry:
             profile = self._profiles.get(self.profile_key(provider_name, model))
             if profile is not None:
                 return profile
+            # Dated snapshots share the explicitly registered model family.
+            for candidate in self._profiles.values():
+                if candidate.provider != provider_name:
+                    continue
+                suffix = model.removeprefix(candidate.model + "-")
+                if suffix != model and re.fullmatch(r"\d{4}-?\d{2}-?\d{2}", suffix):
+                    return candidate
             wildcard = self._profiles.get(self.profile_key(provider_name, "*"))
             if wildcard is not None:
                 return wildcard
@@ -191,6 +219,12 @@ def _gemini_builder(config: Any) -> Any:
     return GeminiProvider(config)
 
 
+def _openrouter_builder(config: Any) -> Any:
+    from .openrouter import OpenRouterProvider
+
+    return OpenRouterProvider(config)
+
+
 def get_provider_registry() -> ProviderRegistry:
     """Return the process-wide provider registry."""
     global _global_registry
@@ -252,6 +286,7 @@ def register_default_providers(registry: ProviderRegistry) -> None:
         audio_input=True,
         video_input=True,
         reasoning=True,
+        reasoning_budget=True,
         embeddings=True,
     )
     local_capabilities = ProviderCapabilities(
@@ -292,6 +327,23 @@ def register_default_providers(registry: ProviderRegistry) -> None:
         aliases=("ollama", "vllm", "lmstudio", "llama-cpp", "local"),
         default_model=None,
         capabilities=local_capabilities,
+    )
+    registry.register_provider(
+        "openrouter",
+        _openrouter_builder,
+        capabilities=ProviderCapabilities(
+            chat_completions=True,
+            tools=True,
+            streaming=True,
+            native_streaming=True,
+            tool_streaming=True,
+            structured_outputs=True,
+            image_input=True,
+            multimodal=True,
+            reasoning=True,
+            reasoning_effort=True,
+            reasoning_budget=True,
+        ),
     )
 
     profiles = [
@@ -436,3 +488,223 @@ def register_default_providers(registry: ProviderRegistry) -> None:
     ]
     for profile in profiles:
         registry.register_profile(profile)
+    registry.register_profile(
+        ProviderProfile(
+            provider="openrouter",
+            model="*",
+            endpoint="chat.completions",
+            capabilities=registry.get_registration("openrouter").capabilities,
+            reasoning_levels={
+                "none": {"enabled": False},
+                **{level: {"effort": level} for level in ("low", "medium", "high")},
+            },
+            reasoning_source=(
+                "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens"
+            ),
+            notes=(
+                "Routing requires all requested parameters; "
+                "discover the catalogue for model-specific limits."
+            ),
+        )
+    )
+    _register_reasoning_profiles(registry)
+
+
+# Audited 2026-10-08. Budgets are Praval defaults within documented ranges,
+# not claims of equal compute or answer quality across providers.
+def _register_reasoning_profiles(registry: ProviderRegistry) -> None:
+    def add(
+        provider: str,
+        models: Iterable[str],
+        levels: Dict[str, Dict[str, Any]],
+        source: str,
+    ) -> None:
+        for model in models:
+            existing = registry.get_profile(provider, model)
+            if existing is None or existing.model != model:
+                existing = ProviderProfile(
+                    provider=provider,
+                    model=model,
+                    capabilities=registry.get_registration(provider).capabilities,
+                )
+            profile = existing.model_copy(deep=True)
+            profile.reasoning_levels = copy.deepcopy(levels)
+            profile.reasoning_source = source
+            profile.capabilities.reasoning = True
+            registry.register_profile(profile)
+
+    efforts = {level: {"effort": level} for level in ("low", "medium", "high")}
+    add(
+        "openai",
+        (
+            "o1",
+            "o3",
+            "o3-mini",
+            "o4-mini",
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+        ),
+        efforts,
+        "https://developers.openai.com/api/docs/guides/reasoning",
+    )
+    add(
+        "openai",
+        ("gpt-5.1", "gpt-5.2", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5"),
+        {"none": {"effort": "none"}, **efforts},
+        "https://developers.openai.com/api/docs/guides/latest-model",
+    )
+    add(
+        "openai",
+        ("gpt-6-luna", "gpt-6-sol"),
+        {"none": {"effort": "none"}, **efforts},
+        "https://developers.openai.com/api/docs/guides/latest-model",
+    )
+    add(
+        "openai",
+        ("gpt-6-astra", "gpt-6.1-sol"),
+        efforts,
+        "https://developers.openai.com/api/docs/guides/latest-model",
+    )
+    adaptive = {
+        level: {"thinking": {"type": "adaptive"}, "output_config": {"effort": level}}
+        for level in ("low", "medium", "high")
+    }
+    add(
+        "anthropic",
+        (
+            "claude-sonnet-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+        ),
+        {"none": {"thinking": {"type": "disabled"}}, **adaptive},
+        (
+            "https://platform.claude.com/docs/en/build-with-claude/"
+            "thinking-troubleshooting"
+        ),
+    )
+    add(
+        "anthropic",
+        ("claude-fable-5",),
+        adaptive,
+        "https://platform.claude.com/docs/en/build-with-claude/effort",
+    )
+    add(
+        "anthropic",
+        ("claude-sonnet-5-5",),
+        {"none": {"thinking": {"type": "between_tools"}}, **adaptive},
+        "https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide",
+    )
+    add(
+        "anthropic",
+        ("claude-haiku-5-5",),
+        {"none": {"thinking": {"type": "disabled"}}, **adaptive},
+        "https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide",
+    )
+    manual = {
+        level: {"thinking": {"type": "enabled", "budget_tokens": budget}}
+        for level, budget in (("low", 1024), ("medium", 4096), ("high", 8192))
+    }
+    add(
+        "anthropic",
+        ("claude-haiku-4-5", "claude-haiku-4-5-20251001", "claude-sonnet-4-5"),
+        {"none": {"thinking": {"type": "disabled"}}, **manual},
+        "https://platform.claude.com/docs/en/build-with-claude/extended-thinking",
+    )
+    add(
+        "gemini",
+        (
+            "gemini-3.5-flash",
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-pro-preview",
+            "gemini-3-flash-preview",
+        ),
+        {level: {"thinkingLevel": level} for level in ("low", "medium", "high")},
+        "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
+    )
+    budgets = {
+        level: {"thinkingBudget": budget}
+        for level, budget in (("low", 1024), ("medium", 4096), ("high", 8192))
+    }
+    add(
+        "gemini",
+        ("gemini-2.5-pro",),
+        budgets,
+        "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
+    )
+    add(
+        "gemini",
+        ("gemini-2.5-flash", "gemini-2.5-flash-lite"),
+        {"none": {"thinkingBudget": 0}, **budgets},
+        "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
+    )
+    add(
+        "cohere",
+        ("command-a-reasoning-08-2025",),
+        {
+            "none": {"thinking": {"type": "disabled"}},
+            **{
+                level: {"thinking": {"type": "enabled", "token_budget": budget}}
+                for level, budget in (("low", 512), ("medium", 2048), ("high", 8192))
+            },
+        },
+        "https://docs.cohere.com/docs/reasoning (cohere 5.17.0 ClientV2.chat)",
+    )
+    profile = registry.get_profile("cohere", "command-a-reasoning-08-2025")
+    if profile is not None:
+        profile.endpoint = "chat.v2"
+        profile.capabilities.reasoning_budget = True
+        profile.capabilities.streaming = True
+    profile = registry.get_profile("vllm", "*")
+    if profile is not None:
+        profile = profile.model_copy(deep=True)
+        profile.capabilities.reasoning = True
+        profile.capabilities.reasoning_effort = True
+        profile.reasoning_levels = copy.deepcopy(efforts)
+        profile.reasoning_source = (
+            "https://docs.vllm.ai/en/latest/features/reasoning_outputs/"
+        )
+        registry.register_profile(profile)
+        # The wildcard cannot promise that a model can disable thinking.
+        # Gemma 4's documented template declares enable_thinking.
+        disabling_profile = profile.model_copy(
+            update={"model": "google/gemma-4-26B-A4B-it"}, deep=True
+        )
+        disabling_profile.reasoning_levels = {"none": {"effort": "none"}, **efforts}
+        registry.register_profile(disabling_profile)
+
+
+def reasoning_parameters(request: ModelRequest) -> Dict[str, Any]:
+    """Resolve portable controls without changing explicit provider controls."""
+    reasoning = request.reasoning
+    if reasoning is None or reasoning.level is None:
+        return {}
+    provider = request.provider or "unknown"
+    model = request.model or "unknown"
+    profile = get_provider_registry().resolve_profile(provider, model)
+    levels = profile.reasoning_levels if profile is not None else {}
+    if reasoning.level not in levels:
+        accepted = ", ".join(levels) or "none available"
+        raise ProviderError(
+            f"Provider '{provider}' model '{model}' does not support reasoning "
+            f"level '{reasoning.level}'; accepted levels: {accepted}"
+        )
+    native = copy.deepcopy(levels[reasoning.level])
+    budget = native.get("thinking", {}).get("budget_tokens")
+    if (
+        budget is not None
+        and reasoning.budget_tokens is None
+        and request.max_output_tokens is not None
+        and request.max_output_tokens <= budget
+    ):
+        raise ProviderError(
+            f"Provider '{provider}' model '{model}' "
+            f"reasoning level '{reasoning.level}' "
+            f"requires max_output_tokens greater than {budget}"
+        )
+    return native

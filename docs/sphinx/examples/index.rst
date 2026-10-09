@@ -368,7 +368,7 @@ Containerized Praval applications.
 
 **Directory**: ``examples/docker-examples/``
 
-See the `Docker Examples README <../../../examples/docker-examples/README.md>`_ for:
+See the `Docker Examples README <https://github.com/aiexplorations/praval/blob/main/examples/docker-examples/README.md>`_ for:
 
 - Dockerized agent deployments
 - Multi-container coordination

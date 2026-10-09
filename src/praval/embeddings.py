@@ -184,11 +184,12 @@ class EmbeddingRuntime:
     def _embed_gemini(
         self, request: EmbeddingRequest
     ) -> tuple[List[List[float]], List[Dict[str, Any]]]:
-        api_key = (
+        api_key = str(
             request.provider_options.get("api_key")
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("GOOGLE_API_KEY")
-        )
+            or ""
+        ).strip()
         if not api_key:
             raise ProviderError("GEMINI_API_KEY or GOOGLE_API_KEY is required")
         base_url = request.provider_options.get(
@@ -201,11 +202,15 @@ class EmbeddingRuntime:
             payload: Dict[str, Any] = {"content": {"parts": [self._gemini_part(item)]}}
             if request.dimensions:
                 payload["output_dimensionality"] = request.dimensions
-            url = f"{base_url}/models/{model}:embedContent?key={api_key}"
+            # The key goes in a header so it never appears in the URL, which
+            # exceptions and tracebacks may quote.
             http_request = urllib.request.Request(
-                url,
+                f"{base_url}/models/{model}:embedContent",
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
             )
             with urllib.request.urlopen(http_request) as response:
                 data = json.loads(response.read().decode("utf-8"))

@@ -24,7 +24,7 @@ still distinguish and cost them.
 An allowed tool must already exist on the evaluator agent and satisfy its
 selected metadata policy. For `read_only`, use `metadata={"read_only": true}`
 or a supported read-only hint. For `evaluation_safe`, either read-only or
-`metadata={"evaluation_safe": true}` is accepted. v0.8.3 rejects evaluator
+`metadata={"evaluation_safe": true}` is accepted. v0.8.4 rejects evaluator
 side effects even when a configuration attempts to enable them.
 
 If a tool requires approval, configure evaluator HITL independently. In

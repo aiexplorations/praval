@@ -63,7 +63,7 @@ set:
 - `tool_policy="read_only"` requires read-only metadata.
 - `tool_policy="evaluation_safe"` accepts read-only or explicitly
   `evaluation_safe` tools.
-- Side-effecting evaluator tools are not supported in v0.8.3.
+- Side-effecting evaluator tools are not supported in v0.8.4.
 - `persist_state=True` is rejected. If memory is enabled, give the evaluator a
   dedicated namespace and retention policy that cannot write into target
   operational memory.

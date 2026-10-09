@@ -1,6 +1,8 @@
 """Provider streaming adapter contract tests with fake SDK responses."""
 
 import json
+import threading
+from collections import OrderedDict
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -24,6 +26,8 @@ def _request(provider: str = "openai") -> ModelRequest:
 def test_openai_chat_stream_normalizes_delta_usage_and_final():
     provider = OpenAIProvider.__new__(OpenAIProvider)
     provider.config = AgentConfig(provider="openai", model="test-model")
+    provider._parameter_lock = threading.RLock()
+    provider._parameter_policies = OrderedDict()
     chunks = [
         {"choices": [{"delta": {"content": "hel"}}]},
         {"choices": [{"delta": {"content": "lo"}, "finish_reason": "stop"}]},
@@ -54,6 +58,8 @@ def test_openai_chat_stream_normalizes_delta_usage_and_final():
 
 def test_openai_responses_stream_normalizes_tool_delta_and_final():
     provider = OpenAIProvider.__new__(OpenAIProvider)
+    provider._parameter_lock = threading.RLock()
+    provider._parameter_policies = OrderedDict()
     provider.config = AgentConfig(provider="openai", model="test-model")
     events = [
         {"type": "response.output_text.delta", "delta": "hi"},

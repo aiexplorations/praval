@@ -10,27 +10,60 @@ Prefer this path for new code:
 ```python
 from praval import Agent
 
-agent = Agent("planner", provider="openai", model="gpt-5.4-mini")
-response = agent.generate(
-    "Return a JSON task list.",
-    response_schema={
-        "type": "object",
-        "properties": {"tasks": {"type": "array", "items": {"type": "string"}}},
-        "required": ["tasks"],
-    },
-    metadata={"workflow": "planning"},
-)
-
-print(response.content)
+with Agent("planner", provider="openai", model="gpt-5.4-mini") as agent:
+    response = agent.generate(
+        "Return a JSON task list.",
+        response_schema={
+            "type": "object",
+            "properties": {"tasks": {"type": "array", "items": {"type": "string"}}},
+            "required": ["tasks"],
+        },
+        metadata={"workflow": "planning"},
+    )
+    print(response.content)
 ```
 
 `Agent.chat()` remains compatible and returns only a string. `Agent.generate()`,
 `Agent.agenerate()`, `Agent.stream()`, and `Agent.astream()` return or emit
 structured runtime types.
 
+## Agent configuration and per-call options
+
+Put model defaults and client configuration inside the constructor's `config`
+dictionary. They are not arbitrary top-level `Agent` keywords:
+
+```python
+from praval import Agent
+
+with Agent(
+    "assistant",
+    provider="openai",
+    model="gpt-5.4-mini",
+    config={
+        "temperature": None,
+        "max_output_tokens": 4096,
+        "timeout": 60,
+        "retries": 2,
+        "provider_options": {"endpoint": "responses"},
+    },
+) as assistant:
+    response = assistant.generate("Explain Reef briefly.", timeout=30)
+```
+
+`max_output_tokens` overrides the older `max_tokens` configuration field.
+`retries=2` permits an initial attempt and at most two retries for each provider
+request. Per-call `timeout` and `provider_options` override their configured
+defaults; provider-option dictionaries are merged. `temperature` and
+`max_output_tokens` are configured on the agent, not supported per-call keywords.
+`reasoning` is accepted both directly on the constructor and per call.
+
+The typed `PravalConfig`/`praval.toml` schema is a separate application
+configuration surface; see {doc}`configuration` for its supported fields.
+
 ## Request Options
 
-The same options are accepted by sync, async, and streaming calls:
+`Agent.chat()`, `generate()`, `agenerate()`, `stream()`, and `astream()` accept
+the same keyword options and apply them the same way:
 
 | Option | Purpose |
 | --- | --- |
@@ -40,9 +73,83 @@ The same options are accepted by sync, async, and streaming calls:
 | `timeout` | Per-call timeout when the adapter supports it. |
 | `metadata` | User metadata for tracing and diagnostics. |
 | `stream_options` | Streaming options such as usage inclusion. |
+| `max_tool_rounds` | Tool-round limit for this call. |
+| `allowed_tool_names` | Send only these registered tools; an unknown name raises `ValueError` before anything is sent. |
+| `additional_system_message` | A system message placed first in this request only; it is not stored in history. |
+
+`chat()` and `generate()` also accept `stream`.
+
+An unknown keyword argument is ignored and logged as a warning that names the
+keyword and the method, for example
+`Agent.generate() ignored unknown keyword argument 'temprature'`. In v0.8.5
+unknown keyword arguments become errors.
 
 Unsafe provider options such as API keys, raw authorization headers, and custom
-default headers are rejected before provider execution.
+default headers are rejected before provider execution. Keys are matched
+case-insensitively at any depth, so `{"extra_headers": {"Authorization": ...}}`
+is rejected as well.
+
+## Conversation History
+
+Every entry point leaves the same history for the same exchange: the user turn
+followed by the assistant's final answer. The user turn is added when the call
+starts; the answer is added only when the call succeeds, then the history is
+trimmed and, with `persist_state=True`, saved. A call that fails keeps only the
+user turn. `stream()` and `astream()` add the answer when the `final` event is
+produced, before it reaches your loop, so breaking out after `final` keeps it.
+
+Calls on one agent may overlap, for example when the Reef delivers spores on
+several threads. Each answer is inserted directly after its own user turn, so
+the history reads user A, answer A, user B, answer B regardless of which call
+finishes first. If later calls have trimmed a user turn away before its answer
+arrives, that answer is returned to its caller but not stored, since there is
+no question left to pair it with.
+
+`max_history` limits the number of non-system messages kept. Trimming removes
+the oldest whole units, where a unit is a user message and everything up to the
+next user message, so an assistant tool turn is never separated from its tool
+results. System messages are always kept and do not count towards the limit.
+The newest unit is always kept, even when it alone exceeds the limit; with
+`max_history=0` the agent keeps its system messages and the current exchange
+only.
+
+With `persist_state=True`, an agent that has a `system_message` replaces the
+system messages in the loaded history with its own, placed first, so a changed
+`system_message` takes effect on restart and restarts never add copies. An agent
+without a `system_message` keeps the persisted ones.
+
+## Timeouts in Decorated Agents
+
+Inside an `@agent` handler, `chat(message, timeout=None, **options)` and
+`achat(...)` accept the same keyword options as `Agent.chat()`. `timeout` is a
+client-side limit in seconds. When it is not given, the agent's configured
+`timeout` applies; when neither is set there is no limit beyond the provider's
+own. On expiry `TimeoutError` is raised on time. The abandoned call keeps
+running until its provider returns, but its answer is discarded and never
+enters the conversation history, even if the handler has made further calls by
+then.
+
+`achat()` runs calls on a Praval-owned pool of daemon threads rather than the
+event loop's default executor, so hung calls cannot starve other
+`run_in_executor` users, and a hung call does not keep the process alive at
+exit. The pool is shared by every event loop in the process and has 32 threads;
+set `PRAVAL_ACHAT_MAX_WORKERS` to change that. A timed-out call holds its thread
+until the provider returns, so once every thread is held by such calls, later
+`achat()` calls wait for a free thread and may time out themselves.
+
+```python
+from praval import agent, chat
+
+
+@agent("summarizer", responds_to=["summary_request"])
+def summarizer(spore):
+    summary = chat(
+        spore.knowledge["text"],
+        timeout=30,
+        additional_system_message="Answer in three sentences.",
+    )
+    return {"summary": summary}
+```
 
 ## Public Inspection
 
@@ -78,6 +185,7 @@ Streaming emits normalized `ModelEvent` values:
 | `tool_call` | Complete tool call request. |
 | `tool_result` | Tool result emitted by runtime-owned orchestration. |
 | `usage` | Token usage update. |
+| `model_call` | Completed actual request, including attempt and reported usage. |
 | `error` | Provider or stream error, with redacted metadata. |
 | `final` | Final `ModelResponse`. |
 
@@ -102,3 +210,5 @@ continuation schemas remain readable for compatibility.
 
 Provider-hosted tools are a separate experimental pass-through. See
 {doc}`providers` for the explicit opt-in and security restrictions.
+
+See {doc}`usage-metering` for aggregate response usage and per-request accounting.

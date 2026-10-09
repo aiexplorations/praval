@@ -36,14 +36,16 @@ def test_agent_history_trimming_handles_unbounded_zero_and_limit():
     agent._trim_history()
     assert len(agent.conversation_history) == 3
 
+    # A zero limit keeps only the newest unit, the turn being answered.
     agent.max_history = 0
     agent._trim_history()
-    assert agent.conversation_history == []
+    assert agent.conversation_history == [{"role": "user", "content": "2"}]
 
+    # Messages without a user turn form one unit, which is never split.
     agent.max_history = 2
     agent.conversation_history = [{"content": str(i)} for i in range(4)]
     agent._trim_history()
-    assert agent.conversation_history == [{"content": "2"}, {"content": "3"}]
+    assert len(agent.conversation_history) == 4
 
 
 def test_agent_provider_detection_environment_and_compact_model(monkeypatch):
@@ -243,6 +245,7 @@ def test_agent_tool_requires_complete_type_hints():
     [
         ("OPENAI_API_KEY", "openai"),
         ("COHERE_API_KEY", "cohere"),
+        ("OPENROUTER_API_KEY", "openrouter"),
     ],
 )
 def test_agent_provider_detection_remaining_credentials(monkeypatch, key, provider):
@@ -255,6 +258,7 @@ def test_agent_provider_detection_remaining_credentials(monkeypatch, key, provid
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "COHERE_API_KEY",
+        "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(env_name, raising=False)
     monkeypatch.setenv(key, "test-key")
@@ -414,7 +418,7 @@ def test_agent_close_tolerates_cleanup_errors_and_is_idempotent():
     reef = Mock()
     reef.get_channel.side_effect = [channel, None]
 
-    with patch("praval.core.reef.get_reef", return_value=reef):
+    with patch("praval.core.reef._get_existing_reef", return_value=reef):
         agent.close()
         agent.close()
 

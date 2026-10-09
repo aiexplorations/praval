@@ -438,3 +438,53 @@ def test_export_health_uses_fixed_signal_dimensions(
     assert trace_value("praval.telemetry.dropped.items") == 1
     assert trace_value("praval.telemetry.queue.depth") == 1
     assert trace_value("praval.telemetry.queue.capacity") == 1
+
+
+def test_model_requests_emit_usage_once_with_bounded_dimensions(signal_pipeline):
+    from praval.metering import ModelCall
+    from praval.models import Usage
+    from praval.observability.signals import emit_model_call
+
+    values = dict(
+        provider="fake",
+        model="test",
+        operation="continue",
+        round_index=1,
+        attempt=1,
+        duration_ms=1,
+        started_at=NOW,
+        agent_name="researcher",
+        run_id="private-run",
+        parent_run_id="private-parent",
+        correlation_id="private-correlation",
+        response_id="private-response",
+    )
+    emit_model_call(
+        ModelCall(
+            call_id="private-call",
+            status="ok",
+            usage=Usage(input_tokens=10, output_tokens=5, total_tokens=15),
+            **values,
+        )
+    )
+    emit_model_call(
+        ModelCall(call_id="private-failure", status="error", usage=None, **values)
+    )
+    points = _metric_points(signal_pipeline["metrics"])
+    calls = points["praval.model.calls"]
+    assert len(calls) == 1 and calls[0].value == 2
+    expected = {
+        "gen_ai.provider.name": "fake",
+        "gen_ai.request.model": "test",
+        "gen_ai.operation.name": "continue",
+    }
+    assert dict(calls[0].attributes) == expected
+    usage = points["gen_ai.client.token.usage"]
+    assert {
+        point.attributes["gen_ai.token.type"]: (point.count, point.sum)
+        for point in usage
+    } == {"input": (1, 10), "output": (1, 5)}
+    assert all(
+        set(point.attributes) == set(expected) | {"gen_ai.token.type"}
+        for point in usage
+    )

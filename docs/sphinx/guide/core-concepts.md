@@ -20,9 +20,9 @@ Application
   registered tools, and optional memory/HITL state.
 - **ModelRuntime** translates provider-neutral requests into an adapter call
   and normalizes responses, usage, tool calls, and stream events.
-- **Provider adapter** handles the actual OpenAI, Anthropic, Cohere, Gemini, or
+- **Provider adapter** handles the actual OpenAI, Anthropic, Cohere, Gemini, OpenRouter, or
   OpenAI-compatible wire format.
-- **Spore** is the immutable message envelope used for agent-to-agent delivery.
+- **Spore** is the message envelope used for agent-to-agent delivery.
 - **Reef** routes Spores locally or through its RabbitMQ distributed backend.
 - **Decorated agent** connects a Python handler and an underlying `Agent` to
   Reef delivery.
@@ -89,7 +89,8 @@ A Spore includes:
 - timestamps, priority, reply/correlation metadata, and optional references.
 - optional content parts and knowledge/data references in the newer wire form.
 
-Treat Spores as immutable. Create a derived Spore rather than changing a
+Treat Spores as immutable by convention; the dataclass does not enforce freezing.
+Create a derived Spore rather than changing a
 received one. Keep payloads serializable when a workflow may move to RabbitMQ.
 
 ## Reef delivery
@@ -152,6 +153,13 @@ Every example and service should close what it opens:
 - call `Reef.shutdown()` after completion;
 - close MCP clients and storage providers;
 - use `PravalApp` when retaining several agents under one cleanup owner helps.
+
+`Agent.close()` unsubscribes the agent from its Reef channels and removes the
+tools it added to the global tool registry. For an `@agent`, it also removes the
+agent's own `<name>_channel` from the Reef once nothing else subscribes to it;
+a channel named with `channel=` and the default channel are kept.
+Cleanup uses an existing Reef and never creates one or waits for its global
+initialization lock. This keeps Agent finalization safe during Reef thread startup.
 
 ## Design for evaluability
 

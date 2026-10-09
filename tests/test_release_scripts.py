@@ -39,8 +39,9 @@ stage_docs = _load_script("stage_docs_artifact")
 
 
 def test_distribution_validation_helpers_read_versions_and_reject_generated_files():
-    assert _project_version(Path("pyproject.toml")) == "0.8.3"
-    assert _package_version(Path("src/praval/__init__.py")) == "0.8.3"
+    expected = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+    assert _project_version(Path("pyproject.toml")) == expected
+    assert _package_version(Path("src/praval/__init__.py")) == expected
     assert _forbidden_entries(
         [
             "praval-0.8.2/docs/generated/manual.pdf",
@@ -203,7 +204,8 @@ def _write_version_wheel(path: Path, version: str = "0.8.3") -> None:
 
 
 def test_release_metadata_accepts_built_wheel_before_install(tmp_path, monkeypatch):
-    _write_version_wheel(tmp_path / "praval-0.8.3-py3-none-any.whl")
+    expected = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+    _write_version_wheel(tmp_path / f"praval-{expected}-py3-none-any.whl", expected)
 
     def not_installed(_name):
         raise release_metadata.importlib.metadata.PackageNotFoundError

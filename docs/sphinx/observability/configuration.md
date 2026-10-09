@@ -10,7 +10,7 @@ with `PravalConfigurationError`; endpoints are never silently ignored.
 ```toml
 [app]
 service_name = "orders-agent"
-service_version = "0.8.3"
+service_version = "0.8.4"
 deployment_environment = "production"
 
 [observability]

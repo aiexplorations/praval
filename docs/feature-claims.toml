@@ -1,6 +1,21 @@
 schema_version = 1
 
 [[claims]]
+id = "registered-tool-schema-parity"
+statement = "Full object JSON Schemas registered with Agent.add_tool_spec retain typed declarations across dependent requests on OpenAI, compatible servers, Anthropic, Gemini and Cohere."
+evidence = ["tests/integration_matrix/test_registered_tool_schema_matrix.py", "tests/test_gemini_provider_edges.py", "examples/certification/live_provider_tools.py"]
+
+[[claims]]
+id = "provider-discovery-and-robustness"
+statement = "Provider catalogues supply model metadata; request recovery preserves required controls, Anthropic supports opt-in caching, and OpenRouter preserves strict routing and reported charges."
+evidence = ["tests/test_provider_robustness.py", "examples/certification/live_provider_tools.py"]
+
+[[claims]]
+id = "openai-gpt6-compatibility"
+statement = "OpenAI GPT-6 models use compatible token and sampling parameters, documented portable reasoning levels and Responses by default for tools."
+evidence = ["tests/test_openai_model_compatibility.py", "examples/certification/live_openai_gpt6.py"]
+
+[[claims]]
 id = "provider-neutral-runtime"
 statement = "Agent model execution uses provider-neutral request, response, event, tool, and usage contracts."
 evidence = ["tests/test_model_runtime_contracts.py", "tests/test_provider_streaming.py"]
@@ -69,3 +84,8 @@ evidence = ["tests/eval/test_metric_plugins.py", "tests/eval/test_ragas.py", "do
 id = "evaluation-online"
 statement = "Opt-in sampled online evaluation isolates request enqueue work from durable PostgreSQL workers and post-hoc linked evaluator telemetry."
 evidence = ["tests/eval/test_online.py", "tests/eval/test_postgres_store.py", "docs/sphinx/evaluation/online.md"]
+
+[[claims]]
+id = "chat-model-usage-metering"
+statement = "Chat-model requests expose bounded per-request records, exact reported totals and caller-supplied cost estimates across retries, tools and approval resumes."
+evidence = ["tests/test_metering.py", "tests/test_provider_usage.py", "tests/test_metering_hitl.py", "tests/test_metering_cancellation.py", "docs/sphinx/guide/usage-metering.md"]

@@ -15,6 +15,7 @@ from praval.models import (
     ReasoningConfig,
     StructuredOutputConfig,
     ToolResult,
+    ToolSpec,
 )
 from praval.providers.gemini import GeminiProvider, _redact_secret
 
@@ -123,6 +124,37 @@ def test_gemini_stream_parser_handles_sse_blanks_and_done(gemini_provider):
     assert gemini_provider._extract_text(chunks[0]) == "hi"
     assert "alt=sse" in urlopen.call_args.args[0].full_url
     assert "key=" not in urlopen.call_args.args[0].full_url
+    assert urlopen.call_args.args[0].get_header("X-goog-api-key") is None
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_gemini_sends_api_key_in_header_not_url(monkeypatch, stream):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-header-key")
+    provider = GeminiProvider(
+        AgentConfig(
+            provider="gemini",
+            model="gemini-test",
+            base_url="https://proxy.test/gemini/v1beta",
+        )
+    )
+    response = Mock()
+    response.read.return_value = b'{"candidates": []}'
+    response.__iter__ = Mock(return_value=iter([b"data: [DONE]\n"]))
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    with patch("urllib.request.urlopen", return_value=response) as urlopen:
+        if stream:
+            list(provider._post_stream("streamGenerateContent", {"contents": []}))
+        else:
+            provider._post_json("generateContent", {"contents": []})
+    request = urlopen.call_args.args[0]
+    assert "AIza-header-key" not in request.full_url
+    assert "key=" not in request.full_url
+    assert request.full_url.startswith(
+        "https://proxy.test/gemini/v1beta/models/gemini-test:"
+    )
+    assert request.get_header("X-goog-api-key") == "AIza-header-key"
+    assert request.get_header("Content-type") == "application/json"
 
 
 def test_gemini_stream_emits_error_before_raising(gemini_provider):
@@ -172,6 +204,57 @@ def test_gemini_content_mime_tool_schema_and_function_call_edges(gemini_provider
     assert calls[0]["name"] == "lookup"
 
 
+@pytest.mark.parametrize("entry", ["invoke", "stream"])
+def test_gemini_neutral_tool_specs_reach_http_payload(gemini_provider, entry):
+    schema = {
+        "type": "object",
+        "properties": {"offset": {"type": "integer"}, "enabled": {"type": "boolean"}},
+        "required": ["offset"],
+        "additionalProperties": False,
+    }
+    request = ModelRequest(
+        messages=[ModelMessage(role="user", content="Read")],
+        tools=[ToolSpec(name="read", description="Read", parameters=schema)],
+    )
+    response = {"candidates": [{"content": {"parts": [{"text": "ready"}]}}]}
+    method = "_post_stream" if entry == "stream" else "_post_json"
+    with patch.object(
+        gemini_provider,
+        method,
+        return_value=iter([response]) if entry == "stream" else response,
+    ) as post:
+        if entry == "stream":
+            assert list(gemini_provider.stream(request))[-1].response.content == "ready"
+        else:
+            assert gemini_provider.invoke(request).content == "ready"
+    declaration = post.call_args.args[1]["tools"][0]["functionDeclarations"][0]
+    assert declaration == {
+        "name": "read",
+        "description": "Read",
+        "parametersJsonSchema": schema,
+    }
+    assert declaration["parametersJsonSchema"] is not request.tools[0].parameters
+
+
+@pytest.mark.parametrize(
+    "json_type,gemini_type",
+    [
+        ("string", "STRING"),
+        ("integer", "INTEGER"),
+        ("number", "NUMBER"),
+        ("boolean", "BOOLEAN"),
+        ("array", "ARRAY"),
+        ("object", "OBJECT"),
+    ],
+)
+def test_gemini_legacy_parameter_mapping_accepts_json_types(
+    gemini_provider, json_type, gemini_type
+):
+    assert gemini_provider._gemini_parameter_schema({"type": json_type}) == {
+        "type": gemini_type
+    }
+
+
 def test_gemini_error_tool_results_and_legacy_followup_fallback(gemini_provider):
     part = gemini_provider._function_response_part(
         ToolResult(tool_call_id="call", name="lookup", content="failed", is_error=True)
@@ -193,3 +276,47 @@ def test_gemini_error_tool_results_and_legacy_followup_fallback(gemini_provider)
         )
     assert response.content == "cached"
     assert response.raw is None
+
+
+def test_gemini_call_ids_offset_native_ids_and_echo(gemini_provider):
+    data = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {"functionCall": {"name": "lookup", "args": {"q": 1}}},
+                        {"functionCall": {"id": "fc-9", "name": "lookup"}},
+                    ]
+                }
+            },
+            {"content": {"parts": [{"functionCall": {"name": "ignored"}}]}},
+        ]
+    }
+    calls = gemini_provider._extract_function_calls(data, id_offset=3)
+    assert [(call["id"], call["name"]) for call in calls] == [
+        ("gemini-call-3", "lookup"),
+        ("fc-9", "lookup"),
+    ]
+    assert gemini_provider._extract_function_calls({"candidates": ["bad"]}) == []
+
+    response = gemini_provider._runtime_tool_call_response(
+        data, {"contents": [{"role": "user", "parts": [{"text": "q"}]}]}, calls
+    )
+    contents = response.metadata["gemini_contents"]
+    assert contents[-1] == {"role": "model", **data["candidates"][0]["content"]}
+    # The received payload itself is not mutated.
+    assert "role" not in data["candidates"][0]["content"]
+    assert gemini_provider._content_function_call_count(contents) == 2
+    assert gemini_provider._native_function_call_ids(contents) == {"fc-9"}
+    assert gemini_provider._native_function_call_ids([]) == set()
+
+    result = ToolResult(tool_call_id="fc-9", name="lookup", content="ok")
+    assert gemini_provider._function_response_part(result, call_id="fc-9") == {
+        "functionResponse": {
+            "id": "fc-9",
+            "name": "lookup",
+            "response": {"result": "ok"},
+        }
+    }
+    unechoed = gemini_provider._function_response_part(result)
+    assert "id" not in unechoed["functionResponse"]

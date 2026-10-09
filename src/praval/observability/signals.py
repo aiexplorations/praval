@@ -17,6 +17,7 @@ from .lifecycle import get_logger, get_meter, is_observability_configured
 
 if TYPE_CHECKING:
     from praval.eval.models import EvaluationSubject, JudgeResult, MetricResult
+    from praval.metering import ModelCall
 
 _SECRET_VALUE = re.compile(r"(?i)(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|api[_-]?key\s*[=:])")
 _MAX_DIMENSION_BYTES = 256
@@ -32,6 +33,8 @@ class _SignalInstruments:
     execution_duration: Any
     execution_failures: Any
     token_usage: Any
+    model_calls: Any
+    model_token_usage: Any
     tool_invocations: Any
     tool_duration: Any
     retry_count: Any
@@ -41,6 +44,27 @@ class _SignalInstruments:
     evaluation_scores: Any
     evaluation_failures: Any
     health_instruments: tuple[Any, ...]
+
+
+def emit_model_call(call: "ModelCall") -> None:
+    """Emit per-request metrics once, independently of enclosing observations."""
+    if not is_observability_configured():
+        return
+    instruments = _get_instruments()
+    attributes = {
+        "gen_ai.provider.name": _bounded_dimension(call.provider),
+        "gen_ai.request.model": _bounded_dimension(call.model),
+        "gen_ai.operation.name": call.operation,
+    }
+    instruments.model_calls.add(1, attributes)
+    if call.usage is not None:
+        for kind, count in (
+            ("input", call.usage.input_tokens),
+            ("output", call.usage.output_tokens),
+        ):
+            instruments.model_token_usage.record(
+                count, {**attributes, "gen_ai.token.type": kind}
+            )
 
 
 def reset_signal_state() -> None:
@@ -129,6 +153,16 @@ def _get_instruments() -> _SignalInstruments:
                     "praval.gen_ai.token.usage",
                     unit="{token}",
                     description="Model tokens used by completed Praval executions",
+                ),
+                model_calls=meter.create_counter(
+                    "praval.model.calls",
+                    unit="{call}",
+                    description="Actual provider chat requests, including retries",
+                ),
+                model_token_usage=meter.create_histogram(
+                    "gen_ai.client.token.usage",
+                    unit="{token}",
+                    description="Provider-reported tokens for each chat request",
                 ),
                 tool_invocations=meter.create_counter(
                     "praval.tool.invocations",

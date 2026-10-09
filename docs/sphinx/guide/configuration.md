@@ -15,7 +15,11 @@ name.
 ## Model profiles
 
 Each `[models.<name>]` requires `provider` and `model`. Optional `temperature`
-is a float and `max_output_tokens` is a positive integer. Environment variables
+is a float or `None` in the Python schema and `max_output_tokens` is a positive
+integer. TOML has no null literal; omitting `temperature` resolves it to `None`.
+An application must pass that resolved value to an agent's `config` to omit
+sampling; an independently constructed `Agent` still has its own defaults.
+Environment variables
 `PRAVAL_DEFAULT_PROVIDER` and `PRAVAL_DEFAULT_MODEL` set the `models.default`
 profile. Provider credentials remain in their provider-specific environment
 variables and are not configuration fields.

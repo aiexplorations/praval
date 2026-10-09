@@ -9,7 +9,7 @@ enough. Add Reef and Spores when independent specialists need to collaborate.
 python -m pip install praval
 ```
 
-Praval 0.8.3 supports Python 3.10 through 3.14. Optional capabilities are installed
+Praval 0.8.4 supports Python 3.10 through 3.14. Optional capabilities are installed
 separately:
 
 ```bash
@@ -25,7 +25,7 @@ running an example:
 
 ```bash
 export OPENAI_API_KEY="..."
-# or ANTHROPIC_API_KEY, COHERE_API_KEY, or GEMINI_API_KEY
+# or ANTHROPIC_API_KEY, COHERE_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY
 ```
 
 Passing `provider` and `model` explicitly makes an example reproducible. If
@@ -37,18 +37,15 @@ credentials.
 ```python
 from praval import Agent
 
-assistant = Agent(
+with Agent(
     "assistant",
     provider="openai",
     model="gpt-5.4-mini",
     system_message="Be concise.",
-)
-try:
+) as assistant:
     response = assistant.generate("Explain what a Praval Spore carries.")
     print(response.content)
     print(response.provider, response.model, response.usage)
-finally:
-    assistant.close()
 ```
 
 `Agent.generate()` returns `ModelResponse`. Its content, provider, model,
@@ -58,7 +55,10 @@ application contract for each provider.
 The compatibility method returns only a string:
 
 ```python
-text = assistant.chat("Explain Reef in one sentence.")
+from praval import Agent
+
+with Agent("assistant", provider="openai", model="gpt-5.4-mini") as assistant:
+    text = assistant.chat("Explain Reef in one sentence.")
 ```
 
 Prefer `generate()` for new code. Use `agenerate()`, `stream()`, and
@@ -69,20 +69,28 @@ Prefer `generate()` for new code. Use `agenerate()`, `stream()`, and
 ```python
 import json
 
-response = assistant.generate(
-    "Return one fact about Reef as JSON.",
-    response_schema={
-        "type": "object",
-        "properties": {"fact": {"type": "string"}},
-        "required": ["fact"],
-    },
-)
-fact = json.loads(response.content)["fact"]
+from praval import Agent
+
+with Agent("assistant", provider="openai", model="gpt-5.4-mini") as assistant:
+    response = assistant.generate(
+        "Return one fact about Reef as JSON.",
+        response_schema={
+            "schema": {
+                "type": "object",
+                "properties": {"fact": {"type": "string"}},
+                "required": ["fact"],
+            },
+            "validate_locally": True,
+        },
+    )
+    fact = json.loads(response.content)["fact"]
 ```
 
 The runtime checks that the selected provider profile supports structured
-output and then sends the schema as a provider constraint. It does not run a
-second local JSON Schema validation pass.
+output and then sends the schema as a provider constraint. Local validation is
+off by default; the example enables it. Invalid final JSON or a schema mismatch
+raises `ProviderInvalidResponseError`, including on streaming final responses.
+See {doc}`structured-outputs` for the full contract.
 
 ## Second path: collaborate through Reef
 
@@ -159,8 +167,9 @@ finally:
 
 The presets are `ollama`, `vllm`, `lmstudio`, and `llama-cpp`. Text and
 streaming are enabled by default. Tools, structured output, reasoning, and
-multimodal input require explicit capability configuration for the server you
-are using.
+multimodal input require verified capabilities for the server and model you
+are using. Ollama can discover these with
+`config={"provider_options": {"discover_model": True}}`; see {doc}`local-llms`.
 
 ## Learn by inspecting execution
 
@@ -176,6 +185,34 @@ python examples/model_runtime_fake_provider.py
 
 Next, read {doc}`core-concepts`, {doc}`model-runtime`, and the generated
 {doc}`../api/index`.
+
+## Building with a coding agent
+
+Give a coding agent the installed version (`praval --version`), the matching
+versioned manual at `https://pravalagents.com/docs/v0.8.4/`, and the task's
+provider/model requirements. `praval doctor --json` reports installation and
+credential presence without printing keys. The published manual includes its
+plain-text sources under `_sources/`, such as
+`_sources/guide/model-runtime.md.txt`, for tools that cannot render HTML.
+
+In 0.8.4, `doctor` checks the listed provider credentials but does not include
+OpenRouter. Check that `OPENROUTER_API_KEY` is set without printing its value
+when using that adapter.
+
+For generated application code:
+
+- Use the documented public imports and generated API signatures. Prefer
+  `generate()` when the caller needs usage, metadata or tool results.
+- Distinguish constructor `config` from per-call options; see
+  {doc}`model-runtime`. Unknown call keywords warn and are ignored in 0.8.4.
+- Verify model capabilities through {doc}`providers` and {doc}`local-llms`.
+  A registry profile describes Praval's assumptions, not account availability.
+- Register callable tools through `Agent.tool()` or `add_tool_spec()`, and use
+  async agent APIs for MCP tools. Keep the client open through approval/resume.
+- Bound retries, output and tool rounds, handle typed failures, and close owned
+  agents, clients and Reef resources. Check tool results before claiming success.
+- Exercise behavior with fake provider/HTTP clients before paid model checks.
+  Compilation alone does not establish that a tool ran or an artifact is correct.
 
 ## Design the first agent so it can be evaluated
 

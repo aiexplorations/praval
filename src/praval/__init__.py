@@ -28,6 +28,15 @@ from .core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
     PravalConfigurationError,
+    ProviderAuthenticationError,
+    ProviderError,
+    ProviderInvalidRequestError,
+    ProviderInvalidResponseError,
+    ProviderQuotaError,
+    ProviderRateLimitError,
+    ProviderTransportError,
+    ProviderUnavailableError,
+    ToolRoundLimitError,
 )
 from .core.reef import ReefLifecycleError, Spore, SporeType, get_reef
 from .core.registry import get_registry, register_agent
@@ -233,6 +242,16 @@ __all__ = [
     "InterventionRequired",
     "HITLConfigurationError",
     "EmbeddingConfigurationError",
+    # Provider errors
+    "ProviderError",
+    "ProviderAuthenticationError",
+    "ProviderInvalidRequestError",
+    "ProviderInvalidResponseError",
+    "ProviderQuotaError",
+    "ProviderRateLimitError",
+    "ProviderUnavailableError",
+    "ProviderTransportError",
+    "ToolRoundLimitError",
     # Model runtime contracts
     "AudioResponse",
     "ContentPart",

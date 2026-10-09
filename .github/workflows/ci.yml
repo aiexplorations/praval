@@ -413,11 +413,14 @@ jobs:
       - name: Start pinned MinIO and OTLP collector services
         shell: bash
         run: |
+          docker build -f .github/minio-ci.Dockerfile \
+            -t praval-minio-fixture .github
           docker run -d --name praval-minio \
+            --memory 512m --cpus 2 \
             -p 9000:9000 \
             -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" \
             -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
-            minio/minio:RELEASE.2024-11-07T00-52-20Z \
+            praval-minio-fixture \
             server /data
           docker run -d --name praval-otel \
             -p 4318:4318 \

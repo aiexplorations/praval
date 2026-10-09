@@ -45,7 +45,10 @@ def test_anthropic_initialization_options_close_and_redaction(monkeypatch):
             )
         )
     constructor.assert_called_once_with(
-        api_key="secret-key", base_url="https://anthropic.test", timeout=9
+        api_key="secret-key",
+        base_url="https://anthropic.test",
+        timeout=9,
+        max_retries=0,
     )
     assert _redact_secrets("") == ""
     assert _redact_secrets("bad secret-key") == "bad ***"
@@ -256,3 +259,33 @@ def test_anthropic_continuation_and_legacy_resume_validation(anthropic_provider)
         provider.resume_tool_flow({}, tools=[])
     with pytest.raises(ProviderError, match="Missing resume intervention"):
         provider.resume_tool_flow({"schema": "anthropic_tool_v1"}, tools=[])
+
+
+def test_anthropic_block_fallback_keeps_thinking_and_transcript_scope(
+    anthropic_provider,
+):
+    provider, _ = anthropic_provider
+    blocks = provider._serialize_content_blocks(
+        [
+            SimpleNamespace(type="thinking", thinking="plan", signature="c2ln"),
+            SimpleNamespace(type="redacted_thinking", data="b3BhcXVl"),
+            SimpleNamespace(type="unknown"),
+        ]
+    )
+    assert blocks == [
+        {"type": "thinking", "thinking": "plan", "signature": "c2ln"},
+        {"type": "redacted_thinking", "data": "b3BhcXVl"},
+    ]
+
+    call_params = {
+        "model": "claude-test",
+        "messages": [{"role": "user", "content": "x"}],
+    }
+    plain = provider._messages_model_response(
+        SimpleNamespace(content=[{"type": "text", "text": "done"}], usage=None),
+        call_params,
+    )
+    assert "anthropic_messages" not in plain.metadata
+    assert plain.metadata["anthropic_assistant_content"] == [
+        {"type": "text", "text": "done"}
+    ]

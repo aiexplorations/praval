@@ -14,6 +14,7 @@ import logging
 import sys
 import threading
 import time
+import traceback
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
@@ -52,6 +53,44 @@ _state_stack: ContextVar[tuple["_ObservationState", ...]] = ContextVar(
 _tool_call_depth: ContextVar[int] = ContextVar("praval_tool_call_depth", default=0)
 _default_recorder: ObservationRecorder = NOOP_OBSERVATION_RECORDER
 _recorder_lock = threading.RLock()
+
+
+def record_span_exception(span: Span | None, exc: BaseException | None) -> None:
+    """Add an OpenTelemetry ``exception`` event without the cause chain.
+
+    OpenTelemetry's ``Span.record_exception`` formats the full chain, so a
+    redacted ``ProviderError`` would still carry the raw SDK exception (and
+    any secret it quotes) through ``__cause__``. This records the semantic
+    convention attributes for the outer exception only: its type, its message
+    (already redacted for provider errors) and a stacktrace with
+    ``chain=False``. Like OpenTelemetry's ``use_span``, only ``Exception``
+    instances are recorded, not ``GeneratorExit`` or cancellation.
+    """
+    if span is None or not isinstance(exc, Exception) or not span.is_recording():
+        return
+    try:
+        exception_type = type(exc)
+        module = exception_type.__module__
+        qualname = exception_type.__qualname__
+        span.add_event(
+            "exception",
+            {
+                "exception.type": (
+                    f"{module}.{qualname}"
+                    if module and module != "builtins"
+                    else qualname
+                ),
+                "exception.message": str(exc),
+                "exception.stacktrace": "".join(
+                    traceback.format_exception(
+                        exception_type, exc, exc.__traceback__, chain=False
+                    )
+                ),
+                "exception.escaped": "False",
+            },
+        )
+    except Exception as telemetry_error:
+        logger.warning("Span exception recording failed: %s", telemetry_error)
 
 
 def _bounded_string(value: Any, limit: int) -> str | None:
@@ -151,6 +190,7 @@ class _ObservationState:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     total_tokens: int = 0
+    model_calls: int = 0
     has_usage: bool = False
     tool_calls: list[ToolCallObservation] = field(default_factory=list)
     retries: list[RetryObservation] = field(default_factory=list)
@@ -162,6 +202,8 @@ class _ObservationState:
     forced_error_type: str | None = None
     span: Span | None = None
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    # Set on exit; a closed state may linger on another context's stack.
+    closed: bool = False
 
     def matches(
         self,
@@ -231,7 +273,7 @@ class ObservationScope:
         return self._owns_scope
 
     def __enter__(self) -> "ObservationScope":
-        stack = _state_stack.get()
+        stack = _active_states()
         for state in reversed(stack):
             if state.matches(
                 self._kind,
@@ -266,11 +308,13 @@ class ObservationScope:
         )
         attributes = _identity_attributes(state)
         try:
+            # Exceptions are recorded by record_span_exception, without the
+            # cause chain that OpenTelemetry's default recording includes.
             self._span_manager = _get_tracer().start_as_current_span(
                 span_name,
                 kind=SpanKind.INTERNAL,
                 attributes=attributes,
-                record_exception=True,
+                record_exception=False,
                 set_status_on_exception=True,
             )
             state.span = self._span_manager.__enter__()
@@ -287,8 +331,16 @@ class ObservationScope:
         if not self._owns_scope or self._state is None:
             return False
         state = self._state
+        state.closed = True
         if self._token is not None:
-            _state_stack.reset(self._token)
+            try:
+                _state_stack.reset(self._token)
+            except ValueError:
+                # Exited in another context, for example when a stream is
+                # closed from another thread or finalized by another task.
+                # The entry stays on the original context's stack, where
+                # ``closed`` makes readers skip it.
+                pass
 
         ended_at = datetime.now(timezone.utc)
         duration_ms = max(0.0, (time.perf_counter() - state.started_monotonic) * 1000)
@@ -310,6 +362,7 @@ class ObservationScope:
         except Exception as observation_error:
             logger.warning("Observation finalization failed: %s", observation_error)
         if self._span_manager is not None:
+            record_span_exception(state.span, exc)
             try:
                 self._span_manager.__exit__(exc_type, exc, traceback)
             except Exception as telemetry_error:
@@ -389,6 +442,7 @@ def _freeze_observation(
             model=state.model,
             request_mode=state.request_mode,
             usage=usage,
+            model_calls=state.model_calls,
             tool_calls=tuple(state.tool_calls[:128]),
             retries=tuple(state.retries[:32]),
             hitl_decisions=tuple(state.hitl_decisions[:32]),
@@ -452,7 +506,7 @@ def _finish_span_unisolated(
 
 
 def _active_states() -> tuple[_ObservationState, ...]:
-    return _state_stack.get()
+    return tuple(state for state in _state_stack.get() if not state.closed)
 
 
 def has_active_observation() -> bool:
@@ -477,6 +531,7 @@ def record_model_facts(
     request_mode: str | None = None,
     terminal_outcome: str | None = None,
     usage: Any = None,
+    count_call: bool = False,
 ) -> None:
     """Aggregate one model call into every active agent/workflow boundary."""
     try:
@@ -495,6 +550,7 @@ def record_model_facts(
             state.terminal_outcome = (
                 _bounded_string(terminal_outcome, 256) or state.terminal_outcome
             )
+            state.model_calls += int(count_call)
             if normalized_usage is not None:
                 state.has_usage = True
                 state.input_tokens += normalized_usage.input_tokens
@@ -774,7 +830,7 @@ def operation_span(
             name,
             kind=kind,
             attributes=clean_attributes,
-            record_exception=True,
+            record_exception=False,
             set_status_on_exception=True,
         )
         span = manager.__enter__()
@@ -786,6 +842,7 @@ def operation_span(
         yield span
     except BaseException:
         exception_info = sys.exc_info()
+        record_span_exception(span, exception_info[1])
         try:
             manager.__exit__(*exception_info)
         except Exception as telemetry_error:

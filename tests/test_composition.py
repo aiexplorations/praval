@@ -309,7 +309,7 @@ class TestThrottledAgent:
         ):
             throttled_agent(1.0)(not_an_agent)
 
-    @patch("time.time")
+    @patch("praval.composition.time")
     @patch("praval.decorators.Agent")
     def test_throttled_agent_allows_first_execution(self, mock_agent_class, mock_time):
         """Test that throttled agent allows first execution immediately."""
@@ -318,7 +318,7 @@ class TestThrottledAgent:
         mock_agent._custom_spore_handler = mock_original_handler
         mock_agent_class.return_value = mock_agent
 
-        mock_time.return_value = 1000.0  # Fixed time
+        mock_time.time.return_value = 1000.0  # Fixed time
 
         @agent("throttled_first")
         def test_agent(spore):
@@ -337,7 +337,7 @@ class TestThrottledAgent:
         mock_original_handler.assert_called_once_with(spore)
         assert result == "first_result"
 
-    @patch("time.time")
+    @patch("praval.composition.time")
     @patch("praval.decorators.Agent")
     def test_throttled_agent_blocks_rapid_execution(self, mock_agent_class, mock_time):
         """Test that throttled agent blocks execution within delay period."""
@@ -348,7 +348,7 @@ class TestThrottledAgent:
 
         # Simulate time progression
         time_sequence = [1000.0, 1001.0, 1003.0]  # 0s, 1s, 3s
-        mock_time.side_effect = time_sequence
+        mock_time.time.side_effect = time_sequence
 
         @agent("throttled_blocked")
         def test_agent(spore):
@@ -365,6 +365,10 @@ class TestThrottledAgent:
         result1 = new_handler(spore1)
         assert result1 == "handler_result"
 
+        # Other clock users must not consume the throttle's finite time sequence.
+        assert time.time() != 1001.0
+        assert mock_time.time.call_count == 1
+
         # Second execution at t=1 (within 2s delay) - should be blocked
         spore2 = Mock()
         result2 = new_handler(spore2)
@@ -378,6 +382,7 @@ class TestThrottledAgent:
         # Verify call count
         assert mock_original_handler.call_count == 2
         mock_original_handler.assert_has_calls([call(spore1), call(spore3)])
+        assert mock_time.time.call_count == 3
 
     @patch("praval.decorators.Agent")
     def test_throttled_agent_thread_safety(self, mock_agent_class):
@@ -895,7 +900,7 @@ class TestErrorHandlingAndEdgeCases:
             assert session.agents[0] is mock_agent
             assert session.agents[1] is mock_agent
 
-    @patch("time.time")
+    @patch("praval.composition.time")
     @patch("praval.decorators.Agent")
     def test_throttled_agent_with_zero_delay(self, mock_agent_class, mock_time):
         """Test throttled agent with zero delay (should always execute)."""
@@ -904,7 +909,7 @@ class TestErrorHandlingAndEdgeCases:
         mock_agent._custom_spore_handler = mock_original_handler
         mock_agent_class.return_value = mock_agent
 
-        mock_time.return_value = 1000.0
+        mock_time.time.return_value = 1000.0
 
         @agent("zero_delay_agent")
         def test_agent(spore):

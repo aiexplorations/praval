@@ -6,6 +6,7 @@ Messages API with support for conversation history and system messages.
 """
 
 import os
+import re
 from typing import Any, Dict, Iterator, List, Optional
 
 import anthropic
@@ -16,7 +17,11 @@ from ..core.exceptions import (
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ContentPart,
     ModelEvent,
@@ -28,6 +33,9 @@ from ..models import (
     ToolSpec,
     Usage,
 )
+from .errors import map_provider_exception, sdk_max_retries
+from .registry import reasoning_parameters
+from .usage import anthropic_usage
 
 
 def _redact_secrets(message: str) -> str:
@@ -77,10 +85,11 @@ class AnthropicProvider:
                 client_kwargs["base_url"] = config.base_url
             if getattr(config, "timeout", None):
                 client_kwargs["timeout"] = config.timeout
+            client_kwargs["max_retries"] = sdk_max_retries(config)
             self.client = anthropic.Anthropic(**client_kwargs)
         except Exception as e:
             raise ProviderError(
-                f"Failed to initialize Anthropic client: {_redact_secrets(str(e))}"
+                f"Failed to initialize Anthropic client: {self._redact(str(e))}"
             ) from e
 
     def generate(
@@ -139,8 +148,8 @@ class AnthropicProvider:
         except (InterventionRequired, HITLConfigurationError):
             raise
         except Exception as e:
-            raise ProviderError(
-                f"Anthropic API error: {_redact_secrets(str(e))}"
+            raise self._mapped_error(
+                e, f"Anthropic API error: {self._redact(str(e))}"
             ) from e
 
     def invoke(
@@ -184,6 +193,17 @@ class AnthropicProvider:
             for block in tool_uses
         ]
         finish_reason = self._event_value(response, "stop_reason", None)
+        metadata: Dict[str, Any] = {
+            "anthropic_assistant_content": serialized_content,
+        }
+        if tool_uses:
+            # Keep every earlier turn so later rounds resend the whole run.
+            # Assistant blocks, including signed thinking blocks, stay as
+            # received because Anthropic requires them unchanged.
+            metadata["anthropic_messages"] = [
+                *call_params["messages"],
+                {"role": "assistant", "content": serialized_content},
+            ]
         return ModelResponse(
             content=self._extract_text(response),
             provider=self.provider_name,
@@ -192,9 +212,7 @@ class AnthropicProvider:
             raw=response,
             usage=self._extract_usage(response),
             finish_reason=finish_reason if isinstance(finish_reason, str) else None,
-            metadata={
-                "anthropic_assistant_content": serialized_content,
-            },
+            metadata=metadata,
         )
 
     def continue_with_tool_results(
@@ -208,8 +226,13 @@ class AnthropicProvider:
         if not isinstance(assistant_content, list):
             raise ProviderError("Anthropic tool continuation state is missing")
         call_params = self._messages_params(request)
-        messages = list(call_params["messages"])
-        messages.append({"role": "assistant", "content": assistant_content})
+        transcript = response.metadata.get("anthropic_messages")
+        if isinstance(transcript, list):
+            messages = list(transcript)
+        else:
+            # State written by v0.8.3 has no transcript; rebuild one round.
+            messages = list(call_params["messages"])
+            messages.append({"role": "assistant", "content": assistant_content})
         messages.append(
             {
                 "role": "user",
@@ -237,9 +260,33 @@ class AnthropicProvider:
             call_params["stream"] = True
             yield from self._stream_messages_create(call_params)
         except Exception as e:
-            message = _redact_secrets(str(e))
+            message = self._redact(str(e))
             yield ModelEvent(type="error", metadata={"message": message})
-            raise ProviderError(f"Anthropic streaming error: {message}") from e
+            raise self._mapped_error(e, f"Anthropic streaming error: {message}") from e
+
+    def _redact(self, message: str) -> str:
+        """Redact known provider keys and the key from ``config.api_key_env``."""
+        redacted = _redact_secrets(message)
+        api_key_env = getattr(self.config, "api_key_env", None)
+        secret = os.getenv(api_key_env) if api_key_env else None
+        if secret and redacted:
+            redacted = redacted.replace(secret, "***")
+        return redacted
+
+    def map_provider_error(self, exc: BaseException) -> ProviderError:
+        """Map an Anthropic SDK exception to a typed, redacted ``ProviderError``."""
+        return self._mapped_error(exc, None)
+
+    def _mapped_error(
+        self, exc: BaseException, message: Optional[str]
+    ) -> ProviderError:
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=message,
+            redact=self._redact,
+        )
 
     def close(self) -> None:
         """Close the underlying SDK client when supported."""
@@ -299,10 +346,54 @@ class AnthropicProvider:
             "endpoint",
             "allow_experimental_tools",
             "experimental_tools",
+            "max_retries",
+            "discover_model",
+            "prompt_caching",
         }
         for key, value in request.provider_options.items():
             if key not in reserved:
                 call_params.setdefault(key, value)
+        model_name = str(call_params["model"])
+        if call_params.get("temperature") is None:
+            call_params.pop("temperature", None)
+        modern_sampling = any(
+            model_name == family
+            or re.fullmatch(re.escape(family) + r"-\d{4}-?\d{2}-?\d{2}", model_name)
+            for family in (
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5",
+                "claude-sonnet-5",
+                "claude-opus-4-8",
+                "claude-opus-4-7",
+            )
+        )
+        if modern_sampling or (
+            request.reasoning is not None and request.reasoning.level is not None
+        ):
+            # Thinking requires provider-default sampling. New adaptive-only
+            # families require it even when thinking is explicitly disabled.
+            for key in ("temperature", "top_p", "top_k"):
+                call_params.pop(key, None)
+        caching = request.provider_options.get("prompt_caching", False)
+        if caching is not False:
+            if caching is True:
+                control = {"type": "ephemeral"}
+            elif (
+                isinstance(caching, dict)
+                and caching.get("type") == "ephemeral"
+                and set(caching) <= {"type", "ttl"}
+                and caching.get("ttl", "5m") in {"5m", "1h"}
+            ):
+                control = dict(caching)
+            else:
+                raise ProviderError(
+                    "prompt_caching must be True, False or an ephemeral "
+                    "cache_control with ttl 5m/1h"
+                )
+            # extra_body works with SDK versions predating automatic caching.
+            body = dict(call_params.get("extra_body") or {})
+            body.setdefault("cache_control", control)
+            call_params["extra_body"] = body
         return call_params
 
     def _experimental_tools(self, request: ModelRequest) -> List[Dict[str, Any]]:
@@ -344,6 +435,18 @@ class AnthropicProvider:
                 )
             elif block_type == "text":
                 serialized.append({"type": "text", "text": getattr(block, "text", "")})
+            elif block_type == "thinking":
+                serialized.append(
+                    {
+                        "type": "thinking",
+                        "thinking": getattr(block, "thinking", ""),
+                        "signature": getattr(block, "signature", ""),
+                    }
+                )
+            elif block_type == "redacted_thinking":
+                serialized.append(
+                    {"type": "redacted_thinking", "data": getattr(block, "data", "")}
+                )
         return serialized
 
     def _anthropic_tool_result(self, result: ToolResult) -> Dict[str, Any]:
@@ -405,7 +508,7 @@ class AnthropicProvider:
             elif event_type == "error":
                 yield ModelEvent(
                     type="error",
-                    metadata={"message": _redact_secrets(str(event))},
+                    metadata={"message": self._redact(str(event))},
                 )
         response = ModelResponse(
             content="".join(content_parts),
@@ -437,9 +540,14 @@ class AnthropicProvider:
         if request.reasoning is None:
             return {}
         reasoning = request.reasoning
-        if reasoning.budget_tokens is None and not reasoning.mode:
+        native = reasoning_parameters(request)
+        thinking: Dict[str, Any] = dict(native.get("thinking") or {})
+        if reasoning.budget_tokens is None and not reasoning.mode and not thinking:
             return {}
-        thinking: Dict[str, Any] = {"type": reasoning.mode or "enabled"}
+        if reasoning.mode:
+            thinking["type"] = reasoning.mode
+        elif reasoning.budget_tokens is not None:
+            thinking["type"] = "enabled"
         if reasoning.budget_tokens is not None:
             thinking["budget_tokens"] = reasoning.budget_tokens
         if reasoning.display:
@@ -453,35 +561,21 @@ class AnthropicProvider:
                 "type": "json_schema",
                 "schema": request.response_schema.json_schema or {},
             }
+        output_config.update(reasoning_parameters(request).get("output_config", {}))
         if request.reasoning is not None and request.reasoning.effort:
             output_config["effort"] = request.reasoning.effort
         return output_config
 
     def _extract_usage(self, response: Any) -> Optional[Usage]:
-        usage = getattr(response, "usage", None)
-        if usage is None and isinstance(response, dict):
-            usage = response.get("usage")
-        if usage is None:
-            return None
-
-        def getter(key: str, default: int = 0) -> Any:
-            if isinstance(usage, dict):
-                return usage.get(key, default)
-            return getattr(usage, key, default)
-
-        input_tokens = int(getter("input_tokens", 0) or 0)
-        output_tokens = int(getter("output_tokens", 0) or 0)
-        return Usage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-        )
+        return anthropic_usage(response)
 
     def _extract_system_message(self, messages: List[Dict[str, Any]]) -> Optional[str]:
-        for message in messages:
-            if message.get("role") == "system":
-                return self._content_to_text(message.get("content", ""))
-        return None
+        parts = [
+            self._content_to_text(message.get("content", ""))
+            for message in messages
+            if message.get("role") == "system"
+        ]
+        return "\n\n".join(parts) if parts else None
 
     def _filter_conversation_messages(
         self, messages: List[Dict[str, Any]]
@@ -568,7 +662,13 @@ class AnthropicProvider:
                 },
             }
 
-            for param_name, param_info in (tool.get("parameters") or {}).items():
+            parameters = tool.get("parameters") or {}
+            if parameters.get("type") == "object":
+                tool_def["input_schema"] = parameters
+                formatted_tools.append(tool_def)
+                continue
+
+            for param_name, param_info in parameters.items():
                 param_type = param_info.get("type", "str")
                 json_type = self._python_type_to_json_schema(param_type)
                 tool_def["input_schema"]["properties"][param_name] = {"type": json_type}
@@ -723,7 +823,13 @@ class AnthropicProvider:
             call_params["system"] = system_message
 
         try:
-            response = self.client.messages.create(**call_params)
+            # The tools have already run: retry only this request.
+            response = call_with_retries(
+                "follow_up",
+                lambda: self.client.messages.create(**call_params),
+                retries=max_provider_retries(self.config),
+                map_error=self.map_provider_error,
+            )
             if response.content and len(response.content) > 0:
                 for block in response.content:
                     block_type = getattr(block, "type", None) or (

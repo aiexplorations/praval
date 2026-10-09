@@ -7,17 +7,26 @@ for conversation history, tool calling, and streaming responses.
 
 import json
 import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+import re
+import threading
+from collections import OrderedDict
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import openai
 
+from .._metering_runtime import provider_request
 from ..core.exceptions import (
     HITLConfigurationError,
     InterventionRequired,
     ProviderError,
 )
 from ..hitl.runtime import HITLRuntime
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    _nested_unsafe_option_keys,
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     AudioResponse,
     ContentPart,
@@ -32,6 +41,9 @@ from ..models import (
     TranscriptionRequest,
     Usage,
 )
+from .errors import map_provider_exception, sdk_max_retries
+from .registry import reasoning_parameters
+from .usage import openai_usage
 
 
 def _redact_secrets(message: str) -> str:
@@ -87,6 +99,10 @@ class OpenAIProvider:
             ProviderError: If OpenAI client initialization fails
         """
         self.config = config
+        self._parameter_lock = threading.RLock()
+        self._parameter_policies: OrderedDict[
+            Tuple[str, str], Dict[str, Optional[str]]
+        ] = OrderedDict()
 
         try:
             api_key_env = getattr(config, "api_key_env", None) or "OPENAI_API_KEY"
@@ -99,10 +115,11 @@ class OpenAIProvider:
                 client_kwargs["base_url"] = config.base_url
             if getattr(config, "timeout", None):
                 client_kwargs["timeout"] = config.timeout
+            client_kwargs["max_retries"] = sdk_max_retries(config)
             self.client = openai.OpenAI(**client_kwargs)
         except Exception as e:
             raise ProviderError(
-                f"Failed to initialize OpenAI client: {_redact_secrets(str(e))}"
+                f"Failed to initialize OpenAI client: {self._redact(str(e))}"
             ) from e
 
     def generate(
@@ -138,6 +155,7 @@ class OpenAIProvider:
                 if formatted_tools:
                     call_params["tools"] = formatted_tools
                     call_params["tool_choice"] = "auto"
+                    self._apply_chat_completion_model_constraints(call_params)
 
             response = self._create_chat_completion_with_empty_retry(call_params)
 
@@ -157,7 +175,9 @@ class OpenAIProvider:
         except (InterventionRequired, HITLConfigurationError):
             raise
         except Exception as e:
-            raise ProviderError(f"OpenAI API error: {_redact_secrets(str(e))}") from e
+            raise self._mapped_error(
+                e, f"OpenAI API error: {self._redact(str(e))}"
+            ) from e
 
     def invoke(
         self,
@@ -181,9 +201,33 @@ class OpenAIProvider:
             else:
                 yield from self._stream_chat_completions(request, tools=tools)
         except Exception as e:
-            message = _redact_secrets(str(e))
+            message = self._redact(str(e))
             yield ModelEvent(type="error", metadata={"message": message})
-            raise ProviderError(f"OpenAI streaming error: {message}") from e
+            raise self._mapped_error(e, f"OpenAI streaming error: {message}") from e
+
+    def _redact(self, message: str) -> str:
+        """Redact known provider keys and the key from ``config.api_key_env``."""
+        redacted = _redact_secrets(message)
+        api_key_env = getattr(self.config, "api_key_env", None)
+        secret = os.getenv(api_key_env) if api_key_env else None
+        if secret and redacted:
+            redacted = redacted.replace(secret, "***")
+        return redacted
+
+    def map_provider_error(self, exc: BaseException) -> ProviderError:
+        """Map an OpenAI SDK exception to a typed, redacted ``ProviderError``."""
+        return self._mapped_error(exc, None)
+
+    def _mapped_error(
+        self, exc: BaseException, message: Optional[str]
+    ) -> ProviderError:
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=message,
+            redact=self._redact,
+        )
 
     def transcribe(self, request: TranscriptionRequest) -> AudioResponse:
         """Transcribe request-based audio through OpenAI's audio endpoint."""
@@ -210,7 +254,23 @@ class OpenAIProvider:
                 call_params["timeout"] = request.timeout
             self._apply_audio_provider_options(call_params, request.provider_options)
 
-            response = self.client.audio.transcriptions.create(**call_params)
+            # Praval owns retries (SDK retries are off). An upload can only be
+            # resent when its stream can be rewound to where it started.
+            rewind = self._audio_rewind(file_value)
+
+            def create_transcription() -> Any:
+                if rewind is not None:
+                    rewind()
+                return self.client.audio.transcriptions.create(**call_params)
+
+            response = call_with_retries(
+                "transcribe",
+                create_transcription,
+                retries=max_provider_retries(self.config) if rewind else 0,
+                map_error=lambda exc: self._mapped_error(
+                    exc, f"OpenAI transcription error: {self._redact(str(exc))}"
+                ),
+            )
             text = self._transcription_text(response)
             if not text:
                 raise ProviderError("OpenAI transcription returned no text")
@@ -225,8 +285,8 @@ class OpenAIProvider:
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(
-                f"OpenAI transcription error: {_redact_secrets(str(e))}"
+            raise self._mapped_error(
+                e, f"OpenAI transcription error: {self._redact(str(e))}"
             ) from e
         finally:
             if should_close:
@@ -262,7 +322,14 @@ class OpenAIProvider:
                 call_params["timeout"] = request.timeout
             self._apply_audio_provider_options(call_params, request.provider_options)
 
-            response = self.client.audio.speech.create(**call_params)
+            response = call_with_retries(
+                "speak",
+                lambda: self.client.audio.speech.create(**call_params),
+                retries=max_provider_retries(self.config),
+                map_error=lambda exc: self._mapped_error(
+                    exc, f"OpenAI speech generation error: {self._redact(str(exc))}"
+                ),
+            )
             data = self._speech_bytes(response)
             if not data:
                 raise ProviderError("OpenAI speech generation returned no audio")
@@ -278,8 +345,8 @@ class OpenAIProvider:
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(
-                f"OpenAI speech generation error: {_redact_secrets(str(e))}"
+            raise self._mapped_error(
+                e, f"OpenAI speech generation error: {self._redact(str(e))}"
             ) from e
 
     def close(self) -> None:
@@ -287,6 +354,31 @@ class OpenAIProvider:
         close = getattr(self.client, "close", None)
         if callable(close):
             close()
+
+    @staticmethod
+    def _audio_rewind(file_value: Any) -> Optional[Callable[[], None]]:
+        """Return a callable restoring the upload's start, or ``None``.
+
+        Bytes need no rewinding. A file object (alone or inside an SDK file
+        tuple) is rewound to its current position; one that cannot seek
+        cannot be resent, so it gets ``None`` and is not retried.
+        """
+        stream = file_value
+        if isinstance(file_value, tuple):
+            stream = file_value[1] if len(file_value) > 1 else None
+        if not hasattr(stream, "read"):
+            return lambda: None
+        try:
+            if not stream.seekable():
+                return None
+            position = stream.tell()
+        except (AttributeError, OSError, ValueError):
+            return None
+
+        def rewind() -> None:
+            stream.seek(position)
+
+        return rewind
 
     def _audio_file_value(self, request: TranscriptionRequest) -> Tuple[Any, bool]:
         audio = request.audio
@@ -330,6 +422,10 @@ class OpenAIProvider:
                 "Streaming audio is outside the request-based voice API; "
                 "use a realtime or streaming adapter instead"
             )
+        unsafe = _nested_unsafe_option_keys(provider_options)
+        if unsafe:
+            blocked = ", ".join(sorted(set(unsafe)))
+            raise ProviderError(f"Unsafe provider option(s): {blocked}")
         reserved = {
             "file",
             "input",
@@ -410,6 +506,8 @@ class OpenAIProvider:
             "temperature": temperature,
             "max_tokens": max_output_tokens,
         }
+        if temperature is None:
+            call_params.pop("temperature", None)
         self._apply_chat_completion_model_constraints(call_params)
         return call_params
 
@@ -427,15 +525,40 @@ class OpenAIProvider:
                 call_params["max_completion_tokens"] = max_tokens
         else:
             call_params.pop("max_tokens", None)
-        call_params.pop("temperature", None)
+        for key in ("temperature", "top_p", "top_logprobs", "logprobs"):
+            call_params.pop(key, None)
+        if self._gpt_generation(model) >= 6 and call_params.get("tools"):
+            normalized = self._normalized_model_name(model)
+            supports_nonreasoning_tools = any(
+                normalized == name
+                or re.fullmatch(re.escape(name) + r"-\d{4}-?\d{2}-?\d{2}", normalized)
+                for name in ("gpt-6-luna", "gpt-6-sol")
+            )
+            if (
+                not supports_nonreasoning_tools
+                or call_params.get("reasoning_effort", "none") != "none"
+            ):
+                raise ProviderError(
+                    f"OpenAI model '{model}' requires the Responses API for "
+                    "this tool request; set provider_options={'endpoint': 'responses'}"
+                )
+            call_params.setdefault("reasoning_effort", "none")
 
-    def _uses_max_completion_tokens(self, model: str) -> bool:
+    def _normalized_model_name(self, model: str) -> str:
         normalized = model.strip().lower().replace("_", "-")
         if ":" in normalized:
             normalized = normalized.rsplit(":", 1)[-1]
         if "/" in normalized:
             normalized = normalized.rsplit("/", 1)[-1]
-        return normalized.startswith("gpt-5") or (
+        return normalized
+
+    def _gpt_generation(self, model: str) -> int:
+        match = re.match(r"gpt-(\d+)(?=[.-]|$)", self._normalized_model_name(model))
+        return int(match.group(1)) if match else 0
+
+    def _uses_max_completion_tokens(self, model: str) -> bool:
+        normalized = self._normalized_model_name(model)
+        return self._gpt_generation(model) >= 5 or (
             normalized.startswith("o")
             and len(normalized) > 1
             and normalized[1].isdigit()
@@ -445,11 +568,162 @@ class OpenAIProvider:
         self,
         call_params: Dict[str, Any],
     ) -> Any:
-        response = self.client.chat.completions.create(**call_params)
+        response = self._create_model_request("chat.completions", call_params)
         retry_params = self._empty_text_retry_params(call_params, response)
         if retry_params is None:
             return response
-        return self.client.chat.completions.create(**retry_params)
+        return self._create_model_request("chat.completions", retry_params)
+
+    def _parameter_repair(
+        self, exc: BaseException, params: Dict[str, Any]
+    ) -> Optional[Dict[str, Optional[str]]]:
+        """Repair only explicit sampling rejections or the token-limit rename."""
+        options = getattr(self.config, "provider_options", {}) or {}
+        if options.get("parameter_recovery", True) is not True:
+            return None
+        if getattr(exc, "status_code", None) != 400:
+            return None
+        body = getattr(exc, "body", None)
+        error = body.get("error", body) if isinstance(body, dict) else {}
+        if not isinstance(error, dict):
+            error = {}
+        parameter = error.get("param") or getattr(exc, "param", None)
+        message = str(error.get("message") or str(exc))[:2000]
+        code = error.get("code") or getattr(exc, "code", None)
+        if code not in {"unsupported_parameter", "unsupported_value"} and not re.search(
+            r"unsupported (?:parameter|value)", message, re.IGNORECASE
+        ):
+            return None
+        if not isinstance(parameter, str):
+            match = re.search(
+                r"(?:parameter|value):?\s*['\"]([^'\"]+)['\"]", message, re.IGNORECASE
+            )
+            parameter = match.group(1) if match else None
+        if parameter not in params:
+            return None
+        if parameter in {"temperature", "top_p", "top_logprobs", "logprobs"}:
+            return {parameter: None}
+        if parameter == "max_tokens" and "max_completion_tokens" in message:
+            return {"max_tokens": "max_completion_tokens"}
+        return None
+
+    @staticmethod
+    def _apply_parameter_policy(
+        params: Dict[str, Any], policy: Dict[str, Optional[str]]
+    ) -> None:
+        for parameter, replacement in policy.items():
+            if parameter in params:
+                value = params.pop(parameter)
+                if replacement is not None:
+                    params.setdefault(replacement, value)
+
+    def _model_request_params(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prepared = dict(params)
+        enabled = prepared.pop("_praval_parameter_recovery", True)
+        options = getattr(self.config, "provider_options", {}) or {}
+        if enabled is not True or options.get("parameter_recovery", True) is not True:
+            return prepared
+        key = (endpoint, str(params.get("model") or ""))
+        with self._parameter_lock:
+            self._apply_parameter_policy(
+                prepared, self._parameter_policies.get(key, {})
+            )
+        return prepared
+
+    def _remember_parameter_policy(
+        self, endpoint: str, params: Dict[str, Any], policy: Dict[str, Optional[str]]
+    ) -> None:
+        key = (endpoint, str(params.get("model") or ""))
+        with self._parameter_lock:
+            self._parameter_policies.setdefault(key, {}).update(policy)
+            self._parameter_policies.move_to_end(key)
+            while len(self._parameter_policies) > 128:
+                self._parameter_policies.popitem(last=False)
+
+    def _create_model_request(self, endpoint: str, params: Dict[str, Any]) -> Any:
+        """Negotiate once per rejected request, preserving tools and metering."""
+        prepared = self._model_request_params(endpoint, params)
+        create = (
+            self.client.responses.create
+            if endpoint == "responses"
+            else self.client.chat.completions.create
+        )
+        policy: Optional[Dict[str, Optional[str]]] = None
+        for attempt in range(2):
+            try:
+                with provider_request() as report:
+                    response = create(**prepared)
+                    if report is not None:
+                        report.finish(self._request_usage_response(response))
+                if policy is not None:
+                    self._remember_parameter_policy(endpoint, params, policy)
+                return response
+            except Exception as exc:
+                policy = (
+                    self._parameter_repair(exc, prepared)
+                    if attempt == 0
+                    and params.get("_praval_parameter_recovery", True) is True
+                    else None
+                )
+                if policy is None:
+                    raise
+                self._apply_parameter_policy(prepared, policy)
+        raise AssertionError("Unreachable parameter recovery state")
+
+    def _request_usage_response(self, response: Any) -> ModelResponse:
+        return ModelResponse(usage=self._extract_usage(response))
+
+    def _stream_model_request(
+        self, endpoint: str, params: Dict[str, Any]
+    ) -> Iterator[Any]:
+        """Recover only before any stream data is emitted, and meter each request."""
+        prepared = self._model_request_params(endpoint, params)
+        create = (
+            self.client.responses.create
+            if endpoint == "responses"
+            else self.client.chat.completions.create
+        )
+        policy: Optional[Dict[str, Optional[str]]] = None
+        for attempt in range(2):
+            opened = False
+            try:
+                with provider_request() as report:
+                    chunks = create(**prepared)
+                    opened = True
+                    if policy is not None:
+                        self._remember_parameter_policy(endpoint, params, policy)
+                    usage_response = ModelResponse()
+                    try:
+                        for chunk in chunks:
+                            raw = self._event_value(chunk, "response", None) or chunk
+                            observed = self._request_usage_response(raw)
+                            if observed.usage is not None:
+                                usage_response = observed
+                            yield chunk
+                    except BaseException:
+                        if report is not None:
+                            report.finish(usage_response, status="error")
+                        raise
+                    finally:
+                        close = getattr(chunks, "close", None)
+                        if callable(close):
+                            close()
+                    if report is not None:
+                        report.finish(usage_response)
+                return
+            except Exception as exc:
+                policy = (
+                    self._parameter_repair(exc, prepared)
+                    if attempt == 0
+                    and not opened
+                    and params.get("_praval_parameter_recovery", True) is True
+                    else None
+                )
+                if policy is None:
+                    raise
+                self._apply_parameter_policy(prepared, policy)
 
     def _empty_text_retry_params(
         self,
@@ -549,10 +823,16 @@ class OpenAIProvider:
             or request.provider_options.get("api")
             or ""
         ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
         return (
             endpoint == "responses"
             or bool(request.provider_options.get("use_responses", False))
             or request.reasoning is not None
+            or (
+                self._gpt_generation(request.model or self._model_name()) >= 6
+                and bool(request.tools)
+            )
         )
 
     def _invoke_chat_completions(
@@ -583,6 +863,17 @@ class OpenAIProvider:
             tool_calls = [
                 self._chat_tool_call(tool_call) for tool_call in assistant_tool_calls
             ]
+        metadata: Dict[str, Any] = {
+            "openai_endpoint": "chat.completions",
+            "assistant_tool_calls": assistant_tool_calls,
+        }
+        if assistant_tool_calls:
+            # The cumulative transcript lets every continuation round resend
+            # all earlier tool turns, not only the original request.
+            metadata["openai_chat_messages"] = [
+                *call_params["messages"],
+                self._chat_assistant_message(content, assistant_tool_calls),
+            ]
         return ModelResponse(
             content=content,
             provider=self.provider_name,
@@ -591,18 +882,26 @@ class OpenAIProvider:
             raw=response,
             usage=self._extract_usage(response),
             finish_reason=self._chat_choice_finish_reason(response),
-            metadata={
-                "openai_endpoint": "chat.completions",
-                "assistant_tool_calls": assistant_tool_calls,
-            },
+            metadata=metadata,
         )
+
+    def _chat_assistant_message(
+        self,
+        content: str,
+        assistant_tool_calls: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        return {
+            "role": "assistant",
+            "content": content or None,
+            "tool_calls": assistant_tool_calls,
+        }
 
     def _chat_tool_call(self, tool_call: Dict[str, Any]) -> ToolCall:
         function = tool_call.get("function") or {}
         raw_arguments = function.get("arguments") or "{}"
         try:
             arguments = json.loads(raw_arguments)
-        except (TypeError, json.JSONDecodeError):
+        except (TypeError, json.JSONDecodeError, RecursionError):
             arguments = {"raw": raw_arguments}
         return ToolCall(
             id=str(tool_call.get("id") or ""),
@@ -635,14 +934,15 @@ class OpenAIProvider:
         if not isinstance(assistant_tool_calls, list):
             raise ProviderError("OpenAI Chat Completions tool state is missing")
         call_params = self._chat_completion_params(request)
-        messages = list(call_params["messages"])
-        messages.append(
-            {
-                "role": "assistant",
-                "content": response.content or None,
-                "tool_calls": assistant_tool_calls,
-            }
-        )
+        transcript = response.metadata.get("openai_chat_messages")
+        if isinstance(transcript, list):
+            messages = list(transcript)
+        else:
+            # State written by v0.8.3 has no transcript; rebuild one round.
+            messages = list(call_params["messages"])
+            messages.append(
+                self._chat_assistant_message(response.content, assistant_tool_calls)
+            )
         messages.extend(
             {
                 "role": "tool",
@@ -674,12 +974,12 @@ class OpenAIProvider:
             }
             for result in tool_results
         ]
-        continued = self.client.responses.create(**call_params)
+        continued = self._create_model_request("responses", call_params)
         return self._responses_model_response(continued, call_params)
 
     def _invoke_responses(self, request: ModelRequest) -> ModelResponse:
         call_params = self._responses_params(request)
-        response = self.client.responses.create(**call_params)
+        response = self._create_model_request("responses", call_params)
         return self._responses_model_response(response, call_params)
 
     def _responses_model_response(
@@ -742,6 +1042,12 @@ class OpenAIProvider:
             call_params["response_format"] = self._openai_response_format(
                 request.response_schema
             )
+        native_reasoning = reasoning_parameters(request)
+        effort = native_reasoning.get("effort")
+        if request.reasoning is not None and request.reasoning.effort is not None:
+            effort = request.reasoning.effort
+        if effort is not None:
+            call_params["reasoning_effort"] = effort
         if request.timeout is not None:
             call_params["timeout"] = request.timeout
         if stream:
@@ -764,6 +1070,8 @@ class OpenAIProvider:
             "temperature": request.temperature,
             "max_output_tokens": request.max_output_tokens or self._max_output_tokens(),
         }
+        if request.temperature is None:
+            call_params.pop("temperature", None)
         formatted_tools = self._format_tool_specs_for_responses(request.tools)
         formatted_tools.extend(self._experimental_tools(request))
         if formatted_tools:
@@ -773,7 +1081,7 @@ class OpenAIProvider:
                 "format": self._openai_text_format(request.response_schema)
             }
         if request.reasoning is not None:
-            reasoning: Dict[str, Any] = {}
+            reasoning: Dict[str, Any] = dict(reasoning_parameters(request))
             if request.reasoning.effort:
                 reasoning["effort"] = request.reasoning.effort
             if request.reasoning.summary:
@@ -789,6 +1097,12 @@ class OpenAIProvider:
             if request.stream_options:
                 call_params["stream_options"] = request.stream_options
         self._apply_provider_options(call_params, request)
+        if self._uses_max_completion_tokens(str(call_params["model"])) or (
+            request.reasoning is not None
+            and (request.reasoning.level is not None or request.reasoning.effort)
+        ):
+            for key in ("temperature", "top_p", "top_logprobs"):
+                call_params.pop(key, None)
         return call_params
 
     def _apply_provider_options(
@@ -799,16 +1113,30 @@ class OpenAIProvider:
         reserved = {
             "endpoint",
             "api",
+            # A model profile uses this only to select an OpenAI-compatible
+            # local endpoint.  It is not a Chat Completions API argument.
+            "local_preset",
             "use_responses",
             "capabilities",
             "transcription_model",
             "speech_model",
             "allow_experimental_tools",
             "experimental_tools",
+            # Client construction option (SDK-internal retries), not a request
+            # argument.
+            "max_retries",
+            "parameter_recovery",
+            "discover_model",
+            "required_context_tokens",
         }
         for key, value in request.provider_options.items():
             if key not in reserved:
                 call_params.setdefault(key, value)
+        if "parameter_recovery" in request.provider_options:
+            recovery = request.provider_options["parameter_recovery"]
+            if not isinstance(recovery, bool):
+                raise ProviderError("parameter_recovery must be a bool")
+            call_params["_praval_parameter_recovery"] = recovery
 
     def _experimental_tools(self, request: ModelRequest) -> List[Dict[str, Any]]:
         value = request.provider_options.get("experimental_tools")
@@ -888,11 +1216,13 @@ class OpenAIProvider:
             tools=tools,
             stream=True,
         )
-        chunks = self.client.chat.completions.create(**call_params)
+        chunks = self._stream_model_request("chat.completions", call_params)
         content_parts: List[str] = []
+        request_metadata: Dict[str, Any] = {}
         usage: Optional[Usage] = None
         finish_reason: Optional[str] = None
         for chunk in chunks:
+            request_metadata.update(self._request_usage_response(chunk).metadata)
             usage = self._extract_usage(chunk) or usage
             choices = getattr(chunk, "choices", None) or []
             if not choices and isinstance(chunk, dict):
@@ -918,6 +1248,7 @@ class OpenAIProvider:
             model=call_params["model"],
             usage=usage,
             finish_reason=finish_reason,
+            metadata=request_metadata,
         )
         if usage:
             yield ModelEvent(type="usage", usage=usage)
@@ -925,7 +1256,7 @@ class OpenAIProvider:
 
     def _stream_responses(self, request: ModelRequest) -> Iterator[ModelEvent]:
         call_params = self._responses_params(request, stream=True)
-        events = self.client.responses.create(**call_params)
+        events = self._stream_model_request("responses", call_params)
         content_parts: List[str] = []
         final_response: Optional[ModelResponse] = None
         usage: Optional[Usage] = None
@@ -960,7 +1291,7 @@ class OpenAIProvider:
                 error = self._event_value(event, "error", event)
                 yield ModelEvent(
                     type="error",
-                    metadata={"message": _redact_secrets(str(error))},
+                    metadata={"message": self._redact(str(error))},
                 )
         if final_response is None:
             final_response = ModelResponse(
@@ -1051,35 +1382,7 @@ class OpenAIProvider:
         return "".join(text_parts)
 
     def _extract_usage(self, response: Any) -> Optional[Usage]:
-        usage = getattr(response, "usage", None)
-        if usage is None and isinstance(response, dict):
-            usage = response.get("usage")
-        if usage is None:
-            return None
-
-        def getter(key: str, default: int = 0) -> Any:
-            if isinstance(usage, dict):
-                return usage.get(key, default)
-            return getattr(usage, key, default)
-
-        input_tokens = int(getter("input_tokens", getter("prompt_tokens", 0)) or 0)
-        output_tokens = int(
-            getter("output_tokens", getter("completion_tokens", 0)) or 0
-        )
-        total_tokens = int(getter("total_tokens", input_tokens + output_tokens) or 0)
-        output_details = getter("output_tokens_details", {})
-        if not output_details:
-            output_details = getter("completion_tokens_details", {})
-        if isinstance(output_details, dict):
-            reasoning_tokens = int(output_details.get("reasoning_tokens", 0) or 0)
-        else:
-            reasoning_tokens = int(getattr(output_details, "reasoning_tokens", 0) or 0)
-        return Usage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            reasoning_tokens=reasoning_tokens,
-        )
+        return openai_usage(response)
 
     def _event_value(self, value: Any, key: str, default: Any = None) -> Any:
         if isinstance(value, dict):
@@ -1109,7 +1412,7 @@ class OpenAIProvider:
         if isinstance(raw_args, str):
             try:
                 arguments = json.loads(raw_args)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 arguments = {"raw": raw_args}
         elif isinstance(raw_args, dict):
             arguments = raw_args
@@ -1149,6 +1452,13 @@ class OpenAIProvider:
             }
 
             if "parameters" in tool:
+                if tool["parameters"].get("type") == "object":
+                    # Agent.add_tool_spec already supplies JSON Schema.
+                    formatted_tool["function"]["parameters"] = tool["parameters"]
+                    if tool.get("strict"):
+                        formatted_tool["function"]["strict"] = True
+                    formatted_tools.append(formatted_tool)
+                    continue
                 for param_name, param_info in tool["parameters"].items():
                     python_type = param_info.get("type", "str")
                     json_type = self._python_type_to_json_schema(python_type)
@@ -1302,8 +1612,12 @@ class OpenAIProvider:
                 temperature=self.config.temperature,
                 max_output_tokens=self._max_output_tokens(),
             )
-            follow_up_response = self._create_chat_completion_with_empty_retry(
-                call_params
+            # The tools have already run: retry only this request.
+            follow_up_response = call_with_retries(
+                "follow_up",
+                lambda: self._create_chat_completion_with_empty_retry(call_params),
+                retries=max_provider_retries(self.config),
+                map_error=self.map_provider_error,
             )
 
             if follow_up_response.choices and follow_up_response.choices[0].message:

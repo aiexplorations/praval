@@ -1,0 +1,2043 @@
+{
+  "artifact_commit_note": "The CI artifact identifies the PR synthetic merge commit, distinct from the release-branch head. It is a candidate wheel, not the eventual main-CI publication artifact.",
+  "artifact_kind": "downloaded-release-branch-ci-wheel-validation",
+  "branch": "release/v0.8.4",
+  "candidate_head": "c48e3fa0a99ff241f5f501b58cc5b3a4a4a74846",
+  "checked_at": "2026-10-08T18:18:09.020598+00:00",
+  "ci_at_b4ec8b7": {
+    "conclusion": "failure",
+    "diagnosis": "The unchanged test globally patches time.time with three values. A local probe reproduced exhaustion when another clock caller consumed a value; a module-isolated clock preserved the three throttling assertions. The six focused throttle tests passed unchanged in isolation.",
+    "failed_check": "Python 3.13 tests",
+    "failure": "tests/test_composition.py::TestThrottledAgent::test_throttled_agent_blocks_rapid_execution: StopIteration in globally mocked time.time",
+    "fix": "Patch the composition module time binding, leaving other clock users independent; retain the first/blocked/delayed handler assertions and assert that an independent clock read does not consume the throttle sequence.",
+    "fix_validation": {
+      "focused_agent_and_composition_tests_passed": 71,
+      "focused_composition_tests_passed": 40,
+      "fresh_ci_required": true,
+      "full_suite": {
+        "coverage_floors": "passed",
+        "coverage_percent": 93.62,
+        "passed": 4063,
+        "skipped": 144,
+        "timeout_method": "thread",
+        "timeout_seconds": 60
+      }
+    },
+    "head": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+    "packaging_and_wheel_checks": "Skipped after the required Python 3.13 test check failed.",
+    "passed_checks": [
+      "Python 3.10 tests",
+      "Python 3.11 tests",
+      "Python 3.12 tests",
+      "Python 3.14 tests",
+      "Quality and complete coverage",
+      "MCP stdio and Streamable HTTP"
+    ],
+    "runtime_regression_confirmed": false,
+    "status": "completed",
+    "test_isolation_fix_implemented": true,
+    "url": "https://github.com/aiexplorations/praval/actions/runs/37829292819"
+  },
+  "ci_checks_passed": 16,
+  "ci_run": 37818460828,
+  "ci_url": "https://github.com/aiexplorations/praval/actions/runs/37818460828",
+  "distribution_checks": {
+    "check_release_metadata_dist": "passed",
+    "twine_check": "passed",
+    "validate_distribution": "passed"
+  },
+  "documentation_checks": {
+    "contracts": {
+      "failures": 0,
+      "passed": 16,
+      "skipped": 0
+    },
+    "git_diff_check": "passed",
+    "release_metadata": "passed",
+    "sphinx_warnings_as_errors": "passed"
+  },
+  "downstream_sources": {
+    "praval-code": "a42e89283b29a49de4025c0e2733d14d08488566",
+    "pravalclaw": "c61bb4eea6cc481bdd8782d4955b78ae39c43b01"
+  },
+  "environment_notes": [
+    "Each downstream test used a temporary git-archive source snapshot and isolated venv with the CI wheel installed locally. Existing dependency libraries were borrowed through a .pth file; the Praval Code native harness package was copied into the temporary snapshot. Active installations were unchanged.",
+    "PravalClaw used Python 3.14 with freshly resolved candidate framework dependencies and temporary Path.home defaults. Praval Code used Python 3.12; standalone provider and wheel schema checks used Python 3.13.",
+    "No deployment, server context setting, model variant creation or real connector delivery was performed.",
+    "Sphinx successfully built with warnings treated as errors. Its autosummary regeneration rewrote tracked generated RST files with whitespace changes; those build-produced edits were restored before the final diff check, retaining only intended report and documentation changes."
+  ],
+  "exact_main_ci_wheel_certified": false,
+  "follow_up_2026_10_09": {
+    "base_release_commit": "c48e3fa0a99ff241f5f501b58cc5b3a4a4a74846",
+    "checks": {
+      "api_surface": "passed; 102 exports documented",
+      "base_sdk_real_http_contracts": {
+        "cohere_sdk": "5.17.0",
+        "passed": 2
+      },
+      "distribution_validation": "passed",
+      "documentation_contracts": {
+        "passed": 16
+      },
+      "final_full_suite": {
+        "coverage_floors": "passed",
+        "coverage_percent": 93.61,
+        "passed": 4062,
+        "skipped": 144,
+        "timeout_method": "thread",
+        "timeout_seconds": 60
+      },
+      "focused_provider_regressions": {
+        "passed": 434
+      },
+      "format_lint_and_typing": "passed",
+      "git_diff_check": "passed",
+      "installed_wheel_current_sdk_schema_and_edge_contracts": {
+        "cohere_sdk": "7.2.0",
+        "passed": 64
+      },
+      "release_metadata": "passed",
+      "sphinx_warnings_as_errors": "passed against corrected installed wheel using temporary documentation sources",
+      "twine_check": "passed"
+    },
+    "confirmed_framework_defects": [
+      {
+        "fix": "Use SDK request_options.timeout_in_seconds, as the v2 adapter already does.",
+        "issue": "Cohere v1 receives an unsupported timeout keyword and fails before HTTP dispatch.",
+        "status": "fixed and tested locally"
+      },
+      {
+        "fix": "Translate JSON Schema properties to native Python type declarations and required flags; retain the full schema in the description and validate original constraints in the runtime. Keep v2 native JSON Schema.",
+        "issue": "Cohere v1 tools use parameters instead of parameter_definitions, leaving the model without argument declarations. The timeout-only corrected run returned empty arguments and did not execute the dependent handlers.",
+        "status": "fixed and tested locally"
+      }
+    ],
+    "credential_source": "Praval .env; keys were used only in subprocess environments and not stored in evidence.",
+    "feature_branch": "codex/cohere-request-timeout",
+    "fresh_ci_artifact_required": true,
+    "initial_setup_corrections": [
+      "The initial lint invocation omitted CI max-line-length and ignore flags; rerunning the exact CI command passed.",
+      "An initial attempt to borrow Python 3.14 compiled dependencies into a Python 3.13 environment failed during setup. A fresh Python 3.13 installation of Cohere 7.2.0 and its dependencies passed all selected installed-wheel contracts.",
+      "The first temporary Sphinx source snapshot lacked included example files. Copying those files allowed the warnings-as-errors build to pass."
+    ],
+    "live_checks": [
+      {
+        "artifact_kind": "downloaded-ci-wheel",
+        "elapsed_seconds": 0.96,
+        "endpoint": null,
+        "error": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CfqGwQgLyV1qQ6mmeVsSe'}",
+        "error_type": "ProviderInvalidRequestError",
+        "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "claude-sonnet-5",
+        "provider": "anthropic",
+        "request_trace": [],
+        "source_evidence": "live-anthropic-claude-sonnet-5-new-keys-20261009.json",
+        "status": "failed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "downloaded-ci-wheel",
+        "elapsed_seconds": 0.25,
+        "endpoint": null,
+        "error": "BaseCohere.chat() got an unexpected keyword argument 'timeout'",
+        "error_type": "ProviderError",
+        "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "command-a-03-2025",
+        "provider": "cohere",
+        "request_trace": [],
+        "source_evidence": "live-cohere-command-a-03-2025-new-keys-20261009.json",
+        "status": "failed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "downloaded-ci-wheel",
+        "elapsed_seconds": 2.03,
+        "endpoint": null,
+        "error": "Gemini API error: HTTP 429 RESOURCE_EXHAUSTED: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.5-flash\nPlease retry in 5h7m1.556537882s.",
+        "error_type": "ProviderQuotaError",
+        "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "gemini-3.5-flash",
+        "provider": "gemini",
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_2381300",
+                "name": "next_value",
+                "raw": {
+                  "args": {
+                    "value": 0
+                  },
+                  "id": "call_2381300",
+                  "name": "next_value"
+                }
+              }
+            ]
+          }
+        ],
+        "source_evidence": "live-gemini-gemini-3.5-flash-new-keys-20261009.json",
+        "status": "failed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "downloaded-ci-wheel",
+        "elapsed_seconds": 26.73,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": null,
+          "model": "gemini-3.1-flash-lite",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": null,
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 858,
+            "output_tokens": 61,
+            "reasoning_tokens": 0,
+            "total_tokens": 919
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "gemini-3.1-flash-lite",
+        "provider": "gemini",
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_1780300",
+                "name": "next_value",
+                "raw": {
+                  "args": {
+                    "value": 0
+                  },
+                  "id": "call_1780300",
+                  "name": "next_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "5895185",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_1780300"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 5895185
+                },
+                "id": "call_1450577",
+                "name": "next_value",
+                "raw": {
+                  "args": {
+                    "value": 5895185
+                  },
+                  "id": "call_1450577",
+                  "name": "next_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "190496674",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_1450577"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 190496674
+                },
+                "id": "call_1807944",
+                "name": "confirm_value",
+                "raw": {
+                  "args": {
+                    "approved": true,
+                    "value": 190496674
+                  },
+                  "id": "call_1807944",
+                  "name": "confirm_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "call_1807944"
+              }
+            ],
+            "tool_calls": []
+          }
+        ],
+        "source_evidence": "live-gemini-gemini-3.1-flash-lite-new-keys-20261009.json",
+        "status": "passed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 2.73,
+        "endpoint": null,
+        "error": "",
+        "error_type": "AssertionError",
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "command-a-03-2025",
+        "provider": "cohere",
+        "request_trace": [
+          {
+            "content": "I will call next_value with value=0. I will then call next_value again with the result of the first call. I will then call confirm_value with the result of the second call and approved=true.",
+            "operation": "invoke",
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {},
+                "id": "cohere-call-0",
+                "name": "next_value",
+                "raw": {
+                  "args": {},
+                  "id": "cohere-call-0",
+                  "name": "next_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "I'm sorry, I was unable to complete your request because of an error.",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "Error: Invalid arguments for tool 'next_value': value: missing required argument, expected integer",
+                "is_error": true,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "cohere-call-0"
+              }
+            ],
+            "tool_calls": []
+          }
+        ],
+        "source_evidence": "live-cohere-command-a-03-2025-timeout-fixed-20261009.json",
+        "status": "failed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 6.28,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 10,
+          "endpoint": null,
+          "model": "command-a-03-2025",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": null,
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 1128,
+            "output_tokens": 174,
+            "reasoning_tokens": 0,
+            "total_tokens": 1302
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "command-a-03-2025",
+        "provider": "cohere",
+        "request_trace": [
+          {
+            "content": "I will call next_value with value=0. I will then call next_value again with the result of the first call. I will then call confirm_value with the result of the second call and approved=true.",
+            "operation": "invoke",
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "cohere-call-0",
+                "name": "next_value",
+                "raw": {
+                  "args": {
+                    "value": 0
+                  },
+                  "id": "cohere-call-0",
+                  "name": "next_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "I have called next_value with value=0 and the result is 22353508. I will now call next_value again with this result.",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "22353508",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "cohere-call-0"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 22353508
+                },
+                "id": "cohere-call-1",
+                "name": "next_value",
+                "raw": {
+                  "args": {
+                    "value": 22353508
+                  },
+                  "id": "cohere-call-1",
+                  "name": "next_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "I have called next_value with value=22353508 and the result is 129259846. I will now call confirm_value with this result and approved=true.",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "129259846",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "cohere-call-1"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 129259846
+                },
+                "id": "cohere-call-2",
+                "name": "confirm_value",
+                "raw": {
+                  "args": {
+                    "approved": true,
+                    "value": 129259846
+                  },
+                  "id": "cohere-call-2",
+                  "name": "confirm_value"
+                }
+              }
+            ]
+          },
+          {
+            "content": "certified.",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "cohere-call-2"
+              }
+            ],
+            "tool_calls": []
+          }
+        ],
+        "source_evidence": "live-cohere-command-a-03-2025-schemas-fixed-20261009.json",
+        "status": "passed",
+        "version": "0.8.4"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 5.22,
+        "endpoint": "chat.v2",
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": "chat.v2",
+          "model": "command-a-03-2025",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": null,
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 839,
+            "output_tokens": 166,
+            "reasoning_tokens": 0,
+            "total_tokens": 1005
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "model": "command-a-03-2025",
+        "provider": "cohere",
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "next_value_2qac3te33f60",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":0}",
+                    "name": "next_value"
+                  },
+                  "id": "next_value_2qac3te33f60",
+                  "type": "function"
+                }
+              }
+            ]
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "28453648",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "next_value_2qac3te33f60"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 28453648
+                },
+                "id": "next_value_ymy1fhex17a7",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":28453648}",
+                    "name": "next_value"
+                  },
+                  "id": "next_value_ymy1fhex17a7",
+                  "type": "function"
+                }
+              }
+            ]
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "171906941",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "next_value_ymy1fhex17a7"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 171906941
+                },
+                "id": "confirm_value_vjaqwenhpvzz",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":171906941,\"approved\":true}",
+                    "name": "confirm_value"
+                  },
+                  "id": "confirm_value_vjaqwenhpvzz",
+                  "type": "function"
+                }
+              }
+            ]
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "confirm_value_vjaqwenhpvzz"
+              }
+            ],
+            "tool_calls": []
+          }
+        ],
+        "source_evidence": "live-cohere-command-a-03-2025-chat.v2-schemas-fixed-20261009.json",
+        "status": "passed",
+        "version": "0.8.4"
+      }
+    ],
+    "local_candidate": {
+      "all_packaged_python_sources_match_checkout": true,
+      "path": "/private/tmp/praval-v084-final-cert/cohere-final-wheel/praval-0.8.4-py3-none-any.whl",
+      "publication_artifact": false,
+      "sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d",
+      "size": 387886,
+      "source_state": "Uncommitted feature-branch correction relative to the base release commit when built.",
+      "wheel": "praval-0.8.4-py3-none-any.whl"
+    },
+    "published": false
+  },
+  "initial_attempts": [
+    {
+      "case": "ollama/qwen3.5:2b",
+      "error": "Provider exceeded maximum tool rounds (4)",
+      "error_type": "ToolRoundLimitError",
+      "follow_up": "An unchanged scenario rerun with request tracing passed, as did qwen3.5:9b. The initial request trace was not captured, so the cause is unverified and the first failure is retained.",
+      "seconds": 15.32,
+      "status": "failed"
+    },
+    {
+      "case": "Praval Code GPT-6 Luna and Gemini initial CLI tasks",
+      "details": "The first launcher used --trust alone, leaving shell approval pending in noninteractive mode. Both models executed file tools but pytest was rejected. The initial verifier also looked for legacy praval_turns.jsonl instead of the current effect history. Corrected runs used --auto-approve within the temporary workspace and asserted the current effect records; both passed.",
+      "status": "test-harness-corrected"
+    },
+    {
+      "case": "isolated environment setup",
+      "details": "Used a temporary UV_CACHE_DIR after sandbox access to the default cache was denied; copied the existing native harness dependency for Praval Code; installed candidate framework dependencies in the temporary PravalClaw environment; reran the Code pytest suite with process permissions required by its plugin.",
+      "status": "corrected"
+    }
+  ],
+  "limits": [
+    "Gemini Flash-Lite passed again using the new key. Gemini 3.5 Flash made one valid tool call before HTTP 429 free-tier quota exhaustion blocked continuation; that model has no complete live certificate.",
+    "PravalClaw suite uses isolated deterministic providers and fake connectors; live deployment and outbound delivery are unverified.",
+    "Praval Code token accounting was complete; no model prices were configured, so estimated cost was unavailable and costComplete was false.",
+    "Final publication requires merge and fresh successful main CI, verification of that wheel, and the owner release decision.",
+    "Dependent-tool certificates choose fresh random intermediate values; Ollama reruns are separate samples, not identical-input repetitions."
+  ],
+  "live_provider_checks": [
+    {
+      "elapsed_seconds": 24.17,
+      "endpoint": null,
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": null,
+        "model": "gemini-3.1-flash-lite",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": null,
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "input_tokens": 858,
+          "output_tokens": 61,
+          "reasoning_tokens": 0,
+          "total_tokens": 919
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "gemini-3.1-flash-lite",
+      "provider": "gemini",
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 10.15,
+      "endpoint": null,
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": null,
+        "model": "qwen3.5:2b",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": "chat.completions",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 2046,
+          "cache_write_tokens": 0,
+          "input_tokens": 2294,
+          "output_tokens": 309,
+          "reasoning_tokens": 0,
+          "total_tokens": 2603
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "qwen3.5:2b",
+      "provider": "ollama",
+      "request_trace": [
+        {
+          "content": "",
+          "operation": "invoke",
+          "results": [],
+          "tool_calls": [
+            {
+              "arguments": {
+                "value": 0
+              },
+              "id": "call_u7853f5n",
+              "name": "next_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":0}",
+                  "name": "next_value"
+                },
+                "id": "call_u7853f5n",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "79609696",
+              "is_error": false,
+              "metadata": {},
+              "name": "next_value",
+              "tool_call_id": "call_u7853f5n"
+            }
+          ],
+          "tool_calls": [
+            {
+              "arguments": {
+                "value": 79609696
+              },
+              "id": "call_zcvvi73c",
+              "name": "next_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":79609696}",
+                  "name": "next_value"
+                },
+                "id": "call_zcvvi73c",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "163161645",
+              "is_error": false,
+              "metadata": {},
+              "name": "next_value",
+              "tool_call_id": "call_zcvvi73c"
+            }
+          ],
+          "tool_calls": [
+            {
+              "arguments": {
+                "approved": true,
+                "value": 163161645
+              },
+              "id": "call_fchietot",
+              "name": "confirm_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":163161645,\"approved\":true}",
+                  "name": "confirm_value"
+                },
+                "id": "call_fchietot",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "certified",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "certified",
+              "is_error": false,
+              "metadata": {},
+              "name": "confirm_value",
+              "tool_call_id": "call_fchietot"
+            }
+          ],
+          "tool_calls": []
+        }
+      ],
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 27.68,
+      "endpoint": null,
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": null,
+        "model": "qwen3.5:9b",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": "chat.completions",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 1615,
+          "cache_write_tokens": 0,
+          "input_tokens": 2232,
+          "output_tokens": 280,
+          "reasoning_tokens": 0,
+          "total_tokens": 2512
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "qwen3.5:9b",
+      "provider": "ollama",
+      "request_trace": [
+        {
+          "content": "",
+          "operation": "invoke",
+          "results": [],
+          "tool_calls": [
+            {
+              "arguments": {
+                "value": 0
+              },
+              "id": "call_2lkqjvgr",
+              "name": "next_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":0}",
+                  "name": "next_value"
+                },
+                "id": "call_2lkqjvgr",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "45186826",
+              "is_error": false,
+              "metadata": {},
+              "name": "next_value",
+              "tool_call_id": "call_2lkqjvgr"
+            }
+          ],
+          "tool_calls": [
+            {
+              "arguments": {
+                "value": 45186826
+              },
+              "id": "call_lfvpxj1h",
+              "name": "next_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":45186826}",
+                  "name": "next_value"
+                },
+                "id": "call_lfvpxj1h",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "169542971",
+              "is_error": false,
+              "metadata": {},
+              "name": "next_value",
+              "tool_call_id": "call_lfvpxj1h"
+            }
+          ],
+          "tool_calls": [
+            {
+              "arguments": {
+                "approved": true,
+                "value": 169542971
+              },
+              "id": "call_itk3xs24",
+              "name": "confirm_value",
+              "raw": {
+                "function": {
+                  "arguments": "{\"value\":169542971,\"approved\":true}",
+                  "name": "confirm_value"
+                },
+                "id": "call_itk3xs24",
+                "type": "function"
+              }
+            }
+          ]
+        },
+        {
+          "content": "certified",
+          "operation": "continue_with_tool_results",
+          "results": [
+            {
+              "content": "certified",
+              "is_error": false,
+              "metadata": {},
+              "name": "confirm_value",
+              "tool_call_id": "call_itk3xs24"
+            }
+          ],
+          "tool_calls": []
+        }
+      ],
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 5.19,
+      "endpoint": "chat.completions",
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": "chat.completions",
+        "model": "gpt-5.4-mini",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": "chat.completions",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "input_tokens": 1003,
+          "output_tokens": 64,
+          "reasoning_tokens": 0,
+          "total_tokens": 1067
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "gpt-5.4-mini",
+      "provider": "openai",
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 5.53,
+      "endpoint": "responses",
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": "responses",
+        "model": "gpt-5.4-mini",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": "responses",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "input_tokens": 681,
+          "output_tokens": 68,
+          "reasoning_tokens": 0,
+          "total_tokens": 749
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "gpt-5.4-mini",
+      "provider": "openai",
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 8.63,
+      "endpoint": "responses",
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": "responses",
+        "model": "gpt-6-luna",
+        "model_requests": 4,
+        "reasoning": "low",
+        "resolved_endpoint": "responses",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "input_tokens": 681,
+          "output_tokens": 68,
+          "reasoning_tokens": 0,
+          "total_tokens": 749
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "gpt-6-luna",
+      "provider": "openai",
+      "status": "passed",
+      "version": "0.8.4"
+    },
+    {
+      "elapsed_seconds": 10.93,
+      "endpoint": null,
+      "evidence": {
+        "capability": "dependent_tools_usage",
+        "content_chars": 9,
+        "endpoint": null,
+        "model": "gpt-6-luna",
+        "model_requests": 4,
+        "reasoning": null,
+        "resolved_endpoint": "responses",
+        "tool_executions": 3,
+        "usage": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "input_tokens": 681,
+          "output_tokens": 68,
+          "reasoning_tokens": 0,
+          "total_tokens": 749
+        },
+        "usage_complete": true
+      },
+      "installed_praval": "/private/tmp/praval-v084-final-cert/framework-venv/lib/python3.13/site-packages/praval/__init__.py",
+      "model": "gpt-6-luna",
+      "provider": "openai",
+      "status": "passed",
+      "version": "0.8.4"
+    }
+  ],
+  "openrouter_follow_up_2026_10_09": {
+    "anthropic_route": "Claude Haiku 4.5 passed using only the OpenRouter adapter and its key; the direct Anthropic account remains credit-blocked and deferred.",
+    "assertions": [
+      "Three dependent registered JSON Schema tool executions and four requests per scenario.",
+      "Integer and boolean arguments executed correctly.",
+      "Every request reported usage; response and meter totals reconcile.",
+      "Every request reported a finite nonnegative USD cost; summed request costs reconcile with agent metering.",
+      "Low portable reasoning was accepted on the Google model and reasoning tokens were reported."
+    ],
+    "catalogue_url": "https://openrouter.ai/api/v1/models",
+    "framework_defects_identified": [],
+    "initial_broad_suite": {
+      "failed": 2,
+      "failures": "Credential-absence tests did not remove the newly supplied OPENROUTER_API_KEY, so provider detection correctly found it instead of raising. Tests now clear it and cover OpenRouter detection explicitly.",
+      "passed": 4069,
+      "runtime_regression_confirmed": false,
+      "setup_errors": 10,
+      "setup_errors_reason": "Sandbox denied Docker socket access during PostgreSQL fixture construction; the same ten checks are rerun separately with permission in a disposable container.",
+      "skipped": 132
+    },
+    "live_checks": [
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 5.71,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": null,
+          "model": "openai/gpt-4.1-mini",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 607,
+            "output_tokens": 57,
+            "reasoning_tokens": 0,
+            "total_tokens": 664
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 607,
+          "output_tokens": 57,
+          "reasoning_tokens": 0,
+          "reported_cost_usd": 0.000334,
+          "total_tokens": 664,
+          "unreported_calls": 0
+        },
+        "model": "openai/gpt-4.1-mini",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "reported_cost_usd": 7e-05,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_gpinNjwUw17jb7HpEx3TFeeQ",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":0}",
+                    "name": "next_value"
+                  },
+                  "id": "call_gpinNjwUw17jb7HpEx3TFeeQ",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 115,
+              "output_tokens": 15,
+              "reasoning_tokens": 0,
+              "total_tokens": 130
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 8.24e-05,
+            "results": [
+              {
+                "content": "95585789",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_gpinNjwUw17jb7HpEx3TFeeQ"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 95585789
+                },
+                "id": "call_evMRXvnEK3ranwkMhysUxJ5w",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":95585789}",
+                    "name": "next_value"
+                  },
+                  "id": "call_evMRXvnEK3ranwkMhysUxJ5w",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 138,
+              "output_tokens": 17,
+              "reasoning_tokens": 0,
+              "total_tokens": 155
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 9.88e-05,
+            "results": [
+              {
+                "content": "166051573",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_evMRXvnEK3ranwkMhysUxJ5w"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 166051573
+                },
+                "id": "call_ejTDUswRthmdbfJHgq3heTCg",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":166051573,\"approved\":true}",
+                    "name": "confirm_value"
+                  },
+                  "id": "call_ejTDUswRthmdbfJHgq3heTCg",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 163,
+              "output_tokens": 21,
+              "reasoning_tokens": 0,
+              "total_tokens": 184
+            }
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 8.28e-05,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "call_ejTDUswRthmdbfJHgq3heTCg"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 191,
+              "output_tokens": 4,
+              "reasoning_tokens": 0,
+              "total_tokens": 195
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 20.26,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 9,
+          "endpoint": null,
+          "model": "google/gemini-3.1-flash-lite",
+          "model_requests": 4,
+          "reasoning": "low",
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 1120,
+            "output_tokens": 304,
+            "reasoning_tokens": 242,
+            "total_tokens": 1424
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 1120,
+          "output_tokens": 304,
+          "reasoning_tokens": 242,
+          "reported_cost_usd": 0.0007360000000000001,
+          "total_tokens": 1424,
+          "unreported_calls": 0
+        },
+        "model": "google/gemini-3.1-flash-lite",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "",
+            "operation": "invoke",
+            "reported_cost_usd": 0.00025075,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "call_532272",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":0}",
+                    "name": "next_value"
+                  },
+                  "id": "call_532272",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 109,
+              "output_tokens": 149,
+              "reasoning_tokens": 135,
+              "total_tokens": 258
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00015125,
+            "results": [
+              {
+                "content": "97064613",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_532272"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 97064613
+                },
+                "id": "call_850977",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\":97064613}",
+                    "name": "next_value"
+                  },
+                  "id": "call_850977",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 269,
+              "output_tokens": 56,
+              "reasoning_tokens": 35,
+              "total_tokens": 325
+            }
+          },
+          {
+            "content": "",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00018325,
+            "results": [
+              {
+                "content": "111410333",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "call_850977"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 111410333
+                },
+                "id": "call_784053",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"approved\":true,\"value\":111410333}",
+                    "name": "confirm_value"
+                  },
+                  "id": "call_784053",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 337,
+              "output_tokens": 66,
+              "reasoning_tokens": 40,
+              "total_tokens": 403
+            }
+          },
+          {
+            "content": "certified",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00015075,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "call_784053"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 405,
+              "output_tokens": 33,
+              "reasoning_tokens": 32,
+              "total_tokens": 438
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      },
+      {
+        "artifact_kind": "local-corrected-wheel",
+        "elapsed_seconds": 6.92,
+        "endpoint": null,
+        "evidence": {
+          "capability": "dependent_tools_usage",
+          "content_chars": 10,
+          "endpoint": null,
+          "model": "anthropic/claude-haiku-4.5",
+          "model_requests": 4,
+          "reasoning": null,
+          "resolved_endpoint": "chat.completions",
+          "tool_executions": 3,
+          "usage": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "input_tokens": 3350,
+            "output_tokens": 259,
+            "reasoning_tokens": 0,
+            "total_tokens": 3609
+          },
+          "usage_complete": true
+        },
+        "installed_praval": "/private/tmp/praval-v084-final-cert/cohere-fixed-venv/lib/python3.13/site-packages/praval/__init__.py",
+        "meter_totals": {
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "calls": 4,
+          "complete": true,
+          "cost_reported_calls": 4,
+          "failed_calls": 0,
+          "input_tokens": 3350,
+          "output_tokens": 259,
+          "reasoning_tokens": 0,
+          "reported_cost_usd": 0.004645000000000001,
+          "total_tokens": 3609,
+          "unreported_calls": 0
+        },
+        "model": "anthropic/claude-haiku-4.5",
+        "provider": "openrouter",
+        "reported_cost_reconciled": true,
+        "request_trace": [
+          {
+            "content": "I'll help you with this step-by-step process. Let me start with the first call.",
+            "operation": "invoke",
+            "reported_cost_usd": 0.00107,
+            "results": [],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 0
+                },
+                "id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 0}",
+                    "name": "next_value"
+                  },
+                  "id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 695,
+              "output_tokens": 75,
+              "reasoning_tokens": 0,
+              "total_tokens": 770
+            }
+          },
+          {
+            "content": "Great! The first call returned 24687414. Now let me call next_value again with that result.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.00118,
+            "results": [
+              {
+                "content": "24687414",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "toolu_bdrk_01Pjpz9Xxnbuvk1ySGKEwBZP"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "value": 24687414
+                },
+                "id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE",
+                "name": "next_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 24687414}",
+                    "name": "next_value"
+                  },
+                  "id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 785,
+              "output_tokens": 79,
+              "reasoning_tokens": 0,
+              "total_tokens": 864
+            }
+          },
+          {
+            "content": "Perfect! The second call returned 150687614. Now let me call confirm_value with this result and approved=true.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.001374,
+            "results": [
+              {
+                "content": "150687614",
+                "is_error": false,
+                "metadata": {},
+                "name": "next_value",
+                "tool_call_id": "toolu_bdrk_01EEeeAWVEYiN8aLHpnpswSE"
+              }
+            ],
+            "tool_calls": [
+              {
+                "arguments": {
+                  "approved": true,
+                  "value": 150687614
+                },
+                "id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6",
+                "name": "confirm_value",
+                "raw": {
+                  "function": {
+                    "arguments": "{\"value\": 150687614, \"approved\": true}",
+                    "name": "confirm_value"
+                  },
+                  "id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6",
+                  "type": "function"
+                }
+              }
+            ],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 879,
+              "output_tokens": 99,
+              "reasoning_tokens": 0,
+              "total_tokens": 978
+            }
+          },
+          {
+            "content": "Certified.",
+            "operation": "continue_with_tool_results",
+            "reported_cost_usd": 0.001021,
+            "results": [
+              {
+                "content": "certified",
+                "is_error": false,
+                "metadata": {},
+                "name": "confirm_value",
+                "tool_call_id": "toolu_bdrk_01LEMymnmNodFZVz8eJsfQf6"
+              }
+            ],
+            "tool_calls": [],
+            "usage": {
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "input_tokens": 991,
+              "output_tokens": 6,
+              "reasoning_tokens": 0,
+              "total_tokens": 997
+            }
+          }
+        ],
+        "source_commit": "b4ec8b73f703a6709d238919c52bec241a0cc32e",
+        "status": "passed",
+        "version": "0.8.4",
+        "wheel_sha256": "0f9d62aa34c2bee25db439da92103806531fcafe4c5ad2a5b36a6dcf2049495d"
+      }
+    ],
+    "model_selection": "OpenRouter public model catalogue confirmed tools and requested controls before inference.",
+    "published": false,
+    "reported_cost_usd": 0.005715,
+    "request_count": 12,
+    "runtime_code_changed": false,
+    "test_changes": {
+      "clock_isolation": "Composition tests patch the module time binding so unrelated clock users cannot consume their finite mock sequence.",
+      "credential_isolation": "Provider detection tests clear OPENROUTER_API_KEY and exercise the new provider with a dummy key.",
+      "focused_agent_and_composition_tests_passed": 71,
+      "full_cov_suite": {
+        "coverage_floors": "passed",
+        "coverage_percent": 93.62,
+        "passed": 4063,
+        "skipped": 144,
+        "timeout_method": "thread",
+        "timeout_seconds": 60
+      },
+      "postgres_rerun": {
+        "execution": "Separate rerun with Docker access and a disposable PostgreSQL container.",
+        "passed": 10
+      },
+      "quality_checks": "Black, isort, flake8 with CI flags, Python 3.13/3.10 typing, metadata/API and sixteen documentation contracts passed."
+    }
+  },
+  "packaged_python_sources_match_candidate": true,
+  "praval_code_live_checks": [
+    {
+      "edit_projection_verified": true,
+      "elapsed_seconds": 49.35,
+      "file_effects": [
+        {
+          "input": {
+            "content": "def add(a, b):\n    return a - b\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py"
+          },
+          "kind": "file_write",
+          "output": {
+            "content": "def add(a, b):\n    return a - b\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py"
+          },
+          "status": "completed",
+          "tool": "write_file"
+        },
+        {
+          "input": {
+            "content": "from calculator import add\n\ndef test_add_positive():\n    assert add(2, 3) == 5\n\ndef test_add_negative():\n    assert add(-2, 3) == 1\n\ndef test_add_zero():\n    assert add(0, 0) == 0\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/test_calculator.py"
+          },
+          "kind": "file_write",
+          "output": {
+            "content": "from calculator import add\n\ndef test_add_positive():\n    assert add(2, 3) == 5\n\ndef test_add_negative():\n    assert add(-2, 3) == 1\n\ndef test_add_zero():\n    assert add(0, 0) == 0\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/test_calculator.py"
+          },
+          "status": "completed",
+          "tool": "write_file"
+        },
+        {
+          "input": {
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py",
+            "newString": "def add(a, b):\n    return a + b\n",
+            "oldString": "def add(a, b):\n    return a - b\n",
+            "replaceAll": false
+          },
+          "kind": "file_edit",
+          "output": {
+            "file": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py",
+            "newString": "def add(a, b):\n    return a + b\n",
+            "occurrences": [],
+            "oldString": "def add(a, b):\n    return a - b\n"
+          },
+          "status": "completed",
+          "tool": "edit_file"
+        }
+      ],
+      "independent_pytest": "...                                                                      [100%]\n3 passed in 0.08s\n",
+      "model": "gemini-3.1-flash-lite",
+      "provider": "gemini",
+      "stats": {
+        "cachedInputPricePerMillion": null,
+        "contextTokens": 5698,
+        "inputPricePerMillion": 0.0,
+        "lastTurnCachedTokens": 0,
+        "lastTurnCompletionTokens": 506,
+        "lastTurnDuration": 47.29447166703176,
+        "lastTurnPromptTokens": 41377,
+        "outputPricePerMillion": 0.0,
+        "requestUsage": {
+          "lastTurn": {
+            "cacheWriteTokens": 0,
+            "costComplete": false,
+            "estimatedCost": null,
+            "failedCalls": 0,
+            "modelCalls": 8,
+            "reasoningTokens": 0,
+            "toolsApproved": 7,
+            "toolsDenied": 0,
+            "toolsFailed": 1,
+            "toolsRejected": 0,
+            "toolsSucceeded": 6,
+            "unreportedCalls": 0
+          },
+          "session": {
+            "cacheWriteTokens": 0,
+            "costComplete": false,
+            "estimatedCost": null,
+            "failedCalls": 0,
+            "modelCalls": 8,
+            "reasoningTokens": 0,
+            "toolsApproved": 7,
+            "toolsDenied": 0,
+            "toolsFailed": 1,
+            "toolsRejected": 0,
+            "toolsSucceeded": 6,
+            "unreportedCalls": 0
+          }
+        },
+        "sessionCachedTokens": 0,
+        "sessionCompletionTokens": 506,
+        "sessionPromptTokens": 41377,
+        "steps": 2,
+        "tokensPerSecond": 10.698924888354863,
+        "toolCallsAgreed": 7,
+        "toolCallsDenied": 0,
+        "toolCallsFailed": 1,
+        "toolCallsRejected": 0,
+        "toolCallsSucceeded": 6
+      },
+      "status": "passed",
+      "tool_records": [
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/task.txt\", \"offset\": null, \"limit\": 2000}",
+          "result": "",
+          "status": "ok",
+          "tool": "read_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py\", \"content\": \"def add(a, b):\\n    return a - b\\n\"}",
+          "result": "",
+          "status": "ok",
+          "tool": "write_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/test_calculator.py\", \"content\": \"from calculator import add\\n\\ndef test_add_positive():\\n    assert add(2, 3) == 5\\n\\ndef test_add_negative():\\n    assert add(-2, 3) == 1\\n\\ndef test_add_zero():\\n    assert add(0, 0) == 0\\n\"}",
+          "result": "",
+          "status": "ok",
+          "tool": "write_file"
+        },
+        {
+          "args": "{\"command\": \"/private/tmp/praval-v084-final-cert/code-venv/bin/python -m pytest -q\"}",
+          "result": "",
+          "status": "failed",
+          "tool": "run_shell"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py\", \"oldString\": \"def add(a, b):\\n    return a - b\\n\", \"newString\": \"def add(a, b):\\n    return a + b\\n\", \"replaceAll\": false}",
+          "result": "",
+          "status": "ok",
+          "tool": "edit_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work/calculator.py\", \"offset\": null, \"limit\": 2000}",
+          "result": "",
+          "status": "ok",
+          "tool": "read_file"
+        },
+        {
+          "args": "{\"command\": \"/private/tmp/praval-v084-final-cert/code-venv/bin/python -m pytest -q\"}",
+          "result": "...                                                                      [100%]\n3 passed in 0.08s\n",
+          "status": "ok",
+          "tool": "run_shell"
+        }
+      ],
+      "wheel_version": "0.8.4",
+      "workspace": "/private/tmp/praval-v084-final-cert/code-live-approved-gemini-gemini-3.1-flash-lite/work"
+    },
+    {
+      "edit_projection_verified": true,
+      "elapsed_seconds": 31.62,
+      "file_effects": [
+        {
+          "input": {
+            "content": "def add(a, b):\n    return a - b\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py"
+          },
+          "kind": "file_write",
+          "output": {
+            "content": "def add(a, b):\n    return a - b\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py"
+          },
+          "status": "completed",
+          "tool": "write_file"
+        },
+        {
+          "input": {
+            "content": "from calculator import add\n\n\ndef test_add_positive_numbers():\n    assert add(2, 3) == 5\n\n\ndef test_add_negative_and_positive_numbers():\n    assert add(-2, 3) == 1\n\n\ndef test_add_zeros():\n    assert add(0, 0) == 0\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/test_calculator.py"
+          },
+          "kind": "file_write",
+          "output": {
+            "content": "from calculator import add\n\n\ndef test_add_positive_numbers():\n    assert add(2, 3) == 5\n\n\ndef test_add_negative_and_positive_numbers():\n    assert add(-2, 3) == 1\n\n\ndef test_add_zeros():\n    assert add(0, 0) == 0\n",
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/test_calculator.py"
+          },
+          "status": "completed",
+          "tool": "write_file"
+        },
+        {
+          "input": {
+            "filePath": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py",
+            "newString": "def add(a, b):\n    return a + b\n",
+            "oldString": "def add(a, b):\n    return a - b\n",
+            "replaceAll": false
+          },
+          "kind": "file_edit",
+          "output": {
+            "file": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py",
+            "newString": "def add(a, b):\n    return a + b\n",
+            "occurrences": [],
+            "oldString": "def add(a, b):\n    return a - b\n"
+          },
+          "status": "completed",
+          "tool": "edit_file"
+        }
+      ],
+      "independent_pytest": "...                                                                      [100%]\n3 passed in 0.08s\n",
+      "model": "gpt-6-luna",
+      "provider": "openai",
+      "stats": {
+        "cachedInputPricePerMillion": null,
+        "contextTokens": 4341,
+        "inputPricePerMillion": 0.0,
+        "lastTurnCachedTokens": 27000,
+        "lastTurnCompletionTokens": 625,
+        "lastTurnDuration": 29.075268916029017,
+        "lastTurnPromptTokens": 31317,
+        "outputPricePerMillion": 0.0,
+        "requestUsage": {
+          "lastTurn": {
+            "cacheWriteTokens": 4293,
+            "costComplete": false,
+            "estimatedCost": null,
+            "failedCalls": 0,
+            "modelCalls": 8,
+            "reasoningTokens": 128,
+            "toolsApproved": 7,
+            "toolsDenied": 0,
+            "toolsFailed": 0,
+            "toolsRejected": 0,
+            "toolsSucceeded": 7,
+            "unreportedCalls": 0
+          },
+          "session": {
+            "cacheWriteTokens": 4293,
+            "costComplete": false,
+            "estimatedCost": null,
+            "failedCalls": 0,
+            "modelCalls": 8,
+            "reasoningTokens": 128,
+            "toolsApproved": 7,
+            "toolsDenied": 0,
+            "toolsFailed": 0,
+            "toolsRejected": 0,
+            "toolsSucceeded": 7,
+            "unreportedCalls": 0
+          }
+        },
+        "sessionCachedTokens": 27000,
+        "sessionCompletionTokens": 625,
+        "sessionPromptTokens": 31317,
+        "steps": 2,
+        "tokensPerSecond": 21.495931879599617,
+        "toolCallsAgreed": 7,
+        "toolCallsDenied": 0,
+        "toolCallsFailed": 0,
+        "toolCallsRejected": 0,
+        "toolCallsSucceeded": 7
+      },
+      "status": "passed",
+      "tool_records": [
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/task.txt\", \"offset\": 1, \"limit\": 2000}",
+          "result": "",
+          "status": "ok",
+          "tool": "read_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py\", \"content\": \"def add(a, b):\\n    return a - b\\n\"}",
+          "result": "",
+          "status": "ok",
+          "tool": "write_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/test_calculator.py\", \"content\": \"from calculator import add\\n\\n\\ndef test_add_positive_numbers():\\n    assert add(2, 3) == 5\\n\\n\\ndef test_add_negative_and_positive_numbers():\\n    assert add(-2, 3) == 1\\n\\n\\ndef test_add_zeros():\\n    assert add(0, 0) == 0\\n\"}",
+          "result": "",
+          "status": "ok",
+          "tool": "write_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py\", \"offset\": 1, \"limit\": 100}",
+          "result": "",
+          "status": "ok",
+          "tool": "read_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py\", \"oldString\": \"def add(a, b):\\n    return a - b\\n\", \"newString\": \"def add(a, b):\\n    return a + b\\n\", \"replaceAll\": false}",
+          "result": "",
+          "status": "ok",
+          "tool": "edit_file"
+        },
+        {
+          "args": "{\"filePath\": \"/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work/calculator.py\", \"offset\": 1, \"limit\": 100}",
+          "result": "",
+          "status": "ok",
+          "tool": "read_file"
+        },
+        {
+          "args": "{\"command\": \"/private/tmp/praval-v084-final-cert/code-venv/bin/python -m pytest -q\"}",
+          "result": "...                                                                      [100%]\n3 passed in 0.11s\n",
+          "status": "ok",
+          "tool": "run_shell"
+        }
+      ],
+      "wheel_version": "0.8.4",
+      "workspace": "/private/tmp/praval-v084-final-cert/code-live-approved-openai-gpt-6-luna/work"
+    }
+  ],
+  "published": false,
+  "release_gate_status": {
+    "direct_anthropic_live_check": "deferred by owner; optional",
+    "fresh_candidate_ci": "passed at 294971e; subsequent documentation review edits require fresh CI",
+    "publication": "on hold",
+    "test_isolation_corrections": "validated locally"
+  },
+  "release_on_hold": true,
+  "suites": {
+    "claw-socket-tests": {
+      "errors": 0,
+      "failures": 0,
+      "log_sha256": "a5a4a9e1a998062ea64e6aee0453cdcf17eeb38ce195c7d38db2d6d09d15c708",
+      "passed": 10,
+      "seconds": 5.765,
+      "skip_reasons": {},
+      "skipped": 0,
+      "tests": 10
+    },
+    "claw-tests": {
+      "errors": 0,
+      "failures": 0,
+      "log_sha256": "c61536d90b91829201c41e1e71ef75d0dc0f02ec62aa0d83f31fcf67e976cbef",
+      "passed": 2762,
+      "seconds": 61.464,
+      "skip_reasons": {
+        "current critic replay: cache_miss": 10,
+        "current critic replay: cache_miss, cache_miss": 9,
+        "current critic replay: missing_artifact_bytes": 1,
+        "sandbox denies loopback binding; run this test with local socket permission": 1,
+        "socket bind not permitted in this environment": 9
+      },
+      "skipped": 30,
+      "tests": 2792
+    },
+    "code-brand-tests": {
+      "errors": 0,
+      "failures": 0,
+      "log_sha256": "9f7ad3b8e5f6978bf9228dda55df1c88d5d98978efea60f3a0d25353d462b4dd",
+      "passed": 10,
+      "seconds": 7.309,
+      "skip_reasons": {},
+      "skipped": 0,
+      "tests": 10
+    },
+    "code-tests": {
+      "errors": 0,
+      "failures": 0,
+      "log_sha256": "0c0ad3df93dba6c3a873c7278d96a48f161dc2f43d8bbcbb2c179bb2d678ea4e",
+      "passed": 441,
+      "seconds": 22.081,
+      "skip_reasons": {},
+      "skipped": 0,
+      "tests": 441
+    },
+    "wheel-schema-tests": {
+      "errors": 0,
+      "failures": 0,
+      "log_sha256": "68863c88f8faacf5dc8a1101fb1cf75a78d821d314753bdd2404aae57bafb1fc",
+      "passed": 54,
+      "seconds": 0.97,
+      "skip_reasons": {},
+      "skipped": 0,
+      "tests": 54
+    }
+  },
+  "temporary_runners": {
+    "claw_check.py": "/private/tmp/praval-v084-final-cert/claw_check.py",
+    "code_live_check.py": "/private/tmp/praval-v084-final-cert/code_live_check.py",
+    "provider_check.py": "/private/tmp/praval-v084-final-cert/provider_check.py"
+  },
+  "unverified_live_providers": {
+    "anthropic": {
+      "deferred_by_owner": true,
+      "reason": "The new key reached the Anthropic API, which returned HTTP 400 invalid_request_error because the account credit balance was too low. Tool formatting completed; successful inference remains unverified.",
+      "release_blocker": false
+    }
+  },
+  "updated_at": "2026-10-08T19:35:38.682012+00:00",
+  "wheel_hash_verified": true,
+  "wheel_manifest": {
+    "artifacts": [
+      {
+        "filename": "praval-0.8.4-py3-none-any.whl",
+        "sha256": "0495cd3ce19fb266f5397dc33484ee1b2b6d745b6d2714d62c5c7575f9aea811",
+        "size": 387481
+      }
+    ],
+    "commit": "5326776d4294723e4d7e98e1ef57e634182b7047",
+    "source_date_epoch": "1791481261"
+  },
+  "ci_at_294971e": {
+    "run_id": 37833138900,
+    "url": "https://github.com/aiexplorations/praval/actions/runs/37833138900",
+    "head": "294971eff8d4df8095d188c120ff3dcf92201c62",
+    "artifact_commit": "db0bad66307d58c1e4b91353633e2cb0c73f0b66",
+    "conclusion": "success",
+    "passed_jobs": 16,
+    "documentation_wheel_sha256": "d6645ef3c8eed1c490595838b2a260ce7c80a4dc52d2a615dbbd79843ba37cef",
+    "note": "Includes Cohere and throttle-clock fixes. Documentation review edits are subsequent work and require fresh candidate CI. Publication remains on hold."
+  }
+}

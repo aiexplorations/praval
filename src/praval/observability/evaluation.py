@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterator
-from typing import Any
+from contextlib import contextmanager
 
 from opentelemetry._logs import SeverityNumber
 from opentelemetry.metrics import Observation as MetricObservation
-from opentelemetry.trace import Link, SpanContext, TraceFlags, TraceState
+from opentelemetry.trace import Link, Span, SpanContext, TraceFlags, TraceState
 
 from praval.models import ExecutionObservation
+from praval.runtime_observation import record_span_exception
 
 from .lifecycle import get_logger, get_meter, get_tracer
 
@@ -108,17 +109,28 @@ class OnlineEvaluationTelemetry:
         )
         self._event("praval.evaluation.online.completed", "completed")
 
+    @contextmanager
     def start_post_hoc_span(
         self,
         observation: ExecutionObservation,
         attributes: dict[str, str],
-    ) -> Any:
-        """Start a worker span linked, not parented, to the original request."""
-        return get_tracer("praval.evaluation.online").start_as_current_span(
+    ) -> Iterator[Span]:
+        """Start a worker span linked, not parented, to the original request.
+
+        A failure is recorded without its cause chain, so a raw provider
+        exception under a redacted ``ProviderError`` stays out of the span.
+        """
+        with get_tracer("praval.evaluation.online").start_as_current_span(
             "praval.evaluation.online",
             links=post_hoc_evaluation_links(observation),
             attributes=attributes,
-        )
+            record_exception=False,
+        ) as span:
+            try:
+                yield span
+            except Exception as exc:
+                record_span_exception(span, exc)
+                raise
 
     def _suite_attributes(self) -> dict[str, str]:
         return {"praval.evaluation.suite.id": self.suite_id}

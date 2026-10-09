@@ -338,6 +338,35 @@ class ToolRegistry:
 
             return True
 
+    def unregister_owned_tool(
+        self, tool_name: str, func: Callable, owned_by: str
+    ) -> bool:
+        """Unregister a tool only if it is ``func`` owned by ``owned_by``.
+
+        The check and the removal happen under one lock hold, so a tool that
+        another agent registered under the same name is never removed.
+
+        Args:
+            tool_name: Name of the tool to unregister
+            func: The function the entry must wrap
+            owned_by: The agent name the entry must be owned by
+
+        Returns:
+            True if the tool was unregistered, False otherwise
+        """
+        with self._lock:
+            tool = self._tools.get(tool_name)
+            if (
+                tool is None
+                or tool.func is not func
+                or tool.metadata.owned_by != owned_by
+            ):
+                return False
+            self.unregister_tool(tool_name)
+            if not self._agent_tools.get(owned_by, True):
+                del self._agent_tools[owned_by]
+            return True
+
     def clear_registry(self) -> None:
         """Clear all tools from the registry."""
         with self._lock:

@@ -24,6 +24,8 @@ from exporter loss.
 | `praval.execution.invocations` | invocation | completed agent/workflow count |
 | `praval.execution.duration` | ms | end-to-end target latency |
 | `praval.execution.failures` | failure | non-successful terminal outcomes |
+| `praval.model.calls` | request | actual provider request count |
+| `gen_ai.client.token.usage` | token | per-request input/output usage |
 | `praval.gen_ai.token.usage` | token | input/output/total token types |
 | `praval.tool.invocations` | invocation | bounded tool status count |
 | `praval.tool.duration` | ms | tool latency distribution |
@@ -74,3 +76,7 @@ For Prometheus-compatible backends, prefer `rate()` over counters and
 `histogram_quantile()` over the exported histogram buckets. Keep service name
 and deployment environment in the OpenTelemetry resource rather than copying
 them into every custom application attribute.
+
+`ExecutionObservation.model_calls` counts actual chat-model requests, including retries.
+Its usage sums reported request usage across tool rounds. Unknown usage remains
+unknown; see {doc}`../guide/usage-metering` for completeness and cost semantics.

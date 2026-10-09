@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 from ..core.exceptions import ProviderError
-from ..model_runtime import execute_legacy_tool_call
+from ..model_runtime import (
+    call_with_retries,
+    execute_legacy_tool_call,
+    max_provider_retries,
+)
 from ..models import (
     ContentPart,
     ModelEvent,
@@ -18,7 +23,11 @@ from ..models import (
     ProviderCapabilities,
     ToolCall,
     ToolResult,
+    Usage,
 )
+from .errors import map_gemini_http_error, map_provider_exception
+from .registry import reasoning_parameters
+from .usage import gemini_usage
 
 
 def _redact_secret(message: str, secret: Optional[str]) -> str:
@@ -49,7 +58,11 @@ class GeminiProvider:
     def __init__(self, config: Any):
         self.config = config
         api_key_env = getattr(config, "api_key_env", None) or "GEMINI_API_KEY"
-        self.api_key = os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY")
+        # Strip whitespace from keys read from env files: http.client rejects
+        # a header value ending in a newline and quotes it in the error.
+        self.api_key = (
+            os.getenv(api_key_env) or os.getenv("GOOGLE_API_KEY") or ""
+        ).strip() or None
         if not self.api_key and not getattr(config, "base_url", None):
             raise ProviderError(
                 f"{api_key_env} or GOOGLE_API_KEY environment variable not set"
@@ -69,14 +82,8 @@ class GeminiProvider:
         payload = self._build_payload(messages, tools)
         try:
             data = self._post_json("generateContent", payload)
-        except urllib.error.URLError as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
         function_calls = self._extract_function_calls(data)
         if function_calls:
@@ -104,9 +111,7 @@ class GeminiProvider:
         try:
             data = self._post_json("generateContent", payload, timeout=request.timeout)
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
         function_calls = self._extract_function_calls(data)
         if function_calls:
@@ -117,6 +122,7 @@ class GeminiProvider:
             provider=self.provider_name,
             model=self._model_name(),
             raw=data,
+            usage=gemini_usage(data),
         )
 
     def continue_with_tool_results(
@@ -133,11 +139,20 @@ class GeminiProvider:
 
         payload = dict(template)
         payload["contents"] = list(contents)
+        native_ids = self._native_function_call_ids(contents)
         payload["contents"].append(
             {
                 "role": "user",
                 "parts": [
-                    self._function_response_part(result) for result in tool_results
+                    self._function_response_part(
+                        result,
+                        call_id=(
+                            result.tool_call_id
+                            if result.tool_call_id in native_ids
+                            else None
+                        ),
+                    )
+                    for result in tool_results
                 ],
             }
         )
@@ -148,11 +163,11 @@ class GeminiProvider:
                 timeout=request.timeout,
             )
         except Exception as e:
-            raise ProviderError(
-                "Gemini API error: " f"{_redact_secret(str(e), self.api_key)}"
-            ) from e
+            raise self._provider_error(e, "Gemini API error") from e
 
-        function_calls = self._extract_function_calls(data)
+        function_calls = self._extract_function_calls(
+            data, id_offset=self._content_function_call_count(payload["contents"])
+        )
         if function_calls:
             return self._runtime_tool_call_response(data, payload, function_calls)
         return ModelResponse(
@@ -160,6 +175,7 @@ class GeminiProvider:
             provider=self.provider_name,
             model=self._model_name(),
             raw=data,
+            usage=gemini_usage(data),
         )
 
     def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
@@ -170,29 +186,50 @@ class GeminiProvider:
             request=request,
         )
         content_parts: List[str] = []
+        usage: Optional[Usage] = None
         try:
             for data in self._post_stream(
                 "streamGenerateContent",
                 payload,
                 timeout=request.timeout,
             ):
+                usage = gemini_usage(data) or usage
                 text = self._extract_text(data)
                 if text:
                     content_parts.append(text)
                     yield ModelEvent(type="delta", delta=text)
         except Exception as e:
-            message = _redact_secret(str(e), self.api_key)
-            yield ModelEvent(type="error", metadata={"message": message})
-            raise ProviderError(f"Gemini streaming error: {message}") from e
+            error = self._provider_error(e, "Gemini streaming error")
+            yield ModelEvent(type="error", metadata={"message": error.message})
+            raise error from e
         response = ModelResponse(
             content="".join(content_parts),
             provider=self.provider_name,
             model=self._model_name(),
+            usage=usage,
         )
-        yield ModelEvent(type="final", response=response)
+        if usage is not None:
+            yield ModelEvent(type="usage", usage=usage)
+        yield ModelEvent(type="final", response=response, usage=usage)
 
     def close(self) -> None:
         """Gemini REST provider does not hold persistent resources."""
+
+    def _provider_error(self, exc: BaseException, prefix: str) -> ProviderError:
+        """Map a REST failure, reading and redacting an HTTP error body."""
+        if isinstance(exc, urllib.error.HTTPError):
+            return map_gemini_http_error(
+                exc,
+                prefix=prefix,
+                model=self._model_name(),
+                redact=lambda text: _redact_secret(text, self.api_key),
+            )
+        return map_provider_exception(
+            exc,
+            provider=self.provider_name,
+            model=self._model_name(),
+            message=f"{prefix}: {_redact_secret(str(exc), self.api_key)}",
+        )
 
     def _model_name(self) -> str:
         return str(getattr(self.config, "model", None) or "gemini-3.5-flash")
@@ -210,12 +247,12 @@ class GeminiProvider:
         request: Optional[ModelRequest] = None,
     ) -> Dict[str, Any]:
         contents = []
-        system_text = None
+        system_parts: List[str] = []
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
             if role == "system":
-                system_text = self._content_to_text(content)
+                system_parts.append(self._content_to_text(content))
                 continue
             gemini_role = "model" if role == "assistant" else "user"
             contents.append(
@@ -235,26 +272,38 @@ class GeminiProvider:
         }
         if request is not None and request.max_output_tokens is not None:
             payload["generationConfig"]["maxOutputTokens"] = request.max_output_tokens
+        if payload["generationConfig"].get("temperature") is None:
+            payload["generationConfig"].pop("temperature", None)
         if request is not None and request.response_schema is not None:
             payload["generationConfig"]["responseMimeType"] = "application/json"
             payload["generationConfig"]["responseSchema"] = (
                 request.response_schema.json_schema or {}
             )
-        if (
-            request is not None
-            and request.reasoning is not None
-            and request.reasoning.budget_tokens is not None
-        ):
-            payload["generationConfig"]["thinkingConfig"] = {
-                "thinkingBudget": request.reasoning.budget_tokens
-            }
+        if request is not None and request.reasoning is not None:
+            thinking = dict(reasoning_parameters(request))
+            if request.reasoning.budget_tokens is not None:
+                thinking.pop("thinkingLevel", None)
+                thinking["thinkingBudget"] = request.reasoning.budget_tokens
+            if thinking:
+                payload["generationConfig"]["thinkingConfig"] = thinking
         if request is not None:
             generation_config = request.provider_options.get("generation_config")
             if isinstance(generation_config, dict):
                 payload["generationConfig"].update(generation_config)
-        if system_text:
-            payload["systemInstruction"] = {"parts": [{"text": system_text}]}
+        if system_parts:
+            payload["systemInstruction"] = {
+                "parts": [{"text": "\n\n".join(system_parts)}]
+            }
         formatted_tools = self._format_tools(tools or [])
+        if not formatted_tools and request is not None and request.tools:
+            formatted_tools = [
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parametersJsonSchema": copy.deepcopy(spec.parameters),
+                }
+                for spec in request.tools
+            ]
         if formatted_tools:
             payload["tools"] = [{"functionDeclarations": formatted_tools}]
         return payload
@@ -269,7 +318,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -288,7 +337,7 @@ class GeminiProvider:
         request = urllib.request.Request(
             self._method_url(method, stream=True),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=self._request_headers(),
             method="POST",
         )
         with urllib.request.urlopen(
@@ -306,16 +355,23 @@ class GeminiProvider:
                 yield json.loads(line)
 
     def _method_url(self, method: str, *, stream: bool = False) -> str:
+        """Build the endpoint URL; the API key travels in a header, never here."""
         url = f"{self.base_url}/models/{self._model_name()}:{method}"
-        params = []
         if stream:
-            params.append("alt=sse")
-        if self.api_key:
-            params.append(f"key={self.api_key}")
-        if params:
             separator = "&" if "?" in url else "?"
-            url = f"{url}{separator}{'&'.join(params)}"
+            url = f"{url}{separator}alt=sse"
         return url
+
+    def _request_headers(self) -> Dict[str, str]:
+        """JSON headers plus ``x-goog-api-key`` when a key is configured.
+
+        Sending the key as a header keeps it out of the URL, so exceptions,
+        logs and proxies that quote the URL never carry it.
+        """
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["x-goog-api-key"] = self.api_key
+        return headers
 
     def _content_to_parts(self, content: Any) -> List[Dict[str, Any]]:
         if not isinstance(content, list):
@@ -383,6 +439,19 @@ class GeminiProvider:
             func = tool.get("function")
             if not callable(func):
                 continue
+            parameters = tool.get("parameters") or {}
+            if parameters.get("type") == "object":
+                # The REST API accepts JSON Schema directly. Using its dedicated
+                # field preserves nested types/constraints without a lossy
+                # conversion to the older Google Schema representation.
+                declarations.append(
+                    {
+                        "name": getattr(func, "__name__", ""),
+                        "description": tool.get("description", ""),
+                        "parametersJsonSchema": copy.deepcopy(parameters),
+                    }
+                )
+                continue
             declarations.append(
                 {
                     "name": getattr(func, "__name__", ""),
@@ -423,6 +492,12 @@ class GeminiProvider:
 
     def _python_type_to_gemini_schema_type(self, python_type: str) -> str:
         mapping = {
+            "string": "STRING",
+            "integer": "INTEGER",
+            "number": "NUMBER",
+            "boolean": "BOOLEAN",
+            "array": "ARRAY",
+            "object": "OBJECT",
             "str": "STRING",
             "int": "INTEGER",
             "float": "NUMBER",
@@ -442,27 +517,75 @@ class GeminiProvider:
         parts = content.get("parts") or []
         return "".join(str(part.get("text", "")) for part in parts)
 
-    def _extract_function_calls(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _extract_function_calls(
+        self,
+        data: Dict[str, Any],
+        *,
+        id_offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Return the first candidate's function calls with run-unique ids.
+
+        The API's ``functionCall.id`` is used when present; otherwise ids are
+        numbered from ``id_offset``, the count of earlier calls in the run.
+        """
         calls: List[Dict[str, Any]] = []
-        candidates = data.get("candidates") or []
-        for candidate in candidates:
-            content = candidate.get("content") or {}
-            for part in content.get("parts") or []:
-                function_call = part.get("functionCall") or part.get("function_call")
-                if not isinstance(function_call, dict):
-                    continue
-                name = str(function_call.get("name") or "")
-                if not name:
-                    continue
-                calls.append(
-                    {
-                        "id": f"gemini-call-{len(calls)}",
-                        "name": name,
-                        "args": function_call.get("args") or {},
-                        "raw": function_call,
-                    }
-                )
+        for part in self._candidate_content(data).get("parts") or []:
+            function_call = self._part_function_call(part)
+            if function_call is None:
+                continue
+            name = str(function_call.get("name") or "")
+            if not name:
+                continue
+            native_id = function_call.get("id")
+            calls.append(
+                {
+                    "id": (
+                        str(native_id)
+                        if native_id
+                        else f"gemini-call-{id_offset + len(calls)}"
+                    ),
+                    "name": name,
+                    "args": function_call.get("args") or {},
+                    "raw": function_call,
+                }
+            )
         return calls
+
+    def _candidate_content(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        candidates = data.get("candidates") or []
+        if not candidates or not isinstance(candidates[0], dict):
+            return {}
+        content = candidates[0].get("content")
+        return content if isinstance(content, dict) else {}
+
+    def _part_function_call(self, part: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(part, dict):
+            return None
+        function_call = part.get("functionCall") or part.get("function_call")
+        return function_call if isinstance(function_call, dict) else None
+
+    def _content_function_call_count(self, contents: List[Dict[str, Any]]) -> int:
+        return sum(
+            1
+            for content in contents
+            if isinstance(content, dict) and content.get("role") == "model"
+            for part in content.get("parts") or []
+            if self._part_function_call(part) is not None
+        )
+
+    def _native_function_call_ids(self, contents: List[Dict[str, Any]]) -> Set[str]:
+        """Return API-issued call ids from the latest model turn."""
+        for content in reversed(contents):
+            if isinstance(content, dict) and content.get("role") == "model":
+                return {
+                    str(function_call["id"])
+                    for function_call in (
+                        self._part_function_call(part)
+                        for part in content.get("parts") or []
+                    )
+                    if function_call is not None and function_call.get("id")
+                }
+        return set()
 
     def _runtime_tool_call_response(
         self,
@@ -483,41 +606,41 @@ class GeminiProvider:
         ]
         template = {key: value for key, value in payload.items() if key != "contents"}
         contents = list(payload.get("contents") or [])
-        contents.append(
-            {
-                "role": "model",
-                "parts": [
-                    {
-                        "functionCall": {
-                            "name": call.name,
-                            "args": call.arguments,
-                        }
-                    }
-                    for call in tool_calls
-                ],
-            }
-        )
+        # Return the model turn exactly as received: Gemini 3 rejects a
+        # continuation whose functionCall parts lost their thoughtSignature,
+        # and text or thought parts belong to the same turn.
+        model_content = copy.deepcopy(self._candidate_content(data))
+        model_content["role"] = model_content.get("role") or "model"
+        contents.append(model_content)
         return ModelResponse(
             provider=self.provider_name,
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=data,
+            usage=gemini_usage(data),
             metadata={
                 "gemini_payload": template,
                 "gemini_contents": contents,
             },
         )
 
-    def _function_response_part(self, result: ToolResult) -> Dict[str, Any]:
+    def _function_response_part(
+        self,
+        result: ToolResult,
+        *,
+        call_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         response: Dict[str, Any] = {"result": result.content}
         if result.is_error:
             response["is_error"] = True
-        return {
-            "functionResponse": {
-                "name": result.name,
-                "response": response,
-            }
+        function_response: Dict[str, Any] = {
+            "name": result.name,
+            "response": response,
         }
+        if call_id:
+            # Echo only ids the API issued; generated ids are Praval-local.
+            function_response["id"] = call_id
+        return {"functionResponse": function_response}
 
     def _handle_function_calls(
         self,
@@ -583,10 +706,16 @@ class GeminiProvider:
             request=request,
         )
         try:
-            data = self._post_json(
-                "generateContent",
-                followup_payload,
-                timeout=request.timeout if request is not None else None,
+            # The tools have already run: retry only this request.
+            data = call_with_retries(
+                "follow_up",
+                lambda: self._post_json(
+                    "generateContent",
+                    followup_payload,
+                    timeout=request.timeout if request is not None else None,
+                ),
+                retries=max_provider_retries(self.config),
+                map_error=lambda exc: self._provider_error(exc, "Gemini API error"),
             )
             content = self._extract_text(data)
         except Exception:
@@ -599,6 +728,7 @@ class GeminiProvider:
             model=self._model_name(),
             tool_calls=tool_calls,
             raw=data,
+            usage=gemini_usage(data),
             metadata={"tool_results": tool_results},
         )
 

@@ -81,6 +81,18 @@ class HITLService:
     def get_suspended_run(self, run_id: str) -> Optional[SuspendedRunState]:
         return self.store.get_suspended_run(run_id)
 
+    def claim_run(self, run_id: str) -> bool:
+        """Claim a pending run for resumption; False if it is not pending."""
+        return self.store.transition_suspended_run(
+            run_id, from_status="pending", to_status="resuming"
+        )
+
+    def release_run(self, run_id: str) -> None:
+        """Return a claimed run to pending after its resumption failed."""
+        self.store.transition_suspended_run(
+            run_id, from_status="resuming", to_status="pending"
+        )
+
     def mark_run_completed(self, run_id: str, response: str) -> None:
         suspended = self.store.get_suspended_run(run_id)
         if suspended is None:

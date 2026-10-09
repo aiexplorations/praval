@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praval"
-version = "0.8.3"
+version = "0.8.4"
 description = "A composable Python framework for LLM-based agents inspired by coral ecosystems"
 readme = "README.md"
 license = "MIT"
@@ -38,6 +38,9 @@ dependencies = [
     # Configuration and validation
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    # Tool-argument and local response validation (Draft 2020-12).
+    "regex>=2024.11.6",
+    "jsonschema>=4.18",
     "python-dotenv>=1.0.0",
     "tomli>=2.0.0; python_version < '3.11'",
     # API-only instrumentation works with application-owned OTel providers.
@@ -162,6 +165,7 @@ dev = [
     "isort==6.0.1",
     "flake8==7.3.0",
     "mypy>=1.0.0",
+    "types-jsonschema>=4.18",
     "pre-commit>=3.0.0",
     "reportlab>=4.0.0",
     "pypdf>=5.0.0",

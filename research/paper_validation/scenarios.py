@@ -247,7 +247,7 @@ def _runtime_contracts(
         ),
         "stream_event_order": all(
             [event.type for event in events]
-            == ["start", "delta", "delta", "usage", "final"]
+            == ["start", "delta", "delta", "usage", "model_call", "final"]
             for events in streams
         ),
         "stream_final_once": all(

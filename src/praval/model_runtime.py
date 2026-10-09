@@ -8,18 +8,48 @@ objects for newer provider features.
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import inspect
 import json
+import logging
+import random
 import time
 from contextvars import copy_context
 from functools import partial
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from opentelemetry import trace
+from referencing.exceptions import Unresolvable
 
-from .core.exceptions import HITLConfigurationError, InterventionRequired, ProviderError
+from ._metering_runtime import (
+    ProviderCallScope,
+    capture_calls,
+    complete_metered_response,
+    metered_run,
+)
+from .core.exceptions import (
+    HITLConfigurationError,
+    InterventionRequired,
+    ProviderError,
+    ProviderInvalidRequestError,
+    ProviderInvalidResponseError,
+    ToolRoundLimitError,
+)
+from .hitl.policy import requires_approval
 from .hitl.runtime import HITLRuntime
+from .hitl.store import get_hitl_store
+from .metering import UsageMeter
 from .models import (
     ContentPart,
     ModelEvent,
@@ -34,27 +64,177 @@ from .models import (
     ToolSpec,
 )
 from .models.observation import RetryObservation
+from .providers.errors import fill_provider_error_fields, map_provider_exception
 from .runtime_observation import (
     ToolCallScope,
     operation_span,
     record_model_facts,
     record_retry,
 )
+from .tool_execution import (
+    arun_tool,
+    cached_schema_validator,
+    error_result,
+    json_schema_errors,
+    run_tool,
+    tool_result,
+)
 
 UNSAFE_PROVIDER_OPTION_KEYS = {
     "api_key",
+    "api-key",
     "authorization",
     "default_headers",
     "headers",
     "organization",
+    "x-api-key",
+    "x-goog-api-key",
 }
 EXPERIMENTAL_TOOL_PROVIDERS = {"openai", "anthropic"}
 MAX_SCHEMA_BYTES = 65536
+RETRY_BASE_SECONDS = 0.5
+RETRY_CAP_SECONDS = 30.0
+RETRY_AFTER_CAP_SECONDS = 60.0
+# Suspended-state key holding the round results a resume already executed.
+RESUME_RESULTS_KEY = "resume_results"
+
+logger = logging.getLogger(__name__)
+_T = TypeVar("_T")
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+async def _async_sleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+def _jitter(upper: float) -> float:
+    return random.uniform(0.0, upper)
+
+
+def _retry_backoff_seconds(attempt: int, error: ProviderError) -> float:
+    """Delay before retry ``attempt``: provider hint, else full-jitter backoff."""
+    if error.retry_after_seconds is not None:
+        return min(max(0.0, float(error.retry_after_seconds)), RETRY_AFTER_CAP_SECONDS)
+    exponent = min(max(attempt - 1, 0), 16)
+    return _jitter(min(RETRY_CAP_SECONDS, RETRY_BASE_SECONDS * (2**exponent)))
+
+
+def max_provider_retries(config: Any) -> int:
+    """Retries Praval allows for one provider request (``config.retries``)."""
+    return max(0, int(getattr(config, "retries", 0) or 0))
+
+
+def record_provider_retry(
+    attempt: int,
+    error: BaseException,
+    *,
+    operation: str = "invoke",
+    backoff_seconds: float = 0.0,
+) -> None:
+    """Log a provider retry and record it as a fact and a span event.
+
+    Only the error type is recorded, never its message.
+    """
+    backoff_ms = max(0.0, backoff_seconds * 1000.0)
+    logger.info(
+        "Retrying provider %s request (retry %d) after %s; waiting %.0f ms",
+        operation,
+        attempt,
+        type(error).__name__,
+        backoff_ms,
+    )
+    fact = RetryObservation(
+        attempt=attempt,
+        operation=f"model.{operation}",
+        reason_type=type(error).__name__,
+        backoff_ms=backoff_ms,
+    )
+    record_retry(fact)
+    span = trace.get_current_span()
+    if span.is_recording():
+        span.add_event(
+            "praval.retry",
+            {
+                "praval.retry.attempt": attempt,
+                "praval.retry.operation": operation,
+                "praval.retry.reason_type": type(error).__name__,
+                "praval.retry.backoff_ms": backoff_ms,
+            },
+        )
+
+
+def call_with_retries(
+    operation: str,
+    fn: Callable[[], _T],
+    *,
+    retries: int,
+    map_error: Callable[[Exception], ProviderError],
+    on_retry: Optional[Callable[..., None]] = None,
+) -> _T:
+    """Call ``fn`` (one provider request), retrying it while it is retryable.
+
+    ``map_error`` turns any exception from ``fn`` into a typed
+    ``ProviderError``. A retryable error is retried up to ``retries`` times
+    after ``_retry_backoff_seconds``; anything else is raised at once, with
+    the original exception as its cause when it was mapped. HITL signals pass
+    through unchanged. ``fn`` must be safe to repeat: it should send one
+    request and must not run tools.
+    """
+    attempt = 1
+    while True:
+        try:
+            return fn()
+        except (InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            error = map_error(exc)
+            if not error.retryable or attempt > retries:
+                if error is exc:
+                    raise
+                raise error from exc
+            delay = _retry_backoff_seconds(attempt, error)
+            (on_retry or record_provider_retry)(
+                attempt, error, operation=operation, backoff_seconds=delay
+            )
+            _sleep(delay)
+        attempt += 1
+
+
+async def acall_with_retries(
+    operation: str,
+    fn: Callable[[], Awaitable[_T]],
+    *,
+    retries: int,
+    map_error: Callable[[Exception], ProviderError],
+    on_retry: Optional[Callable[..., None]] = None,
+) -> _T:
+    """Async ``call_with_retries``: ``fn`` is awaited afresh for each attempt."""
+    attempt = 1
+    while True:
+        try:
+            return await fn()
+        except (InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            error = map_error(exc)
+            if not error.retryable or attempt > retries:
+                if error is exc:
+                    raise
+                raise error from exc
+            delay = _retry_backoff_seconds(attempt, error)
+            (on_retry or record_provider_retry)(
+                attempt, error, operation=operation, backoff_seconds=delay
+            )
+            await _async_sleep(delay)
+        attempt += 1
 
 
 def _tool_parameter_schema(parameters: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize legacy tool parameters to JSON Schema shape."""
-    if parameters.get("type") == "object" and "properties" in parameters:
+    if parameters.get("type") == "object":
         return parameters
 
     properties: Dict[str, Any] = {}
@@ -106,9 +286,13 @@ def normalize_reasoning_config(value: Any) -> Optional[ReasoningConfig]:
         return None
     if isinstance(value, ReasoningConfig):
         return value
+    if isinstance(value, str):
+        if value not in {"none", "low", "medium", "high"}:
+            raise TypeError("reasoning level must be none, low, medium or high")
+        return ReasoningConfig.model_validate({"level": value})
     if isinstance(value, dict):
         return ReasoningConfig(**value)
-    raise TypeError("reasoning must be a dict or ReasoningConfig")
+    raise TypeError("reasoning must be a level string, dict or ReasoningConfig")
 
 
 def normalize_content_parts(value: Any) -> Any:
@@ -183,7 +367,7 @@ def legacy_tool_to_spec(
         name=name,
         description=str(tool.get("description", "") or ""),
         parameters=_tool_parameter_schema(dict(tool.get("parameters") or {})),
-        strict=strict,
+        strict=strict or bool(tool.get("strict", False)),
         requires_approval=bool(tool.get("requires_approval", False)),
         risk_level=str(tool.get("risk_level", "low") or "low"),
         approval_reason=str(tool.get("approval_reason", "") or ""),
@@ -201,14 +385,40 @@ def execute_legacy_tool_call(
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Execute a legacy provider tool call with optional HITL gating."""
+    """Execute a legacy provider tool call and return the result content.
+
+    Provider adapters place the returned text directly in their tool messages.
+    The runtime tool loop uses the typed ``ToolResult`` instead.
+    """
+    return _execute_legacy_tool_call_result(
+        hitl_context=hitl_context,
+        tool_call_id=tool_call_id,
+        function_name=function_name,
+        raw_args=raw_args,
+        available_tools=available_tools,
+        continuation_state=continuation_state,
+        resume_intervention=resume_intervention,
+    ).content
+
+
+def _execute_legacy_tool_call_result(
+    *,
+    hitl_context: Optional[Dict[str, Any]],
+    tool_call_id: str,
+    function_name: str,
+    raw_args: Any,
+    available_tools: List[Dict[str, Any]],
+    continuation_state: Optional[Dict[str, Any]] = None,
+    resume_intervention: Optional[Dict[str, Any]] = None,
+) -> ToolResult:
+    """Execute a tool call with optional HITL gating and return a `ToolResult`."""
     with ToolCallScope(
         tool_call_id=tool_call_id,
         name=function_name,
         arguments=raw_args,
     ) as observed:
         try:
-            result = _execute_legacy_tool_call_impl(
+            outcome = _execute_legacy_tool_call_impl(
                 hitl_context=hitl_context,
                 tool_call_id=tool_call_id,
                 function_name=function_name,
@@ -220,12 +430,8 @@ def execute_legacy_tool_call(
         except InterventionRequired:
             observed.skip_fact()
             raise
-        observed.set_result(
-            result,
-            is_error=result.startswith("Error:")
-            or result.startswith("Unknown function:")
-            or result.startswith("Rejected by human reviewer:"),
-        )
+        result = tool_result(outcome, tool_call_id=tool_call_id, name=function_name)
+        observed.set_result(result.content, is_error=result.is_error)
         return result
 
 
@@ -238,21 +444,23 @@ def _execute_legacy_tool_call_impl(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> str:
+) -> ToolResult:
     """Execute a synchronous tool after observation setup."""
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is not None and tool_def.get("async_only"):
         raise ProviderError(
             "This tool is async-only; use Agent.agenerate() or Agent.astream()."
         )
-    runtime = _build_hitl_runtime(hitl_context)
+    runtime = _build_hitl_runtime(
+        hitl_context, for_resume=resume_intervention is not None
+    )
     if resume_intervention is not None and runtime is not None:
-        return runtime.execute_with_decision(
+        return runtime.execute_with_decision_result(
             intervention=resume_intervention,
             available_tools=available_tools or [],
         )
     if runtime is not None and continuation_state is not None:
-        return runtime.execute_or_interrupt(
+        return runtime.execute_or_interrupt_result(
             tool_call_id=tool_call_id,
             function_name=function_name,
             raw_args=raw_args,
@@ -261,7 +469,9 @@ def _execute_legacy_tool_call_impl(
         )
 
     if tool_def is None:
-        return f"Unknown function: {function_name}"
+        return error_result(f"Unknown function: {function_name}")
+    if continuation_state is not None:
+        _require_hitl_for_gated_tool(hitl_context, function_name, tool_def)
     return _execute_tool_direct(tool_def, HITLRuntime._parse_args(raw_args))
 
 
@@ -274,7 +484,7 @@ async def execute_legacy_tool_call_async(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> Any:
+) -> ToolResult:
     """Execute a tool on the caller's event loop with optional HITL gating."""
     with ToolCallScope(
         tool_call_id=tool_call_id,
@@ -282,7 +492,7 @@ async def execute_legacy_tool_call_async(
         arguments=raw_args,
     ) as observed:
         try:
-            result = await _execute_legacy_tool_call_async_impl(
+            outcome = await _execute_legacy_tool_call_async_impl(
                 hitl_context=hitl_context,
                 tool_call_id=tool_call_id,
                 function_name=function_name,
@@ -294,20 +504,8 @@ async def execute_legacy_tool_call_async(
         except InterventionRequired:
             observed.skip_fact()
             raise
-        if isinstance(result, ToolResult):
-            observed.set_result(
-                result.content,
-                is_error=result.is_error,
-                tool_call_id=result.tool_call_id,
-            )
-        else:
-            result_text = str(result)
-            observed.set_result(
-                result_text,
-                is_error=result_text.startswith("Error:")
-                or result_text.startswith("Unknown function:")
-                or result_text.startswith("Rejected by human reviewer:"),
-            )
+        result = tool_result(outcome, tool_call_id=tool_call_id, name=function_name)
+        observed.set_result(result.content, is_error=result.is_error)
         return result
 
 
@@ -320,9 +518,11 @@ async def _execute_legacy_tool_call_async_impl(
     available_tools: List[Dict[str, Any]],
     continuation_state: Optional[Dict[str, Any]] = None,
     resume_intervention: Optional[Dict[str, Any]] = None,
-) -> Any:
+) -> ToolResult:
     """Execute an asynchronous tool after observation setup."""
-    runtime = _build_hitl_runtime(hitl_context)
+    runtime = _build_hitl_runtime(
+        hitl_context, for_resume=resume_intervention is not None
+    )
     if resume_intervention is not None and runtime is not None:
         return await runtime.execute_with_decision_async(
             intervention=resume_intervention,
@@ -339,13 +539,16 @@ async def _execute_legacy_tool_call_async_impl(
 
     tool_def = _tool_map(available_tools or []).get(function_name)
     if tool_def is None:
-        return f"Unknown function: {function_name}"
+        return error_result(f"Unknown function: {function_name}")
+    if continuation_state is not None:
+        _require_hitl_for_gated_tool(hitl_context, function_name, tool_def)
     return await _execute_tool_direct_async(tool_def, HITLRuntime._parse_args(raw_args))
 
 
-def _build_hitl_runtime(
+def _hitl_identity(
     hitl_context: Optional[Dict[str, Any]],
-) -> Optional[HITLRuntime]:
+) -> Optional[Tuple[str, str, str]]:
+    """Return ``(run_id, agent_name, provider_name)`` when all are present."""
     if not hitl_context:
         return None
     run_id = hitl_context.get("run_id")
@@ -353,14 +556,117 @@ def _build_hitl_runtime(
     provider_name = hitl_context.get("provider_name")
     if not run_id or not agent_name or not provider_name:
         return None
+    return str(run_id), str(agent_name), str(provider_name)
+
+
+def _build_hitl_runtime(
+    hitl_context: Optional[Dict[str, Any]],
+    *,
+    for_resume: bool = False,
+) -> Optional[HITLRuntime]:
+    """Build the HITL runtime for a tool call, or ``None`` without HITL.
+
+    A runtime (and with it the HITL store) is only built when HITL is enabled,
+    or to apply a recorded decision during a resume, so agents without HITL
+    never open the HITL database.
+    """
+    identity = _hitl_identity(hitl_context)
+    if identity is None or hitl_context is None:
+        return None
+    enabled = bool(hitl_context.get("enabled", False))
+    if not enabled and not for_resume:
+        return None
+    run_id, agent_name, provider_name = identity
     return HITLRuntime(
         run_id=run_id,
         agent_name=agent_name,
         provider_name=provider_name,
-        hitl_enabled=bool(hitl_context.get("enabled", False)),
+        hitl_enabled=enabled,
         db_path=hitl_context.get("db_path"),
         trace_id=hitl_context.get("trace_id"),
     )
+
+
+def _require_hitl_for_gated_tool(
+    hitl_context: Optional[Dict[str, Any]],
+    function_name: str,
+    tool_def: Dict[str, Any],
+) -> None:
+    """Refuse an approval-gated tool on a run that has HITL disabled.
+
+    Raises:
+        HITLConfigurationError: If the tool requires approval and the run's
+            HITL context identifies an agent with HITL disabled.
+    """
+    identity = _hitl_identity(hitl_context)
+    if identity is None or not requires_approval(tool_def):
+        return
+    raise HITLConfigurationError(
+        f"Tool '{function_name}' requires approval but agent "
+        f"'{identity[1]}' has hitl=False"
+    )
+
+
+def _saved_resume_results(
+    suspended_state: Dict[str, Any], intervention_id: str
+) -> Optional[List[ToolResult]]:
+    """Return the round results an earlier resume of this decision stored.
+
+    ``None`` means the approved tool has not run yet for this intervention.
+    """
+    saved = suspended_state.get(RESUME_RESULTS_KEY)
+    if (
+        not intervention_id
+        or not isinstance(saved, dict)
+        or saved.get("intervention_id") != intervention_id
+        or not isinstance(saved.get("round_results"), list)
+    ):
+        return None
+    return [ToolResult.model_validate(result) for result in saved["round_results"]]
+
+
+def _save_resume_results(
+    suspended_state: Dict[str, Any],
+    hitl_context: Optional[Dict[str, Any]],
+    intervention_id: str,
+    round_results: List[ToolResult],
+) -> None:
+    """Store the round results executed by a resume with its suspended run.
+
+    A resume whose continuation then fails returns the run to ``pending``;
+    the next resume reuses these results instead of running the tools again.
+    The write only applies while the run is claimed (``resuming``).
+    """
+    context = hitl_context or {}
+    run_id = context.get("run_id")
+    if not run_id or not intervention_id:
+        return
+    store = get_hitl_store(context.get("db_path"))
+    claimed = store.get_suspended_run(str(run_id))
+    if claimed is None or claimed.status != "resuming":
+        logger.debug(
+            "Suspended run %s is not claimed; resume results were not stored", run_id
+        )
+        return
+    if claimed.state.get("intervention_id") != intervention_id:
+        raise ProviderError("Runtime resume results require the claimed decision")
+    # A tool can run another agent or update the ledger while it executes.
+    # Preserve those changes, rather than overwriting them with the old snapshot.
+    state = dict(claimed.state)
+    state[RESUME_RESULTS_KEY] = {
+        "intervention_id": intervention_id,
+        "round_results": [
+            _json_safe(result.model_dump(exclude_none=True)) for result in round_results
+        ],
+    }
+    stored = store.update_suspended_run_state(
+        str(run_id), state, expected_status="resuming"
+    )
+    if not stored:
+        logger.debug(
+            "Suspended run %s is not claimed; resume results were not stored",
+            run_id,
+        )
 
 
 def _tool_map(available_tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -372,47 +678,62 @@ def _tool_map(available_tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
     return mapping
 
 
-def _execute_tool_direct(tool_def: Dict[str, Any], args: Dict[str, Any]) -> str:
+def _execute_tool_direct(tool_def: Dict[str, Any], args: Dict[str, Any]) -> ToolResult:
+    """Validate arguments and run a tool synchronously without HITL gating."""
     if tool_def.get("async_only"):
         raise ProviderError(
             "This tool is async-only; use Agent.agenerate() or Agent.astream()."
         )
-    tool_func = tool_def.get("function")
-    if not callable(tool_func):
-        return "Error: Tool function is not callable"
-    try:
-        result = tool_func(**args)
-        if inspect.iscoroutine(result):
-            result = _run_coroutine_sync(result)
-        return str(result)
-    except Exception as exc:
-        return f"Error: {str(exc)}"
+    return run_tool(tool_def, args)
 
 
 async def _execute_tool_direct_async(
     tool_def: Dict[str, Any], args: Dict[str, Any]
-) -> Any:
-    tool_func = tool_def.get("function")
-    if not callable(tool_func):
-        return "Error: Tool function is not callable"
+) -> ToolResult:
+    """Validate arguments and run a tool on the caller's event loop."""
+    return await arun_tool(tool_def, args)
+
+
+def _validate_structured_content(
+    content: str,
+    config: StructuredOutputConfig,
+    *,
+    provider: Optional[str],
+    model: Optional[str],
+) -> None:
+    """Check final content against the requested schema.
+
+    Raises:
+        ProviderInvalidResponseError: If the content is not JSON or does not
+            match the schema.
+    """
+    source = f"provider '{provider or 'unknown'}' model '{model or 'unknown'}'"
     try:
-        result = tool_func(**args)
-        if inspect.isawaitable(result):
-            result = await result
-        return result
-    except Exception as exc:
-        return f"Error: {str(exc)}"
-
-
-def _run_coroutine_sync(coroutine: Any) -> Any:
+        payload = json.loads(content)
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} is not valid JSON: {exc}"
+        ) from exc
+    validator = cached_schema_validator(config.json_schema or {})
+    if validator is None:
+        raise ProviderInvalidResponseError(
+            f"response_schema for {source} is not a valid JSON Schema"
+        )
     try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coroutine)
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(lambda: asyncio.run(coroutine))
-        return future.result()
+        errors = json_schema_errors(validator, payload)
+    except Unresolvable as exc:
+        raise ProviderInvalidResponseError(
+            f"response_schema for {source} has an unresolvable $ref: {exc}"
+        ) from exc
+    except RecursionError as exc:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} is nested too deeply to validate"
+        ) from exc
+    if errors:
+        raise ProviderInvalidResponseError(
+            f"Response from {source} does not match response_schema: "
+            + "; ".join(errors)
+        )
 
 
 class ModelRuntime:
@@ -424,7 +745,11 @@ class ModelRuntime:
         provider: Any,
         provider_name: str,
         config: Any,
+        usage: Optional[UsageMeter] = None,
+        agent_name: Optional[str] = None,
     ) -> None:
+        self.usage = usage if usage is not None else UsageMeter()
+        self.agent_name = agent_name
         self.provider = provider
         self.provider_name = provider_name
         self.config = config
@@ -437,6 +762,7 @@ class ModelRuntime:
             return capabilities
         return ProviderCapabilities()
 
+    @metered_run
     def invoke(
         self,
         *,
@@ -444,7 +770,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -474,6 +800,7 @@ class ModelRuntime:
             if not response.model:
                 response.model = request.model
             self._record_response_facts(response)
+            self._validate_final_response(request, response)
             return response
 
     def generate_text(
@@ -492,6 +819,7 @@ class ModelRuntime:
             **kwargs,
         ).content
 
+    @metered_run
     async def ainvoke(
         self,
         *,
@@ -499,7 +827,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -523,8 +851,10 @@ class ModelRuntime:
             self.validate_request(request)
             response = await self._ainvoke_with_retries(request, tools=tools)
             self._record_response_facts(response)
+            self._validate_final_response(request, response)
             return response
 
+    @metered_run
     def stream(
         self,
         *,
@@ -532,7 +862,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -567,6 +897,7 @@ class ModelRuntime:
         if tools:
             with self._span(request) as span:
                 response = self._invoke_with_retries(request, tools=tools)
+                self._validate_final_response(request, response)
                 stream_state = self._new_stream_state()
                 for event in self._response_events(response):
                     self._record_stream_event(event, span, started, stream_state)
@@ -577,25 +908,26 @@ class ModelRuntime:
         if provider_stream is not None:
             with self._span(request) as span:
                 stream_state = self._new_stream_state()
-                with self._provider_span(request, "stream"):
-                    try:
-                        events = provider_stream(request, tools=tools)
-                    except TypeError:
-                        events = provider_stream(request)
-                    for event in events:
-                        self._record_stream_event(event, span, started, stream_state)
-                        yield event
+                for event in self._stream_provider_events(
+                    request, provider_stream, tools
+                ):
+                    if event.type == "final" and event.response is not None:
+                        self._validate_final_response(request, event.response)
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
                 self._finish_stream_facts(stream_state)
             return
 
         with self._span(request) as span:
             response = self._invoke_with_retries(request, tools=tools)
+            self._validate_final_response(request, response)
             stream_state = self._new_stream_state()
             for event in self._response_events(response):
                 self._record_stream_event(event, span, started, stream_state)
                 yield event
             self._finish_stream_facts(stream_state)
 
+    @metered_run
     async def astream(
         self,
         *,
@@ -603,7 +935,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]] = None,
         hitl_context: Optional[Dict[str, Any]] = None,
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -638,6 +970,7 @@ class ModelRuntime:
             )
             with self._span(request) as span:
                 response = await self._ainvoke_with_retries(request, tools=tools)
+                self._validate_final_response(request, response)
                 stream_state = self._new_stream_state()
                 for event in self._response_events(response):
                     self._record_stream_event(event, span, started, stream_state)
@@ -658,14 +991,13 @@ class ModelRuntime:
             )
             with self._span(request) as span:
                 stream_state = self._new_stream_state()
-                with self._provider_span(request, "stream"):
-                    try:
-                        events = concrete_astream(request, tools=tools)
-                    except TypeError:
-                        events = concrete_astream(request)
-                    async for event in events:
-                        self._record_stream_event(event, span, started, stream_state)
-                        yield event
+                async for event in self._astream_provider_events(
+                    request, concrete_astream, tools
+                ):
+                    if event.type == "final" and event.response is not None:
+                        self._validate_final_response(request, event.response)
+                    self._record_stream_event(event, span, started, stream_state)
+                    yield event
                 self._finish_stream_facts(stream_state)
             return
 
@@ -679,6 +1011,7 @@ class ModelRuntime:
         )
         with self._span(request) as span:
             response = await self._ainvoke_with_retries(request, tools=tools)
+            self._validate_final_response(request, response)
             stream_state = self._new_stream_state()
             for event in self._response_events(response):
                 self._record_stream_event(event, span, started, stream_state)
@@ -707,12 +1040,6 @@ class ModelRuntime:
             stream_state["usage"] = event.usage
         if event.type == "final" and event.response is not None:
             self._record_response_facts(event.response)
-            if event.response.usage is None and stream_state["usage"] is not None:
-                record_model_facts(
-                    provider=self.provider_name,
-                    model=event.response.model,
-                    usage=stream_state["usage"],
-                )
             stream_state["final"] = True
             return
 
@@ -721,7 +1048,6 @@ class ModelRuntime:
             record_model_facts(
                 provider=self.provider_name,
                 model=getattr(self.config, "model", None),
-                usage=stream_state["usage"],
             )
 
     def _record_response_facts(self, response: ModelResponse) -> None:
@@ -735,7 +1061,6 @@ class ModelRuntime:
             model=response.model or getattr(self.config, "model", None),
             response_id=response_id,
             terminal_outcome=response.finish_reason,
-            usage=response.usage,
         )
         try:
             span = trace.get_current_span()
@@ -791,7 +1116,7 @@ class ModelRuntime:
         tools: Optional[List[Dict[str, Any]]],
         hitl_context: Optional[Dict[str, Any]],
         response_schema: Optional[StructuredOutputConfig] = None,
-        reasoning: Optional[ReasoningConfig] = None,
+        reasoning: Optional[Union[str, Dict[str, Any], ReasoningConfig]] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -898,11 +1223,48 @@ class ModelRuntime:
     def validate_request(self, request: ModelRequest) -> None:
         """Validate a model request before provider execution."""
         capabilities = self.resolve_capabilities(request)
-        unsafe = UNSAFE_PROVIDER_OPTION_KEYS.intersection(request.provider_options)
+        from .providers.registry import get_provider_registry
+
+        profile = get_provider_registry().resolve_profile(
+            request.provider or self.provider_name, request.model
+        )
+        if profile is not None and request.max_output_tokens is not None:
+            ceiling = profile.max_output_tokens or profile.context_window
+            if ceiling is not None and request.max_output_tokens > ceiling:
+                raise ProviderInvalidRequestError(
+                    f"Model '{request.model}' output budget "
+                    f"{request.max_output_tokens} exceeds its discovered limit "
+                    f"{ceiling}; lower max_output_tokens or, for Ollama, "
+                    "configure a larger num_ctx and rediscover the model."
+                )
+        # Case-insensitive and at any depth: options such as ``extra_headers``
+        # and ``extra_query`` are forwarded to the SDK call as given.
+        # ``experimental_tools`` is checked, with its own message, below.
+        unsafe = _nested_unsafe_option_keys(
+            {
+                key: value
+                for key, value in request.provider_options.items()
+                if key != "experimental_tools"
+            }
+        )
         if unsafe:
-            blocked = ", ".join(sorted(unsafe))
+            blocked = ", ".join(sorted(set(unsafe)))
             raise ProviderError(f"Unsafe provider option(s): {blocked}")
         self._validate_experimental_tools(request)
+        if request.reasoning is not None and request.reasoning.level is not None:
+            from .providers.registry import reasoning_parameters
+
+            reasoning_request = request
+            if self.provider_name == "anthropic" and request.max_output_tokens is None:
+                reasoning_request = request.model_copy(
+                    update={
+                        "max_output_tokens": getattr(
+                            self.config, "max_output_tokens", None
+                        )
+                        or getattr(self.config, "max_tokens", 1000)
+                    }
+                )
+            reasoning_parameters(reasoning_request)
         if request.reasoning is not None and not capabilities.reasoning:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support reasoning config"
@@ -996,6 +1358,8 @@ class ModelRuntime:
             or request.provider_options.get("api")
             or ""
         ).lower()
+        if endpoint in {"chat.completions", "chat", "chat_completions"}:
+            return False
         return endpoint == "responses" or bool(
             request.provider_options.get("use_responses", False)
         )
@@ -1080,34 +1444,24 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        retries = int(getattr(self.config, "retries", 0) or 0)
-        last_error: Optional[Exception] = None
-        for attempt in range(retries + 1):
-            try:
-                response = self._complete_response(
-                    self._invoke_provider(request, tools=tools),
-                    request,
-                )
-                return self._orchestrate_tool_calls(
-                    request,
-                    response,
-                    tools=tools or [],
-                )
-            except ProviderError as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise
-                self._record_retry(attempt + 1, exc)
-            except (InterventionRequired, HITLConfigurationError):
-                raise
-            except Exception as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise ProviderError(str(exc)) from exc
-                self._record_retry(attempt + 1, exc)
-        if last_error is not None:
-            raise ProviderError(str(last_error)) from last_error
-        raise ProviderError("Provider did not return a response")
+        """Send the initial request, then run the tool loop.
+
+        Retries happen per provider request inside ``_call_provider``, so a
+        failed continuation never re-runs tools from earlier rounds.
+        """
+        try:
+            response = self._call_provider(
+                "invoke", request, self._invoke_provider, request, tools=tools
+            )
+            return self._orchestrate_tool_calls(
+                request,
+                self._complete_response(response, request),
+                tools=tools or [],
+            )
+        except (ProviderError, InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc)) from exc
 
     async def _ainvoke_with_retries(
         self,
@@ -1115,37 +1469,311 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        """Async provider invocation and tool orchestration with retries."""
-        retries = int(getattr(self.config, "retries", 0) or 0)
-        last_error: Optional[Exception] = None
-        for attempt in range(retries + 1):
-            try:
-                raw_response = await self._invoke_provider_async(request, tools=tools)
-                if not isinstance(raw_response, ModelResponse):
-                    raw_response = ModelResponse(
-                        content=str(raw_response or ""), raw=raw_response
-                    )
-                response = self._complete_response(raw_response, request)
-                return await self._orchestrate_tool_calls_async(
-                    request,
-                    response,
-                    tools=tools or [],
+        """Async initial request and tool loop with per-request retries."""
+        try:
+            raw_response = await self._acall_provider(
+                "invoke", request, self._invoke_provider_async, request, tools=tools
+            )
+            if not isinstance(raw_response, ModelResponse):
+                raw_response = ModelResponse(
+                    content=str(raw_response or ""), raw=raw_response
                 )
-            except ProviderError as exc:
-                last_error = exc
-                if attempt >= retries:
+            response = self._complete_response(raw_response, request)
+            return await self._orchestrate_tool_calls_async(
+                request,
+                response,
+                tools=tools or [],
+            )
+        except (ProviderError, InterventionRequired, HITLConfigurationError):
+            raise
+        except Exception as exc:
+            raise ProviderError(str(exc)) from exc
+
+    def _call_provider(
+        self,
+        operation: str,
+        request: ModelRequest,
+        fn: Callable[..., _T],
+        *args: Any,
+        _round_index: Optional[int] = None,
+        **kwargs: Any,
+    ) -> _T:
+        """Send one provider request, retrying only that request.
+
+        Every provider request passes through here (or ``_acall_provider``):
+        the initial invoke, each tool-round continuation, the HITL resume
+        continuation and the start of a native stream. A failure that maps to
+        a retryable ``ProviderError`` is retried up to ``config.retries``
+        times; anything else is raised at once.
+        """
+
+        attempt_number = 0
+
+        def attempt() -> _T:
+            nonlocal attempt_number
+            attempt_number += 1
+            call_scope = ProviderCallScope(
+                self, operation, request, attempt_number, _round_index
+            )
+            with call_scope.activate(), self._provider_span(request, operation):
+                try:
+                    result = fn(*args, **kwargs)
+                    call_scope.finish(result)
+                    return result
+                except (InterventionRequired, HITLConfigurationError):
                     raise
-                self._record_retry(attempt + 1, exc)
+                except Exception as exc:
+                    # Map inside the span, so the span records the typed,
+                    # redacted error rather than raw SDK text.
+                    error = self._provider_error(exc, operation, request)
+                    if error is exc:
+                        raise
+                    raise error from exc
+
+        return call_with_retries(
+            operation,
+            attempt,
+            retries=self._max_provider_retries(),
+            map_error=lambda exc: self._provider_error(exc, operation, request),
+            on_retry=self._record_retry,
+        )
+
+    async def _acall_provider(
+        self,
+        operation: str,
+        request: ModelRequest,
+        fn: Callable[..., Awaitable[_T]],
+        *args: Any,
+        _round_index: Optional[int] = None,
+        **kwargs: Any,
+    ) -> _T:
+        """Async ``_call_provider``: ``fn`` is called afresh for each attempt."""
+
+        attempt_number = 0
+
+        async def attempt() -> _T:
+            nonlocal attempt_number
+            attempt_number += 1
+            call_scope = ProviderCallScope(
+                self, operation, request, attempt_number, _round_index
+            )
+            with call_scope.activate(), self._provider_span(request, operation):
+                try:
+                    result = await fn(*args, **kwargs)
+                    call_scope.finish(result)
+                    return result
+                except (InterventionRequired, HITLConfigurationError):
+                    raise
+                except Exception as exc:
+                    # Map inside the span, so the span records the typed,
+                    # redacted error rather than raw SDK text.
+                    error = self._provider_error(exc, operation, request)
+                    if error is exc:
+                        raise
+                    raise error from exc
+
+        return await acall_with_retries(
+            operation,
+            attempt,
+            retries=self._max_provider_retries(),
+            map_error=lambda exc: self._provider_error(exc, operation, request),
+            on_retry=self._record_retry,
+        )
+
+    def _stream_provider_events(
+        self,
+        request: ModelRequest,
+        provider_stream: Callable[..., Iterator[ModelEvent]],
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> Iterator[ModelEvent]:
+        """Run a native provider stream, retrying only before its first event.
+
+        Adapters yield an ``error`` event before raising, so a leading error
+        event is held back until the outcome is known: it is dropped when the
+        stream is retried and yielded before the exception otherwise.
+        """
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            emitted = False
+            held_error: Optional[ModelEvent] = None
+            call_scope = ProviderCallScope(self, "stream", request, attempt)
+            try:
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = provider_stream(request, tools=tools)
+                    except TypeError:
+                        events = provider_stream(request)
+                    for event in self._scoped_stream_events(events, call_scope):
+                        if not emitted and held_error is None and event.type == "error":
+                            held_error = event
+                            continue
+                        if held_error is not None:
+                            yield held_error
+                            held_error = None
+                        emitted = True
+                        if event.usage is not None:
+                            call_scope.usage = event.usage
+                        if event.type == "final" and event.response is not None:
+                            if event.response.usage is None:
+                                event.response.usage = call_scope.usage
+                            call_scope.finish(event.response)
+                        yield event
+                if held_error is not None:
+                    yield held_error
+                call_scope.finish()
+                return
             except (InterventionRequired, HITLConfigurationError):
                 raise
             except Exception as exc:
-                last_error = exc
-                if attempt >= retries:
-                    raise ProviderError(str(exc)) from exc
-                self._record_retry(attempt + 1, exc)
-        if last_error is not None:
-            raise ProviderError(str(last_error)) from last_error
-        raise ProviderError("Provider did not return a response")
+                call_scope.finish(status="error")
+                error = self._provider_error(exc, "stream", request)
+                if emitted or not error.retryable or attempt > retries:
+                    if held_error is not None:
+                        yield held_error
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation="stream", backoff_seconds=delay
+                )
+                _sleep(delay)
+            finally:
+                if not call_scope.finished:
+                    call_scope.finish(status="error")
+            attempt += 1
+
+    async def _astream_provider_events(
+        self,
+        request: ModelRequest,
+        provider_astream: Callable[..., AsyncIterator[ModelEvent]],
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> AsyncIterator[ModelEvent]:
+        """Async ``_stream_provider_events``."""
+        retries = self._max_provider_retries()
+        attempt = 1
+        while True:
+            emitted = False
+            held_error: Optional[ModelEvent] = None
+            call_scope = ProviderCallScope(self, "stream", request, attempt)
+            try:
+                with self._provider_span(request, "stream"):
+                    try:
+                        events = provider_astream(request, tools=tools)
+                    except TypeError:
+                        events = provider_astream(request)
+                    async for event in self._scoped_astream_events(events, call_scope):
+                        if not emitted and held_error is None and event.type == "error":
+                            held_error = event
+                            continue
+                        if held_error is not None:
+                            yield held_error
+                            held_error = None
+                        emitted = True
+                        if event.usage is not None:
+                            call_scope.usage = event.usage
+                        if event.type == "final" and event.response is not None:
+                            if event.response.usage is None:
+                                event.response.usage = call_scope.usage
+                            call_scope.finish(event.response)
+                        yield event
+                if held_error is not None:
+                    yield held_error
+                call_scope.finish()
+                return
+            except (InterventionRequired, HITLConfigurationError):
+                raise
+            except Exception as exc:
+                call_scope.finish(status="error")
+                error = self._provider_error(exc, "stream", request)
+                if emitted or not error.retryable or attempt > retries:
+                    if held_error is not None:
+                        yield held_error
+                    if error is exc:
+                        raise
+                    raise error from exc
+                delay = _retry_backoff_seconds(attempt, error)
+                self._record_retry(
+                    attempt, error, operation="stream", backoff_seconds=delay
+                )
+                await _async_sleep(delay)
+            finally:
+                if not call_scope.finished:
+                    call_scope.finish(status="error")
+            attempt += 1
+
+    def _max_provider_retries(self) -> int:
+        return max_provider_retries(self.config)
+
+    @staticmethod
+    def _scoped_stream_events(
+        events: Iterator[ModelEvent], scope: ProviderCallScope
+    ) -> Iterator[ModelEvent]:
+        """Activate request metering for each pull without leaking caller context."""
+        try:
+            while True:
+                with scope.activate():
+                    try:
+                        event = next(events)
+                    except StopIteration:
+                        return
+                yield event
+        finally:
+            close = getattr(events, "close", None)
+            if callable(close):
+                with scope.activate():
+                    close()
+
+    @staticmethod
+    async def _scoped_astream_events(
+        events: AsyncIterator[ModelEvent], scope: ProviderCallScope
+    ) -> AsyncIterator[ModelEvent]:
+        """Async equivalent of per-pull request metering."""
+        try:
+            while True:
+                with scope.activate():
+                    try:
+                        event = await events.__anext__()
+                    except StopAsyncIteration:
+                        return
+                yield event
+        finally:
+            close = getattr(events, "aclose", None)
+            if callable(close):
+                with scope.activate():
+                    await close()
+
+    def _provider_error(
+        self,
+        exc: Exception,
+        operation: str,
+        request: ModelRequest,
+    ) -> ProviderError:
+        """Return the typed ``ProviderError`` for an exception from a provider.
+
+        Adapters may expose ``map_provider_error(exc)`` to translate their SDK
+        exceptions; anything still unmapped is classified generically, and an
+        unrecognised exception becomes a non-retryable ``ProviderError``.
+        """
+        error: Optional[ProviderError] = exc if isinstance(exc, ProviderError) else None
+        mapper = self._get_concrete_provider_method("map_provider_error")
+        if error is None and mapper is not None:
+            try:
+                mapped = mapper(exc)
+            except Exception as mapping_error:
+                logger.warning("Provider error mapping failed: %s", mapping_error)
+                mapped = None
+            if isinstance(mapped, ProviderError):
+                error = mapped
+        if error is None:
+            error = map_provider_exception(exc)
+        return fill_provider_error_fields(
+            error,
+            provider=self.provider_name,
+            model=request.model,
+            operation=operation,
+        )
 
     async def _invoke_provider_async(
         self,
@@ -1155,14 +1783,13 @@ class ModelRuntime:
     ) -> Any:
         concrete_ainvoke = self._get_concrete_provider_method("ainvoke")
         if concrete_ainvoke is not None:
-            with self._provider_span(request, "invoke"):
-                try:
-                    response = concrete_ainvoke(request, tools=tools)
-                except TypeError:
-                    response = concrete_ainvoke(request)
-                if inspect.isawaitable(response):
-                    response = await response
-                return response
+            try:
+                response = concrete_ainvoke(request, tools=tools)
+            except TypeError:
+                response = concrete_ainvoke(request)
+            if inspect.isawaitable(response):
+                response = await response
+            return response
 
         loop = asyncio.get_running_loop()
         context = copy_context()
@@ -1215,8 +1842,15 @@ class ModelRuntime:
                     )
                 )
             all_results.extend(round_results)
-            with self._provider_span(request, "continue"):
-                continued = continuation(request, current, round_results)
+            continued = self._call_provider(
+                "continue",
+                request,
+                continuation,
+                request,
+                current,
+                round_results,
+                _round_index=round_index,
+            )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
             else:
@@ -1227,8 +1861,11 @@ class ModelRuntime:
         else:
             if current.tool_calls:
                 self._record_limit_reached("tool_rounds", round_limit)
-                raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({round_limit})"
+                raise ToolRoundLimitError(
+                    f"Provider exceeded maximum tool rounds ({round_limit})",
+                    limit=round_limit,
+                    provider=self.provider_name,
+                    model=request.model,
                 )
 
         current.tool_calls = all_calls
@@ -1284,8 +1921,15 @@ class ModelRuntime:
                     )
                 )
             all_results.extend(round_results)
-            continued = await self._continue_with_tool_results_async(
-                continuation, request, current, round_results
+            continued = await self._acall_provider(
+                "continue",
+                request,
+                self._continue_with_tool_results_async,
+                continuation,
+                request,
+                current,
+                round_results,
+                _round_index=round_index,
             )
             if isinstance(continued, ModelResponse):
                 current = self._complete_response(continued, request)
@@ -1297,8 +1941,11 @@ class ModelRuntime:
         else:
             if current.tool_calls:
                 self._record_limit_reached("tool_rounds", round_limit)
-                raise ProviderError(
-                    f"Provider exceeded maximum tool rounds ({round_limit})"
+                raise ToolRoundLimitError(
+                    f"Provider exceeded maximum tool rounds ({round_limit})",
+                    limit=round_limit,
+                    provider=self.provider_name,
+                    model=request.model,
                 )
 
         current.tool_calls = all_calls
@@ -1315,21 +1962,21 @@ class ModelRuntime:
         response: ModelResponse,
         results: List[ToolResult],
     ) -> Any:
-        with self._provider_span(request, "continue"):
-            if inspect.iscoroutinefunction(continuation):
-                return await continuation(request, response, results)
-            loop = asyncio.get_running_loop()
-            context = copy_context()
-            provider_call = partial(continuation, request, response, results)
-            continued = await loop.run_in_executor(
-                None,
-                context.run,
-                provider_call,
-            )
-            if inspect.isawaitable(continued):
-                return await continued
-            return continued
+        if inspect.iscoroutinefunction(continuation):
+            return await continuation(request, response, results)
+        loop = asyncio.get_running_loop()
+        context = copy_context()
+        provider_call = partial(continuation, request, response, results)
+        continued = await loop.run_in_executor(
+            None,
+            context.run,
+            provider_call,
+        )
+        if inspect.isawaitable(continued):
+            return await continued
+        return continued
 
+    @metered_run
     def resume_tool_flow(
         self,
         suspended_state: Dict[str, Any],
@@ -1343,6 +1990,10 @@ class ModelRuntime:
         if not isinstance(resume_intervention, dict):
             raise ProviderError("Runtime tool resume requires an intervention decision")
 
+        intervention_id = str(resume_intervention.get("id") or "")
+        suspended_state, checkpoint_loaded = self._restore_resume_checkpoint(
+            suspended_state, intervention_id
+        )
         available_tools = list(tools or [])
         request = self._restore_runtime_request(
             suspended_state.get("request"),
@@ -1355,7 +2006,8 @@ class ModelRuntime:
             for call in suspended_state.get("round_calls", [])
         ]
         current_index = int(suspended_state.get("current_index", 0))
-        if current_index < 0 or current_index >= len(round_calls):
+        maximum_index = len(round_calls) if checkpoint_loaded else len(round_calls) - 1
+        if current_index < 0 or current_index > maximum_index:
             raise ProviderError("Runtime tool continuation index is invalid")
 
         round_index = int(suspended_state.get("round", 0))
@@ -1372,18 +2024,40 @@ class ModelRuntime:
             for result in suspended_state.get("all_results", [])
         ]
 
-        blocked_call = round_calls[current_index]
-        content = execute_legacy_tool_call(
-            hitl_context=hitl_context,
-            tool_call_id=blocked_call.id,
-            function_name=blocked_call.name,
-            raw_args=blocked_call.arguments,
-            available_tools=available_tools,
-            resume_intervention=resume_intervention,
-        )
-        round_results.append(self._tool_result(blocked_call, content))
+        saved = _saved_resume_results(suspended_state, intervention_id)
+        if checkpoint_loaded:
+            next_start = current_index
+        elif saved is None:
+            blocked_call = round_calls[current_index]
+            blocked_result = _execute_legacy_tool_call_result(
+                hitl_context=hitl_context,
+                tool_call_id=blocked_call.id,
+                function_name=blocked_call.name,
+                raw_args=blocked_call.arguments,
+                available_tools=available_tools,
+                resume_intervention=resume_intervention,
+            )
+            round_results.append(self._tool_result(blocked_call, blocked_result))
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
+            )
+            checkpoint_state = self._runtime_continuation_state(
+                request,
+                current,
+                round_index=round_index,
+                round_calls=round_calls,
+                current_index=current_index,
+                round_results=round_results[:-1],
+                all_calls=all_calls,
+                all_results=all_results,
+            )
+            self._checkpoint_resume_result(request, checkpoint_state, round_results[-1])
+            next_start = current_index + 1
+        else:
+            next_start = current_index + len(saved) - len(round_results)
+            round_results = saved
 
-        for next_index in range(current_index + 1, len(round_calls)):
+        for next_index in range(next_start, len(round_calls)):
             tool_call = round_calls[next_index]
             continuation_state = self._runtime_continuation_state(
                 request,
@@ -1411,8 +2085,15 @@ class ModelRuntime:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
-        with self._provider_span(request, "continue"):
-            continued = continuation(request, current, round_results)
+        continued = self._call_provider(
+            "resume",
+            request,
+            continuation,
+            request,
+            current,
+            round_results,
+            _round_index=round_index,
+        )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
         else:
@@ -1420,7 +2101,7 @@ class ModelRuntime:
                 ModelResponse(content=str(continued or ""), raw=continued),
                 request,
             )
-        return self._orchestrate_tool_calls(
+        resumed = self._orchestrate_tool_calls(
             request,
             next_response,
             tools=available_tools,
@@ -1428,7 +2109,10 @@ class ModelRuntime:
             initial_results=all_results + round_results,
             start_round=round_index + 1,
         )
+        self._validate_final_response(request, resumed)
+        return resumed
 
+    @metered_run
     async def resume_tool_flow_async(
         self,
         suspended_state: Dict[str, Any],
@@ -1442,6 +2126,10 @@ class ModelRuntime:
         if not isinstance(resume_intervention, dict):
             raise ProviderError("Runtime tool resume requires an intervention decision")
 
+        intervention_id = str(resume_intervention.get("id") or "")
+        suspended_state, checkpoint_loaded = self._restore_resume_checkpoint(
+            suspended_state, intervention_id
+        )
         available_tools = list(tools or [])
         request = self._restore_runtime_request(
             suspended_state.get("request"),
@@ -1454,7 +2142,8 @@ class ModelRuntime:
             for call in suspended_state.get("round_calls", [])
         ]
         current_index = int(suspended_state.get("current_index", 0))
-        if current_index < 0 or current_index >= len(round_calls):
+        maximum_index = len(round_calls) if checkpoint_loaded else len(round_calls) - 1
+        if current_index < 0 or current_index > maximum_index:
             raise ProviderError("Runtime tool continuation index is invalid")
 
         round_index = int(suspended_state.get("round", 0))
@@ -1471,28 +2160,40 @@ class ModelRuntime:
             for result in suspended_state.get("all_results", [])
         ]
 
-        blocked_call = round_calls[current_index]
-        content = await execute_legacy_tool_call_async(
-            hitl_context=hitl_context,
-            tool_call_id=blocked_call.id,
-            function_name=blocked_call.name,
-            raw_args=blocked_call.arguments,
-            available_tools=available_tools,
-            resume_intervention=resume_intervention,
-        )
-        if isinstance(content, ToolResult):
-            round_results.append(
-                content.model_copy(
-                    update={
-                        "tool_call_id": blocked_call.id,
-                        "name": blocked_call.name,
-                    }
-                )
+        saved = _saved_resume_results(suspended_state, intervention_id)
+        if checkpoint_loaded:
+            next_start = current_index
+        elif saved is None:
+            blocked_call = round_calls[current_index]
+            blocked_result = await execute_legacy_tool_call_async(
+                hitl_context=hitl_context,
+                tool_call_id=blocked_call.id,
+                function_name=blocked_call.name,
+                raw_args=blocked_call.arguments,
+                available_tools=available_tools,
+                resume_intervention=resume_intervention,
             )
+            round_results.append(self._tool_result(blocked_call, blocked_result))
+            _save_resume_results(
+                suspended_state, hitl_context, intervention_id, round_results
+            )
+            checkpoint_state = self._runtime_continuation_state(
+                request,
+                current,
+                round_index=round_index,
+                round_calls=round_calls,
+                current_index=current_index,
+                round_results=round_results[:-1],
+                all_calls=all_calls,
+                all_results=all_results,
+            )
+            self._checkpoint_resume_result(request, checkpoint_state, round_results[-1])
+            next_start = current_index + 1
         else:
-            round_results.append(self._tool_result(blocked_call, str(content)))
+            next_start = current_index + len(saved) - len(round_results)
+            round_results = saved
 
-        for next_index in range(current_index + 1, len(round_calls)):
+        for next_index in range(next_start, len(round_calls)):
             tool_call = round_calls[next_index]
             continuation_state = self._runtime_continuation_state(
                 request,
@@ -1520,8 +2221,15 @@ class ModelRuntime:
             raise ProviderError(
                 f"Provider '{self.provider_name}' does not support tool continuation"
             )
-        continued = await self._continue_with_tool_results_async(
-            continuation, request, current, round_results
+        continued = await self._acall_provider(
+            "resume",
+            request,
+            self._continue_with_tool_results_async,
+            continuation,
+            request,
+            current,
+            round_results,
+            _round_index=round_index,
         )
         if isinstance(continued, ModelResponse):
             next_response = self._complete_response(continued, request)
@@ -1530,7 +2238,7 @@ class ModelRuntime:
                 ModelResponse(content=str(continued or ""), raw=continued),
                 request,
             )
-        return await self._orchestrate_tool_calls_async(
+        resumed = await self._orchestrate_tool_calls_async(
             request,
             next_response,
             tools=available_tools,
@@ -1538,6 +2246,8 @@ class ModelRuntime:
             initial_results=all_results + round_results,
             start_round=round_index + 1,
         )
+        self._validate_final_response(request, resumed)
+        return resumed
 
     def _execute_runtime_tool_call(
         self,
@@ -1551,6 +2261,7 @@ class ModelRuntime:
     ) -> ToolResult:
         state = continuation_state or {
             "schema": "model_runtime_tool_v1",
+            "model_calls": capture_calls(),
             "provider": self.provider_name,
             "model": request.model,
             "round": round_index,
@@ -1559,7 +2270,7 @@ class ModelRuntime:
                 result.model_dump(exclude_none=True) for result in previous_results
             ],
         }
-        content = execute_legacy_tool_call(
+        result = _execute_legacy_tool_call_result(
             hitl_context=request.hitl_context,
             tool_call_id=tool_call.id,
             function_name=tool_call.name,
@@ -1567,7 +2278,9 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        return self._tool_result(tool_call, content)
+        bound_result = self._tool_result(tool_call, result)
+        self._checkpoint_resume_result(request, state, bound_result)
+        return bound_result
 
     async def _execute_runtime_tool_call_async(
         self,
@@ -1589,7 +2302,7 @@ class ModelRuntime:
                 result.model_dump(exclude_none=True) for result in previous_results
             ],
         }
-        content = await execute_legacy_tool_call_async(
+        result = await execute_legacy_tool_call_async(
             hitl_context=request.hitl_context,
             tool_call_id=tool_call.id,
             function_name=tool_call.name,
@@ -1597,19 +2310,117 @@ class ModelRuntime:
             available_tools=tools,
             continuation_state=state,
         )
-        if isinstance(content, ToolResult):
-            return content.model_copy(
-                update={"tool_call_id": tool_call.id, "name": tool_call.name}
-            )
-        return self._tool_result(tool_call, str(content))
+        bound_result = self._tool_result(tool_call, result)
+        self._checkpoint_resume_result(request, state, bound_result)
+        return bound_result
 
-    def _tool_result(self, tool_call: ToolCall, content: str) -> ToolResult:
-        return ToolResult(
-            tool_call_id=tool_call.id,
-            name=tool_call.name,
-            content=content,
-            is_error=content.startswith("Error:")
-            or content.startswith("Unknown function:"),
+    @staticmethod
+    def _restore_resume_checkpoint(
+        state: Dict[str, Any], intervention_id: str
+    ) -> Tuple[Dict[str, Any], bool]:
+        """Restore a newer round, preserving old states and additive fields."""
+        saved = state.get(RESUME_RESULTS_KEY)
+        if not isinstance(saved, dict) or "checkpoint" not in saved:
+            return state, False
+        if not intervention_id or saved.get("intervention_id") != intervention_id:
+            # Results belonging to a different decision cannot suppress this
+            # decision's execution, matching old per-round cache behavior.
+            return state, False
+        checkpoint = saved["checkpoint"]
+        if (
+            not isinstance(checkpoint, dict)
+            or checkpoint.get("schema") != "model_runtime_tool_v1"
+        ):
+            raise ProviderError("Runtime resume checkpoint state is invalid")
+        calls = checkpoint.get("round_calls")
+        results = checkpoint.get("round_results")
+        index = checkpoint.get("current_index")
+        if (
+            not isinstance(calls, list)
+            or not isinstance(results, list)
+            or type(index) is not int
+            or index < 0
+            or index > len(calls)
+            or len(results) != index
+        ):
+            raise ProviderError("Runtime resume checkpoint results are inconsistent")
+        for call, result in zip(calls[:index], results):
+            if (
+                not isinstance(call, dict)
+                or not isinstance(result, dict)
+                or result.get("tool_call_id") != call.get("id")
+                or result.get("name") != call.get("name")
+            ):
+                raise ProviderError(
+                    "Runtime resume checkpoint tool identity is invalid"
+                )
+        restored = dict(state)
+        restored.update(checkpoint)
+        return restored, True
+
+    def _checkpoint_resume_result(
+        self, request: ModelRequest, state: Dict[str, Any], result: ToolResult
+    ) -> None:
+        """Persist each completed resume tool before its provider continuation.
+
+        Saving a tool result cannot make an external effect and SQLite commit
+        atomic. It prevents replay after subsequent provider failures once this
+        commit succeeds, including failures in later tool rounds.
+        """
+        context = request.hitl_context or {}
+        decision = context.get("resume_intervention")
+        if not isinstance(decision, dict) or "round_calls" not in state:
+            return
+        run_id = str(context.get("run_id") or "")
+        intervention_id = str(decision.get("id") or "")
+        if not run_id or not intervention_id:
+            return
+        store = get_hitl_store(context.get("db_path"))
+        stored = store.get_suspended_run(run_id)
+        if stored is None or stored.status != "resuming":
+            # Standalone runtime callers historically need not claim a run.
+            # Durable replay protection belongs to the claimed Agent path.
+            return
+        if stored.state.get("intervention_id") != intervention_id:
+            raise ProviderError(
+                "Runtime resume checkpoint requires the claimed decision"
+            )
+        checkpoint = dict(state)
+        checkpoint["current_index"] = int(state["current_index"]) + 1
+        checkpoint["round_results"] = list(state.get("round_results") or []) + [
+            _json_safe(result.model_dump(exclude_none=True))
+        ]
+        # Re-read and copy the current state: preserve fields added by other
+        # runtime concerns, including metering, instead of a stale resume copy.
+        updated = dict(stored.state)
+        updated[RESUME_RESULTS_KEY] = {
+            "intervention_id": intervention_id,
+            "round_results": checkpoint["round_results"],
+            "checkpoint": checkpoint,
+        }
+        if not store.update_suspended_run_state(
+            run_id, updated, expected_status="resuming"
+        ):
+            raise ProviderError("Runtime resume checkpoint claim was lost")
+
+    def _tool_result(
+        self, tool_call: ToolCall, outcome: Union[ToolResult, str]
+    ) -> ToolResult:
+        """Bind a tool outcome to the model's call id and tool name."""
+        return tool_result(outcome, tool_call_id=tool_call.id, name=tool_call.name)
+
+    def _validate_final_response(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> None:
+        """Validate final content locally when the request asks for it."""
+        config = request.response_schema
+        if config is None or not config.validate_locally:
+            return
+        _validate_structured_content(
+            response.content,
+            config,
+            provider=response.provider or self.provider_name,
+            model=response.model or request.model,
         )
 
     def _runtime_continuation_state(
@@ -1626,6 +2437,7 @@ class ModelRuntime:
     ) -> Dict[str, Any]:
         return {
             "schema": "model_runtime_tool_v1",
+            "model_calls": capture_calls(),
             "provider": self.provider_name,
             "model": request.model,
             "round": round_index,
@@ -1694,7 +2506,15 @@ class ModelRuntime:
                 else None
             ),
             "finish_reason": response.finish_reason,
-            "metadata": _json_safe(response.metadata),
+            # Request accounting is stored once in the outer continuation
+            # state; copying it into the response duplicates every record.
+            "metadata": _json_safe(
+                {
+                    key: value
+                    for key, value in response.metadata.items()
+                    if key not in {"model_calls", "usage_complete"}
+                }
+            ),
         }
 
     def _restore_runtime_response(self, value: Any) -> ModelResponse:
@@ -1718,7 +2538,7 @@ class ModelRuntime:
             response.provider = self.provider_name
         if not response.model:
             response.model = request.model
-        return response
+        return complete_metered_response(response)
 
     def _tool_round_limit(self, request: ModelRequest) -> int:
         """Resolve the validated request override or typed agent default."""
@@ -1729,24 +2549,17 @@ class ModelRuntime:
             value = 8
         return int(value)
 
-    def _record_retry(self, attempt: int, error: BaseException) -> None:
-        fact = RetryObservation(
-            attempt=attempt,
-            operation="model.invoke",
-            reason_type=type(error).__name__,
-            backoff_ms=0,
+    def _record_retry(
+        self,
+        attempt: int,
+        error: BaseException,
+        *,
+        operation: str = "invoke",
+        backoff_seconds: float = 0.0,
+    ) -> None:
+        record_provider_retry(
+            attempt, error, operation=operation, backoff_seconds=backoff_seconds
         )
-        record_retry(fact)
-        span = trace.get_current_span()
-        if span.is_recording():
-            span.add_event(
-                "praval.retry",
-                {
-                    "praval.retry.attempt": attempt,
-                    "praval.retry.reason_type": type(error).__name__,
-                    "praval.retry.backoff_ms": 0.0,
-                },
-            )
 
     def _record_limit_reached(self, limit_name: str, limit: int) -> None:
         span = trace.get_current_span()
@@ -1765,28 +2578,27 @@ class ModelRuntime:
         *,
         tools: Optional[List[Dict[str, Any]]],
     ) -> ModelResponse:
-        with self._provider_span(request, "invoke"):
-            concrete_invoke = self._get_concrete_provider_method("invoke")
-            if concrete_invoke is not None:
-                try:
-                    response = concrete_invoke(request, tools=tools)
-                except TypeError:
-                    response = concrete_invoke(request)
-                if isinstance(response, ModelResponse):
-                    return response
-                return ModelResponse(content=str(response or ""), raw=response)
+        concrete_invoke = self._get_concrete_provider_method("invoke")
+        if concrete_invoke is not None:
+            try:
+                response = concrete_invoke(request, tools=tools)
+            except TypeError:
+                response = concrete_invoke(request)
+            if isinstance(response, ModelResponse):
+                return response
+            return ModelResponse(content=str(response or ""), raw=response)
 
-            response_text = self.provider.generate(
-                messages=[_safe_model_dump(message) for message in request.messages],
-                tools=tools,
-                hitl_context=request.hitl_context,
-            )
-            return ModelResponse(
-                content=str(response_text or ""),
-                provider=self.provider_name,
-                model=request.model,
-                raw=response_text,
-            )
+        response_text = self.provider.generate(
+            messages=[_safe_model_dump(message) for message in request.messages],
+            tools=tools,
+            hitl_context=request.hitl_context,
+        )
+        return ModelResponse(
+            content=str(response_text or ""),
+            provider=self.provider_name,
+            model=request.model,
+            raw=response_text,
+        )
 
     def _get_concrete_provider_method(self, name: str) -> Optional[Any]:
         method = getattr(type(self.provider), name, None)
