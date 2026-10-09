@@ -1,6 +1,6 @@
 # Praval 0.8.4
 
-Release candidate. Publication is on hold for owner review.
+Released October 9, 2026. Supports Python 3.10 through 3.14.
 
 This release strengthens model execution, provider continuation, request retries,
 conversation state and approval recovery. Usage metering and portable reasoning
@@ -78,51 +78,22 @@ retry, event and schema-validation changes. External schema `patternProperties`
 and nested dialect changes are rejected; ordinary external patterns have matching
 timeouts and size limits. Trusted response schemas retain existing semantics.
 
-Deterministic provider fixtures and integration matrices cover the supported entry
+Deterministic provider fixtures and integration matrices cover public entry
 points, dependent tools, retries, approval restart, Reef concurrency, observations
-and evaluation. Test counts, coverage and hashes belong in generated release
-evidence. These tests do not establish live-provider compatibility by themselves.
+and evaluation. Normal CI certifies the exact installed wheel, including offline
+and service-backed demos, documentation, reproducibility and supported Python
+versions. Generated release evidence records counts and artifact hashes.
 
-Live GPT-6 Luna checks passed automatic and explicit Responses routing, portable
-low reasoning and explicit Chat Completions with reasoning none. Each check
-completed three dependent tool executions across four metered requests. Ollama
-`qwen3.5:2b` also passed the dependent-tool check with discovered capabilities.
-Ollama's installed models and OpenRouter's public catalogue were read live.
-Those earlier checks used the editable 0.8.4 candidate. A subsequent validation
-pass used the downloaded release-branch CI wheel, verified its checksum and
-confirmed its packaged Python sources match the candidate. OpenAI GPT-5.4 Mini
-passed Chat Completions and Responses; GPT-6 Luna passed automatic Responses
-routing and low reasoning. Gemini `gemini-3.1-flash-lite` and Ollama
-`qwen3.5:2b`/`qwen3.5:9b` passed dependent integer/boolean tools with reconciled
-usage. The first 2B Ollama attempt exceeded the tool-round limit before an unchanged
-rerun passed; the initial failure remains recorded in the validation evidence.
+Live candidate checks exercised OpenAI GPT-5.4 Mini and GPT-6 Luna, Gemini
+Flash-Lite, Cohere v1 and v2, discovered Ollama models, and OpenRouter routes for
+OpenAI, Gemini and Anthropic Claude Haiku. These checks covered dependent tools
+and usage reconciliation. They do not establish compatibility with every model
+or account. Direct Anthropic inference was deferred because the account lacked
+credit; Gemini 3.5 continuation was blocked by account quota. Offline adapter
+contracts cover those paths, and the limitations remain recorded in validation
+evidence.
 
-Praval Code completed live file-tool tasks with GPT-6 Luna and Gemini Flash-Lite,
-including edit presentation data and independently verified generated tests.
-Praval Code's deterministic harness and PravalClaw's isolated suite also passed
-with the candidate wheel. These checks do not verify deployed connector delivery.
-New credentials enabled further checks. Gemini Flash-Lite passed again; Gemini
-3.5 Flash reached a tool call before its account quota blocked continuation.
-Anthropic reached the API but insufficient account credit blocked inference.
-The owner deferred its optional paid live check.
-Cohere exposed timeout and v1 declaration defects in the downloaded CI wheel.
-After fixing both, dependent tools and usage passed on v1 and v2 against a new
-local candidate wheel. Real-SDK offline contracts passed with both checked SDK
-versions. The initial CI artifact did not contain these Cohere fixes; the
-successful candidate artifact described below includes them. OpenRouter passed dependent tools on
-`openai/gpt-4.1-mini`, `anthropic/claude-haiku-4.5`, and low reasoning on
-`google/gemini-3.1-flash-lite`, with
-per-request usage and reported USD charges reconciled.
-An earlier corrected-candidate CI run failed an existing throttling test when
-its globally mocked clock was exhausted. The test now isolates the composition
-clock and retains its throttle assertions. The subsequent candidate CI run
-[37833138900](https://github.com/aiexplorations/praval/actions/runs/37833138900)
-passed all 16 checks at release head `294971e`, including exact-wheel documentation
-and service certification. Documentation review corrections require their own
-successful candidate CI before approval. The review corrected examples, streaming
-contracts, provider notes, approval commands and generated links. Its findings
-are in `evidence/v084-documentation-review.md`.
-See `evidence/v084-final-candidate-validation.json` for results,
-initial failed attempts, skipped checks and artifact provenance.
-Exact main-CI wheel certification remains a release gate.
-Publication follows RELEASE.md using only the wheel produced by successful main CI.
+Install the base package with `pip install praval==0.8.4`. Optional features use
+extras, for example `pip install "praval[mcp]==0.8.4"`; all extras share the same
+universal wheel. The GitHub release and PyPI use the wheel produced by successful
+main CI, as required by [RELEASE.md](../../RELEASE.md).
