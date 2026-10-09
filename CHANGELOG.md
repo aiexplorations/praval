@@ -7,37 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Included in the pending 0.8.4 release: documentation examples own and close
-  their clients, distinguish constructor configuration from call options, and
-  describe streaming validation and buffered tool execution accurately. Added
-  coding-agent guidance, corrected Cohere capability/schema notes and HITL CLI
-  examples, documented OpenRouter in the API, and repaired generated links.
-- Included in the pending 0.8.4 release: Cohere v1 requests send timeouts through
-  SDK `request_options`, avoiding a pre-request failure on initial and continued
-  tool calls. Offline contracts use the real SDK with a fake HTTP transport.
-- Included in the pending 0.8.4 release: Cohere v1 tools use native
-  `parameter_definitions` with Python types, required flags and descriptions.
-  Full JSON Schema constraints remain in the description and runtime validation;
-  v2 retains native JSON Schema. Models now receive their tool argument names.
-- Included in the pending 0.8.4 release: full JSON Schema tools registered
-  through `Agent.add_tool_spec` retain their parameters on Anthropic, Gemini
-  and Cohere. Gemini uses its native JSON Schema field; empty object schemas
-  are preserved by the runtime. Contract tests inspect every dependent request.
-- Included in the pending 0.8.4 release: service certification builds its
-  pinned MinIO source because the upstream binary image is unavailable.
-- Included in the pending 0.8.4 release: Agent cleanup no longer creates or
-  waits for the global Reef, avoiding a finalizer/thread-start deadlock.
-- Included in the pending 0.8.4 release: bounded parameter recovery, model
-  discovery, Anthropic caching/current profiles, Ollama capability/context
-  checks and Gemini availability guidance. Added OpenRouter with unified
-  reasoning, strict routing, catalogue metadata and charged-cost metering.
-- Included in the pending 0.8.4 release: OpenAI GPT-6 token limits, sampling
-  parameters, portable reasoning profiles and automatic Responses routing for
-  tool requests. Explicit Luna/Sol Chat Completions tools use reasoning `none`.
-
-## [0.8.4] - Unreleased
+## [0.8.4] - 2026-10-09
 
 ### Added
 
@@ -72,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Corrected client ownership in documentation examples, constructor and call
+  configuration, streaming validation, buffered tool execution, provider
+  capability notes, HITL commands and generated links. Added coding-agent guidance.
 - Fixed Anthropic and Cohere pre-request crashes and Gemini malformed tool
   declarations for tools registered with full JSON Schema, including MCP tools.
 - Fixed OpenAI GPT-6 compatibility on Chat Completions and Responses, including
